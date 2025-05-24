@@ -1,0 +1,78 @@
+// frontend/src/components/UserSelectionScreen.jsx
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAppContext } from '../contexts/AppContext';
+import { getFamilyMembers, setCurrentUserHeader } from '../services/api';
+import { motion } from 'framer-motion';
+
+const UserSelectionScreen = () => {
+  const { familyMembers, setFamilyMembers, setSelectedUser, selectedUser } = useAppContext();
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (selectedUser) { // If a user is already selected, go to dashboard
+        navigate('/');
+        return;
+    }
+
+    const fetchMembers = async () => {
+      try {
+        setIsLoading(true);
+        const response = await getFamilyMembers();
+        setFamilyMembers(response.data);
+        setError('');
+      } catch (err) {
+        setError('Failed to load family members.');
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchMembers();
+  }, [selectedUser, navigate, setFamilyMembers]);
+
+  const handleSelectUser = (member) => {
+    setSelectedUser(member);
+    setCurrentUserHeader(member.id); // Set header for subsequent API calls
+    navigate('/'); // Navigate to the main dashboard
+  };
+
+  if (isLoading) return <div className="text-center p-10">Loading family members...</div>;
+  if (error) return <div className="text-center p-10 text-red-500">{error}</div>;
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+      className="min-h-[calc(100vh-200px)] flex flex-col items-center justify-center p-4"
+    >
+      <div className="w-full max-w-2xl p-8 bg-white rounded-xl shadow-2xl text-center">
+        <h2 className="text-3xl font-bold text-gray-800 mb-8">Who are you?</h2>
+        {familyMembers.length === 0 && !isLoading && (
+          <p className="text-gray-600">No family members found. Please check the backend configuration.</p>
+        )}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 md:gap-6">
+          {familyMembers.map((member) => (
+            <motion.button
+              key={member.id}
+              onClick={() => handleSelectUser(member)}
+              className="p-4 md:p-6 bg-sky-500 hover:bg-sky-600 text-white rounded-lg shadow-md 
+                         focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-opacity-75
+                         transform hover:scale-105 transition-all duration-200 ease-in-out text-lg font-semibold"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              {/* You could add an avatar or icon here */}
+              {member.name}
+            </motion.button>
+          ))}
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+export default UserSelectionScreen;

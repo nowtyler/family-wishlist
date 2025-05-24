@@ -1,0 +1,63 @@
+# family-wishlist/docker-compose.yml
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: wishlist-backend
+    restart: unless-stopped
+    env_file:
+      - .env # Loads FAMILY_PASSWORD_HASH, DATABASE_URL etc.
+    volumes:
+      - ./data:/app/data  # Persistent storage for SQLite database
+      # For development, you might mount the code:
+      # - ./backend/app:/app/app
+    networks:
+      - frontend # Your Traefik network
+      - backend # Internal network for app communication
+    expose: # Expose port to internal network, Traefik will handle external
+      - "8000"
+    labels:
+      # Traefik labels for the backend API
+      - traefik.enable=true
+      - traefik.http.routers.wishlist-backend-api.rule=Host(`wishlist-api.ariahive.top`) && PathPrefix(`/api`)
+      - traefik.http.routers.wishlist-backend-api.entrypoints=websecure
+      - traefik.http.routers.wishlist-backend-api.tls.certresolver=authentik@file # Replace 'myresolver' with your Traefik cert resolver name
+      - traefik.http.services.wishlist-backend-api.loadbalancer.server.port=8000
+      # Middleware to strip the /api prefix before forwarding to the backend, if your backend doesn't expect /api
+      - traefik.http.routers.wishlist-backend-api.middlewares=api-stripprefix
+      - traefik.http.middlewares.api-stripprefix.stripprefix.prefixes=/api
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: wishlist-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - frontend
+    # No explicit port exposure needed if only Traefik accesses it
+    # expose:
+    #   - "80"
+    labels:
+      # Traefik labels for the frontend
+      - traefik.enable=true
+      - traefik.http.routers.wishlist-frontend.rule=Host(`wishlist.ariahive.top`)
+      - traefik.http.routers.wishlist-frontend.entrypoints=authentik@file
+      - traefik.http.services.wishlist-frontend.loadbalancer.server.port=80 # Nginx in frontend serves on port 80
+
+volumes:
+  data: # Defines the named volume for persistent data (SQLite DB)
+        # To map it to your preferred host path:
+    driver_opts:
+      type: none
+      device: /home/queen-bee/apps/family-wishlist/data # CHANGE THIS to your desired host path
+      o: bind
+
+networks:
+  frontend:
+    external: true # Assumes 'traefik_proxy' network already exists from your Traefik setup
+  backend:
+    external: true # Internal network for services to communicate if needed directly
