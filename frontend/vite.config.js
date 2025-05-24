@@ -10,7 +10,7 @@ export default defineConfig({
     proxy: {
       // Proxy API requests to the backend container
       '/api': {
-        target: 'http://backend:8000', // 'backend' is the service name in docker-compose
+        target: 'http://wishlist-backend:8000', // 'backend' is the service name in docker-compose
         changeOrigin: true,
         // secure: false, // If your backend is HTTP
         // rewrite: (path) => path.replace(/^\/api/, ''), // if backend doesn't have /api prefix

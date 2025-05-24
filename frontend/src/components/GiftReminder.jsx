@@ -1,5 +1,5 @@
 // frontend/src/components/GiftReminder.jsx
-import React from 'react';
+// import React from 'react';
 import { motion } from 'framer-motion';
 import { Gift } from 'lucide-react'; // npm install lucide-react
 

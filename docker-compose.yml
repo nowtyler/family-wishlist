@@ -9,7 +9,7 @@ services:
     env_file:
       - .env # Loads FAMILY_PASSWORD_HASH, DATABASE_URL etc.
     volumes:
-      - ./data:/app/data  # Persistent storage for SQLite database
+      - /home/queen-bee/apps/family-wishlist/data:/app/data  # Persistent storage for SQLite database
       # For development, you might mount the code:
       # - ./backend/app:/app/app
     networks:
@@ -18,13 +18,14 @@ services:
     expose: # Expose port to internal network, Traefik will handle external
       - "8000"
     labels:
-      # Traefik labels for the backend API
+      - com.centurylinklabs.watchtower.enable=true
       - traefik.enable=true
-      - traefik.http.routers.wishlist-backend-api.rule=Host(`wishlist-api.ariahive.top`) && PathPrefix(`/api`)
+      - traefik.constraint=proxy-public
+      - traefik.http.routers.wishlist-backend-api.tls=true
       - traefik.http.routers.wishlist-backend-api.entrypoints=websecure
-      - traefik.http.routers.wishlist-backend-api.tls.certresolver=authentik@file # Replace 'myresolver' with your Traefik cert resolver name
-      - traefik.http.services.wishlist-backend-api.loadbalancer.server.port=8000
-      # Middleware to strip the /api prefix before forwarding to the backend, if your backend doesn't expect /api
+#      - traefik.http.routers.wishlist-backend-api.middlewares=authentik@file
+      - traefik.http.routers.wishlist-backend-api.rule=Host(`wishlist-api.ariahive.top`) && PathPrefix(`/api`)
+      - traefik.http.services.wishlist-backend-api.loadbalancer.server.port=8080
       - traefik.http.routers.wishlist-backend-api.middlewares=api-stripprefix
       - traefik.http.middlewares.api-stripprefix.stripprefix.prefixes=/api
 
@@ -41,20 +42,18 @@ services:
     # No explicit port exposure needed if only Traefik accesses it
     # expose:
     #   - "80"
+    ports:
+      - "8888:80" # For local testing, maps to host port 8080
     labels:
       # Traefik labels for the frontend
+      - com.centurylinklabs.watchtower.enable=true
       - traefik.enable=true
+      - traefik.constraint=proxy-public
+      - traefik.http.routers.open-webui.tls=true
+      - traefik.http.routers.open-webui.entrypoints=websecure
+#      - traefik.http.routers.open-webui.middlewares=authentik@file
       - traefik.http.routers.wishlist-frontend.rule=Host(`wishlist.ariahive.top`)
-      - traefik.http.routers.wishlist-frontend.entrypoints=authentik@file
-      - traefik.http.services.wishlist-frontend.loadbalancer.server.port=80 # Nginx in frontend serves on port 80
-
-volumes:
-  data: # Defines the named volume for persistent data (SQLite DB)
-        # To map it to your preferred host path:
-    driver_opts:
-      type: none
-      device: /home/queen-bee/apps/family-wishlist/data # CHANGE THIS to your desired host path
-      o: bind
+      - traefik.http.services.open-webui.loadbalancer.server.port=80
 
 networks:
   frontend:

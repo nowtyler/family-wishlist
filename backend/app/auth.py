@@ -12,7 +12,7 @@ EXPECTED_HASH = os.getenv("FAMILY_PASSWORD_HASH")
 if not EXPECTED_HASH:
     print("WARNING: FAMILY_PASSWORD_HASH is not set in .env. Using a default insecure hash.")
     # This is an example hash for "password". REPLACE IT.
-    EXPECTED_HASH = "$2b$12$EixZaYVK1iH48hX623hSIeN8jM9XoPSn2YnDOsV6aO8LSjTUIPpDu"
+    EXPECTED_HASH = "$2b$12$F6SSFVZ8P1HtyGHCX7WlguVJPKYSsuWDaiENQ/awoyCdYG8bSk7f6"
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

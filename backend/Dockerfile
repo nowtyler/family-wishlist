@@ -1,5 +1,5 @@
 # backend/Dockerfile
-FROM python:3.13-slim-bookworm
+FROM python:3.12-slim-bookworm
 
 WORKDIR /app
 
@@ -12,6 +12,22 @@ ENV PYTHONUNBUFFERED 1
 
 # Copy requirements first to leverage Docker cache
 COPY requirements.txt .
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    python3-dev \
+    libffi-dev \
+    zlib1g-dev
+# Clean up apt cache
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+# Install Python dependencies
+# Using --no-cache-dir to avoid caching the packages in the image
+# This is useful for reducing the image size
+# and ensuring that the latest versions are installed
+# If you have a requirements.txt file, it should be in the same directory as this Dockerfil
+
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application code
