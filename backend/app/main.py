@@ -22,8 +22,8 @@ origins = [
     "http://localhost",      # Common for local dev
     "http://localhost:5173", # Default Vite dev server port
     "http://localhost:3000", # Common React dev port
-    f"https://{os.getenv('DOMAIN_URL', 'ariahive.top')}", # Your production domain
-    f"http://{os.getenv('DOMAIN_URL', 'ariahive.top')}",  # If you ever use HTTP (not recommended for Traefik)
+    f"https://wishlist.ariahive.top", # Your production domain
+    f"http://wishlist.ariahive.top",  # If you ever use HTTP (not recommended for Traefik)
 ]
 
 app.add_middleware(
