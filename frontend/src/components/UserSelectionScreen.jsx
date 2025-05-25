@@ -57,26 +57,29 @@ const UserSelectionScreen = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
-      className="min-h-[calc(100vh-200px)] flex flex-col items-center justify-center p-4"
+      className="min-h-[calc(100vh-200px)] flex flex-col items-center justify-center p-4 dark:bg-gray-900"
     >
-      <div className="w-full max-w-2xl p-8 bg-white rounded-xl shadow-2xl text-center">
-        <h2 className="text-3xl font-bold text-gray-800 mb-8">Who are you?</h2>
+      <div className="w-full max-w-2xl p-8 bg-white dark:bg-gray-800 rounded-xl shadow-2xl text-center">
+        <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-8">Who are you?</h2>
         {familyMembers.length === 0 && !isLoading && (
-          <p className="text-gray-600">No family members found. Please check the backend configuration.</p>
+          <p className="text-gray-600 dark:text-gray-400">No family members found. Please check the backend configuration.</p>
         )}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 md:gap-6">
           {familyMembers.map((member) => (
             <motion.button
               key={member.id}
               onClick={() => handleSelectUser(member)}
-              className="p-4 md:p-6 bg-sky-500 hover:bg-sky-600 text-white rounded-lg shadow-md 
-                         focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-opacity-75
-                         transform hover:scale-105 transition-all duration-200 ease-in-out text-lg font-semibold"
+              className={`p-4 md:p-6 ${
+                viewingMember?.id === member.id
+                  ? 'bg-primary text-white dark:bg-primary-600'
+                  : 'bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-white'
+              } rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-opacity-75
+                transform hover:scale-105 transition-all duration-200 ease-in-out text-lg font-semibold`}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              {/* You could add an avatar or icon here */}
               {member.name}
+              <p className="text-xs opacity-75">{member.wishlist_item_count} items</p>
             </motion.button>
           ))}
         </div>

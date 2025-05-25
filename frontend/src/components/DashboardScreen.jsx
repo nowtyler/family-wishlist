@@ -1,7 +1,7 @@
 // frontend/src/components/DashboardScreen.jsx
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../contexts/AppContext';
-import { getFamilyMembers, getWishlistItems, getUpcomingEvent, createWishlistItem } from '../services/api'; // Import createWishlistItem
+import { getFamilyMembers, getWishlistItems, getUpcomingEvent, createWishlistItem, deleteWishlistItem, toggleThinkingAbout } from '../services/api'; // Import deleteWishlistItem and toggleThinkingAbout
 import WishlistCard from './WishlistCard';
 import GiftReminder from './GiftReminder';
 import AddItemForm from './AddItemForm';
@@ -9,111 +9,112 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const DashboardScreen = () => {
   const { selectedUser, familyMembers, setFamilyMembers } = useAppContext();
-  const [viewingMember, setViewingMember] = useState(null);
+  const [viewingMember, setViewingMember] = useState(selectedUser); // Initialize with selectedUser
   const [wishlistItems, setWishlistItems] = useState([]);
-  const [isLoadingItems, setIsLoadingItems] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [upcomingEvent, setUpcomingEvent] = useState(null);
-  const [error, setError] = useState('');
   const [isAddingItem, setIsAddingItem] = useState(false); // State to control AddItemForm visibility
 
   console.log('Dashboard State:', { selectedUser, familyMembers, viewingMember }); // Debug log
 
-  // Fetch family members
+  // Replace the initialization effect with a more robust version
   useEffect(() => {
-    const fetchMembers = async () => {
-      if (familyMembers.length === 0) {
-        try {
-          const response = await getFamilyMembers();
-          setFamilyMembers(response.data);
-        } catch (err) {
-          console.error("Failed to fetch family members for dashboard:", err);
-          setError("Could not load family members.");
-        }
-      }
-    };
-    fetchMembers();
-  }, [familyMembers, setFamilyMembers]);
+    let mounted = true;
 
-  // Fetch upcoming event
-  useEffect(() => {
-    const fetchEvent = async () => {
+    const initializeDashboard = async () => {
+      if (!selectedUser?.id) return;
+      
+      setIsLoading(true);
+      setError(null);
+
       try {
-        const response = await getUpcomingEvent();
-        setUpcomingEvent(response.data);
+        // Load family members first if needed
+        if (familyMembers.length === 0) {
+          const membersResponse = await getFamilyMembers();
+          if (!mounted) return;
+          setFamilyMembers(membersResponse.data);
+        }
+
+        // Ensure viewingMember is set
+        if (!viewingMember) {
+          if (!mounted) return;
+          setViewingMember(selectedUser);
+        }
+
+        // Load items only if we have a valid viewingMember
+        if (viewingMember?.id) {
+          const [itemsResponse, eventResponse] = await Promise.all([
+            getWishlistItems(viewingMember.id),
+            getUpcomingEvent()
+          ]);
+          
+          if (!mounted) return;
+          setWishlistItems(itemsResponse.data || []);
+          setUpcomingEvent(eventResponse.data || null);
+        }
       } catch (err) {
-        console.error("Failed to fetch upcoming event:", err);
+        if (!mounted) return;
+        console.error('Dashboard initialization error:', err);
+        setError('Failed to load dashboard data. Please refresh the page.');
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
     };
-    fetchEvent();
-  }, []);
 
-  // Fetch wishlist items for the currently viewed member
-  useEffect(() => {
-    if (viewingMember && selectedUser) {
-      const fetchItems = async () => {
-        setIsLoadingItems(true);
-        setError('');
-        try {
-          const response = await getWishlistItems(viewingMember.id);
-          setWishlistItems(response.data);
-        } catch (err) {
-          console.error(`Failed to fetch wishlist items for ${viewingMember.name}:`, err);
-          setError(`Could not load ${viewingMember.name}'s wishlist.`);
-          setWishlistItems([]);
-        } finally {
-          setIsLoadingItems(false);
-        }
-      };
-      fetchItems();
-    }
-  }, [viewingMember, selectedUser]);
-
-  useEffect(() => {
-    if (!selectedUser) {
-      console.log('No selected user, should redirect');
-      return;
-    }
-
-    // Initialize viewing member if not set
-    if (!viewingMember) {
-      console.log('Setting initial viewing member:', selectedUser);
-      setViewingMember(selectedUser);
-    }
-  }, [selectedUser, viewingMember]);
+    initializeDashboard();
+    return () => { mounted = false; };
+  }, [selectedUser?.id, viewingMember?.id, familyMembers.length]);
 
   const handleSelectViewingMember = (member) => {
     setViewingMember(member);
     setIsAddingItem(false); // Close the add item form when viewing another member's list
   };
 
-  const refreshWishlistItems = async () => {
-    if (viewingMember && selectedUser) {
-      setIsLoadingItems(true);
-      try {
-        const response = await getWishlistItems(viewingMember.id);
-        setWishlistItems(response.data);
-      } catch (err) {
-        console.error("Error refreshing wishlist items:", err);
-        setError("Failed to refresh items.");
-      } finally {
-        setIsLoadingItems(false);
-      }
-    }
-  };
-
   const handleAddItem = async (newItem) => {
     if (viewingMember?.id === selectedUser?.id) {
       try {
+        setIsLoading(true);
         await createWishlistItem(viewingMember.id, newItem);
-        refreshWishlistItems();
-        setIsAddingItem(false); // Close the form after successful add
+        // Refresh items
+        const itemsResponse = await getWishlistItems(viewingMember.id);
+        setWishlistItems(itemsResponse.data || []);
+        // Refresh family members to update count
+        const membersResponse = await getFamilyMembers();
+        setFamilyMembers(membersResponse.data);
+        setIsAddingItem(false);
+        setError(null);
       } catch (error) {
         console.error("Error adding item:", error);
         setError("Failed to add item.");
+      } finally {
+        setIsLoading(false);
       }
     } else {
-      console.warn("Cannot add items to another user's wishlist.");
       setError("Cannot add items to another user's wishlist.");
+    }
+  };
+
+  // Add effect to refresh items when viewingMember changes
+  useEffect(() => {
+    if (viewingMember?.id) {
+      refreshWishlistItems();
+    }
+  }, [viewingMember?.id]);
+
+  // Update refreshWishlistItems to be more robust
+  const refreshWishlistItems = async () => {
+    if (!viewingMember?.id) return;
+    
+    try {
+      const response = await getWishlistItems(viewingMember.id);
+      setWishlistItems(response.data || []);
+      setError(null);
+    } catch (err) {
+      console.error("Error refreshing wishlist items:", err);
+      setError("Failed to refresh items.");
     }
   };
 
@@ -125,8 +126,49 @@ const DashboardScreen = () => {
     setIsAddingItem(false);
   };
 
+  const handleDeleteItem = async (itemId) => {
+    if (viewingMember?.id === selectedUser?.id) {
+      try {
+        await deleteWishlistItem(itemId);
+        refreshWishlistItems();
+        // Also refresh family members to update count
+        const membersResponse = await getFamilyMembers();
+        setFamilyMembers(membersResponse.data);
+      } catch (err) {
+        console.error("Error deleting item:", err);
+        setError("Failed to delete item.");
+      }
+    }
+  };
+
+  const handleThinkingAbout = async (itemId) => {
+    try {
+      await toggleThinkingAbout(itemId);
+      refreshWishlistItems();
+    } catch (err) {
+      console.error("Error toggling thinking about:", err);
+      setError("Failed to update thinking about status.");
+    }
+  };
+
+  // Early return for loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center p-10">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your wishlist...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!selectedUser) {
-    return <div className="text-center p-10">Please select a user.</div>;
+    return <div className="text-center p-10">No user selected. Please select a user.</div>;
+  }
+
+  if (error) {
+    return <div className="text-center p-10 text-red-500">{error}</div>;
   }
 
   return (
@@ -209,10 +251,12 @@ const DashboardScreen = () => {
         <WishlistCard
           member={viewingMember}
           items={wishlistItems}
-          isLoading={isLoadingItems}
+          isLoading={isLoading}
           isOwnWishlist={viewingMember.id === selectedUser.id}
           currentUserId={selectedUser.id}
           onUpdateItems={refreshWishlistItems}
+          onDeleteItem={handleDeleteItem}
+          onThinkingAbout={handleThinkingAbout}
         />
       )}
     </motion.div>

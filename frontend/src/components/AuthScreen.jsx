@@ -40,42 +40,42 @@ const AuthScreen = () => {
       transition={{ duration: 0.5 }}
       className="min-h-[calc(100vh-200px)] flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-sky-100 p-4"
     >
-      <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-xl shadow-2xl">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold tracking-tight text-gray-900">Welcome!</h1>
-          <p className="mt-2 text-lg text-gray-600">Please enter the family password.</p>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-8">
+          <div>
+            <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
+              Welcome to Family Wishlist
+            </h2>
+            <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+              Please enter the family password to continue
+            </p>
+          </div>
+          <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+            <div className="rounded-md shadow-sm -space-y-px">
+              <div>
+                <input
+                  type="password"
+                  required
+                  className="appearance-none rounded relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm dark:bg-gray-700"
+                  placeholder="Family Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+            </div>
+            {error && (
+              <div className="text-red-500 dark:text-red-400 text-sm text-center">{error}</div>
+            )}
+            <div>
+              <button
+                type="submit"
+                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+              >
+                Continue
+              </button>
+            </div>
+          </form>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label htmlFor="password" className="sr-only">Password</label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              className="input-field text-lg"
-              placeholder="Family Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-          {error && <p className="text-sm text-red-600 text-center">{error}</p>}
-          <div>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full btn btn-primary text-lg flex justify-center items-center disabled:opacity-50"
-            >
-              {isLoading ? (
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-              ) : 'Unlock'}
-            </button>
-          </div>
-        </form>
       </div>
     </motion.div>
   );

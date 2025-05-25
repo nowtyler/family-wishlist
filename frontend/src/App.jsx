@@ -1,15 +1,27 @@
 // frontend/src/App.jsx
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppProvider, useAppContext } from './contexts/AppContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import AuthScreen from './components/AuthScreen';
 import UserSelectionScreen from './components/UserSelectionScreen';
 import DashboardScreen from './components/DashboardScreen';
 import Navbar from './components/Navbar'; // We'll create this
 
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated } = useAppContext();
-  return isAuthenticated ? children : <Navigate to="/auth" replace />;
+  const { isAuthenticated, selectedUser } = useAppContext();
+  const location = useLocation();
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/auth" state={{ from: location }} replace />;
+  }
+  
+  // Special case for the dashboard
+  if (location.pathname === '/' && !selectedUser) {
+    return <Navigate to="/select-user" replace />;
+  }
+  
+  return children;
 };
 
 const AppContent = () => {
@@ -51,7 +63,9 @@ const AppContent = () => {
 
 const App = () => (
   <AppProvider>
-    <AppContent />
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   </AppProvider>
 );
 

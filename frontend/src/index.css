@@ -4,10 +4,9 @@
 @tailwind utilities;
 
 body {
-  font-family: 'Inter', sans-serif; /* Match Tailwind config */
+  font-family: 'Inter', sans-serif;
   @apply bg-gray-100 text-gray-800;
   margin: 0;
-  -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 

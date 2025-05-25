@@ -93,8 +93,17 @@ export const getWishlistItems = (ownerId) => {
   return apiClient.get(`/members/${ownerId}/items`);
 };
 
-export const createWishlistItem = (ownerId, itemData) => {
-  return apiClient.post(`/members/${ownerId}/items`, itemData);
+export const createWishlistItem = async (ownerId, itemData) => {
+  try {
+    console.log('Creating wishlist item:', { ownerId, itemData });
+    // No need to reformat here since it's already done in the form
+    const response = await apiClient.post(`/members/${ownerId}/items`, itemData);
+    console.log('Create item response:', response.data);
+    return response;
+  } catch (error) {
+    console.error('Failed to create item:', error?.response?.data || error);
+    throw error;
+  }
 };
 
 export const updateWishlistItem = (itemId, itemData) => {
