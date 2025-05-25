@@ -8,6 +8,11 @@ services:
     restart: unless-stopped
     env_file:
       - .env # Loads FAMILY_PASSWORD_HASH, DATABASE_URL etc.
+    environment:
+      - FAMILY_PASSWORD_HASH=${FAMILY_PASSWORD_HASH}
+      - PUID=${PUID} # User ID for file permissions
+      - PGID=${PGID} # Group ID for file permissions
+      - TZ=${TZ} # Timezone
     volumes:
       - /home/queen-bee/apps/family-wishlist/data:/app/data  # Storage for SQLite database
       # For development, you might mount the code:
@@ -20,7 +25,7 @@ services:
       - com.centurylinklabs.watchtower.enable=true
       - traefik.enable=true
       # Basic routing
-      - traefik.http.routers.wishlist-backend.rule=Host(`wishlist.ariahive.top`) && PathPrefix(`/api`)
+      - traefik.http.routers.wishlist-backend.rule=Host(`wishlist.${DOMAIN_NAME}`) && PathPrefix(`/api`)
       - traefik.http.routers.wishlist-backend.tls=true
       - traefik.http.routers.wishlist-backend.entrypoints=websecure
       - traefik.http.services.wishlist-backend.loadbalancer.server.port=8000

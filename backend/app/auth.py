@@ -21,14 +21,42 @@ load_dotenv()
 # It's CRITICAL that FAMILY_PASSWORD_HASH is set in your .env file.
 # If it's not set, this will raise a runtime error, preventing the application from starting.
 # For production, ensure this is set via environment variables.
-EXPECTED_HASH = os.getenv("FAMILY_PASSWORD_HASH")
-if not EXPECTED_HASH:
-    logger.error("FAMILY_PASSWORD_HASH is not set in environment variables")
-    raise RuntimeError(
-        "CRITICAL SECURITY ERROR: FAMILY_PASSWORD_HASH is not set in .env file. "
-        "Please run 'python app/auth.py your_password' to generate a secure hash "
-        "and set it in your .env file."
-    )
+EXPECTED_HASH = os.getenv("FAMILY_PASSWORD_HASH", "")
+if EXPECTED_HASH:
+    # Just strip quotes and whitespace, no escaping needed
+    EXPECTED_HASH = EXPECTED_HASH.strip().strip('"\'')
+    logger.debug(f"Loaded hash from env (first 20 chars): {EXPECTED_HASH[:20]}")
+else:
+    logger.error("FAMILY_PASSWORD_HASH is empty or not set")
+    raise RuntimeError("FAMILY_PASSWORD_HASH is not set in .env file")
+
+def validate_hash_format(hash_str: str) -> bool:
+    """Validate that the hash string is in the correct bcrypt format."""
+    if not hash_str:
+        logger.error("Hash string is empty")
+        return False
+    
+    # Strip quotes if present
+    hash_str = hash_str.strip('"\'')
+    logger.debug(f"Processing hash (first 20 chars): {hash_str[:20]}")
+    
+    # Basic format check
+    if not hash_str.startswith('$2'):
+        logger.error("Hash doesn't start with $2")
+        return False
+    
+    parts = hash_str.split('$')
+    logger.debug(f"Hash parts count: {len(parts)}")
+    
+    if len(parts) != 4:
+        logger.error(f"Invalid hash format - expected 4 parts, got {len(parts)}")
+        return False
+
+    return True
+
+if not validate_hash_format(EXPECTED_HASH):
+    logger.error(f"Invalid hash format detected: {EXPECTED_HASH[:20]}...")
+    raise RuntimeError("Invalid hash format in FAMILY_PASSWORD_HASH")
 
 logger.info(f"Loaded password hash: {EXPECTED_HASH[:20]}...")
 
@@ -42,6 +70,10 @@ def verify_password(plain_password: str) -> bool:
         return False
         
     try:
+        if not validate_hash_format(EXPECTED_HASH):
+            logger.error("Invalid hash format detected during verification")
+            return False
+
         logger.debug(f"Input password length: {len(plain_password)}")
         logger.debug(f"Stored hash: {EXPECTED_HASH}")
         logger.debug(f"Hash format check - starts with $2b$: {EXPECTED_HASH.startswith('$2b$')}")
