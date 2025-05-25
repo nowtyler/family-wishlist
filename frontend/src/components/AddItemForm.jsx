@@ -23,12 +23,6 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
     event.preventDefault();
     setError('');
 
-    // Validate required fields
-    if (!formData.title) {
-      setError('Title is required');
-      return;
-    }
-
     // Convert form data to API format
     const apiData = {
       ...formData,
@@ -36,7 +30,7 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
       link: formData.link || null,
       image_url: formData.image_url || null,
       description: formData.description || null,
-      price: formData.price ? Math.round(parseFloat(formData.price) * 100) : null  // Fix price conversion
+      price: formData.price ? Math.round(parseFloat(formData.price) * 100) : null  // Convert dollars to cents
     };
 
     try {
@@ -135,12 +129,7 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
             min="0"
             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             value={formData.price}
-            onChange={(e) => {
-              const value = e.target.value;
-              // Ensure we only keep 2 decimal places
-              const formatted = value ? parseFloat(value).toFixed(2) : '';
-              setFormData({ ...formData, price: formatted });
-            }}
+            onChange={(e) => setFormData({ ...formData, price: e.target.value })}
             placeholder="0.00"
           />
         </div>

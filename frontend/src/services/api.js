@@ -98,9 +98,9 @@ export const createWishlistItem = async (ownerId, itemData) => {
     console.log('Creating wishlist item:', { ownerId, itemData });
     const cleanData = {
       ...itemData,
-      price: itemData.price != null ? Math.round(Number(itemData.price) * 100) : null
+      price: itemData.price ? Math.round(parseFloat(itemData.price) * 100) : null  // Convert dollars to cents
     };
-    console.log('Sending data to API:', cleanData);  // Add this debug log
+    console.log('Sending data to API:', cleanData);
     const response = await apiClient.post(`/members/${ownerId}/items`, cleanData);
     console.log('Create item response:', response.data);
     return response;
@@ -113,16 +113,11 @@ export const createWishlistItem = async (ownerId, itemData) => {
 export const updateWishlistItem = async (itemId, itemData) => {
   try {
     console.log('Updating wishlist item:', { itemId, itemData });
-    // Clean up data before sending
     const cleanData = {
-      title: itemData.title,
-      description: itemData.description || null,
-      link: itemData.link || null,
-      image_url: itemData.image_url || null,
-      price: itemData.price != null ? Math.round(Number(itemData.price) * 100) : null,
-      priority: Number(itemData.priority)
+      ...itemData,
+      price: itemData.price ? Math.round(parseFloat(itemData.price) * 100) : null  // Convert dollars to cents
     };
-    console.log('Sending data to API:', cleanData);  // Add this debug log
+    console.log('Sending data to API:', cleanData);
     const response = await apiClient.put(`/items/${itemId}`, cleanData);
     console.log('Update response:', response.data);
     return response;

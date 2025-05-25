@@ -161,9 +161,9 @@ def update_wishlist_item(db: Session, item_id: int, item_update: schemas.Wishlis
         if hasattr(db_item, key):
             if key in ['link', 'image_url'] and value is not None:
                 setattr(db_item, key, str(value))
-            # Make sure price is set as an integer
+            # Make sure price is set as dollars (no conversion needed)
             elif key == 'price' and value is not None:
-                setattr(db_item, key, int(value))
+                setattr(db_item, key, float(value))
             else:
                 setattr(db_item, key, value)
     

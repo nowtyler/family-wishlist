@@ -22,12 +22,8 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
     e.stopPropagation();
     setEditingItemId(item.id);
     setEditForm({
-      title: item.title,
-      description: item.description || '',
-      link: item.link || '',
-      image_url: item.image_url || '',
-      priority: item.priority,
-      price: item.price ? (item.price / 100).toFixed(2) : ''  // Format price properly
+      ...item,
+      price: item.price ? (item.price / 100) : ''  // Convert cents to dollars for editing
     });
   };
 
@@ -53,7 +49,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
         link: editForm.link?.trim() || null,
         image_url: editForm.image_url?.trim() || null,
         priority: Number(editForm.priority),
-        price: editForm.price ? Math.round(parseFloat(editForm.price) * 100) : null  // Fix price conversion
+        price: editForm.price ? parseFloat(editForm.price) : null
       };
 
       await updateWishlistItem(itemId, updatedData);
@@ -268,7 +264,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
           type="number"
           step="0.01"
           min="0"
-          value={editForm.price || ''}
+          value={editForm.price}
           onChange={e => setEditForm({ ...editForm, price: e.target.value })}
           className="w-full px-2 py-1 border rounded dark:bg-gray-600 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary"
         />
@@ -330,28 +326,37 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                     </div>
                   ) : (
                     <>
-                      <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-2">{item.title}</h3>
-                      {isOwnWishlist && (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={(e) => handleEditClick(e, item)}
-                            className="text-blue-500 hover:text-blue-700 p-1"
-                            title="Edit item"
-                          >
-                            <Pencil size={16} />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDeleteItem(item.id);
-                            }}
-                            className="text-red-500 hover:text-red-700 p-1"
-                            title="Delete item"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      )}
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-2">{item.title}</h3>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {item.price !== null && (
+                          <span className="inline-flex text-sm font-medium px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 shrink-0">
+                            ${(item.price / 100).toFixed(2)}
+                          </span>
+                        )}
+                        {isOwnWishlist && (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={(e) => handleEditClick(e, item)}
+                              className="text-blue-500 hover:text-blue-700 p-1"
+                              title="Edit item"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteItem(item.id);
+                              }}
+                              className="text-red-500 hover:text-red-700 p-1"
+                              title="Delete item"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </>
                   )}
                 </div>
@@ -383,7 +388,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                       <div className="flex items-center gap-2 ml-auto shrink-0">
                         {item.price !== null && (
                           <span className="inline-flex text-sm font-medium px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 shrink-0">
-                            ${parseFloat(item.price / 100).toFixed(2)}
+                            ${(item.price / 100).toFixed(2)}
                           </span>
                         )}
                         {renderThinkingAbout(item)}
