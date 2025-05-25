@@ -136,7 +136,6 @@ def create_item_for_member(
         raise HTTPException(status_code=404, detail="Owner (family member) not found")
     
     created_item = crud.create_wishlist_item(db=db, item=item, owner_id=owner_id)
-    # Convert to schema, handling potential None for link/image_url
     return schemas.WishlistItem(
         id=created_item.id,
         title=created_item.title,
@@ -144,9 +143,10 @@ def create_item_for_member(
         link=str(created_item.link) if created_item.link else None,
         image_url=str(created_item.image_url) if created_item.image_url else None,
         priority=created_item.priority,
+        price=created_item.price,  # Make sure price is included
         owner_id=created_item.owner_id,
         is_purchased=created_item.is_purchased,
-        thinking_about_by_list=[], # New item won't have these
+        thinking_about_by_list=[],
         comments=[]
     )
 

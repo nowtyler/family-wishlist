@@ -30,6 +30,7 @@ class WishlistItem(Base):
     thinking_about_by = Column(String, nullable=True)
     comments = relationship("Comment", back_populates="item")
     purchased_by = Column(String, nullable=True)  # New column for who purchased the item
+    price = Column(Integer, nullable=True)  # Store price in cents
 
 class Comment(Base):
     __tablename__ = "comments"
@@ -47,6 +48,7 @@ class WishlistItemCreate(BaseModel):
     link: HttpUrl | None = None
     image_url: HttpUrl | None = None
     priority: int = 1
+    price: int | None = None  # Add price field
 
     def to_db_dict(self) -> dict:
         """Convert model to a database-friendly dictionary"""

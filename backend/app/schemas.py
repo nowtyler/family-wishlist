@@ -52,9 +52,10 @@ class WishlistItemBase(BaseModel):
     link: Optional[HttpUrl] = None
     image_url: Optional[HttpUrl] = None
     priority: int = 0
+    price: Optional[int] = None
 
 class WishlistItemCreate(WishlistItemBase):
-    pass # owner_id will be set based on the selected user context
+    pass
 
 class WishlistItemUpdate(WishlistItemBase):
     title: Optional[str] = None
@@ -62,6 +63,7 @@ class WishlistItemUpdate(WishlistItemBase):
     link: Optional[HttpUrl] = None
     image_url: Optional[HttpUrl] = None
     priority: Optional[int] = None
+    price: Optional[int] = None  # Make sure price is included
     is_purchased: Optional[bool] = None
     thinking_about_by: Optional[str] = None # Comma-separated list of names
 
@@ -72,6 +74,7 @@ class WishlistItem(WishlistItemBase):
     purchased_by: Optional[str] = None  # Add this field
     thinking_about_by_list: List[str] = []
     comments: List[Comment] = []
+    price: Optional[int] = None  # Make sure price is included in response
 
     class Config:
         from_attributes = True

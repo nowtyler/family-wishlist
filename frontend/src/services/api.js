@@ -96,8 +96,12 @@ export const getWishlistItems = (ownerId) => {
 export const createWishlistItem = async (ownerId, itemData) => {
   try {
     console.log('Creating wishlist item:', { ownerId, itemData });
-    // No need to reformat here since it's already done in the form
-    const response = await apiClient.post(`/members/${ownerId}/items`, itemData);
+    const cleanData = {
+      ...itemData,
+      price: itemData.price != null ? Math.round(Number(itemData.price) * 100) : null
+    };
+    console.log('Sending data to API:', cleanData);  // Add this debug log
+    const response = await apiClient.post(`/members/${ownerId}/items`, cleanData);
     console.log('Create item response:', response.data);
     return response;
   } catch (error) {
@@ -115,8 +119,10 @@ export const updateWishlistItem = async (itemId, itemData) => {
       description: itemData.description || null,
       link: itemData.link || null,
       image_url: itemData.image_url || null,
+      price: itemData.price != null ? Math.round(Number(itemData.price) * 100) : null,
       priority: Number(itemData.priority)
     };
+    console.log('Sending data to API:', cleanData);  // Add this debug log
     const response = await apiClient.put(`/items/${itemId}`, cleanData);
     console.log('Update response:', response.data);
     return response;

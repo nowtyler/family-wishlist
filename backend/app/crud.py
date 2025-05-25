@@ -114,6 +114,7 @@ def get_wishlist_items_by_owner(db: Session, owner_id: int, current_user_id: int
             link=str(item.link) if item.link else None,
             image_url=str(item.image_url) if item.image_url else None,
             priority=item.priority,
+            price=item.price,  # Make sure price is included
             owner_id=item.owner_id,
             is_purchased=effective_is_purchased,
             purchased_by=effective_purchased_by,
@@ -125,7 +126,14 @@ def get_wishlist_items_by_owner(db: Session, owner_id: int, current_user_id: int
 
 
 def create_wishlist_item(db: Session, item: schemas.WishlistItemCreate, owner_id: int) -> models.WishlistItem:
-    db_item = models.WishlistItem(**item.model_dump(), owner_id=owner_id)
+    item_data = item.model_dump()
+    # Convert URLs to strings if they exist
+    if item_data.get('link'):
+        item_data['link'] = str(item_data['link'])
+    if item_data.get('image_url'):
+        item_data['image_url'] = str(item_data['image_url'])
+    
+    db_item = models.WishlistItem(**item_data, owner_id=owner_id)
     db.add(db_item)
     db.commit()
     db.refresh(db_item)
@@ -153,6 +161,9 @@ def update_wishlist_item(db: Session, item_id: int, item_update: schemas.Wishlis
         if hasattr(db_item, key):
             if key in ['link', 'image_url'] and value is not None:
                 setattr(db_item, key, str(value))
+            # Make sure price is set as an integer
+            elif key == 'price' and value is not None:
+                setattr(db_item, key, int(value))
             else:
                 setattr(db_item, key, value)
     

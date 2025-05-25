@@ -26,7 +26,8 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
       description: item.description || '',
       link: item.link || '',
       image_url: item.image_url || '',
-      priority: item.priority
+      priority: item.priority,
+      price: item.price ? (item.price / 100).toFixed(2) : ''  // Convert cents to dollars for editing
     });
   };
 
@@ -51,7 +52,8 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
         description: editForm.description?.trim() || null,
         link: editForm.link?.trim() || null,
         image_url: editForm.image_url?.trim() || null,
-        priority: Number(editForm.priority)
+        priority: Number(editForm.priority),
+        price: editForm.price ? Math.round(Number(editForm.price) * 100) : null  // Convert dollars to cents
       };
 
       await updateWishlistItem(itemId, updatedData);
@@ -243,6 +245,17 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
         />
       </div>
       <div className="flex flex-col">
+        <label className="text-sm text-gray-600 dark:text-gray-400">Price</label>
+        <input
+          type="number"
+          step="0.01"
+          min="0"
+          value={editForm.price || ''}
+          onChange={e => setEditForm({ ...editForm, price: e.target.value })}
+          className="w-full px-2 py-1 border rounded dark:bg-gray-600 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary"
+        />
+      </div>
+      <div className="flex flex-col">
         <label className="text-sm text-gray-600 dark:text-gray-400">Priority</label>
         <select
           value={editForm.priority}
@@ -346,6 +359,11 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                 <div className="flex items-center flex-wrap gap-1 mt-2">
                   {!editingItemId && (
                     <>
+                      {item.price !== null && (
+                        <span className="inline-flex text-sm font-medium px-2 py-0.5 rounded mr-1 bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                          ${(item.price / 100).toFixed(2)}
+                        </span>
+                      )}
                       <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded mr-1 ${
                         item.priority === 2 ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200' :
                         item.priority === 1 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-200' :
@@ -415,6 +433,14 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                   <span>View Item</span>
                 </a>
               )}
+
+              <div className="flex flex-col space-y-4">
+                {selectedItem.price !== null && (
+                  <p className="text-lg font-semibold text-gray-700 dark:text-gray-300">
+                    Price: ${(selectedItem.price / 100).toFixed(2)}
+                  </p>
+                )}
+              </div>
             </motion.div>
           </motion.div>
         </AnimatePresence>
