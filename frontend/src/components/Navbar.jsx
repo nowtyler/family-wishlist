@@ -1,15 +1,32 @@
 // frontend/src/components/Navbar.jsx
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
-import { Sun, Moon, Menu, X } from 'lucide-react';
+import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { getSystemVersion, updateSystemVersion } from '../services/api';
 
 const Navbar = () => {
   const { selectedUser, logout, setSelectedUser } = useAppContext();
   const { darkMode, toggleDarkMode } = useTheme();
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [version, setVersion] = useState('');
+  const [isEditingVersion, setIsEditingVersion] = useState(false);
+  const [newVersion, setNewVersion] = useState('');
+  const isAdmin = selectedUser?.name?.toLowerCase() === 'admin';
+
+  useEffect(() => {
+    const loadVersion = async () => {
+      try {
+        const response = await getSystemVersion();
+        setVersion(response.data.version);
+      } catch (err) {
+        console.error('Failed to load version:', err);
+      }
+    };
+    loadVersion();
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -23,16 +40,60 @@ const Navbar = () => {
     navigate('/select-user');
   };
 
+  const handleUpdateVersion = async () => {
+    try {
+      const response = await updateSystemVersion(newVersion);
+      setVersion(response.data.version);
+      setIsEditingVersion(false);
+    } catch (err) {
+      console.error('Failed to update version:', err);
+    }
+  };
+
   return (
     <nav className="bg-white dark:bg-gray-800 shadow-md sticky top-0 z-50">
       <div className="container mx-auto px-6 py-3">
         <div className="flex justify-between items-center">
-          {/* Logo/Title - always visible */}
-          <h1 className="text-2xl font-bold">
-            <span className="bg-gradient-to-r from-sky-500 to-indigo-500 dark:from-sky-400 dark:to-indigo-400 bg-clip-text text-transparent">
-              Family Wishlist
-            </span>
-          </h1>
+          <div className="flex items-center">
+            <h1 className="text-2xl font-bold">
+              <span className="bg-gradient-to-r from-sky-500 to-indigo-500 dark:from-sky-400 dark:to-indigo-400 bg-clip-text text-transparent">
+                Family Wishlist
+              </span>
+            </h1>
+            <div className="ml-2 flex items-center text-sm text-gray-500 dark:text-gray-400">
+              {isEditingVersion && isAdmin ? (
+                <div className="flex items-center space-x-1">
+                  <input
+                    type="text"
+                    value={newVersion}
+                    onChange={(e) => setNewVersion(e.target.value)}
+                    className="w-20 px-1 py-0.5 text-xs border rounded"
+                  />
+                  <button onClick={handleUpdateVersion} className="text-green-500 hover:text-green-600">
+                    <Check size={14} />
+                  </button>
+                  <button onClick={() => setIsEditingVersion(false)} className="text-red-500 hover:text-red-600">
+                    <XIcon size={14} />
+                  </button>
+                </div>
+              ) : (
+                <span className="flex items-center">
+                  v{version}
+                  {isAdmin && (
+                    <button
+                      onClick={() => {
+                        setNewVersion(version);
+                        setIsEditingVersion(true);
+                      }}
+                      className="ml-1 text-gray-400 hover:text-gray-600"
+                    >
+                      <Pencil size={12} />
+                    </button>
+                  )}
+                </span>
+              )}
+            </div>
+          </div>
 
           {/* Desktop Menu */}
           <div className="hidden md:flex items-center space-x-4">

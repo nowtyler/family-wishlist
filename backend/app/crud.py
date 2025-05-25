@@ -16,7 +16,11 @@ def get_family_members(db: Session, skip: int = 0, limit: int = 100) -> List[mod
     return db.query(models.FamilyMember).offset(skip).limit(limit).all()
 
 def create_family_member(db: Session, member: schemas.FamilyMemberCreate) -> models.FamilyMember:
-    db_member = models.FamilyMember(name=member.name, birthday=member.birthday)
+    db_member = models.FamilyMember(
+        name=member.name,
+        birthday=member.birthday,
+        is_admin=member.is_admin
+    )
     db.add(db_member)
     db.commit()
     db.refresh(db_member)
@@ -49,6 +53,7 @@ def initialize_family_members(db: Session):
 
             if birthday_str == "admin":
                 is_admin = True
+                print(f"Creating admin user: {name}")
             elif birthday_str:
                 try:
                     birthday = datetime.strptime(birthday_str, "%Y-%m-%d").date()
@@ -245,16 +250,15 @@ def get_next_gift_event() -> Optional[schemas.GiftEvent]:
 
     today = date.today()
     current_year = today.year
-
     events = []
 
     # Add Christmas
     christmas_this_year = date(current_year, christmas_month, christmas_day)
     if christmas_this_year >= today:
         events.append({"name": "Christmas", "date": christmas_this_year})
-    else: # Christmas next year
+    else:  # Birthday next year
         events.append({"name": "Christmas", "date": date(current_year + 1, christmas_month, christmas_day)})
-    
+
     # Add Birthdays
     member_configs = family_members_str.split(',')
     for config_str in member_configs:
@@ -284,3 +288,39 @@ def get_next_gift_event() -> Optional[schemas.GiftEvent]:
     days_until = (next_event_date - today).days
 
     return schemas.GiftEvent(name=next_event_name, date=next_event_date, days_until=days_until)
+
+# --- System Settings CRUD ---
+def get_system_version(db: Session) -> str:
+    try:
+        settings = db.query(models.SystemSettings).first()
+        if not settings:
+            settings = models.SystemSettings()
+            db.add(settings)
+            db.commit()
+        return settings.version
+    except Exception as e:
+        print(f"Error getting system version: {e}")
+        return "1.0.0"  # Fallback version
+
+def update_system_version(db: Session, new_version: str, user_id: int) -> Optional[str]:
+    try:
+        user = get_family_member(db, user_id)
+        # Debug log
+        print(f"Updating version - User: {user.name if user else 'None'}, is_admin: {user.is_admin if user else False}")
+    
+        if not user or not user.is_admin:
+            return None
+
+        settings = db.query(models.SystemSettings).first()
+        if not settings:
+            settings = models.SystemSettings(version=new_version)
+            db.add(settings)
+        else:
+            settings.version = new_version
+            settings.last_updated = date.today()
+        db.commit()
+        return settings.version
+    except Exception as e:
+        print(f"Error updating system version: {e}")
+        db.rollback()
+        return None

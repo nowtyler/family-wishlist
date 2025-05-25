@@ -156,4 +156,22 @@ export const getUpcomingEvent = () => {
   return apiClient.get('/upcoming-event');
 };
 
+// --- Version Management ---
+export const getSystemVersion = () => {
+  return apiClient.get('/system/version');
+};
+
+export const updateSystemVersion = (version) => {
+  return apiClient.put('/system/version', { version });
+};
+
+// Ensure all requests have user context
+apiClient.interceptors.request.use((config) => {
+  const userId = localStorage.getItem('currentUserId');
+  if (userId) {
+    config.headers['X-Current-User-Id'] = userId;
+  }
+  return config;
+});
+
 export default apiClient;

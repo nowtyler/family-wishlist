@@ -1,6 +1,7 @@
 # backend/app/models.py
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text, Date
 from sqlalchemy.orm import relationship
+from datetime import date, datetime
 from .database import Base
 from pydantic import BaseModel, HttpUrl
 
@@ -56,3 +57,9 @@ class WishlistItemCreate(BaseModel):
         if data.get('image_url'):
             data['image_url'] = str(data['image_url'])
         return data
+
+class SystemSettings(Base):
+    __tablename__ = "system_settings"
+    id = Column(Integer, primary_key=True)
+    version = Column(String, default="1.0.0")
+    last_updated = Column(Date, default=date.today)

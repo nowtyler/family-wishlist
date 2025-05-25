@@ -15,6 +15,7 @@ class PasswordVerificationResponse(BaseModel):
 class FamilyMemberBase(BaseModel):
     name: str
     birthday: Optional[date] = None
+    is_admin: bool = False
 
 class FamilyMemberCreate(FamilyMemberBase):
     pass

@@ -7,6 +7,7 @@ from typing import List, Optional, Dict
 import logging
 import traceback
 from datetime import datetime
+from pydantic import BaseModel
 
 from . import crud, models, schemas, auth, database
 from .database import engine, create_db_and_tables, get_db, SessionLocal
@@ -299,6 +300,35 @@ def get_upcoming_gift_event():
         display_text = f"is in {event.days_until} days ({event.date.strftime('%b %d')})"
 
     return schemas.UpcomingEventResponse(event_name=event.name, display_text=display_text)
+
+
+# --- Version Management ---
+class VersionUpdate(BaseModel):
+    version: str
+
+@app.get("/api/system/version")
+def get_version(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    try:
+        return {"version": crud.get_system_version(db)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/system/version")
+def update_version(
+    version_update: VersionUpdate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    user = crud.get_family_member(db, current_user_id)
+    print(f"Version update request from user: {user.name if user else 'None'}, id: {current_user_id}, is_admin: {user.is_admin if user else False}")
+    
+    new_version = crud.update_system_version(db, version_update.version, current_user_id)
+    if not new_version:
+        raise HTTPException(status_code=403, detail="Only admin can update version")
+    return {"version": new_version}
 
 
 # More explicit health check
