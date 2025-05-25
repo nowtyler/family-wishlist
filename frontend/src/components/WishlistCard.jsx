@@ -92,7 +92,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
             e.stopPropagation();
             onThinkingAbout(item.id);
           }}
-          className={`flex items-center gap-1 text-sm px-2 py-0.5 rounded-full transition-all duration-300 ${
+          className={`flex items-center gap-1 text-sm px-2 py-0.5 rounded-full transition-all duration-300 min-w-[70px] min-h-[26px] justify-center ${
             isThinking
               ? 'bg-pink-500 text-white hover:bg-pink-600'
               : 'text-pink-500 hover:bg-pink-50 dark:hover:bg-pink-900/20'
@@ -151,7 +151,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
             e.stopPropagation();
             onMarkPurchased(item.id);
           }}
-          className={`flex items-center gap-1 text-sm px-2 py-0.5 rounded-full transition-all duration-300 ${
+          className={`flex items-center gap-1 text-sm px-2 py-0.5 rounded-full transition-all duration-300 min-w-[70px] min-h-[26px] justify-center ${
             isPurchased
               ? 'bg-green-500 text-white hover:bg-green-600'
               : 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
@@ -381,7 +381,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                       <div className="flex items-center gap-2">
                         {renderPriorityIcon(item.priority)}
                       </div>
-                      <div className="flex items-center gap-2 ml-auto shrink-0">
+                      <div className="flex items-center justify-end gap-2 ml-auto shrink-0 min-w-[150px]">
                         {renderThinkingAbout(item)}
                         {renderPurchaseButton(item)}
                       </div>
