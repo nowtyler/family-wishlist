@@ -1,7 +1,7 @@
 // WishlistCard.jsx
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, ExternalLink, Heart, Pencil, Check, X, Gift, ChevronDown } from 'lucide-react';
+import { Trash2, ExternalLink, Heart, Pencil, Check, X, ShoppingCart, ChevronDown } from 'lucide-react';
 import { updateWishlistItem } from '../services/api';
 
 function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, onUpdateItems, onDeleteItem, onThinkingAbout, onMarkPurchased }) {
@@ -105,10 +105,9 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
           }`}
         >
           <Heart
-            size={14}
+            size={16}
             className={`${isThinking ? 'fill-current' : ''} transition-all duration-300`}
           />
-          <span>Interest</span>
           {thinkingCount > 0 && (
             <button
               onClick={(e) => {
@@ -164,11 +163,10 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
               : 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
           }`}
         >
-          <Gift
-            size={14}
+          <ShoppingCart
+            size={16}
             className={`${isPurchased ? 'fill-current' : ''} transition-all duration-300`}
           />
-          <span>{isPurchased ? 'Purchased' : 'Purchase'}</span>
           {item.purchased_by && (
             <button
               onClick={(e) => {
