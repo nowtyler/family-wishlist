@@ -9,6 +9,7 @@ class FamilyMember(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True, nullable=False)
     birthday = Column(Date, nullable=True) # YYYY-MM-DD
+    is_admin = Column(Boolean, default=False)  # Add this line
 
     wishlist_items = relationship("WishlistItem", back_populates="owner")
 

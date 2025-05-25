@@ -65,22 +65,24 @@ const UserSelectionScreen = () => {
           <p className="text-gray-600 dark:text-gray-400">No family members found. Please check the backend configuration.</p>
         )}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 md:gap-6">
-          {familyMembers.map((member) => (
-            <motion.button
-              key={member.id}
-              onClick={() => handleSelectUser(member)}
-              className={`p-4 md:p-6 ${
-                selectedUser?.id === member.id
-                  ? 'bg-primary text-white dark:bg-primary-600'
-                  : 'bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-white'
-              } rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-opacity-75
-                transform hover:scale-105 transition-all duration-200 ease-in-out text-lg font-semibold`}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              {member.name}
-              <p className="text-xs opacity-75">{member.wishlist_item_count} items</p>
-            </motion.button>
+          {familyMembers
+            .filter(member => !member.name.toLowerCase().includes('admin'))
+            .map((member) => (
+              <motion.button
+                key={member.id}
+                onClick={() => handleSelectUser(member)}
+                className={`p-4 md:p-6 ${
+                  selectedUser?.id === member.id
+                    ? 'bg-primary text-white dark:bg-primary-600'
+                    : 'bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-white'
+                } rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-opacity-75
+                  transform hover:scale-105 transition-all duration-200 ease-in-out text-lg font-semibold`}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                {member.name}
+                <p className="text-xs opacity-75">{member.wishlist_item_count} items</p>
+              </motion.button>
           ))}
         </div>
         

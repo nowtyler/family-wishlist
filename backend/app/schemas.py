@@ -22,6 +22,7 @@ class FamilyMemberCreate(FamilyMemberBase):
 class FamilyMember(FamilyMemberBase):
     id: int
     wishlist_item_count: int = 0 # For summary card
+    is_admin: bool = False  # Add this line
 
     class Config:
         from_attributes = True # Changed from orm_mode for Pydantic v2

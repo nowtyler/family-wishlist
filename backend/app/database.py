@@ -13,19 +13,9 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 def create_db_and_tables():
-    inspector = inspect(engine)
-    
-    # Create all tables that don't exist
+    Base.metadata.drop_all(bind=engine)  # Temporarily drop all tables
     Base.metadata.create_all(bind=engine)
-    
-    # Add missing columns to existing tables
-    with engine.connect() as conn:
-        if 'wishlist_items' in inspector.get_table_names():
-            existing_columns = [col['name'] for col in inspector.get_columns('wishlist_items')]
-            if 'purchased_by' not in existing_columns:
-                print("Adding purchased_by column to wishlist_items table...")
-                conn.execute(text('ALTER TABLE wishlist_items ADD COLUMN purchased_by VARCHAR'))
-                conn.commit()
+    print("Database tables created/updated")
 
 def get_db():
     db = SessionLocal()

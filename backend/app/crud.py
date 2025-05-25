@@ -38,14 +38,22 @@ def initialize_family_members(db: Session):
         existing_member = get_family_member_by_name(db, name)
         if not existing_member:
             birthday = None
-            if birthday_str:
+            is_admin = False
+
+            if birthday_str == "admin":
+                is_admin = True
+            elif birthday_str:
                 try:
                     birthday = datetime.strptime(birthday_str, "%Y-%m-%d").date()
                 except ValueError:
                     print(f"Warning: Could not parse birthday for {name}: {birthday_str}")
             
-            create_family_member(db, schemas.FamilyMemberCreate(name=name, birthday=birthday))
-            print(f"Created family member: {name}")
+            create_family_member(db, schemas.FamilyMemberCreate(
+                name=name,
+                birthday=birthday,
+                is_admin=is_admin
+            ))
+            print(f"Created {'admin' if is_admin else 'family'} member: {name}")
 
 
 # --- Wishlist Item CRUD ---
@@ -206,16 +214,22 @@ def delete_wishlist_item(db: Session, item_id: int, requesting_user_id: int) -> 
 # --- Comment CRUD ---
 def create_comment(db: Session, item_id: int, comment: schemas.CommentCreate, author_id: int) -> models.Comment:
     db_item = db.query(models.WishlistItem).filter(models.WishlistItem.id == item_id).first()
-    if not db_item or db_item.owner_id == author_id: # Cannot comment on your own item
+    if not db_item or db_item.owner_id == author_id:  # Cannot comment on your own item
         raise ValueError("Cannot comment on own item or item does not exist")
 
     db_comment = models.Comment(**comment.model_dump(), item_id=item_id, author_id=author_id)
-    # We need to add created_at if it's part of the model
-    # if hasattr(db_comment, 'created_at'): db_comment.created_at = datetime.utcnow()
     db.add(db_comment)
     db.commit()
     db.refresh(db_comment)
     return db_comment
+
+def delete_comment(db: Session, comment_id: int, author_id: int) -> bool:
+    db_comment = db.query(models.Comment).filter(models.Comment.id == comment_id).first()
+    if db_comment and db_comment.author_id == author_id:
+        db.delete(db_comment)
+        db.commit()
+        return True
+    return False
 
 # --- Gift Reminder Logic ---
 def get_next_gift_event() -> Optional[schemas.GiftEvent]:
@@ -228,6 +242,7 @@ def get_next_gift_event() -> Optional[schemas.GiftEvent]:
 
     today = date.today()
     current_year = today.year
+
     events = []
 
     # Add Christmas
@@ -243,10 +258,12 @@ def get_next_gift_event() -> Optional[schemas.GiftEvent]:
         parts = config_str.strip().split(':')
         name = parts[0]
         birthday_str = parts[1] if len(parts) > 1 else None
-        if birthday_str:
+
+        if birthday_str and birthday_str != "admin":  # Skip admin entries
             try:
                 birth_month, birth_day = map(int, birthday_str.split('-')[1:]) # Assuming YYYY-MM-DD format, take MM-DD
                 birthday_this_year = date(current_year, birth_month, birth_day)
+                
                 if birthday_this_year >= today:
                     events.append({"name": f"{name}'s Birthday", "date": birthday_this_year})
                 else: # Birthday next year
@@ -255,10 +272,10 @@ def get_next_gift_event() -> Optional[schemas.GiftEvent]:
                 print(f"Could not parse birthday for reminder: {name} - {birthday_str}")
                 continue # Skip malformed entries
 
+    # Find the soonest event
     if not events:
         return None
-
-    # Find the soonest event
+    
     events.sort(key=lambda x: x["date"])
     next_event_date = events[0]["date"]
     next_event_name = events[0]["name"]
