@@ -209,28 +209,24 @@ def toggle_thinking_about_item(
          raise HTTPException(status_code=500, detail="Failed to reconstruct item view after toggling 'thinking about'.")
     return updated_item_schema
 
-@app.patch("/api/items/{item_id}/mark-purchased", response_model=schemas.WishlistItem)
-def mark_item_as_purchased(
+@app.patch("/api/items/{item_id}/toggle-purchased", response_model=schemas.WishlistItem)
+def toggle_item_purchased(
     item_id: int,
-    payload: Dict[str, bool], # Expect {"purchased": true/false}
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id_from_header)
 ):
     if current_user_id is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required.")
     
-    purchased_status = payload.get("purchased", False)
-    updated_item_model = crud.mark_item_purchased(db, item_id, purchased_status, current_user_id)
-
+    updated_item_model = crud.toggle_item_purchased(db, item_id, current_user_id)
     if not updated_item_model:
         raise HTTPException(status_code=404, detail="Item not found or operation not allowed.")
 
     reloaded_items = crud.get_wishlist_items_by_owner(db, owner_id=updated_item_model.owner_id, current_user_id=current_user_id)
     updated_item_schema = next((i for i in reloaded_items if i.id == item_id), None)
     if not updated_item_schema:
-         raise HTTPException(status_code=500, detail="Failed to reconstruct item view after marking purchased.")
+         raise HTTPException(status_code=500, detail="Failed to reconstruct item view after toggling purchase status.")
     return updated_item_schema
-
 
 @app.delete("/api/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_item(

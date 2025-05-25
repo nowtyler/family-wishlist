@@ -136,11 +136,10 @@ export const toggleThinkingAbout = (itemId) => {
 
 export const markPurchased = async (itemId) => {
   try {
-    return await apiClient.patch(`/items/${itemId}/mark-purchased`, {
-      purchased: true,
-    });
+    // Change to just toggle like the thinking_about endpoint
+    return await apiClient.patch(`/items/${itemId}/toggle-purchased`);
   } catch (error) {
-    console.error('Failed to mark item as purchased:', error?.response?.data || error);
+    console.error('Failed to toggle purchase status:', error?.response?.data || error);
     throw error;
   }
 };

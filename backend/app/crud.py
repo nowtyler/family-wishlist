@@ -169,18 +169,25 @@ def toggle_thinking_about(db: Session, item_id: int, user_id: int) -> Optional[m
     return db_item
 
 
-def mark_item_purchased(db: Session, item_id: int, purchased: bool, user_id: int) -> Optional[models.WishlistItem]:
+def toggle_item_purchased(db: Session, item_id: int, user_id: int) -> Optional[models.WishlistItem]:
     db_item = db.query(models.WishlistItem).filter(models.WishlistItem.id == item_id).first()
     user = get_family_member(db, user_id)
-    if not db_item or db_item.owner_id == user_id: # Owner cannot mark their own items as purchased
+    if not db_item or not user or db_item.owner_id == user_id: # Owner cannot mark their own items
         return None
-    
-    db_item.is_purchased = purchased
-    if purchased:
-        db_item.purchased_by = user.name
+
+    # If item is already purchased by this user, unpurchase it
+    # If item is purchased by someone else, do nothing (return None)
+    # If item is not purchased, mark it as purchased by this user
+    if db_item.is_purchased:
+        if db_item.purchased_by == user.name:
+            db_item.is_purchased = False
+            db_item.purchased_by = None
+        else:
+            return None  # Can't toggle if someone else purchased
     else:
-        db_item.purchased_by = None
-        
+        db_item.is_purchased = True
+        db_item.purchased_by = user.name
+    
     db.commit()
     db.refresh(db_item)
     return db_item
