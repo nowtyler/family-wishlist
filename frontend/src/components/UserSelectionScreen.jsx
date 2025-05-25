@@ -42,7 +42,9 @@ const UserSelectionScreen = () => {
       setSelectedUser(member);
       setCurrentUserHeader(member.id);
       console.log('User set, navigating to dashboard');
-      navigate('/');
+      // If this is the admin user, navigate to admin dashboard
+      const isAdmin = member.name.toLowerCase() === 'admin';
+      navigate(isAdmin ? '/' : '/');  // Both go to dashboard now, but we keep the logic for future admin features
     } catch (err) {
       console.error('Error selecting user:', err);
       setError('Failed to select user.');
@@ -86,10 +88,10 @@ const UserSelectionScreen = () => {
           ))}
         </div>
         
-        {/* Admin Section */}
+        {/* Admin Access - Just another user selection option */}
         <div className="mt-12 pt-4 border-t border-gray-200 dark:border-gray-700">
           <button
-            onClick={() => navigate('/admin')}
+            onClick={() => handleSelectUser(familyMembers.find(m => m.name.toLowerCase() === 'admin'))}
             className="text-xs text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary-300 transition-colors"
           >
             Admin Access

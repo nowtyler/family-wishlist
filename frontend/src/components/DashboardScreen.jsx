@@ -207,19 +207,20 @@ const DashboardScreen = () => {
       <div className="mb-8">
         <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-3">Browse Wishlists:</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {familyMembers.map(member => (
-            <motion.button
-              key={member.id}
-              onClick={() => handleSelectViewingMember(member)}
-              className={`p-4 rounded-lg shadow-md transition-all duration-200 ease-in-out
-                ${viewingMember?.id === member.id
-                  ? 'bg-primary text-white dark:bg-primary-600'
-                  : 'bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-white'}`}
-              whileHover={{ y: -3 }}
-            >
-              <p className="font-semibold text-lg">{member.name}</p>
-              <p className="text-xs opacity-75">{member.wishlist_item_count} items</p>
-            </motion.button>
+          {familyMembers
+            .filter(member => !member.name.toLowerCase().includes('admin'))
+            .map(member => (
+              <motion.button
+                key={member.id}
+                onClick={() => handleSelectViewingMember(member)}
+                className={`p-4 rounded-lg shadow-md transition-all duration-200 ease-in-out
+                  ${viewingMember?.id === member.id
+                    ? 'bg-primary text-white dark:bg-primary-600'
+                    : 'bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-white'}`}
+              >
+                <p className="font-semibold text-lg">{member.name}</p>
+                <p className="text-xs opacity-75">{member.wishlist_item_count} items</p>
+              </motion.button>
           ))}
         </div>
       </div>
