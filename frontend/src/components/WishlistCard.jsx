@@ -92,13 +92,13 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
     const tooltipId = `interest-${item.id}`;
     
     return (
-      <div className="flex items-center gap-2 relative">
+      <div className="flex items-center relative">
         <button
           onClick={(e) => {
             e.stopPropagation();
             onThinkingAbout(item.id);
           }}
-          className={`flex items-center gap-1 text-sm px-3 py-1.5 rounded-full transition-all duration-300 ${
+          className={`flex items-center gap-1 text-sm px-2 py-0.5 rounded-full transition-all duration-300 ${
             isThinking
               ? 'bg-pink-500 text-white hover:bg-pink-600'
               : 'text-pink-500 hover:bg-pink-50 dark:hover:bg-pink-900/20'
@@ -152,13 +152,13 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
     const tooltipId = `purchase-${item.id}`;
     
     return (
-      <div className="flex items-center gap-2 relative">
+      <div className="flex items-center relative">
         <button
           onClick={(e) => {
             e.stopPropagation();
             onMarkPurchased(item.id);
           }}
-          className={`flex items-center gap-1 text-sm px-3 py-1.5 rounded-full transition-all duration-300 ${
+          className={`flex items-center gap-1 text-sm px-2 py-0.5 rounded-full transition-all duration-300 ${
             isPurchased
               ? 'bg-green-500 text-white hover:bg-green-600'
               : 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
@@ -169,34 +169,35 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
             className={`${isPurchased ? 'fill-current' : ''} transition-all duration-300`}
           />
           <span>{isPurchased ? 'Purchased' : 'Purchase'}</span>
-        </button>
-        
-        {item.purchased_by && (
-          <>
+          {item.purchased_by && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 setActiveTooltip(activeTooltip === tooltipId ? null : tooltipId);
               }}
-              className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 flex items-center gap-1"
+              className={`ml-1 px-1.5 py-0.5 ${
+                isPurchased ? 'bg-white/20' : 'bg-green-100 dark:bg-green-900/30'
+              } rounded-full text-xs flex items-center gap-1 hover:bg-opacity-75`}
             >
-              <span>Details</span>
+              1
               <ChevronDown size={12} className={activeTooltip === tooltipId ? 'rotate-180' : ''} />
             </button>
-
-            <AnimatePresence>
-              {activeTooltip === tooltipId && (
-                <FloatingTooltip onClose={() => setActiveTooltip(null)}>
-                  <div className="min-w-[150px]">
-                    <p className="font-semibold mb-1">Purchase Status:</p>
-                    <p className="text-gray-600 dark:text-gray-300">
-                      Purchased by {item.purchased_by}
-                    </p>
-                  </div>
-                </FloatingTooltip>
-              )}
-            </AnimatePresence>
-          </>
+          )}
+        </button>
+        
+        {item.purchased_by && (
+          <AnimatePresence>
+            {activeTooltip === tooltipId && (
+              <FloatingTooltip onClose={() => setActiveTooltip(null)}>
+                <div className="min-w-[150px]">
+                  <p className="font-semibold mb-1">Purchase Status:</p>
+                  <p className="text-gray-600 dark:text-gray-300">
+                    Purchased by {item.purchased_by}
+                  </p>
+                </div>
+              </FloatingTooltip>
+            )}
+          </AnimatePresence>
         )}
       </div>
     );
@@ -344,10 +345,10 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                   </>
                 )}
 
-                <div className="flex justify-between items-center mt-2 flex-wrap gap-2">
+                <div className="flex items-center flex-wrap gap-1 mt-2">
                   {!editingItemId && (
                     <>
-                      <span className={`text-xs font-medium px-2 py-1 rounded ${
+                      <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded mr-1 ${
                         item.priority === 2 ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200' :
                         item.priority === 1 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-200' :
                         'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200'
