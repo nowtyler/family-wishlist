@@ -25,8 +25,9 @@ class WishlistItem(Base):
 
     owner = relationship("FamilyMember", back_populates="wishlist_items")
     # Who is thinking about it (list of family member names or IDs, simple for now)
-    thinking_about_by = Column(String, nullable=True) # e.g., "Emily,Tyler" - simpler than a many-to-many for now
+    thinking_about_by = Column(String, nullable=True)
     comments = relationship("Comment", back_populates="item")
+    purchased_by = Column(String, nullable=True)  # New column for who purchased the item
 
 class Comment(Base):
     __tablename__ = "comments"

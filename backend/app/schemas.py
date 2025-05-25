@@ -67,7 +67,8 @@ class WishlistItem(WishlistItemBase):
     id: int
     owner_id: int
     is_purchased: bool
-    thinking_about_by_list: List[str] = [] # Processed list of names
+    purchased_by: Optional[str] = None  # Add this field
+    thinking_about_by_list: List[str] = []
     comments: List[Comment] = []
 
     class Config:

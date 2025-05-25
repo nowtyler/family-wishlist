@@ -1,7 +1,7 @@
 // frontend/src/components/DashboardScreen.jsx
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../contexts/AppContext';
-import { getFamilyMembers, getWishlistItems, getUpcomingEvent, createWishlistItem, deleteWishlistItem, toggleThinkingAbout } from '../services/api'; // Import deleteWishlistItem and toggleThinkingAbout
+import { getFamilyMembers, getWishlistItems, getUpcomingEvent, createWishlistItem, deleteWishlistItem, toggleThinkingAbout, markPurchased } from '../services/api'; // Import deleteWishlistItem and toggleThinkingAbout
 import WishlistCard from './WishlistCard';
 import GiftReminder from './GiftReminder';
 import AddItemForm from './AddItemForm';
@@ -151,6 +151,16 @@ const DashboardScreen = () => {
     }
   };
 
+  const handleMarkPurchased = async (itemId) => {
+    try {
+      await markPurchased(itemId);
+      refreshWishlistItems();
+    } catch (err) {
+      console.error("Error marking item as purchased:", err);
+      setError("Failed to mark item as purchased.");
+    }
+  };
+
   // Early return for loading state
   if (isLoading) {
     return (
@@ -269,6 +279,7 @@ const DashboardScreen = () => {
           onUpdateItems={refreshWishlistItems}
           onDeleteItem={handleDeleteItem}
           onThinkingAbout={handleThinkingAbout}
+          onMarkPurchased={handleMarkPurchased}
         />
       )}
     </motion.div>

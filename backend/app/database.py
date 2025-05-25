@@ -1,20 +1,31 @@
 # backend/app/database.py
-import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from dotenv import load_dotenv
+from sqlalchemy import Column, String
+import os
 
-load_dotenv() # Load variables from .env file in the project root
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/wishlist.db")
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/wishlist.db")
-
-engine = create_engine(
-    DATABASE_URL, connect_args={"check_same_thread": False} # check_same_thread is for SQLite only
-)
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
+
+def create_db_and_tables():
+    inspector = inspect(engine)
+    
+    # Create all tables that don't exist
+    Base.metadata.create_all(bind=engine)
+    
+    # Add missing columns to existing tables
+    with engine.connect() as conn:
+        if 'wishlist_items' in inspector.get_table_names():
+            existing_columns = [col['name'] for col in inspector.get_columns('wishlist_items')]
+            if 'purchased_by' not in existing_columns:
+                print("Adding purchased_by column to wishlist_items table...")
+                conn.execute(text('ALTER TABLE wishlist_items ADD COLUMN purchased_by VARCHAR'))
+                conn.commit()
 
 def get_db():
     db = SessionLocal()
@@ -22,7 +33,3 @@ def get_db():
         yield db
     finally:
         db.close()
-
-# Function to create database tables (call this once at startup)
-def create_db_and_tables():
-    Base.metadata.create_all(bind=engine)

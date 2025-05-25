@@ -1,10 +1,10 @@
 // WishlistCard.jsx
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, ExternalLink, ThumbsUp, Pencil, Check, X } from 'lucide-react';
+import { Trash2, ExternalLink, ThumbsUp, Pencil, Check, X, Gift } from 'lucide-react';
 import { updateWishlistItem } from '../services/api';
 
-function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, onUpdateItems, onDeleteItem, onThinkingAbout }) {
+function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, onUpdateItems, onDeleteItem, onThinkingAbout, onMarkPurchased }) {
   const [selectedItem, setSelectedItem] = useState(null);
   const [editingItemId, setEditingItemId] = useState(null);
   const [editForm, setEditForm] = useState({});
@@ -101,6 +101,36 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
     );
   };
 
+  const renderPurchaseButton = (item) => {
+    if (isOwnWishlist) return null;
+    
+    const isPurchased = item.purchased_by && item.purchased_by === member.name;
+    
+    return (
+      <div className="flex items-center gap-2">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onMarkPurchased(item.id);
+          }}
+          className={`flex items-center gap-1 text-sm px-3 py-1.5 rounded-full transition-colors ${
+            isPurchased
+              ? 'bg-green-500 text-white'
+              : 'text-green-600 hover:bg-green-100'
+          }`}
+        >
+          <Gift size={14} />
+          <span>{isPurchased ? 'Purchased' : 'Mark Purchased'}</span>
+        </button>
+        {item.purchased_by && (
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            Purchased by {item.purchased_by}
+          </span>
+        )}
+      </div>
+    );
+  };
+
   const renderEditableContent = (item) => (
     <div onClick={e => e.stopPropagation()} className="space-y-3">
       <div className="flex flex-col">
@@ -174,7 +204,9 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
               <motion.div
                 key={item.id}
                 onClick={() => editingItemId !== item.id && handleItemClick(item)}
-                className="bg-white dark:bg-gray-700 rounded-lg p-4 shadow-lg hover:shadow-xl transition-shadow cursor-pointer"
+                className={`bg-white dark:bg-gray-700 rounded-lg p-4 shadow-lg hover:shadow-xl transition-shadow cursor-pointer ${
+                  item.purchased_by && !isOwnWishlist ? 'opacity-60' : ''
+                }`}
                 whileHover={{ y: -2 }}
               >
                 <div className="flex justify-between items-start">
@@ -253,6 +285,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                          item.priority === 1 ? 'Medium' : 'Low'} Priority
                       </span>
                       {renderThinkingAbout(item)}
+                      {renderPurchaseButton(item)}
                     </>
                   )}
                 </div>

@@ -134,8 +134,15 @@ export const toggleThinkingAbout = (itemId) => {
   return apiClient.patch(`/items/${itemId}/toggle-thinking`);
 };
 
-export const markPurchased = (itemId, purchased) => {
-  return apiClient.patch(`/items/${itemId}/mark-purchased`, { purchased });
+export const markPurchased = async (itemId) => {
+  try {
+    return await apiClient.patch(`/items/${itemId}/mark-purchased`, {
+      purchased: true,
+    });
+  } catch (error) {
+    console.error('Failed to mark item as purchased:', error?.response?.data || error);
+    throw error;
+  }
 };
 
 // --- Comments ---

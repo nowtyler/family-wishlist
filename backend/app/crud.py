@@ -66,16 +66,13 @@ def get_wishlist_items_by_owner(db: Session, owner_id: int, current_user_id: int
         
         is_item_visible_to_current_user = True
         effective_is_purchased = item.is_purchased
+        effective_purchased_by = item.purchased_by
 
-        if owner_id == current_user_id: # Current user IS the owner
-            if item.is_purchased:
-                is_item_visible_to_current_user = False # Hide purchased items from owner
-        else: # Current user is NOT the owner
-            effective_is_purchased = item.is_purchased # Others see the true purchased status
-
-        if not is_item_visible_to_current_user:
-            continue
-
+        if owner_id == current_user_id:  # Current user IS the owner
+            # Owner can still see the item but not who purchased it
+            effective_purchased_by = None
+            effective_is_purchased = False  # Don't show as purchased to owner
+        
         thinking_by_list = item.thinking_about_by.split(',') if item.thinking_about_by else []
         
         visible_comments = []
@@ -98,10 +95,12 @@ def get_wishlist_items_by_owner(db: Session, owner_id: int, current_user_id: int
             image_url=str(item.image_url) if item.image_url else None,
             priority=item.priority,
             owner_id=item.owner_id,
-            is_purchased=effective_is_purchased, # This is what the current viewer sees
+            is_purchased=effective_is_purchased,
+            purchased_by=effective_purchased_by,
             thinking_about_by_list=thinking_by_list,
             comments=visible_comments
         ))
+
     return result_items
 
 
@@ -172,10 +171,16 @@ def toggle_thinking_about(db: Session, item_id: int, user_id: int) -> Optional[m
 
 def mark_item_purchased(db: Session, item_id: int, purchased: bool, user_id: int) -> Optional[models.WishlistItem]:
     db_item = db.query(models.WishlistItem).filter(models.WishlistItem.id == item_id).first()
+    user = get_family_member(db, user_id)
     if not db_item or db_item.owner_id == user_id: # Owner cannot mark their own items as purchased
         return None
     
     db_item.is_purchased = purchased
+    if purchased:
+        db_item.purchased_by = user.name
+    else:
+        db_item.purchased_by = None
+        
     db.commit()
     db.refresh(db_item)
     return db_item
