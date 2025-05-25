@@ -129,7 +129,7 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
           </div>
         )}
 
-        <div className="flex justify-end space-x-3 pt-4 border-t">
+        <div className="flex justify-end space-x-3 pt-4 border-t border-gray-300 dark:border-gray-600">
           <button
             type="button"
             onClick={onClose}
