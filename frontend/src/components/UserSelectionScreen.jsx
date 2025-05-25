@@ -11,21 +11,24 @@ const UserSelectionScreen = () => {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
+  console.log('UserSelection State:', { familyMembers, selectedUser }); // Debug log
+
   useEffect(() => {
-    if (selectedUser) { // If a user is already selected, go to dashboard
-        navigate('/');
-        return;
+    if (selectedUser) {
+      console.log('Redirecting to dashboard, user:', selectedUser);
+      navigate('/');
+      return;
     }
 
     const fetchMembers = async () => {
       try {
         setIsLoading(true);
         const response = await getFamilyMembers();
+        console.log('Fetched family members:', response.data);
         setFamilyMembers(response.data);
-        setError('');
       } catch (err) {
+        console.error('Failed to fetch family members:', err);
         setError('Failed to load family members.');
-        console.error(err);
       } finally {
         setIsLoading(false);
       }
@@ -33,10 +36,17 @@ const UserSelectionScreen = () => {
     fetchMembers();
   }, [selectedUser, navigate, setFamilyMembers]);
 
-  const handleSelectUser = (member) => {
-    setSelectedUser(member);
-    setCurrentUserHeader(member.id); // Set header for subsequent API calls
-    navigate('/'); // Navigate to the main dashboard
+  const handleSelectUser = async (member) => {
+    console.log('Selected member:', member);
+    try {
+      setSelectedUser(member);
+      setCurrentUserHeader(member.id);
+      console.log('User set, navigating to dashboard');
+      navigate('/');
+    } catch (err) {
+      console.error('Error selecting user:', err);
+      setError('Failed to select user.');
+    }
   };
 
   if (isLoading) return <div className="text-center p-10">Loading family members...</div>;

@@ -1,14 +1,60 @@
 // frontend/src/services/api.js
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+const API_BASE_URL = import.meta.env.PROD ? '/api' : 'http://localhost:8000/api';
+
+// Add debugging for API client creation
+console.log('Environment:', import.meta.env.MODE);
+console.log('API Base URL:', API_BASE_URL);
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  // Increased timeout for better handling in Docker
+  timeout: 10000,
+  withCredentials: true, // Important for CORS
+  validateStatus: (status) => {
+    return status >= 200 && status < 500;
+  },
 });
+
+// Add request/response interceptors for debugging
+apiClient.interceptors.request.use(
+  (config) => {
+    console.log('API Request:', config.method?.toUpperCase(), config.url);
+    return config;
+  },
+  (error) => {
+    console.error('Request Error:', error);
+    return Promise.reject(error);
+  }
+);
+
+apiClient.interceptors.response.use(
+  (response) => {
+    console.log('API Response:', response.status, response.data);
+    return response;
+  },
+  (error) => {
+    console.error('Response Error:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data,
+      config: error.config,
+    });
+    // Transform network errors into user-friendly messages
+    if (!error.response) {
+      error.userMessage = 'Unable to reach the server. Please check your connection.';
+    } else if (error.response.status === 404) {
+      error.userMessage = 'The requested resource was not found.';
+    } else if (error.response.status >= 500) {
+      error.userMessage = 'A server error occurred. Please try again later.';
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Function to set the current user ID header
 export const setCurrentUserHeader = (userId) => {
@@ -22,13 +68,17 @@ export const setCurrentUserHeader = (userId) => {
 // --- Auth ---
 export const verifyPassword = async (password) => {
   try {
+    console.log('Attempting password verification...');
     const response = await apiClient.post('/auth/verify-password', { password });
+    console.log('Verification response:', response);
     return response;
   } catch (error) {
-    console.error('Password verification error:', error);
-    if (error.response) {
-      console.error('Error response:', error.response.data);
-    }
+    console.error('Detailed error:', {
+      message: error.message,
+      response: error.response,
+      request: error.request,
+      config: error.config
+    });
     throw error;
   }
 };

@@ -16,16 +16,18 @@ const AuthScreen = () => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
+    
     try {
       const response = await verifyPassword(password);
       if (response.data.authenticated) {
         login();
-        navigate('/select-user'); // Go to user selection after login
+        navigate('/select-user');
       } else {
-        setError(response.data.message || 'Authentication failed.');
+        setError(response.data.message || 'Incorrect password');
       }
     } catch (err) {
-      setError(err.response?.data?.detail || 'An error occurred. Please try again.');
+      console.error('Authentication error:', err);
+      setError(err.userMessage || 'Failed to authenticate. Please try again.');
     } finally {
       setIsLoading(false);
     }

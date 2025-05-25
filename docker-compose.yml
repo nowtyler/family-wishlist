@@ -19,10 +19,17 @@ services:
     labels:
       - com.centurylinklabs.watchtower.enable=true
       - traefik.enable=true
+      # Basic routing
       - traefik.http.routers.wishlist-backend.rule=Host(`wishlist.ariahive.top`) && PathPrefix(`/api`)
       - traefik.http.routers.wishlist-backend.tls=true
       - traefik.http.routers.wishlist-backend.entrypoints=websecure
       - traefik.http.services.wishlist-backend.loadbalancer.server.port=8000
+      # Timeouts and healthcheck
+      - traefik.http.middlewares.wishlist-backend-timeouts.forwardauth.trustForwardHeader=true
+      - traefik.http.routers.wishlist-backend.middlewares=wishlist-backend-timeouts
+      - traefik.http.middlewares.wishlist-backend-timeouts.headers.customRequestHeaders.X-Forwarded-Proto=https
+      # Add response timeouts
+      - traefik.http.middlewares.wishlist-backend-timeouts.headers.customResponseHeaders.X-Gateway-Timeout=30
 
   frontend:
     build:
@@ -55,4 +62,4 @@ networks:
   frontend:
     external: true # Assumes 'frontend' network already exists from your Traefik setup
   backend:
-    external: true # Internal network for services to communicate if needed directly
+    external: true  # This ensures backend network is only accessible internally

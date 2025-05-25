@@ -3,8 +3,9 @@ import os
 from passlib.context import CryptContext
 from dotenv import load_dotenv
 import logging
+import traceback
 
-# Configure logging
+# Configure logging with more detail
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -34,17 +35,41 @@ logger.info(f"Loaded password hash: {EXPECTED_HASH[:20]}...")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def verify_password(plain_password: str) -> bool:
+    logger.info("=== Starting password verification ===")
+    
     if not EXPECTED_HASH:
         logger.error("No password hash available for verification")
         return False
+        
     try:
-        logger.debug(f"Attempting to verify password (length: {len(plain_password)})")
-        logger.debug(f"Using hash: {EXPECTED_HASH[:20]}...")
+        logger.debug(f"Input password length: {len(plain_password)}")
+        logger.debug(f"Stored hash: {EXPECTED_HASH}")
+        logger.debug(f"Hash format check - starts with $2b$: {EXPECTED_HASH.startswith('$2b$')}")
+        
+        # Try to decode the hash to check format
+        try:
+            pwd_context.identify(EXPECTED_HASH)
+            logger.debug("Hash format identification successful")
+        except Exception as hash_error:
+            logger.error(f"Hash format error: {str(hash_error)}")
+            raise
+
         result = pwd_context.verify(plain_password, EXPECTED_HASH)
-        logger.info(f"Password verification completed. Result: {result}")
+        logger.info(f"Verification result: {result}")
+        
+        if not result:
+            # Log more details about the failed attempt (safely)
+            logger.warning("Password verification failed")
+            logger.debug(f"Password length mismatch? Expected hash length: {len(EXPECTED_HASH)}")
+        
         return result
+        
     except Exception as e:
-        logger.error(f"Password verification error: {str(e)}", exc_info=True)
+        logger.error("=== Password verification error ===")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Error message: {str(e)}")
+        logger.error("Stack trace:")
+        logger.error(traceback.format_exc())
         raise
 
 def get_password_hash(password: str) -> str:
@@ -58,7 +83,10 @@ if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1:
         password_to_hash = sys.argv[1]
+        logger.info("=== Generating new password hash ===")
+        logger.debug(f"Input password length: {len(password_to_hash)}")
         hashed_password = get_password_hash(password_to_hash)
+        logger.info(f"Generated hash: {hashed_password}")
         print(f"Hashed password for '{password_to_hash}':")
         print(hashed_password)
     else:

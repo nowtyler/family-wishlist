@@ -9,12 +9,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const DashboardScreen = () => {
   const { selectedUser, familyMembers, setFamilyMembers } = useAppContext();
-  const [viewingMember, setViewingMember] = useState(selectedUser);
+  const [viewingMember, setViewingMember] = useState(null);
   const [wishlistItems, setWishlistItems] = useState([]);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
   const [upcomingEvent, setUpcomingEvent] = useState(null);
   const [error, setError] = useState('');
   const [isAddingItem, setIsAddingItem] = useState(false); // State to control AddItemForm visibility
+
+  console.log('Dashboard State:', { selectedUser, familyMembers, viewingMember }); // Debug log
 
   // Fetch family members
   useEffect(() => {
@@ -65,6 +67,19 @@ const DashboardScreen = () => {
       fetchItems();
     }
   }, [viewingMember, selectedUser]);
+
+  useEffect(() => {
+    if (!selectedUser) {
+      console.log('No selected user, should redirect');
+      return;
+    }
+
+    // Initialize viewing member if not set
+    if (!viewingMember) {
+      console.log('Setting initial viewing member:', selectedUser);
+      setViewingMember(selectedUser);
+    }
+  }, [selectedUser, viewingMember]);
 
   const handleSelectViewingMember = (member) => {
     setViewingMember(member);

@@ -4,9 +4,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict
 import logging
+import traceback
+from datetime import datetime
 
 from . import crud, models, schemas, auth, database
 from .database import engine, create_db_and_tables, get_db, SessionLocal
+from .services.auth_service import AuthenticationService
 
 # Create database tables on startup
 # In a more complex app, you'd use Alembic migrations for this.
@@ -54,28 +57,19 @@ def on_startup():
 logger = logging.getLogger(__name__)
 
 # Modify the verify_family_password endpoint to give better error messages
+# Keep the /api prefix in the route
 @app.post("/api/auth/verify-password", response_model=schemas.PasswordVerificationResponse)
 async def verify_family_password(request: schemas.PasswordRequest):
     try:
-        logger.info("Password verification attempt received")
-        logger.debug(f"Password length: {len(request.password)}")
-        
-        if not request.password:
-            logger.warning("Empty password received")
-            return {"authenticated": False, "message": "Password cannot be empty"}
-        
+        logger.debug(f"Received password verification request")
         if auth.verify_password(request.password):
-            logger.info("Password verification successful")
             return {"authenticated": True, "message": "Password verified successfully."}
-        
-        logger.warning("Password verification failed - incorrect password")
         return {"authenticated": False, "message": "Incorrect family password."}
-    
     except Exception as e:
-        logger.error(f"Password verification error: {str(e)}", exc_info=True)
+        logger.error(f"Password verification error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An error occurred during password verification: {str(e)}",
+            detail="An error occurred during password verification.",
         )
 
 # --- Family Members ---
@@ -305,10 +299,24 @@ def get_upcoming_gift_event():
     return schemas.UpcomingEventResponse(event_name=event.name, display_text=display_text)
 
 
-# Health check endpoint
+# More explicit health check
 @app.get("/api/health")
 async def health_check():
-    return {"status": "healthy"}
+    try:
+        # Test database connection
+        db = SessionLocal()
+        db.execute("SELECT 1")
+        db.close()
+        return {
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "database": "connected"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Service unhealthy: {str(e)}"
+        )
 
 # Catch-all for documentation (FastAPI provides /docs and /redoc automatically)
 # If you were serving a frontend from FastAPI, you'd have a catch-all route here.

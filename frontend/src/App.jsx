@@ -14,6 +14,7 @@ const ProtectedRoute = ({ children }) => {
 
 const AppContent = () => {
   const { isAuthenticated, selectedUser } = useAppContext();
+  console.log('App State:', { isAuthenticated, selectedUser }); // Debug log
 
   return (
     <Router>
@@ -21,30 +22,28 @@ const AppContent = () => {
         {isAuthenticated && selectedUser && <Navbar />}
         <main className="flex-grow container mx-auto p-4 md:p-6 lg:p-8">
           <Routes>
-            <Route path="/auth" element={isAuthenticated ? <Navigate to="/" replace /> : <AuthScreen />} />
-            <Route 
-              path="/select-user" 
-              element={
-                <ProtectedRoute>
-                  <UserSelectionScreen />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/" 
-              element={
-                <ProtectedRoute>
-                  {selectedUser ? <DashboardScreen /> : <Navigate to="/select-user" replace />}
-                </ProtectedRoute>
-              } 
-            />
-            {/* Add more routes as needed, e.g., for specific wishlist views if not part of dashboard */}
-             <Route path="*" element={<Navigate to={isAuthenticated ? (selectedUser ? "/" : "/select-user") : "/auth"} replace />} />
+            <Route path="/auth" element={
+              isAuthenticated ? <Navigate to="/select-user" replace /> : <AuthScreen />
+            } />
+            <Route path="/select-user" element={
+              <ProtectedRoute>
+                <UserSelectionScreen />
+              </ProtectedRoute>
+            } />
+            <Route path="/" element={
+              <ProtectedRoute>
+                {selectedUser ? <DashboardScreen /> : <Navigate to="/select-user" replace />}
+              </ProtectedRoute>
+            } />
+            <Route path="*" element={
+              <Navigate to={
+                !isAuthenticated ? "/auth" : 
+                !selectedUser ? "/select-user" : 
+                "/"
+              } replace />
+            } />
           </Routes>
         </main>
-        <footer className="text-center p-4 text-sm text-gray-500">
-          Family Wishlist &copy; {new Date().getFullYear()}
-        </footer>
       </div>
     </Router>
   );
