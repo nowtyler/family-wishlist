@@ -2,25 +2,50 @@
 import os
 from passlib.context import CryptContext
 from dotenv import load_dotenv
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('/app/data/auth.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
 # It's CRITICAL that FAMILY_PASSWORD_HASH is set in your .env file.
-# If it's not set, this will default to a very weak password, which is insecure.
+# If it's not set, this will raise a runtime error, preventing the application from starting.
 # For production, ensure this is set via environment variables.
 EXPECTED_HASH = os.getenv("FAMILY_PASSWORD_HASH")
 if not EXPECTED_HASH:
-    print("WARNING: FAMILY_PASSWORD_HASH is not set in .env. Using a default insecure hash.")
-    # This is an example hash for "password". REPLACE IT.
-    EXPECTED_HASH = "$2b$12$F6SSFVZ8P1HtyGHCX7WlguVJPKYSsuWDaiENQ/awoyCdYG8bSk7f6"
+    logger.error("FAMILY_PASSWORD_HASH is not set in environment variables")
+    raise RuntimeError(
+        "CRITICAL SECURITY ERROR: FAMILY_PASSWORD_HASH is not set in .env file. "
+        "Please run 'python app/auth.py your_password' to generate a secure hash "
+        "and set it in your .env file."
+    )
 
+logger.info(f"Loaded password hash: {EXPECTED_HASH[:20]}...")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def verify_password(plain_password: str) -> bool:
-    if not EXPECTED_HASH: # Should not happen if you set it
+    if not EXPECTED_HASH:
+        logger.error("No password hash available for verification")
         return False
-    return pwd_context.verify(plain_password, EXPECTED_HASH)
+    try:
+        logger.debug(f"Attempting to verify password (length: {len(plain_password)})")
+        logger.debug(f"Using hash: {EXPECTED_HASH[:20]}...")
+        result = pwd_context.verify(plain_password, EXPECTED_HASH)
+        logger.info(f"Password verification completed. Result: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Password verification error: {str(e)}", exc_info=True)
+        raise
 
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)

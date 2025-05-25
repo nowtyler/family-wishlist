@@ -20,8 +20,17 @@ export const setCurrentUserHeader = (userId) => {
 };
 
 // --- Auth ---
-export const verifyPassword = (password) => {
-  return apiClient.post('/auth/verify-password', { password });
+export const verifyPassword = async (password) => {
+  try {
+    const response = await apiClient.post('/auth/verify-password', { password });
+    return response;
+  } catch (error) {
+    console.error('Password verification error:', error);
+    if (error.response) {
+      console.error('Error response:', error.response.data);
+    }
+    throw error;
+  }
 };
 
 // --- Family Members ---

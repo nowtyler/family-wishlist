@@ -3,6 +3,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, Header
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict
+import logging
 
 from . import crud, models, schemas, auth, database
 from .database import engine, create_db_and_tables, get_db, SessionLocal
@@ -19,11 +20,13 @@ app = FastAPI(title="Family Wishlist API", version="0.1.0")
 # CORS (Cross-Origin Resource Sharing)
 # Allow our frontend (running on a different port during development) to talk to the backend.
 origins = [
-    "http://localhost",      # Common for local dev
-    "http://localhost:5173", # Default Vite dev server port
-    "http://localhost:3000", # Common React dev port
-    f"https://wishlist.ariahive.top", # Your production domain
-    f"http://wishlist.ariahive.top",  # If you ever use HTTP (not recommended for Traefik)
+    "http://localhost",
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://localhost:8888",  # Add local Docker port
+    "http://192.168.50.188:8888",  # Add your local IP
+    "https://wishlist.ariahive.top",
+    "http://wishlist.ariahive.top",
 ]
 
 app.add_middleware(
@@ -48,16 +51,31 @@ def on_startup():
 
 
 # --- Authentication ---
+logger = logging.getLogger(__name__)
+
+# Modify the verify_family_password endpoint to give better error messages
 @app.post("/api/auth/verify-password", response_model=schemas.PasswordVerificationResponse)
 async def verify_family_password(request: schemas.PasswordRequest):
-    if auth.verify_password(request.password):
-        return {"authenticated": True, "message": "Password verified successfully."}
-    else:
-        # It's good practice not to reveal whether the password was wrong or user doesn't exist.
-        # But here, it's a site-wide password.
+    try:
+        logger.info("Password verification attempt received")
+        logger.debug(f"Password length: {len(request.password)}")
+        
+        if not request.password:
+            logger.warning("Empty password received")
+            return {"authenticated": False, "message": "Password cannot be empty"}
+        
+        if auth.verify_password(request.password):
+            logger.info("Password verification successful")
+            return {"authenticated": True, "message": "Password verified successfully."}
+        
+        logger.warning("Password verification failed - incorrect password")
+        return {"authenticated": False, "message": "Incorrect family password."}
+    
+    except Exception as e:
+        logger.error(f"Password verification error: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect family password.",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred during password verification: {str(e)}",
         )
 
 # --- Family Members ---
@@ -165,7 +183,7 @@ def update_item(
     # When fetching for response, we might need to apply similar logic as get_wishlist_items_by_owner.
     # For now, return the direct state post-update. Frontend needs to be smart.
     
-    # Let's reload the item as if the current_user_id is viewing it to ensure consistent display rules
+    # Let's reload the item as if the current_user_id is viewing it to ensure consistent response rules
     # This is inefficient but ensures correct response data visibility
     reloaded_items = crud.get_wishlist_items_by_owner(db, owner_id=db_item_model.owner_id, current_user_id=current_user_id)
     updated_item_schema = next((i for i in reloaded_items if i.id == item_id), None)

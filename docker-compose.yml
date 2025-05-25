@@ -9,25 +9,20 @@ services:
     env_file:
       - .env # Loads FAMILY_PASSWORD_HASH, DATABASE_URL etc.
     volumes:
-      - /home/queen-bee/apps/family-wishlist/data:/app/data  # Persistent storage for SQLite database
+      - /home/queen-bee/apps/family-wishlist/data:/app/data  # Storage for SQLite database
       # For development, you might mount the code:
       # - ./backend/app:/app/app
     networks:
-      - frontend # Your Traefik network
       - backend # Internal network for app communication
     expose: # Expose port to internal network, Traefik will handle external
-      - "8000"
+      - 8000
     labels:
       - com.centurylinklabs.watchtower.enable=true
       - traefik.enable=true
-      - traefik.constraint=proxy-public
-      - traefik.http.routers.wishlist-backend-api.tls=true
-      - traefik.http.routers.wishlist-backend-api.entrypoints=websecure
-#      - traefik.http.routers.wishlist-backend-api.middlewares=authentik@file
-      - traefik.http.routers.wishlist-backend-api.rule=Host(`wishlist-api.ariahive.top`) && PathPrefix(`/api`)
-      - traefik.http.services.wishlist-backend-api.loadbalancer.server.port=8080
-      - traefik.http.routers.wishlist-backend-api.middlewares=api-stripprefix
-      - traefik.http.middlewares.api-stripprefix.stripprefix.prefixes=/api
+      - traefik.http.routers.wishlist-backend.rule=Host(`wishlist.ariahive.top`) && PathPrefix(`/api`)
+      - traefik.http.routers.wishlist-backend.tls=true
+      - traefik.http.routers.wishlist-backend.entrypoints=websecure
+      - traefik.http.services.wishlist-backend.loadbalancer.server.port=8000
 
   frontend:
     build:
@@ -39,24 +34,25 @@ services:
       - backend
     networks:
       - frontend
+      - backend # Internal network for app communication
     # No explicit port exposure needed if only Traefik accesses it
     # expose:
     #   - "80"
     ports:
-      - "8888:80" # For local testing, maps to host port 8080
+      - 8888:80 # For local testing, maps to host port 8888
     labels:
       # Traefik labels for the frontend
       - com.centurylinklabs.watchtower.enable=true
       - traefik.enable=true
       - traefik.constraint=proxy-public
-      - traefik.http.routers.open-webui.tls=true
-      - traefik.http.routers.open-webui.entrypoints=websecure
 #      - traefik.http.routers.open-webui.middlewares=authentik@file
       - traefik.http.routers.wishlist-frontend.rule=Host(`wishlist.ariahive.top`)
-      - traefik.http.services.open-webui.loadbalancer.server.port=80
+      - traefik.http.routers.wishlist-frontend.tls=true
+      - traefik.http.routers.wishlist-frontend.entrypoints=websecure
+      - traefik.http.services.wishlist-frontend.loadbalancer.server.port=80
 
 networks:
   frontend:
-    external: true # Assumes 'traefik_proxy' network already exists from your Traefik setup
+    external: true # Assumes 'frontend' network already exists from your Traefik setup
   backend:
     external: true # Internal network for services to communicate if needed directly
