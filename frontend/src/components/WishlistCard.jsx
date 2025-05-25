@@ -1,13 +1,14 @@
 // WishlistCard.jsx
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, ExternalLink, Heart, Pencil, Check, X, Gift } from 'lucide-react';
+import { Trash2, ExternalLink, Heart, Pencil, Check, X, Gift, ChevronDown } from 'lucide-react';
 import { updateWishlistItem } from '../services/api';
 
 function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, onUpdateItems, onDeleteItem, onThinkingAbout, onMarkPurchased }) {
   const [selectedItem, setSelectedItem] = useState(null);
   const [editingItemId, setEditingItemId] = useState(null);
   const [editForm, setEditForm] = useState({});
+  const [activeTooltip, setActiveTooltip] = useState(null); // 'interest-{itemId}' or 'purchase-{itemId}'
 
   const handleItemClick = (item) => {
     setSelectedItem(item);
@@ -65,14 +66,33 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
     }
   };
 
+  const FloatingTooltip = ({ children, onClose }) => (
+    <motion.div
+      initial={{ opacity: 0, y: -5 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -5 }}
+      className="absolute z-10 bg-white dark:bg-gray-700 shadow-lg rounded-lg p-3 text-sm"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {children}
+      <button
+        onClick={onClose}
+        className="absolute top-1 right-1 p-1 text-gray-400 hover:text-gray-600"
+      >
+        <X size={12} />
+      </button>
+    </motion.div>
+  );
+
   const renderThinkingAbout = (item) => {
     if (isOwnWishlist) return null;
     
     const isThinking = item.thinking_about_by_list?.includes(currentUserId);
     const thinkingCount = item.thinking_about_by_list?.length || 0;
+    const tooltipId = `interest-${item.id}`;
     
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 relative">
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -88,22 +108,39 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
             size={14}
             className={`${isThinking ? 'fill-current' : ''} transition-all duration-300`}
           />
-          <span>{isThinking ? 'Interested' : 'Interest'}</span>
+          <span>Interest</span>
           {thinkingCount > 0 && (
-            <span className={`ml-1 px-1.5 py-0.5 ${
-              isThinking ? 'bg-white/20' : 'bg-pink-100 dark:bg-pink-900/30'
-            } rounded-full text-xs`}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveTooltip(activeTooltip === tooltipId ? null : tooltipId);
+              }}
+              className={`ml-1 px-1.5 py-0.5 ${
+                isThinking ? 'bg-white/20' : 'bg-pink-100 dark:bg-pink-900/30'
+              } rounded-full text-xs flex items-center gap-1 hover:bg-opacity-75`}
+            >
               {thinkingCount}
-            </span>
+              <ChevronDown size={12} className={activeTooltip === tooltipId ? 'rotate-180' : ''} />
+            </button>
           )}
         </button>
-        {item.thinking_about_by_list?.length > 0 && (
-          <span className="text-xs text-gray-500 dark:text-gray-400 italic">
-            {item.thinking_about_by_list.length === 1 
-              ? `${item.thinking_about_by_list[0]} is interested`
-              : `${item.thinking_about_by_list.join(', ')} are interested`}
-          </span>
-        )}
+
+        <AnimatePresence>
+          {activeTooltip === tooltipId && thinkingCount > 0 && (
+            <FloatingTooltip onClose={() => setActiveTooltip(null)}>
+              <div className="min-w-[150px]">
+                <p className="font-semibold mb-1">Interested:</p>
+                <ul className="space-y-1">
+                  {item.thinking_about_by_list.map((name) => (
+                    <li key={name} className="text-gray-600 dark:text-gray-300">
+                      {name}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </FloatingTooltip>
+          )}
+        </AnimatePresence>
       </div>
     );
   };
@@ -112,9 +149,10 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
     if (isOwnWishlist) return null;
     
     const isPurchased = item.purchased_by && item.purchased_by === member.name;
+    const tooltipId = `purchase-${item.id}`;
     
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 relative">
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -132,10 +170,33 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
           />
           <span>{isPurchased ? 'Purchased' : 'Purchase'}</span>
         </button>
+        
         {item.purchased_by && (
-          <span className="text-xs text-gray-500 dark:text-gray-400 italic">
-            Purchased by {item.purchased_by}
-          </span>
+          <>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveTooltip(activeTooltip === tooltipId ? null : tooltipId);
+              }}
+              className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 flex items-center gap-1"
+            >
+              <span>Details</span>
+              <ChevronDown size={12} className={activeTooltip === tooltipId ? 'rotate-180' : ''} />
+            </button>
+
+            <AnimatePresence>
+              {activeTooltip === tooltipId && (
+                <FloatingTooltip onClose={() => setActiveTooltip(null)}>
+                  <div className="min-w-[150px]">
+                    <p className="font-semibold mb-1">Purchase Status:</p>
+                    <p className="text-gray-600 dark:text-gray-300">
+                      Purchased by {item.purchased_by}
+                    </p>
+                  </div>
+                </FloatingTooltip>
+              )}
+            </AnimatePresence>
+          </>
         )}
       </div>
     );
