@@ -70,7 +70,7 @@ const UserSelectionScreen = () => {
               key={member.id}
               onClick={() => handleSelectUser(member)}
               className={`p-4 md:p-6 ${
-                viewingMember?.id === member.id
+                selectedUser?.id === member.id
                   ? 'bg-primary text-white dark:bg-primary-600'
                   : 'bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-white'
               } rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-opacity-75

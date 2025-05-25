@@ -178,12 +178,12 @@ const DashboardScreen = () => {
       transition={{ duration: 0.3 }}
       className="space-y-8"
     >
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 bg-white rounded-xl shadow-lg">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg">
         <div>
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-800">
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white">
             {viewingMember?.id === selectedUser.id ? "Your Wishlist" : `${viewingMember?.name || ''}'s Wishlist`}
           </h1>
-          <p className="text-gray-600 mt-1">
+          <p className="text-gray-600 dark:text-gray-300 mt-1">
             {viewingMember?.id === selectedUser.id ? "Manage your wishes or " : "Browse wishes and "}
             see what others are hoping for!
           </p>
@@ -193,22 +193,22 @@ const DashboardScreen = () => {
 
       {error && <p className="text-red-500 bg-red-100 p-3 rounded-md text-center">{error}</p>}
 
-      {/* User selection cards */}
+      {/* User selection cards with dark mode */}
       <div className="mb-8">
-        <h2 className="text-xl font-semibold text-gray-700 mb-3">Browse Wishlists:</h2>
+        <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-3">Browse Wishlists:</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {familyMembers.map(member => (
             <motion.button
               key={member.id}
               onClick={() => handleSelectViewingMember(member)}
               className={`p-4 rounded-lg shadow-md transition-all duration-200 ease-in-out
-                            ${viewingMember?.id === member.id
-                              ? 'bg-primary text-white ring-2 ring-offset-2 ring-primary'
-                              : 'bg-white hover:bg-gray-50 card-shadow text-gray-700'}`}
+                ${viewingMember?.id === member.id
+                  ? 'bg-primary text-white dark:bg-primary-600'
+                  : 'bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-white'}`}
               whileHover={{ y: -3 }}
             >
               <p className="font-semibold text-lg">{member.name}</p>
-              <p className="text-xs">{member.wishlist_item_count} items</p>
+              <p className="text-xs opacity-75">{member.wishlist_item_count} items</p>
             </motion.button>
           ))}
         </div>
@@ -228,13 +228,13 @@ const DashboardScreen = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex justify-center items-center"
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
           >
             <motion.div
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.8 }}
-              className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-[95%] max-w-2xl mx-auto"  // Fixed width to prevent shift
             >
               <AddItemForm
                 wishlistId={viewingMember.id}
