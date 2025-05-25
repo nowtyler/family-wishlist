@@ -1,7 +1,7 @@
 // WishlistCard.jsx
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, ExternalLink, Heart, Pencil, Check, X, ShoppingCart, ChevronDown } from 'lucide-react';
+import { Trash2, ExternalLink, Heart, Pencil, Check, X, ShoppingCart, ChevronDown, Star } from 'lucide-react';
 import { updateWishlistItem } from '../services/api';
 
 function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, onUpdateItems, onDeleteItem, onThinkingAbout, onMarkPurchased }) {
@@ -27,7 +27,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
       link: item.link || '',
       image_url: item.image_url || '',
       priority: item.priority,
-      price: item.price ? (item.price / 100).toFixed(2) : ''  // Convert cents to dollars for editing
+      price: item.price ? (item.price / 100).toFixed(2) : ''  // Format price properly
     });
   };
 
@@ -53,7 +53,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
         link: editForm.link?.trim() || null,
         image_url: editForm.image_url?.trim() || null,
         priority: Number(editForm.priority),
-        price: editForm.price ? Math.round(Number(editForm.price) * 100) : null  // Convert dollars to cents
+        price: editForm.price ? Math.round(parseFloat(editForm.price) * 100) : null  // Fix price conversion
       };
 
       await updateWishlistItem(itemId, updatedData);
@@ -199,6 +199,24 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
             )}
           </AnimatePresence>
         )}
+      </div>
+    );
+  };
+
+  const renderPriorityIcon = (priority) => {
+    return (
+      <div className="flex items-center">
+        {[...Array(priority + 1)].map((_, i) => (
+          <Star
+            key={i}
+            size={16}
+            className={`fill-current ${
+              priority === 2 ? 'text-red-500' :
+              priority === 1 ? 'text-yellow-500' :
+              'text-green-500'
+            }`}
+          />
+        ))}
       </div>
     );
   };
@@ -356,24 +374,21 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                   </>
                 )}
 
-                <div className="flex items-center flex-wrap gap-1 mt-2">
+                <div className="flex items-center flex-wrap justify-between gap-1 mt-2">
                   {!editingItemId && (
                     <>
-                      {item.price !== null && (
-                        <span className="inline-flex text-sm font-medium px-2 py-0.5 rounded mr-1 bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-                          ${(item.price / 100).toFixed(2)}
-                        </span>
-                      )}
-                      <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded mr-1 ${
-                        item.priority === 2 ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200' :
-                        item.priority === 1 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-200' :
-                        'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200'
-                      }`}>
-                        {item.priority === 2 ? 'High' :
-                         item.priority === 1 ? 'Medium' : 'Low'} Priority
-                      </span>
-                      {renderThinkingAbout(item)}
-                      {renderPurchaseButton(item)}
+                      <div className="flex items-center gap-2">
+                        {renderPriorityIcon(item.priority)}
+                      </div>
+                      <div className="flex items-center gap-2 ml-auto shrink-0">
+                        {item.price !== null && (
+                          <span className="inline-flex text-sm font-medium px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 shrink-0">
+                            ${parseFloat(item.price / 100).toFixed(2)}
+                          </span>
+                        )}
+                        {renderThinkingAbout(item)}
+                        {renderPurchaseButton(item)}
+                      </div>
                     </>
                   )}
                 </div>
