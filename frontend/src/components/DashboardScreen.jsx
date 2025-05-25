@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const DashboardScreen = () => {
   const { selectedUser, familyMembers, setFamilyMembers } = useAppContext();
+  const isAdmin = selectedUser?.name?.toLowerCase() === 'admin';
   const [viewingMember, setViewingMember] = useState(selectedUser); // Initialize with selectedUser
   const [wishlistItems, setWishlistItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -127,7 +128,7 @@ const DashboardScreen = () => {
   };
 
   const handleDeleteItem = async (itemId) => {
-    if (viewingMember?.id === selectedUser?.id) {
+    if (viewingMember?.id === selectedUser?.id || isAdmin) {
       try {
         await deleteWishlistItem(itemId);
         refreshWishlistItems();
@@ -275,7 +276,7 @@ const DashboardScreen = () => {
           member={viewingMember}
           items={wishlistItems}
           isLoading={isLoading}
-          isOwnWishlist={viewingMember.id === selectedUser.id}
+          isOwnWishlist={isAdmin || viewingMember.id === selectedUser.id}
           currentUserId={selectedUser.id}
           onUpdateItems={refreshWishlistItems}
           onDeleteItem={handleDeleteItem}

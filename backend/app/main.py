@@ -1,5 +1,6 @@
 # backend/app/main.py
 from fastapi import FastAPI, Depends, HTTPException, status, Header
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict
@@ -108,15 +109,27 @@ def read_family_member(member_id: int, db: Session = Depends(get_db)):
 
 
 # --- Wishlist Items ---
-@app.post("/api/members/{owner_id}/items", response_model=schemas.WishlistItem, status_code=status.HTTP_201_CREATED)
+def check_admin_or_owner(db: Session, user_id: int, owner_id: int) -> bool:
+    user = crud.get_family_member(db, user_id)
+    return user and (user.name.lower() == 'admin' or user_id == owner_id)
+
+@app.post("/api/members/{owner_id}/items", response_model=schemas.WishlistItem)
 def create_item_for_member(
     owner_id: int,
     item: schemas.WishlistItemCreate,
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id_from_header)
 ):
-    if current_user_id is None or current_user_id != owner_id:
-         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only add items to your own wishlist.")
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+    
+    # Allow if admin or owner
+    if not check_admin_or_owner(db, current_user_id, owner_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only add items to your own wishlist unless you're an admin."
+        )
+    
     db_member = crud.get_family_member(db, member_id=owner_id)
     if not db_member:
         raise HTTPException(status_code=404, detail="Owner (family member) not found")
@@ -162,32 +175,23 @@ def update_item(
     if current_user_id is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required.")
 
-    db_item_model = crud.update_wishlist_item(db, item_id, item_update, current_user_id)
-    if not db_item_model:
-        raise HTTPException(status_code=404, detail="Item not found or not authorized to update.")
+    db_item = crud.get_wishlist_item(db, item_id)
+    if not db_item:
+        raise HTTPException(status_code=404, detail="Item not found")
 
-    # Re-fetch or carefully construct the response schema
-    # For simplicity, we assume update_wishlist_item returns the updated model.
-    # We need to convert it to the response schema, including processed fields.
-    thinking_by_list = db_item_model.thinking_about_by.split(',') if db_item_model.thinking_about_by else []
-    # Comments would need to be re-fetched or handled if they can be updated here (they can't directly)
-    
-    # Crucially, what the user sees depends on whether they are the owner or not.
-    # The crud.update_wishlist_item should handle the database state.
-    # When fetching for response, we might need to apply similar logic as get_wishlist_items_by_owner.
-    # For now, return the direct state post-update. Frontend needs to be smart.
-    
-    # Let's reload the item as if the current_user_id is viewing it to ensure consistent response rules
-    # This is inefficient but ensures correct response data visibility
-    reloaded_items = crud.get_wishlist_items_by_owner(db, owner_id=db_item_model.owner_id, current_user_id=current_user_id)
+    updated_item = crud.update_wishlist_item(db, item_id, item_update, current_user_id)
+    if not updated_item:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only edit your own items unless you're an admin."
+        )
+
+    reloaded_items = crud.get_wishlist_items_by_owner(db, owner_id=updated_item.owner_id, current_user_id=current_user_id)
     updated_item_schema = next((i for i in reloaded_items if i.id == item_id), None)
-
     if not updated_item_schema:
-         # This case should ideally not happen if update was successful and item still matches criteria
-         raise HTTPException(status_code=500, detail="Failed to reconstruct item view after update.")
+        raise HTTPException(status_code=500, detail="Failed to reconstruct item view after update.")
     
     return updated_item_schema
-
 
 @app.patch("/api/items/{item_id}/toggle-thinking", response_model=schemas.WishlistItem)
 def toggle_thinking_about_item(
@@ -236,11 +240,13 @@ def delete_item(
 ):
     if current_user_id is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required.")
-    
-    success = crud.delete_wishlist_item(db, item_id, current_user_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Item not found or not authorized to delete.")
-    return # No content response
+
+    if crud.delete_wishlist_item(db, item_id, current_user_id):
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Item not found or not authorized to delete."
+    )
 
 # --- Comments ---
 @app.post("/api/items/{item_id}/comments", response_model=schemas.Comment, status_code=status.HTTP_201_CREATED)

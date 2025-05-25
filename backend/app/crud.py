@@ -126,40 +126,31 @@ def create_wishlist_item(db: Session, item: schemas.WishlistItemCreate, owner_id
     db.refresh(db_item)
     return db_item
 
+def get_wishlist_item(db: Session, item_id: int) -> Optional[models.WishlistItem]:
+    return db.query(models.WishlistItem).filter(models.WishlistItem.id == item_id).first()
+
 def update_wishlist_item(db: Session, item_id: int, item_update: schemas.WishlistItemUpdate, requesting_user_id: int) -> Optional[models.WishlistItem]:
-    db_item = db.query(models.WishlistItem).filter(models.WishlistItem.id == item_id).first()
+    db_item = get_wishlist_item(db, item_id)
     if not db_item:
         return None
 
-    update_data = item_update.model_dump(exclude_unset=True)
-
-    # Handle 'thinking_about_by' list - this is tricky if we are just passing strings.
-    # Let's assume the frontend sends the full new string or an action.
-    # For simplicity, if 'thinking_about_by' is in update_data, we replace it.
-    # A more robust way would be to add/remove individual names.
-    # User can only modify their own items, or mark purchased/thinking_about on others
-    
-    # If the requester is the owner, they can update most fields
-    if db_item.owner_id == requesting_user_id:
-        if "title" in update_data: db_item.title = update_data["title"]
-        if "description" in update_data: db_item.description = update_data["description"]
-        if "link" in update_data: db_item.link = str(update_data["link"]) if update_data["link"] else None
-        if "image_url" in update_data: db_item.image_url = str(update_data["image_url"]) if update_data["image_url"] else None
-        if "priority" in update_data: db_item.priority = update_data["priority"]
-        # Owner cannot directly set is_purchased or thinking_about_by via this route
-        # (or rather, it has special meaning if they could)
-    
-    # Anyone (not the owner) can mark as purchased or add themselves to 'thinking_about_by'
-    # Owner does NOT interact with these fields for their own items.
-    if db_item.owner_id != requesting_user_id:
-        if "is_purchased" in update_data:
-            db_item.is_purchased = update_data["is_purchased"]
+    requesting_user = get_family_member(db, requesting_user_id)
+    if not requesting_user:
+        return None
         
-        if "thinking_about_by" in update_data: # Expects a name to add/remove
-            # This needs more complex logic: add/remove name from CSV string
-            # For now, let's simplify: a special endpoint for thinking_about
-            pass # We will handle this in a dedicated route for clarity
+    is_admin = requesting_user.name.lower() == 'admin'
+    if not (is_admin or db_item.owner_id == requesting_user_id):
+        return None
 
+    update_data = item_update.model_dump(exclude_unset=True)
+    
+    for key, value in update_data.items():
+        if hasattr(db_item, key):
+            if key in ['link', 'image_url'] and value is not None:
+                setattr(db_item, key, str(value))
+            else:
+                setattr(db_item, key, value)
+    
     db.commit()
     db.refresh(db_item)
     return db_item
@@ -210,8 +201,13 @@ def toggle_item_purchased(db: Session, item_id: int, user_id: int) -> Optional[m
 
 def delete_wishlist_item(db: Session, item_id: int, requesting_user_id: int) -> bool:
     db_item = db.query(models.WishlistItem).filter(models.WishlistItem.id == item_id).first()
-    if db_item and db_item.owner_id == requesting_user_id: # Only owner can delete
-        # Also delete associated comments
+    if not db_item:
+        return False
+        
+    requesting_user = get_family_member(db, requesting_user_id)
+    is_admin = requesting_user and requesting_user.name.lower() == 'admin'
+    
+    if is_admin or db_item.owner_id == requesting_user_id:
         db.query(models.Comment).filter(models.Comment.item_id == item_id).delete()
         db.delete(db_item)
         db.commit()
