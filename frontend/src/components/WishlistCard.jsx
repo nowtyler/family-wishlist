@@ -1,7 +1,7 @@
 // WishlistCard.jsx
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, ExternalLink, ThumbsUp, Pencil, Check, X, Gift } from 'lucide-react';
+import { Trash2, ExternalLink, Heart, Pencil, Check, X, Gift } from 'lucide-react';
 import { updateWishlistItem } from '../services/api';
 
 function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, onUpdateItems, onDeleteItem, onThinkingAbout, onMarkPurchased }) {
@@ -78,23 +78,30 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
             e.stopPropagation();
             onThinkingAbout(item.id);
           }}
-          className={`flex items-center gap-1 text-sm px-3 py-1.5 rounded-full transition-colors ${
+          className={`flex items-center gap-1 text-sm px-3 py-1.5 rounded-full transition-all duration-300 ${
             isThinking
-              ? 'bg-primary text-white'
-              : 'text-primary hover:bg-primary/10'
+              ? 'bg-pink-500 text-white hover:bg-pink-600'
+              : 'text-pink-500 hover:bg-pink-50 dark:hover:bg-pink-900/20'
           }`}
         >
-          <ThumbsUp size={14} />
-          <span>Thinking</span>
+          <Heart
+            size={14}
+            className={`${isThinking ? 'fill-current' : ''} transition-all duration-300`}
+          />
+          <span>{isThinking ? 'Interested' : 'Interest'}</span>
           {thinkingCount > 0 && (
-            <span className="ml-1 px-1.5 py-0.5 bg-white/20 rounded-full text-xs">
+            <span className={`ml-1 px-1.5 py-0.5 ${
+              isThinking ? 'bg-white/20' : 'bg-pink-100 dark:bg-pink-900/30'
+            } rounded-full text-xs`}>
               {thinkingCount}
             </span>
           )}
         </button>
         {item.thinking_about_by_list?.length > 0 && (
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            {item.thinking_about_by_list.join(', ')}
+          <span className="text-xs text-gray-500 dark:text-gray-400 italic">
+            {item.thinking_about_by_list.length === 1 
+              ? `${item.thinking_about_by_list[0]} is interested`
+              : `${item.thinking_about_by_list.join(', ')} are interested`}
           </span>
         )}
       </div>
@@ -113,17 +120,20 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
             e.stopPropagation();
             onMarkPurchased(item.id);
           }}
-          className={`flex items-center gap-1 text-sm px-3 py-1.5 rounded-full transition-colors ${
+          className={`flex items-center gap-1 text-sm px-3 py-1.5 rounded-full transition-all duration-300 ${
             isPurchased
-              ? 'bg-green-500 text-white'
-              : 'text-green-600 hover:bg-green-100'
+              ? 'bg-green-500 text-white hover:bg-green-600'
+              : 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
           }`}
         >
-          <Gift size={14} />
-          <span>{isPurchased ? 'Purchased' : 'Mark Purchased'}</span>
+          <Gift
+            size={14}
+            className={`${isPurchased ? 'fill-current' : ''} transition-all duration-300`}
+          />
+          <span>{isPurchased ? 'Purchased' : 'Purchase'}</span>
         </button>
         {item.purchased_by && (
-          <span className="text-xs text-gray-500 dark:text-gray-400">
+          <span className="text-xs text-gray-500 dark:text-gray-400 italic">
             Purchased by {item.purchased_by}
           </span>
         )}
