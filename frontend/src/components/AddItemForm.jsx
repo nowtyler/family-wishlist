@@ -30,7 +30,7 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
       link: formData.link || null,
       image_url: formData.image_url || null,
       description: formData.description || null,
-      price: formData.price ? Math.round(parseFloat(formData.price) * 100) : null  // Convert dollars to cents
+      price: formData.price ? Math.round(parseFloat(formData.price) * 100) : null  // Convert to cents
     };
 
     try {
@@ -129,7 +129,10 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
             min="0"
             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             value={formData.price}
-            onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+            onChange={(e) => {
+              const value = e.target.value;
+              setFormData({ ...formData, price: value ? parseFloat(value) : '' });
+            }}
             placeholder="0.00"
           />
         </div>

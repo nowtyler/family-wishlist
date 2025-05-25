@@ -133,6 +133,10 @@ def create_wishlist_item(db: Session, item: schemas.WishlistItemCreate, owner_id
     if item_data.get('image_url'):
         item_data['image_url'] = str(item_data['image_url'])
     
+    # Make sure price is integer cents
+    if 'price' in item_data and item_data['price'] is not None:
+        item_data['price'] = int(item_data['price'])
+    
     db_item = models.WishlistItem(**item_data, owner_id=owner_id)
     db.add(db_item)
     db.commit()
@@ -161,9 +165,8 @@ def update_wishlist_item(db: Session, item_id: int, item_update: schemas.Wishlis
         if hasattr(db_item, key):
             if key in ['link', 'image_url'] and value is not None:
                 setattr(db_item, key, str(value))
-            # Make sure price is set as dollars (no conversion needed)
             elif key == 'price' and value is not None:
-                setattr(db_item, key, float(value))
+                setattr(db_item, key, int(value))  # Store as integer cents
             else:
                 setattr(db_item, key, value)
     

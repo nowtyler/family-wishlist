@@ -98,7 +98,10 @@ export const createWishlistItem = async (ownerId, itemData) => {
     console.log('Creating wishlist item:', { ownerId, itemData });
     const cleanData = {
       ...itemData,
-      price: itemData.price ? Math.round(parseFloat(itemData.price) * 100) : null  // Convert dollars to cents
+      link: itemData.link || null,
+      image_url: itemData.image_url || null,
+      description: itemData.description || null,
+      price: itemData.price  // Remove the multiplication, just pass the value as is
     };
     console.log('Sending data to API:', cleanData);
     const response = await apiClient.post(`/members/${ownerId}/items`, cleanData);
@@ -115,7 +118,10 @@ export const updateWishlistItem = async (itemId, itemData) => {
     console.log('Updating wishlist item:', { itemId, itemData });
     const cleanData = {
       ...itemData,
-      price: itemData.price ? Math.round(parseFloat(itemData.price) * 100) : null  // Convert dollars to cents
+      link: itemData.link || null,
+      image_url: itemData.image_url || null,
+      description: itemData.description || null,
+      price: itemData.price  // Remove the multiplication, just pass the value as is
     };
     console.log('Sending data to API:', cleanData);
     const response = await apiClient.put(`/items/${itemId}`, cleanData);

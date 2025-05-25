@@ -36,12 +36,10 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
   const handleSaveEdit = async (e, itemId) => {
     e.stopPropagation();
     try {
-      // Validate required fields
       if (!editForm.title?.trim()) {
         throw new Error('Title is required');
       }
 
-      // Cleanup form data
       const updatedData = {
         ...editForm,
         title: editForm.title.trim(),
@@ -49,17 +47,15 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
         link: editForm.link?.trim() || null,
         image_url: editForm.image_url?.trim() || null,
         priority: Number(editForm.priority),
-        price: editForm.price ? parseFloat(editForm.price) : null
+        price: editForm.price ? Math.round(parseFloat(editForm.price) * 100) : null  // Convert to cents
       };
 
       await updateWishlistItem(itemId, updatedData);
-      await onUpdateItems(); // Wait for the update to complete
+      await onUpdateItems();
       setEditingItemId(null);
       setEditForm({});
     } catch (error) {
       console.error('Failed to update item:', error);
-      // You might want to show this error to the user
-      // For now, we'll keep the edit form open so they can try again
       alert(error.userMessage || error.message || 'Failed to update item. Please try again.');
     }
   };
@@ -386,11 +382,6 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                         {renderPriorityIcon(item.priority)}
                       </div>
                       <div className="flex items-center gap-2 ml-auto shrink-0">
-                        {item.price !== null && (
-                          <span className="inline-flex text-sm font-medium px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 shrink-0">
-                            ${(item.price / 100).toFixed(2)}
-                          </span>
-                        )}
                         {renderThinkingAbout(item)}
                         {renderPurchaseButton(item)}
                       </div>
