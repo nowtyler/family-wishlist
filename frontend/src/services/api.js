@@ -106,11 +106,24 @@ export const createWishlistItem = async (ownerId, itemData) => {
   }
 };
 
-export const updateWishlistItem = (itemId, itemData) => {
-  // Note: The backend's updateWishlistItem is a PUT and takes full item data
-  // This might need adjustment based on how you want to handle partial updates.
-  // The backend schema `WishlistItemUpdate` allows optional fields.
-  return apiClient.put(`/items/${itemId}`, itemData);
+export const updateWishlistItem = async (itemId, itemData) => {
+  try {
+    console.log('Updating wishlist item:', { itemId, itemData });
+    // Clean up data before sending
+    const cleanData = {
+      title: itemData.title,
+      description: itemData.description || null,
+      link: itemData.link || null,
+      image_url: itemData.image_url || null,
+      priority: Number(itemData.priority)
+    };
+    const response = await apiClient.put(`/items/${itemId}`, cleanData);
+    console.log('Update response:', response.data);
+    return response;
+  } catch (error) {
+    console.error('Failed to update item:', error?.response?.data || error);
+    throw error;
+  }
 };
 
 export const deleteWishlistItem = (itemId) => {
