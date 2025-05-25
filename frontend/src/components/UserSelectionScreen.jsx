@@ -57,7 +57,7 @@ const UserSelectionScreen = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
-      className="min-h-[calc(100vh-200px)] flex flex-col items-center justify-center p-4 dark:bg-gray-900"
+      className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-slate-100 to-sky-100 dark:from-gray-900 dark:to-gray-800"
     >
       <div className="w-full max-w-2xl p-8 bg-white dark:bg-gray-800 rounded-xl shadow-2xl text-center">
         <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-8">Who are you?</h2>
