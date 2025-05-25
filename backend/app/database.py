@@ -13,9 +13,15 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 def create_db_and_tables():
-    Base.metadata.drop_all(bind=engine)  # Temporarily drop all tables
-    Base.metadata.create_all(bind=engine)
-    print("Database tables created/updated")
+    inspector = inspect(engine)
+    existing_tables = inspector.get_table_names()
+    
+    # Only create tables if they don't exist
+    if not existing_tables:
+        Base.metadata.create_all(bind=engine)
+        print("Database tables created")
+    else:
+        print("Database tables already exist, skipping creation")
 
 def get_db():
     db = SessionLocal()

@@ -29,6 +29,13 @@ def initialize_family_members(db: Session):
         print("FAMILY_MEMBERS_CONFIG not set. Skipping auto-initialization.")
         return
 
+    # First, check if we have any members at all
+    existing_count = db.query(models.FamilyMember).count()
+    if existing_count > 0:
+        print(f"Found {existing_count} existing family members, skipping initialization")
+        return
+
+    # Only proceed with initialization if no members exist
     member_configs = env_config.split(',')
     for config_str in member_configs:
         parts = config_str.strip().split(':')
@@ -258,19 +265,17 @@ def get_next_gift_event() -> Optional[schemas.GiftEvent]:
         parts = config_str.strip().split(':')
         name = parts[0]
         birthday_str = parts[1] if len(parts) > 1 else None
-
-        if birthday_str and birthday_str != "admin":  # Skip admin entries
+        if birthday_str and birthday_str != "admin":
             try:
-                birth_month, birth_day = map(int, birthday_str.split('-')[1:]) # Assuming YYYY-MM-DD format, take MM-DD
+                birth_month, birth_day = map(int, birthday_str.split('-')[1:])
                 birthday_this_year = date(current_year, birth_month, birth_day)
-                
                 if birthday_this_year >= today:
                     events.append({"name": f"{name}'s Birthday", "date": birthday_this_year})
-                else: # Birthday next year
+                else:  # Birthday next year
                     events.append({"name": f"{name}'s Birthday", "date": date(current_year + 1, birth_month, birth_day)})
             except ValueError:
                 print(f"Could not parse birthday for reminder: {name} - {birthday_str}")
-                continue # Skip malformed entries
+                continue
 
     # Find the soonest event
     if not events:
