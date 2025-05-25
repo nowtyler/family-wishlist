@@ -2,6 +2,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text, Date
 from sqlalchemy.orm import relationship
 from .database import Base
+from pydantic import BaseModel, HttpUrl
 
 class FamilyMember(Base):
     __tablename__ = "family_members"
@@ -36,3 +37,20 @@ class Comment(Base):
 
     item = relationship("WishlistItem", back_populates="comments")
     author = relationship("FamilyMember") # To show who wrote the comment
+
+class WishlistItemCreate(BaseModel):
+    title: str
+    description: str | None = None
+    link: HttpUrl | None = None
+    image_url: HttpUrl | None = None
+    priority: int = 1
+
+    def to_db_dict(self) -> dict:
+        """Convert model to a database-friendly dictionary"""
+        data = self.model_dump()
+        # Convert URLs to strings for database storage
+        if data.get('link'):
+            data['link'] = str(data['link'])
+        if data.get('image_url'):
+            data['image_url'] = str(data['image_url'])
+        return data
