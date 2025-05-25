@@ -83,6 +83,16 @@ const UserSelectionScreen = () => {
             </motion.button>
           ))}
         </div>
+        
+        {/* Admin Section */}
+        <div className="mt-12 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <button
+            onClick={() => navigate('/admin')}
+            className="text-xs text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary-300 transition-colors"
+          >
+            Admin Access
+          </button>
+        </div>
       </div>
     </motion.div>
   );

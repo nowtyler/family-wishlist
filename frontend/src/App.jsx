@@ -7,6 +7,7 @@ import AuthScreen from './components/AuthScreen';
 import UserSelectionScreen from './components/UserSelectionScreen';
 import DashboardScreen from './components/DashboardScreen';
 import Navbar from './components/Navbar'; // We'll create this
+import AdminDashboard from './components/AdminDashboard';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, selectedUser } = useAppContext();
@@ -45,6 +46,11 @@ const AppContent = () => {
             <Route path="/" element={
               <ProtectedRoute>
                 {selectedUser ? <DashboardScreen /> : <Navigate to="/select-user" replace />}
+              </ProtectedRoute>
+            } />
+            <Route path="/admin" element={
+              <ProtectedRoute>
+                <AdminDashboard />
               </ProtectedRoute>
             } />
             <Route path="*" element={
