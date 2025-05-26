@@ -1,6 +1,6 @@
 # backend/app/main.py
-from fastapi import FastAPI, Depends, HTTPException, status, Header
-from fastapi.responses import Response
+from fastapi import FastAPI, Depends, HTTPException, status, Header, Request, Body, Path
+from fastapi.responses import Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict
@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from . import crud, models, schemas, auth, database
 from .database import engine, create_db_and_tables, get_db, SessionLocal
 from .services.auth_service import AuthenticationService
+from .middleware.rate_limiter import RateLimiter
 
 # Create database tables on startup
 # In a more complex app, you'd use Alembic migrations for this.
@@ -20,7 +21,25 @@ from .services.auth_service import AuthenticationService
 # database.Base.metadata.create_all(bind=engine)
 # We will call create_db_and_tables() from startup event
 
-app = FastAPI(title="Family Wishlist API", version="0.1.0")
+# Enhanced API documentation
+app = FastAPI(
+    title="Family Wishlist API",
+    description="""
+    A family wishlist application API that allows family members to:
+    * Create and manage wishlists
+    * Mark items as "thinking about" or "purchased"
+    * Add comments on wishlist items
+    * Track upcoming events and gift reminders
+    """,
+    version="1.0.0",
+    contact={
+        "name": "Your Name",
+        "email": "your.email@example.com",
+    },
+    license_info={
+        "name": "Private",
+    },
+)
 
 # CORS (Cross-Origin Resource Sharing)
 # Allow our frontend (running on a different port during development) to talk to the backend.
@@ -42,10 +61,15 @@ app.add_middleware(
     allow_headers=["*"], # Allows all headers
 )
 
+# Initialize rate limiter
+rate_limiter = RateLimiter(requests_per_minute=60)
+
 # --- App Startup ---
 @app.on_event("startup")
-def on_startup():
+async def startup_event():
+    # Create the database and tables
     create_db_and_tables()
+    
     # Initialize family members from .env if they don't exist
     db = SessionLocal()
     try:
@@ -54,6 +78,26 @@ def on_startup():
         db.close()
     print("Family Wishlist API startup complete. Database and tables checked/created.")
 
+    await rate_limiter.start_cleanup()
+
+# Add rate limiting middleware
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    await rate_limiter.check_rate_limit(request)
+    response = await call_next(request)
+    return response
+
+# Enhanced error responses
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": exc.detail,
+            "timestamp": datetime.utcnow().isoformat(),
+            "path": request.url.path
+        }
+    )
 
 # --- Authentication ---
 logger = logging.getLogger(__name__)
@@ -120,13 +164,34 @@ def check_admin_or_owner(db: Session, user_id: int, owner_id: int) -> bool:
     user = crud.get_family_member(db, user_id)
     return user and (user.name.lower() == 'admin' or user_id == owner_id)
 
-@app.post("/api/members/{owner_id}/items", response_model=schemas.WishlistItem)
+@app.post("/api/members/{owner_id}/items", 
+    response_model=schemas.WishlistItem,
+    responses={
+        400: {"description": "Invalid input"},
+        403: {"description": "Not authorized to add items"},
+        429: {"description": "Too many requests"}
+    },
+    tags=["Wishlist Items"],
+    summary="Create a new wishlist item",
+    description="Create a new wishlist item for a specific family member."
+)
 def create_item_for_member(
-    owner_id: int,
-    item: schemas.WishlistItemCreate,
+    owner_id: int = Path(..., description="The ID of the wishlist owner"),
+    item: schemas.WishlistItemCreate = Body(..., description="The item to create"),
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id_from_header)
 ):
+    """
+    Create a new wishlist item with the following features:
+    - Validates input data
+    - Checks authorization
+    - Rate limited to prevent abuse
+    - Returns the created item
+    
+    The user must be either:
+    - The owner of the wishlist
+    - An admin user
+    """
     if current_user_id is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
     

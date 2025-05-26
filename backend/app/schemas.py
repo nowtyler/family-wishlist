@@ -1,5 +1,5 @@
 # backend/app/schemas.py
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, validator
 from typing import List, Optional, Union
 from datetime import date, datetime
 
@@ -34,6 +34,13 @@ class CommentBase(BaseModel):
 
 class CommentCreate(CommentBase):
     author_id: int # This will be the ID of the logged-in (selected) user
+    text: str = Field(..., min_length=1, max_length=1000)
+
+    @validator('text')
+    def text_not_empty(cls, v):
+        if not v.strip():
+            raise ValueError('Comment cannot be empty')
+        return v.strip()
 
 class Comment(CommentBase):
     id: int
@@ -55,7 +62,24 @@ class WishlistItemBase(BaseModel):
     price: Optional[int] = None
 
 class WishlistItemCreate(WishlistItemBase):
-    pass
+    title: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=2000)
+    link: Optional[HttpUrl] = None
+    image_url: Optional[HttpUrl] = None
+    priority: int = Field(..., ge=0, le=2)
+    price: Optional[float] = Field(None, ge=0, le=1000000)
+
+    @validator('title')
+    def title_not_empty(cls, v):
+        if not v.strip():
+            raise ValueError('Title cannot be empty')
+        return v.strip()
+
+    @validator('price')
+    def convert_price_to_cents(cls, v):
+        if v is not None:
+            return int(v * 100)
+        return None
 
 class WishlistItemUpdate(WishlistItemBase):
     title: Optional[str] = None
