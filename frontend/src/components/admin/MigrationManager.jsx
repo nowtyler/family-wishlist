@@ -10,21 +10,28 @@ const MigrationManager = () => {
     const [backups, setBackups] = useState([]);
     const [backupLoading, setBackupLoading] = useState(false);
     const [backupError, setBackupError] = useState('');
-    const [schemaHash, setSchemaHash] = useState(null);
-    const [schemaChanged, setSchemaChanged] = useState(false);
 
     const fetchMigrations = async () => {
         try {
             setLoading(true);
             setError('');
-            const response = await getMigrations();
-            if (response.data) {
-                setMigrations(response.data.available_migrations || []);
-                setCurrentVersion(response.data.current_version || 'base');
+            const [migrationsResponse, schemaResponse] = await Promise.all([
+                getMigrations(),
+                getSchemaHash()
+            ]);
+
+            if (migrationsResponse.data) {
+                setMigrations(migrationsResponse.data.available_migrations || []);
+                setCurrentVersion(migrationsResponse.data.current_version || 'base');
+            }
+
+            // Add warning message without blocking UI
+            if (migrationsResponse.data.schema_hash !== schemaResponse.data.hash) {
+                setError('Schema changes detected. New migrations may be available.');
             }
         } catch (err) {
-            setError(err.response?.data?.detail || err.message || 'Failed to fetch migrations');
             console.error('Migration fetch error:', err);
+            setError('Failed to fetch migrations');
         } finally {
             setLoading(false);
         }
@@ -59,29 +66,10 @@ const MigrationManager = () => {
         }
     };
 
-    const checkSchemaChanges = async () => {
-        try {
-            const response = await getSchemaHash();
-            const newHash = response.data.hash;
-            
-            if (schemaHash && newHash !== schemaHash) {
-                setSchemaChanged(true);
-            }
-            
-            setSchemaHash(newHash);
-        } catch (err) {
-            console.error('Failed to check schema:', err);
-        }
-    };
-
     useEffect(() => {
         fetchMigrations();
         fetchBackups();
-        checkSchemaChanges();
-        
-        // Poll for schema changes every 30 seconds
-        const interval = setInterval(checkSchemaChanges, 30000);
-        return () => clearInterval(interval);
+        // Remove schema polling
     }, []);
 
     const handleCreateBackup = async () => {
@@ -144,18 +132,17 @@ const MigrationManager = () => {
     };
 
     if (loading) return <div>Loading migrations...</div>;
-    if (error) return <div className="text-red-500">{error}</div>;
 
     return (
         <div className="p-4 space-y-8">
-            {schemaChanged && (
-                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <div className="flex items-center gap-2 text-yellow-800">
+            {error && (
+                <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                    <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
                         <AlertCircle size={18} />
-                        <span>Schema changes detected. New migrations may be available.</span>
+                        <span>{error}</span>
                         <button 
                             onClick={fetchMigrations}
-                            className="ml-2 px-2 py-1 text-sm bg-yellow-100 rounded hover:bg-yellow-200"
+                            className="ml-2 px-2 py-1 text-sm bg-yellow-100 dark:bg-yellow-900 rounded hover:bg-yellow-200 dark:hover:bg-yellow-800"
                         >
                             Refresh
                         </button>
