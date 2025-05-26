@@ -693,6 +693,18 @@ async def delete_backup(
         "message": message
     }
 
+@app.get("/api/admin/schema/hash")
+async def get_schema_hash(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get current schema hash for change detection"""
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+        
+    return {"hash": migration_service.get_schema_hash()}
+
 
 # More explicit health check
 @app.get("/api/health")

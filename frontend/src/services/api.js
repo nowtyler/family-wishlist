@@ -269,4 +269,9 @@ export const deleteBackup = (filename) => {
   return apiClient.delete(`/admin/backups/${filename}`);
 };
 
+// --- Schema Management ---
+export const getSchemaHash = () => {
+  return apiClient.get('/admin/schema/hash');
+};
+
 export default apiClient;

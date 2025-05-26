@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getMigrations, upgradeMigration, createBackup, getBackups, restoreBackup, deleteBackup } from '../../services/api';
+import { getMigrations, upgradeMigration, createBackup, getBackups, restoreBackup, deleteBackup, getSchemaHash } from '../../services/api';
 import { AlertCircle, Database, Archive, Download, RotateCcw, Plus, Trash2 } from 'lucide-react';
 
 const MigrationManager = () => {
@@ -10,6 +10,8 @@ const MigrationManager = () => {
     const [backups, setBackups] = useState([]);
     const [backupLoading, setBackupLoading] = useState(false);
     const [backupError, setBackupError] = useState('');
+    const [schemaHash, setSchemaHash] = useState(null);
+    const [schemaChanged, setSchemaChanged] = useState(false);
 
     const fetchMigrations = async () => {
         try {
@@ -57,9 +59,29 @@ const MigrationManager = () => {
         }
     };
 
+    const checkSchemaChanges = async () => {
+        try {
+            const response = await getSchemaHash();
+            const newHash = response.data.hash;
+            
+            if (schemaHash && newHash !== schemaHash) {
+                setSchemaChanged(true);
+            }
+            
+            setSchemaHash(newHash);
+        } catch (err) {
+            console.error('Failed to check schema:', err);
+        }
+    };
+
     useEffect(() => {
         fetchMigrations();
         fetchBackups();
+        checkSchemaChanges();
+        
+        // Poll for schema changes every 30 seconds
+        const interval = setInterval(checkSchemaChanges, 30000);
+        return () => clearInterval(interval);
     }, []);
 
     const handleCreateBackup = async () => {
@@ -126,6 +148,21 @@ const MigrationManager = () => {
 
     return (
         <div className="p-4 space-y-8">
+            {schemaChanged && (
+                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <div className="flex items-center gap-2 text-yellow-800">
+                        <AlertCircle size={18} />
+                        <span>Schema changes detected. New migrations may be available.</span>
+                        <button 
+                            onClick={fetchMigrations}
+                            className="ml-2 px-2 py-1 text-sm bg-yellow-100 rounded hover:bg-yellow-200"
+                        >
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
                 <h3 className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200 font-medium mb-2">
                     <AlertCircle size={18} />

@@ -2,8 +2,9 @@ from alembic.config import Config
 from alembic import command
 from alembic.script import ScriptDirectory
 from alembic.runtime.migration import MigrationContext
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 import os
+import hashlib
 from typing import List, Dict
 from ..schemas import MigrationInfo
 import logging
@@ -89,3 +90,50 @@ class MigrationService:
             return f"Successfully downgraded to {target}"
         except Exception as e:
             return f"Failed to downgrade: {str(e)}"
+    
+    def get_schema_hash(self) -> str:
+        """Generate a hash of the current schema definition"""
+        schema_def = []
+        inspector = inspect(self.engine)
+        
+        # Get all tables
+        for table_name in sorted(inspector.get_table_names()):  # Sort table names
+            # Get columns
+            columns = inspector.get_columns(table_name)
+            col_info = sorted(  # Sort column info
+                [(col['name'], str(col['type']), col.get('nullable', True)) 
+                 for col in columns],
+                key=lambda x: x[0]  # Sort by column name
+            )
+            
+            # Get foreign keys and sort them
+            foreign_keys = sorted(
+                [(fk['referred_table'], tuple(sorted(fk['constrained_columns'])), tuple(sorted(fk['referred_columns'])))
+                 for fk in inspector.get_foreign_keys(table_name)],
+                key=lambda x: (x[0], x[1], x[2])
+            )
+            
+            # Get indexes and sort them
+            indexes = sorted(
+                [(idx['name'], tuple(sorted(idx['column_names'])), idx.get('unique', False))
+                 for idx in inspector.get_indexes(table_name)],
+                key=lambda x: (x[0] or '', x[1], x[2])
+            )
+            
+            # Create a tuple of sorted components
+            table_def = (
+                table_name,
+                tuple(col_info),
+                tuple(foreign_keys),
+                tuple(indexes)
+            )
+            schema_def.append(table_def)
+        
+        # Create deterministic string representation
+        schema_str = repr(sorted(schema_def))
+        return hashlib.sha256(schema_str.encode()).hexdigest()
+
+    def schema_requires_migration(self, target_hash: str) -> bool:
+        """Check if current schema matches target hash"""
+        current_hash = self.get_schema_hash()
+        return current_hash != target_hash
