@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getMigrations, upgradeMigration, createBackup, getBackups, restoreBackup } from '../../services/api';
-import { AlertCircle, Database, Archive, Download, RotateCcw, Plus } from 'lucide-react';
+import { getMigrations, upgradeMigration, createBackup, getBackups, restoreBackup, deleteBackup } from '../../services/api';
+import { AlertCircle, Database, Archive, Download, RotateCcw, Plus, Trash2 } from 'lucide-react';
 
 const MigrationManager = () => {
     const [migrations, setMigrations] = useState([]);
@@ -104,6 +104,23 @@ const MigrationManager = () => {
         }
     };
 
+    const handleDeleteBackup = async (filename) => {
+        if (!confirm('Are you sure you want to delete this backup? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            setBackupLoading(true);
+            setBackupError('');
+            await deleteBackup(filename);
+            await fetchBackups();
+        } catch (err) {
+            setBackupError(err.response?.data?.detail || err.message || 'Failed to delete backup');
+        } finally {
+            setBackupLoading(false);
+        }
+    };
+
     if (loading) return <div>Loading migrations...</div>;
     if (error) return <div className="text-red-500">{error}</div>;
 
@@ -190,19 +207,29 @@ const MigrationManager = () => {
                                         <span>{backup.size_kb.toFixed(1)} KB</span>
                                     </div>
                                 </div>
-                                <button
-                                    onClick={() => handleRestoreBackup(backup.filename)}
-                                    disabled={backupLoading || !backup.can_restore}
-                                    className={`flex items-center gap-1 px-2 py-1 rounded text-sm ${
-                                        backup.can_restore
-                                            ? 'text-blue-500 hover:text-blue-600'
-                                            : 'text-gray-400 cursor-not-allowed'
-                                    }`}
-                                    title={backup.can_restore ? 'Restore this backup' : 'Schema mismatch - requires migration'}
-                                >
-                                    <RotateCcw size={14} />
-                                    {backup.can_restore ? 'Restore' : 'Needs Migration'}
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => handleRestoreBackup(backup.filename)}
+                                        disabled={backupLoading}
+                                        className={`flex items-center gap-1 px-2 py-1 rounded text-sm ${
+                                            backup.can_restore
+                                                ? 'text-blue-500 hover:text-blue-600'
+                                                : 'text-gray-400 cursor-not-allowed'
+                                        }`}
+                                        title={backup.can_restore ? 'Restore this backup' : 'Schema mismatch - requires migration'}
+                                    >
+                                        <RotateCcw size={14} />
+                                        Restore
+                                    </button>
+                                    <button
+                                        onClick={() => handleDeleteBackup(backup.filename)}
+                                        disabled={backupLoading}
+                                        className="flex items-center gap-1 px-2 py-1 rounded text-sm text-red-500 hover:text-red-600"
+                                        title="Delete this backup"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     ))}

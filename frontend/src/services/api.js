@@ -265,4 +265,8 @@ export const restoreBackup = (filename) => {
   return apiClient.post(`/admin/backups/restore/${filename}`);
 };
 
+export const deleteBackup = (filename) => {
+  return apiClient.delete(`/admin/backups/${filename}`);
+};
+
 export default apiClient;

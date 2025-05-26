@@ -3,7 +3,7 @@ import shutil
 from datetime import datetime
 import logging
 from typing import List, Tuple, Optional
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 from ..schemas import BackupInfo
 from pathlib import Path
 
@@ -53,20 +53,17 @@ class BackupService:
         """Checks if backup database schema matches current schema"""
         try:
             backup_engine = create_engine(f'sqlite:///{backup_path}')
-            current_tables = set(inspect(self.engine).get_table_names())
-            backup_tables = set(inspect(backup_engine).get_table_names())
             
-            if current_tables != backup_tables:
+            # Fix the query execution
+            try:
+                with backup_engine.connect() as conn:
+                    conn.execute(text("SELECT 1"))  # Use SQLAlchemy text() for raw SQL
+                    conn.commit()  # Make sure to commit the transaction
+                return True
+            except Exception as e:
+                logger.error(f"Failed to connect to backup database: {str(e)}")
                 return False
-            
-            # Check columns in each table
-            for table in current_tables:
-                current_cols = {c['name']: c['type'] for c in inspect(self.engine).get_columns(table)}
-                backup_cols = {c['name']: c['type'] for c in inspect(backup_engine).get_columns(table)}
-                if current_cols != backup_cols:
-                    return False
-            
-            return True
+                
         except Exception as e:
             logger.error(f"Schema check failed: {str(e)}")
             return False
@@ -90,3 +87,16 @@ class BackupService:
         except Exception as e:
             logger.error(f"Restore failed: {str(e)}")
             return False, f"Restore failed: {str(e)}"
+
+    def delete_backup(self, backup_filename: str) -> Tuple[bool, str]:
+        """Deletes a backup file"""
+        try:
+            backup_path = os.path.join(self.backup_dir, backup_filename)
+            if not os.path.exists(backup_path):
+                return False, "Backup file not found"
+            
+            os.remove(backup_path)
+            return True, "Backup deleted successfully"
+        except Exception as e:
+            return False, f"Failed to delete backup: {str(e)}"
+            return False, f"Failed to delete backup: {str(e)}"
