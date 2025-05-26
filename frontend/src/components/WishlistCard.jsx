@@ -322,36 +322,38 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                     </div>
                   ) : (
                     <>
-                      <div className="flex-1 max-w-full">
-                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-2 line-clamp-2 break-words overflow-hidden">{item.title}</h3>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {item.price !== null && (
-                          <span className="inline-flex text-sm font-medium px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 shrink-0">
-                            ${(item.price / 100).toFixed(2)}
-                          </span>
-                        )}
-                        {isOwnWishlist && (
-                          <div className="flex gap-2">
-                            <button
-                              onClick={(e) => handleEditClick(e, item)}
-                              className="text-blue-500 hover:text-blue-700 p-1"
-                              title="Edit item"
-                            >
-                              <Pencil size={16} />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onDeleteItem(item.id);
-                              }}
-                              className="text-red-500 hover:text-red-700 p-1"
-                              title="Delete item"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        )}
+                      <div className="flex flex-wrap items-start justify-between w-full gap-2">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-2 line-clamp-2 break-words overflow-hidden">{item.title}</h3>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {item.price !== null && (
+                            <span className="inline-flex text-sm font-medium px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
+                              ${(item.price / 100).toFixed(2)}
+                            </span>
+                          )}
+                          {isOwnWishlist && (
+                            <div className="flex gap-1">
+                              <button
+                                onClick={(e) => handleEditClick(e, item)}
+                                className="text-blue-500 hover:text-blue-700 p-1"
+                                title="Edit item"
+                              >
+                                <Pencil size={16} />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDeleteItem(item.id);
+                                }}
+                                className="text-red-500 hover:text-red-700 p-1"
+                                title="Delete item"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </>
                   )}
