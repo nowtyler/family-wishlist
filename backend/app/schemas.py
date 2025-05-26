@@ -1,11 +1,22 @@
 # backend/app/schemas.py
-from pydantic import BaseModel, Field, HttpUrl, validator
+from pydantic import BaseModel, Field, HttpUrl, validator, EmailStr
 from typing import List, Optional, Union
 from datetime import date, datetime
+from enum import Enum
+
+class PriorityLevel(int, Enum):
+    LOW = 0
+    MEDIUM = 1
+    HIGH = 2
 
 # --- Password ---
 class PasswordRequest(BaseModel):
-    password: str
+    password: str = Field(
+        ...,
+        min_length=8,
+        max_length=50,
+        description="Family password for authentication"
+    )
 
 class PasswordVerificationResponse(BaseModel):
     authenticated: bool
@@ -62,24 +73,69 @@ class WishlistItemBase(BaseModel):
     price: Optional[int] = None
 
 class WishlistItemCreate(WishlistItemBase):
-    title: str = Field(..., min_length=1, max_length=200)
-    description: Optional[str] = Field(None, max_length=2000)
-    link: Optional[HttpUrl] = None
-    image_url: Optional[HttpUrl] = None
-    priority: int = Field(..., ge=0, le=2)
-    price: Optional[float] = Field(None, ge=0, le=1000000)
+    title: str = Field(
+        ..., 
+        min_length=1, 
+        max_length=200,
+        description="Title of the wishlist item"
+    )
+    description: Optional[str] = Field(
+        None, 
+        max_length=2000,
+        description="Optional detailed description of the item"
+    )
+    link: Optional[HttpUrl] = Field(
+        None,
+        description="URL link to the item on an external website"
+    )
+    image_url: Optional[HttpUrl] = Field(
+        None,
+        description="URL of an image representing the item"
+    )
+    priority: PriorityLevel = Field(
+        PriorityLevel.MEDIUM,
+        description="Priority level of the item (0=Low, 1=Medium, 2=High)"
+    )
+    price: Optional[float] = Field(
+        None,
+        ge=0,
+        le=1000000,
+        description="Price of the item in dollars (will be converted to cents)"
+    )
 
     @validator('title')
-    def title_not_empty(cls, v):
+    def validate_title(cls, v):
         if not v.strip():
             raise ValueError('Title cannot be empty')
+        if any(char in v for char in '<>{}'):
+            raise ValueError('Title contains invalid characters')
         return v.strip()
 
+    @validator('description')
+    def validate_description(cls, v):
+        if v and any(char in v for char in '<>{}'):
+            raise ValueError('Description contains invalid characters')
+        return v.strip() if v else None
+
     @validator('price')
-    def convert_price_to_cents(cls, v):
+    def validate_price(cls, v):
         if v is not None:
-            return int(v * 100)
+            if v < 0:
+                raise ValueError('Price cannot be negative')
+            return int(v * 100)  # Convert to cents
         return None
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "title": "Nintendo Switch",
+                "description": "OLED Model - White",
+                "link": "https://www.amazon.com/Nintendo-Switch-OLED-Model-White/dp/B098RKWHHZ",
+                "image_url": "https://example.com/switch.jpg",
+                "priority": 2,
+                "price": 349.99
+            }
+        }
 
 class WishlistItemUpdate(WishlistItemBase):
     title: Optional[str] = None

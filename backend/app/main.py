@@ -1,5 +1,5 @@
 # backend/app/main.py
-from fastapi import FastAPI, Depends, HTTPException, status, Header, Request, Body, Path
+from fastapi import FastAPI, Depends, HTTPException, status, Header, Request, Body, Path, Query
 from fastapi.responses import Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -21,6 +21,33 @@ from .middleware.rate_limiter import RateLimiter
 # database.Base.metadata.create_all(bind=engine)
 # We will call create_db_and_tables() from startup event
 
+tags_metadata = [
+    {
+        "name": "Authentication",
+        "description": "Family password verification endpoints"
+    },
+    {
+        "name": "Family Members",
+        "description": "Operations with family members"
+    },
+    {
+        "name": "Wishlist Items",
+        "description": "CRUD operations for wishlist items"
+    },
+    {
+        "name": "Comments",
+        "description": "Manage comments on wishlist items"
+    },
+    {
+        "name": "Gift Reminders",
+        "description": "Upcoming events and gift reminders"
+    },
+    {
+        "name": "System",
+        "description": "System configuration and version management"
+    }
+]
+
 # Enhanced API documentation
 app = FastAPI(
     title="Family Wishlist API",
@@ -32,6 +59,7 @@ app = FastAPI(
     * Track upcoming events and gift reminders
     """,
     version="1.0.0",
+    openapi_tags=tags_metadata,
     contact={
         "name": "Your Name",
         "email": "your.email@example.com",
@@ -102,10 +130,31 @@ async def http_exception_handler(request, exc):
 # --- Authentication ---
 logger = logging.getLogger(__name__)
 
-# Modify the verify_family_password endpoint to give better error messages
-# Keep the /api prefix in the route
-@app.post("/api/auth/verify-password", response_model=schemas.PasswordVerificationResponse)
-async def verify_family_password(request: schemas.PasswordRequest):
+@app.post("/api/auth/verify-password", 
+    response_model=schemas.PasswordVerificationResponse,
+    tags=["Authentication"],
+    summary="Verify family password",
+    responses={
+        200: {"description": "Password verification result"},
+        429: {"description": "Too many failed attempts"}
+    }
+)
+async def verify_family_password(
+    request: schemas.PasswordRequest = Body(
+        ...,
+        examples={
+            "normal": {
+                "summary": "Valid password",
+                "value": {"password": "your-family-password"}
+            }
+        }
+    )
+):
+    """
+    Verify the family password for access to the application.
+    
+    Rate limited to prevent brute force attacks.
+    """
     try:
         logger.debug(f"Received password verification request")
         if auth.verify_password(request.password):
@@ -135,8 +184,19 @@ def get_current_user_id_from_header(x_current_user_id: Optional[int] = Header(No
         return None
     return x_current_user_id
 
-@app.get("/api/family-members", response_model=List[schemas.FamilyMember])
-def read_family_members(db: Session = Depends(get_db)):
+@app.get("/api/family-members",
+    response_model=List[schemas.FamilyMember],
+    tags=["Family Members"],
+    summary="Get all family members"
+)
+def read_family_members(
+    skip: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(100, ge=1, le=100, description="Maximum number of records to return"),
+    db: Session = Depends(get_db)
+):
+    """
+    Retrieve all family members with their wishlist item counts.
+    """
     members = crud.get_family_members(db)
     members_with_counts = []
     for member in members:
