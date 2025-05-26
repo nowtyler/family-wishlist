@@ -256,17 +256,22 @@ const DashboardScreen = () => {
       )}
 
       {/* Floating Add Button */}
-      {(viewingMember?.id === selectedUser.id || isAdmin) && (
-        <motion.button
-          onClick={handleOpenAddItemForm}
-          className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-green-500 text-white shadow-lg hover:bg-green-600 flex items-center justify-center transition-colors duration-200 z-10"
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
-          title="Add new item"
-        >
-          <Plus size={24} />
-        </motion.button>
-      )}
+      <AnimatePresence>
+        {(viewingMember?.id === selectedUser.id || isAdmin) && !isAddingItem && (
+          <motion.button
+            onClick={handleOpenAddItemForm}
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 dark:from-sky-400 dark:to-indigo-400 text-white shadow-lg hover:from-sky-600 hover:to-indigo-600 dark:hover:from-sky-500 dark:hover:to-indigo-500 flex items-center justify-center transition-all duration-200 z-10"
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
+            title="Add new item"
+          >
+            <Plus size={24} />
+          </motion.button>
+        )}
+      </AnimatePresence>
 
       {/* Add Item Form Modal */}
       <AnimatePresence>
