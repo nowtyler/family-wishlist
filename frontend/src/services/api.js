@@ -181,4 +181,9 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+// --- Wishlist Items ---
+export const deleteAllWishlistItems = (ownerId) => {
+  return apiClient.delete(`/members/${ownerId}/items`);
+};
+
 export default apiClient;

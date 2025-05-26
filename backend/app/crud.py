@@ -233,6 +233,22 @@ def delete_wishlist_item(db: Session, item_id: int, requesting_user_id: int) -> 
         return True
     return False
 
+def delete_all_wishlist_items(db: Session, owner_id: int, requesting_user_id: int) -> bool:
+    requesting_user = get_family_member(db, requesting_user_id)
+    is_admin = requesting_user and requesting_user.name.lower() == 'admin'
+    
+    if is_admin or owner_id == requesting_user_id:
+        # First delete all comments for the items
+        items = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == owner_id).all()
+        for item in items:
+            db.query(models.Comment).filter(models.Comment.item_id == item.id).delete()
+        
+        # Then delete all items
+        db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == owner_id).delete()
+        db.commit()
+        return True
+    return False
+
 # --- Comment CRUD ---
 def create_comment(db: Session, item_id: int, comment: schemas.CommentCreate, author_id: int) -> models.Comment:
     db_item = db.query(models.WishlistItem).filter(models.WishlistItem.id == item_id).first()

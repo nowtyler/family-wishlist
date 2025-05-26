@@ -255,6 +255,22 @@ def delete_item(
         detail="Item not found or not authorized to delete."
     )
 
+@app.delete("/api/members/{owner_id}/items", status_code=status.HTTP_204_NO_CONTENT)
+def delete_all_items(
+    owner_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required.")
+
+    if crud.delete_all_wishlist_items(db, owner_id, current_user_id):
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Not authorized to delete all items."
+    )
+
 # --- Comments ---
 @app.post("/api/items/{item_id}/comments", response_model=schemas.Comment, status_code=status.HTTP_201_CREATED)
 def add_comment_to_item(
