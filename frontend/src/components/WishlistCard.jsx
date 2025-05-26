@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trash2, ExternalLink, Heart, Pencil, Check, X, ShoppingCart, ChevronDown, Star, MessageCircle, Send } from 'lucide-react';
-import { updateWishlistItem, addComment } from '../services/api';
+import { updateWishlistItem, addComment, deleteComment } from '../services/api';
 
 function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, onUpdateItems, onDeleteItem, onThinkingAbout, onMarkPurchased }) {
   const [selectedItem, setSelectedItem] = useState(null);
@@ -80,6 +80,16 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
         err.userMessage || 
         'Failed to add comment. Please try again.'
       );
+    }
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    try {
+      await deleteComment(commentId);
+      await onUpdateItems();
+    } catch (err) {
+      console.error('Failed to delete comment:', err);
+      setCommentError('Failed to delete comment');
     }
   };
 
@@ -273,22 +283,40 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
   };
 
   const formatCommentTime = (timestamp) => {
-    const commentDate = new Date(timestamp);
-    const now = new Date();
-    const diffMinutes = Math.floor((now - commentDate) / (1000 * 60));
-    const diffHours = Math.floor(diffMinutes / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffMinutes < 1) return 'just now';
-    if (diffMinutes < 60) return `${diffMinutes}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
+    // Make sure we're working with a valid ISO string from the backend
+    if (!timestamp) return '';
     
-    return commentDate.toLocaleDateString(undefined, { 
-      month: 'short', 
-      day: 'numeric',
-      year: commentDate.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
-    });
+    try {
+      const commentDate = new Date(timestamp + 'Z'); // Add 'Z' to handle UTC time properly
+      const now = new Date();
+      const diffMinutes = Math.floor((now - commentDate) / (1000 * 60));
+      const diffHours = Math.floor(diffMinutes / 60);
+      const diffDays = Math.floor(diffHours / 24);
+
+      // Debug log to check timestamps
+      console.log('Comment time:', {
+        timestamp,
+        commentDate,
+        now,
+        diffMinutes,
+        diffHours,
+        diffDays
+      });
+
+      if (diffMinutes < 1) return 'just now';
+      if (diffMinutes < 60) return `${diffMinutes}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      if (diffDays < 7) return `${diffDays}d ago`;
+      
+      return commentDate.toLocaleDateString(undefined, { 
+        month: 'short', 
+        day: 'numeric',
+        year: commentDate.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+      });
+    } catch (err) {
+      console.error('Error formatting timestamp:', err);
+      return 'invalid date';
+    }
   };
 
   if (isLoading) {
@@ -511,9 +539,23 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                                 <span className="font-medium text-gray-700 dark:text-gray-300">
                                   {comment.author_name}
                                 </span>
-                                <span className="text-gray-500 dark:text-gray-400 ml-2">
-                                  {formatCommentTime(comment.created_at)}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-gray-500 dark:text-gray-400">
+                                    {formatCommentTime(comment.created_at)}
+                                  </span>
+                                  {member.name.toLowerCase() === 'admin' && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteComment(comment.id);
+                                      }}
+                                      className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                                      title="Delete comment"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                               <p className="text-gray-600 dark:text-gray-300 text-sm mt-0.5">
                                 {comment.text}

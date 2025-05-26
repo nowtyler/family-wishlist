@@ -30,7 +30,7 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
       link: formData.link || null,
       image_url: formData.image_url || null,
       description: formData.description || null,
-      price: formData.price ? Math.round(parseFloat(formData.price) * 100) : null  // Convert to cents
+      price: formData.price ? parseFloat(formData.price) : null  // Pass raw dollar amount
     };
 
     try {

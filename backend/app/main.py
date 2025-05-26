@@ -430,10 +430,35 @@ def add_comment_to_item(
             author_id=current_user_id,
             author_name=author.name if author else "Unknown",
             item_id=item_id,
-            created_at=datetime.now()
+            created_at=comment.created_at  # Use the actual timestamp from the database
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@app.delete("/api/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_comment(
+    comment_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    if current_user_id is None:
+        raise HTTPException(status_code=403, detail="User context required")
+
+    user = crud.get_family_member(db, current_user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    comment = db.query(models.Comment).filter(models.Comment.id == comment_id).first()
+    if not comment:
+        raise HTTPException(status_code=404, detail="Comment not found")
+
+    # Allow deletion if admin or comment author
+    if user.name.lower() == 'admin' or comment.author_id == current_user_id:
+        db.delete(comment)
+        db.commit()
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    raise HTTPException(status_code=403, detail="Not authorized to delete this comment")
 
 # --- Gift Reminder ---
 @app.get("/api/upcoming-event", response_model=Optional[schemas.UpcomingEventResponse])

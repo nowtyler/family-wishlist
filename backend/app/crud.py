@@ -96,15 +96,19 @@ def get_wishlist_items_by_owner(db: Session, owner_id: int, current_user_id: int
         thinking_by_list = item.thinking_about_by.split(',') if item.thinking_about_by else []
         
         visible_comments = []
-        if owner_id != current_user_id:  # Only show comments to others
+        requesting_user = get_family_member(db, current_user_id)
+        is_admin = requesting_user and requesting_user.name.lower() == 'admin'
+        
+        # Show comments if admin or not viewing own wishlist
+        if is_admin or owner_id != current_user_id:
             visible_comments = [schemas.Comment(
                 id=comment.id,
                 text=comment.text,
                 author_id=comment.author_id,
                 author_name=comment.author.name,
                 item_id=comment.item_id,
-                created_at=comment.created_at  # Use the actual timestamp
-            ) for comment in item.comments]
+                created_at=comment.created_at
+            ) for comment in sorted(item.comments, key=lambda x: x.created_at, reverse=True)]
 
         result_items.append(schemas.WishlistItem(
             id=item.id,
@@ -269,11 +273,12 @@ def delete_all_wishlists(db: Session, requesting_user_id: int) -> bool:
 
 # --- Comment CRUD ---
 def create_comment(db: Session, item_id: int, text: str, author_id: int) -> models.Comment:
+    now = datetime.utcnow()
     db_comment = models.Comment(
         text=text,
         author_id=author_id,
         item_id=item_id,
-        created_at=datetime.utcnow()  # Explicitly set creation time
+        created_at=now
     )
     db.add(db_comment)
     db.commit()

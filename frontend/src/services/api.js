@@ -101,7 +101,7 @@ export const createWishlistItem = async (ownerId, itemData) => {
       link: itemData.link || null,
       image_url: itemData.image_url || null,
       description: itemData.description || null,
-      price: itemData.price  // Remove the multiplication, just pass the value as is
+      price: itemData.price ? parseFloat(itemData.price) : null  // Pass price as is, API will convert to cents
     };
     console.log('Sending data to API:', cleanData);
     const response = await apiClient.post(`/members/${ownerId}/items`, cleanData);
@@ -166,6 +166,10 @@ export const addComment = async (itemId, text) => {
     });
     throw error;
   }
+};
+
+export const deleteComment = (commentId) => {
+  return apiClient.delete(`/comments/${commentId}`);
 };
 
 // --- Gift Reminder ---

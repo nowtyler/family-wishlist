@@ -78,7 +78,7 @@ class WishlistItemBase(BaseModel):
     priority: int = 0
     price: Optional[int] = None
 
-class WishlistItemCreate(WishlistItemBase):
+class WishlistItemCreate(BaseModel):
     title: str = Field(
         ..., 
         min_length=1, 
@@ -128,7 +128,7 @@ class WishlistItemCreate(WishlistItemBase):
         if v is not None:
             if v < 0:
                 raise ValueError('Price cannot be negative')
-            return int(v * 100)  # Convert to cents
+            return int(v * 100)  # Convert dollars to cents in the API
         return None
 
     class Config:
