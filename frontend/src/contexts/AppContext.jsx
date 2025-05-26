@@ -10,7 +10,7 @@ export const AppProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(
     sessionStorage.getItem('wishlistAuthenticated') === 'true'
   );
-  const [familyMembers, setFamilyMembers] = useState([]);
+  const [familyMembers, setFamilyMembers] = useState([]); // Initialize as empty array
   const [selectedUser, setSelectedUser] = useState(() => {
     const savedUser = sessionStorage.getItem('wishlistSelectedUser');
     return savedUser ? JSON.parse(savedUser) : null;

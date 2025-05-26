@@ -172,13 +172,18 @@ export const updateSystemVersion = (version) => {
   return apiClient.put('/system/version', { version });
 };
 
-// Ensure all requests have user context
+// Update the interceptor to get user ID from sessionStorage
 apiClient.interceptors.request.use((config) => {
-  const userId = localStorage.getItem('currentUserId');
+  const savedUser = sessionStorage.getItem('wishlistSelectedUser');
+  const userId = savedUser ? JSON.parse(savedUser)?.id : null;
+  
   if (userId) {
     config.headers['X-Current-User-Id'] = userId;
   }
   return config;
+}, (error) => {
+  console.error('Request Error:', error);
+  return Promise.reject(error);
 });
 
 // --- Wishlist Items ---

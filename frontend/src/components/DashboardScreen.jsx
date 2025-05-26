@@ -1,12 +1,12 @@
 // frontend/src/components/DashboardScreen.jsx
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../contexts/AppContext';
-import { getFamilyMembers, getWishlistItems, getUpcomingEvent, createWishlistItem, deleteWishlistItem, toggleThinkingAbout, markPurchased, deleteAllWishlistItems } from '../services/api'; // Import deleteWishlistItem and toggleThinkingAbout
+import { getFamilyMembers, getWishlistItems, getUpcomingEvent, createWishlistItem, deleteWishlistItem, toggleThinkingAbout, markPurchased } from '../services/api'; // Import deleteWishlistItem and toggleThinkingAbout
 import WishlistCard from './WishlistCard';
 import GiftReminder from './GiftReminder';
 import AddItemForm from './AddItemForm';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, AlertOctagon } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 const DashboardScreen = () => {
   const { selectedUser, familyMembers, setFamilyMembers } = useAppContext();
@@ -17,7 +17,6 @@ const DashboardScreen = () => {
   const [error, setError] = useState(null);
   const [upcomingEvent, setUpcomingEvent] = useState(null);
   const [isAddingItem, setIsAddingItem] = useState(false); // State to control AddItemForm visibility
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   console.log('Dashboard State:', { selectedUser, familyMembers, viewingMember }); // Debug log
 
@@ -107,19 +106,30 @@ const DashboardScreen = () => {
     }
   }, [viewingMember?.id]);
 
-  // Update refreshWishlistItems to be more robust
+  // Pass this function to parent components
   const refreshWishlistItems = async () => {
     if (!viewingMember?.id) return;
     
     try {
+      setIsLoading(true);
       const response = await getWishlistItems(viewingMember.id);
-      setWishlistItems(response.data || []);
+      setWishlistItems(Array.isArray(response.data) ? response.data : []);
       setError(null);
     } catch (err) {
       console.error("Error refreshing wishlist items:", err);
       setError("Failed to refresh items.");
+      setWishlistItems([]); // Ensure empty array on error
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  // Make it available to the props passed from parent
+  React.useEffect(() => {
+    if (window.refreshWishlistItems !== refreshWishlistItems) {
+      window.refreshWishlistItems = refreshWishlistItems;
+    }
+  }, []);
 
   const handleOpenAddItemForm = () => {
     setIsAddingItem(true);
@@ -161,20 +171,6 @@ const DashboardScreen = () => {
     } catch (err) {
       console.error("Error marking item as purchased:", err);
       setError("Failed to mark item as purchased.");
-    }
-  };
-
-  const handleDeleteAll = async () => {
-    try {
-      await deleteAllWishlistItems(viewingMember.id);
-      await refreshWishlistItems();
-      // Refresh family members to update count
-      const membersResponse = await getFamilyMembers();
-      setFamilyMembers(membersResponse.data);
-      setShowDeleteConfirm(false);
-    } catch (err) {
-      console.error("Error deleting all items:", err);
-      setError("Failed to delete all items.");
     }
   };
 
@@ -224,7 +220,7 @@ const DashboardScreen = () => {
       <div className="mb-8">
         <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-3">Browse Wishlists:</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {familyMembers
+          {Array.isArray(familyMembers) && familyMembers
             .filter(member => !member.name.toLowerCase().includes('admin'))
             .map(member => (
               <motion.button
@@ -246,7 +242,7 @@ const DashboardScreen = () => {
       {viewingMember && (
         <div className="relative">
           {(viewingMember?.id === selectedUser.id || isAdmin) && (
-            <div className="absolute right-8 top-4 flex items-center gap-4">
+            <div className="absolute right-8 top-4">
               <button
                 onClick={handleOpenAddItemForm}
                 className="text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400 transition-colors"
@@ -258,7 +254,7 @@ const DashboardScreen = () => {
           )}
           <WishlistCard
             member={viewingMember}
-            items={wishlistItems}
+            items={Array.isArray(wishlistItems) ? wishlistItems : []}
             isLoading={isLoading}
             isOwnWishlist={isAdmin || viewingMember.id === selectedUser.id}
             currentUserId={selectedUser.id}
@@ -302,47 +298,6 @@ const DashboardScreen = () => {
                 onAddItem={handleAddItem}
                 onClose={handleCloseAddItemForm}
               />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Delete All Confirmation Modal */}
-      <AnimatePresence>
-        {showDeleteConfirm && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-          >
-            <motion.div
-              initial={{ scale: 0.95 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.95 }}
-              className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full"
-            >
-              <div className="flex items-center gap-3 text-red-500 mb-4">
-                <AlertOctagon className="w-6 h-6" />
-                <h3 className="text-xl font-bold">Delete All Items</h3>
-              </div>
-              <p className="text-gray-600 dark:text-gray-300 mb-6">
-                Are you sure you want to delete all items from your wishlist? This action cannot be undone.
-              </p>
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => setShowDeleteConfirm(false)}
-                  className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleDeleteAll}
-                  className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-                >
-                  Delete All
-                </button>
-              </div>
             </motion.div>
           </motion.div>
         )}

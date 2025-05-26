@@ -26,12 +26,17 @@ const ProtectedRoute = ({ children }) => {
 
 const AppContent = () => {
   const { isAuthenticated, selectedUser } = useAppContext();
-  console.log('App State:', { isAuthenticated, selectedUser }); // Debug log
+  
+  const handleClearWishlist = async () => {
+    if (window.refreshWishlistItems) {
+      await window.refreshWishlistItems();
+    }
+  };
 
   return (
     <Router>
       <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-100 to-sky-100 dark:from-gray-900 dark:to-gray-800">
-        {isAuthenticated && selectedUser && <Navbar />}
+        {isAuthenticated && selectedUser && <Navbar onClearWishlist={handleClearWishlist} />}
         <main className="flex-grow container mx-auto p-4 md:p-6 lg:p-8">
           <Routes>
             <Route path="/auth" element={
