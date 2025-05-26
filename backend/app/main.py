@@ -538,9 +538,11 @@ async def get_migrations(
         raise HTTPException(status_code=403, detail="Admin access required")
 
     try:
+        stored_hash = crud.get_schema_hash(db)  # Add function to get stored hash
         return {
             "current_version": migration_service.get_current_version(),
-            "available_migrations": migration_service.get_available_migrations()
+            "available_migrations": migration_service.get_available_migrations(),
+            "stored_schema_hash": stored_hash
         }
     except Exception as e:
         logger.error(f"Migration error: {str(e)}")
@@ -569,6 +571,11 @@ async def upgrade_database(
     try:
         result = migration_service.upgrade(target)
         new_version = migration_service.get_current_version()
+        
+        # After successful upgrade, store the new schema hash
+        new_hash = migration_service.get_schema_hash()
+        crud.update_schema_hash(db, new_hash)
+        
         return {
             "success": "Failed" not in result,
             "message": result,

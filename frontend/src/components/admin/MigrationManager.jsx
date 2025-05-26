@@ -23,11 +23,12 @@ const MigrationManager = () => {
             if (migrationsResponse.data) {
                 setMigrations(migrationsResponse.data.available_migrations || []);
                 setCurrentVersion(migrationsResponse.data.current_version || 'base');
-            }
-
-            // Add warning message without blocking UI
-            if (migrationsResponse.data.schema_hash !== schemaResponse.data.hash) {
-                setError('Schema changes detected. New migrations may be available.');
+                
+                // Only compare if we have a stored hash
+                if (migrationsResponse.data.stored_schema_hash && 
+                    migrationsResponse.data.stored_schema_hash !== schemaResponse.data.hash) {
+                    setError('Schema changes detected. New migrations may be available.');
+                }
             }
         } catch (err) {
             console.error('Migration fetch error:', err);

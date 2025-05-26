@@ -380,3 +380,24 @@ def update_system_version(db: Session, new_version: str, user_id: int) -> Option
         print(f"Error updating system version: {e}")
         db.rollback()
         return None
+
+def get_schema_hash(db: Session) -> Optional[str]:
+    """Get the stored schema hash"""
+    settings = db.query(models.SystemSettings).first()
+    return settings.schema_hash if settings else None
+
+def update_schema_hash(db: Session, new_hash: str) -> bool:
+    """Update the stored schema hash"""
+    try:
+        settings = db.query(models.SystemSettings).first()
+        if not settings:
+            settings = models.SystemSettings(schema_hash=new_hash)
+            db.add(settings)
+        else:
+            settings.schema_hash = new_hash
+        db.commit()
+        return True
+    except Exception as e:
+        print(f"Error updating schema hash: {e}")
+        db.rollback()
+        return False

@@ -63,6 +63,8 @@ class WishlistItemCreate(BaseModel):
 
 class SystemSettings(Base):
     __tablename__ = "system_settings"
+    
     id = Column(Integer, primary_key=True)
-    version = Column(String, default="1.0.0")
+    version = Column(String)
+    schema_hash = Column(String)  # Add this line
     last_updated = Column(Date, default=date.today)
