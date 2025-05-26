@@ -201,6 +201,8 @@ const DashboardScreen = () => {
       transition={{ duration: 0.3 }}
       className="space-y-8"
     >
+      {upcomingEvent && <GiftReminder eventName={upcomingEvent.event_name} displayText={upcomingEvent.display_text} />}
+      
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)]">
         <div>
           <h1 className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white">
@@ -211,7 +213,6 @@ const DashboardScreen = () => {
             see what others are hoping for!
           </p>
         </div>
-        {upcomingEvent && <GiftReminder eventName={upcomingEvent.event_name} displayText={upcomingEvent.display_text} />}
       </div>
 
       {error && <p className="text-red-500 bg-red-100 p-3 rounded-md text-center">{error}</p>}
