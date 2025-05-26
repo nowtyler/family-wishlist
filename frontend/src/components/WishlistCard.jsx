@@ -83,58 +83,31 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
     
     const isThinking = item.thinking_about_by_list?.includes(currentUserId);
     const thinkingCount = item.thinking_about_by_list?.length || 0;
-    const tooltipId = `interest-${item.id}`;
     
     return (
-      <div className="flex items-center relative">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onThinkingAbout(item.id);
-          }}
-          className={`flex items-center gap-1 text-sm px-2 py-0.5 rounded-full transition-all duration-300 min-w-[70px] min-h-[26px] justify-center ${
-            isThinking
-              ? 'bg-pink-500 text-white hover:bg-pink-600'
-              : 'text-pink-500 hover:bg-pink-50 dark:hover:bg-pink-900/20'
-          }`}
-        >
-          <Heart
-            size={16}
-            className={`${isThinking ? 'fill-current' : ''} transition-all duration-300`}
-          />
-          {thinkingCount > 0 && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setActiveTooltip(activeTooltip === tooltipId ? null : tooltipId);
-              }}
-              className={`ml-1 px-1.5 py-0.5 ${
-                isThinking ? 'bg-white/20' : 'bg-pink-100 dark:bg-pink-900/30'
-              } rounded-full text-xs flex items-center gap-1 hover:bg-opacity-75`}
-            >
-              {thinkingCount}
-              <ChevronDown size={12} className={activeTooltip === tooltipId ? 'rotate-180' : ''} />
-            </button>
-          )}
-        </button>
-
-        <AnimatePresence>
-          {activeTooltip === tooltipId && thinkingCount > 0 && (
-            <FloatingTooltip onClose={() => setActiveTooltip(null)}>
-              <div className="min-w-[150px]">
-                <p className="font-semibold mb-1">Interested:</p>
-                <ul className="space-y-1">
-                  {item.thinking_about_by_list.map((name) => (
-                    <li key={name} className="text-gray-600 dark:text-gray-300">
-                      {name}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </FloatingTooltip>
-          )}
-        </AnimatePresence>
-      </div>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onThinkingAbout(item.id);
+        }}
+        className={`flex items-center gap-1 text-sm px-2 py-0.5 rounded-full transition-all duration-300 min-w-[70px] min-h-[26px] justify-center ${
+          isThinking
+            ? 'bg-pink-500 text-white hover:bg-pink-600'
+            : 'text-pink-500 hover:bg-pink-50 dark:hover:bg-pink-900/20'
+        }`}
+      >
+        <Heart
+          size={16}
+          className={`${isThinking ? 'fill-current' : ''} transition-all duration-300`}
+        />
+        {thinkingCount > 0 && (
+          <span className={`ml-1 px-1.5 py-0.5 ${
+            isThinking ? 'bg-white/20' : 'bg-pink-100 dark:bg-pink-900/30'
+          } rounded-full text-xs`}>
+            {thinkingCount}
+          </span>
+        )}
+      </button>
     );
   };
 
@@ -142,56 +115,31 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
     if (isOwnWishlist) return null;
     
     const isPurchased = item.purchased_by && item.purchased_by === member.name;
-    const tooltipId = `purchase-${item.id}`;
     
     return (
-      <div className="flex items-center relative">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onMarkPurchased(item.id);
-          }}
-          className={`flex items-center gap-1 text-sm px-2 py-0.5 rounded-full transition-all duration-300 min-w-[70px] min-h-[26px] justify-center ${
-            isPurchased
-              ? 'bg-green-500 text-white hover:bg-green-600'
-              : 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
-          }`}
-        >
-          <ShoppingCart
-            size={16}
-            className={`${isPurchased ? 'fill-current' : ''} transition-all duration-300`}
-          />
-          {item.purchased_by && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setActiveTooltip(activeTooltip === tooltipId ? null : tooltipId);
-              }}
-              className={`ml-1 px-1.5 py-0.5 ${
-                isPurchased ? 'bg-white/20' : 'bg-green-100 dark:bg-green-900/30'
-              } rounded-full text-xs flex items-center gap-1 hover:bg-opacity-75`}
-            >
-              1
-              <ChevronDown size={12} className={activeTooltip === tooltipId ? 'rotate-180' : ''} />
-            </button>
-          )}
-        </button>
-        
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onMarkPurchased(item.id);
+        }}
+        className={`flex items-center gap-1 text-sm px-2 py-0.5 rounded-full transition-all duration-300 min-w-[70px] min-h-[26px] justify-center ${
+          isPurchased
+            ? 'bg-green-500 text-white hover:bg-green-600'
+            : 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
+        }`}
+      >
+        <ShoppingCart
+          size={16}
+          className={`${isPurchased ? 'fill-current' : ''} transition-all duration-300`}
+        />
         {item.purchased_by && (
-          <AnimatePresence>
-            {activeTooltip === tooltipId && (
-              <FloatingTooltip onClose={() => setActiveTooltip(null)}>
-                <div className="min-w-[150px]">
-                  <p className="font-semibold mb-1">Purchase Status:</p>
-                  <p className="text-gray-600 dark:text-gray-300">
-                    Purchased by {item.purchased_by}
-                  </p>
-                </div>
-              </FloatingTooltip>
-            )}
-          </AnimatePresence>
+          <span className={`ml-1 px-1.5 py-0.5 ${
+            isPurchased ? 'bg-white/20' : 'bg-green-100 dark:bg-green-900/30'
+          } rounded-full text-xs`}>
+            1
+          </span>
         )}
-      </div>
+      </button>
     );
   };
 
@@ -447,11 +395,44 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                 </a>
               )}
 
-              <div className="flex flex-col space-y-4">
+              <div className="flex flex-col space-y-4 mt-4">
                 {selectedItem.price !== null && (
                   <p className="text-lg font-semibold text-gray-700 dark:text-gray-300">
                     Price: ${(selectedItem.price / 100).toFixed(2)}
                   </p>
+                )}
+
+                {/* Only show Interest/Purchase sections when not viewing own wishlist */}
+                {!isOwnWishlist && (
+                  <>
+                    {/* Interested People Section */}
+                    {selectedItem.thinking_about_by_list?.length > 0 && (
+                      <div className="border-t dark:border-gray-700 pt-4">
+                        <h3 className="text-md font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                          Interested:
+                        </h3>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedItem.thinking_about_by_list.map((name) => (
+                            <span key={name} className="px-2 py-1 bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 rounded-full text-sm">
+                              {name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Purchase Status Section */}
+                    {selectedItem.purchased_by && (
+                      <div className="border-t dark:border-gray-700 pt-4">
+                        <h3 className="text-md font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                          Purchase Status:
+                        </h3>
+                        <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-sm">
+                          Purchased by {selectedItem.purchased_by}
+                        </span>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </motion.div>
