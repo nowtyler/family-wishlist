@@ -4,6 +4,7 @@ from passlib.context import CryptContext
 from dotenv import load_dotenv
 import logging
 import traceback
+from datetime import datetime, timedelta
 
 # Configure logging with more detail
 logging.basicConfig(
@@ -62,9 +63,50 @@ logger.info(f"Loaded password hash: {EXPECTED_HASH[:20]}...")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+class AuthState:
+    def __init__(self):
+        self.failed_attempts = 0
+        self.lockout_until = None
+
+    def record_failure(self):
+        self.failed_attempts += 1
+        if self.failed_attempts >= 5:
+            self.lockout_until = datetime.now() + timedelta(minutes=5)
+            logger.warning(f"Account locked until {self.lockout_until}")
+
+    def record_success(self):
+        self.failed_attempts = 0
+        self.lockout_until = None
+
+    def is_locked_out(self):
+        if not self.lockout_until:
+            return False
+        if datetime.now() > self.lockout_until:
+            self.failed_attempts = 0
+            self.lockout_until = None
+            return False
+        return True
+
+    def get_lockout_message(self):
+        if not self.lockout_until:
+            return None
+        remaining = (self.lockout_until - datetime.now()).total_seconds()
+        if remaining <= 0:
+            return None
+        return f"Too many failed attempts. Please try again in {int(remaining/60)} minutes."
+
+# Create a global auth state instance
+auth_state = AuthState()
+
 def verify_password(plain_password: str) -> bool:
     logger.info("=== Starting password verification ===")
     
+    # Check for lockout
+    if auth_state.is_locked_out():
+        lockout_message = auth_state.get_lockout_message()
+        logger.warning(f"Login attempted while locked out: {lockout_message}")
+        raise ValueError(lockout_message)
+
     if not EXPECTED_HASH:
         logger.error("No password hash available for verification")
         return False
@@ -89,13 +131,19 @@ def verify_password(plain_password: str) -> bool:
         result = pwd_context.verify(plain_password, EXPECTED_HASH)
         logger.info(f"Verification result: {result}")
         
-        if not result:
-            # Log more details about the failed attempt (safely)
+        if result:
+            auth_state.record_success()
+        else:
+            auth_state.record_failure()
+            if auth_state.is_locked_out():
+                raise ValueError(auth_state.get_lockout_message())
             logger.warning("Password verification failed")
             logger.debug(f"Password length mismatch? Expected hash length: {len(EXPECTED_HASH)}")
         
         return result
         
+    except ValueError:
+        raise
     except Exception as e:
         logger.error("=== Password verification error ===")
         logger.error(f"Error type: {type(e).__name__}")

@@ -67,6 +67,12 @@ async def verify_family_password(request: schemas.PasswordRequest):
         if auth.verify_password(request.password):
             return {"authenticated": True, "message": "Password verified successfully."}
         return {"authenticated": False, "message": "Incorrect family password."}
+    except ValueError as e:
+        # Handle lockout error
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=str(e)
+        )
     except Exception as e:
         logger.error(f"Password verification error: {str(e)}")
         raise HTTPException(

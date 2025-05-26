@@ -27,7 +27,9 @@ const AuthScreen = () => {
       }
     } catch (err) {
       console.error('Authentication error:', err);
-      setError(err.userMessage || 'Failed to authenticate. Please try again.');
+      // Display lockout message if present
+      setError(err.response?.data?.detail || err.userMessage || 'Failed to authenticate. Please try again.');
+      setPassword(''); // Clear password field on error
     } finally {
       setIsLoading(false);
     }
