@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
 import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPlus, Trash2, AlertOctagon } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
-import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems, getFamilyMembers } from '../services/api';
+import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems, getFamilyMembers, clearAllWishlists } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const Navbar = ({ onClearWishlist }) => {
@@ -17,6 +17,7 @@ const Navbar = ({ onClearWishlist }) => {
   const [newVersion, setNewVersion] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteMode, setDeleteMode] = useState(null); // 'all' or 'user'
   const settingsRef = useRef(null);
   const isAdmin = selectedUser?.name?.toLowerCase() === 'admin';
 
@@ -68,7 +69,11 @@ const Navbar = ({ onClearWishlist }) => {
 
   const handleDeleteAll = async () => {
     try {
-      await deleteAllWishlistItems(selectedUser.id);
+      if (deleteMode === 'all' && isAdmin) {
+        await clearAllWishlists();
+      } else {
+        await deleteAllWishlistItems(selectedUser.id);
+      }
       // Refresh family members to update count
       const membersResponse = await getFamilyMembers();
       setFamilyMembers(membersResponse.data);
@@ -77,8 +82,9 @@ const Navbar = ({ onClearWishlist }) => {
       }
       setShowDeleteConfirm(false);
       setShowSettings(false);
+      setDeleteMode(null);
     } catch (err) {
-      console.error("Error deleting all items:", err);
+      console.error("Error deleting items:", err);
     }
   };
 
@@ -167,6 +173,7 @@ const Navbar = ({ onClearWishlist }) => {
                     <button
                       onClick={() => {
                         setShowSettings(false);
+                        setDeleteMode('user');
                         setShowDeleteConfirm(true);
                       }}
                       className="flex items-center w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-600"
@@ -174,6 +181,19 @@ const Navbar = ({ onClearWishlist }) => {
                       <Trash2 className="w-4 h-4 mr-2" />
                       Clear Wishlist
                     </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => {
+                          setShowSettings(false);
+                          setDeleteMode('all');
+                          setShowDeleteConfirm(true);
+                        }}
+                        className="flex items-center w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-600 border-t border-gray-200 dark:border-gray-600"
+                      >
+                        <AlertOctagon className="w-4 h-4 mr-2" />
+                        Clear All Wishlists
+                      </button>
+                    )}
                     <button
                       onClick={handleLogout}
                       className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
@@ -189,7 +209,7 @@ const Navbar = ({ onClearWishlist }) => {
         </div>
       </nav>
 
-      {/* Delete All Confirmation Modal */}
+      {/* Delete Confirmation Modal */}
       <AnimatePresence>
         {showDeleteConfirm && (
           <motion.div
@@ -206,14 +226,21 @@ const Navbar = ({ onClearWishlist }) => {
             >
               <div className="flex items-center gap-3 text-red-500 mb-4">
                 <AlertOctagon className="w-6 h-6" />
-                <h3 className="text-xl font-bold">Delete All Items</h3>
+                <h3 className="text-xl font-bold">
+                  {deleteMode === 'all' ? 'Delete All Wishlists' : 'Delete All Items'}
+                </h3>
               </div>
               <p className="text-gray-600 dark:text-gray-300 mb-6">
-                Are you sure you want to delete all items from your wishlist? This action cannot be undone.
+                {deleteMode === 'all' 
+                  ? 'Are you sure you want to delete ALL wishlists for ALL users? This action cannot be undone.'
+                  : 'Are you sure you want to delete all items from your wishlist? This action cannot be undone.'}
               </p>
               <div className="flex justify-end gap-3">
                 <button
-                  onClick={() => setShowDeleteConfirm(false)}
+                  onClick={() => {
+                    setShowDeleteConfirm(false);
+                    setDeleteMode(null);
+                  }}
                   className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
                 >
                   Cancel

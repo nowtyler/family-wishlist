@@ -372,5 +372,20 @@ async def health_check():
             detail=f"Service unhealthy: {str(e)}"
         )
 
+@app.delete("/api/admin/wishlists", status_code=status.HTTP_204_NO_CONTENT)
+def delete_all_wishlists(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required.")
+
+    if crud.delete_all_wishlists(db, current_user_id):
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Only admin can delete all wishlists"
+    )
+
 # Catch-all for documentation (FastAPI provides /docs and /redoc automatically)
 # If you were serving a frontend from FastAPI, you'd have a catch-all route here.

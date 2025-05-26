@@ -249,6 +249,25 @@ def delete_all_wishlist_items(db: Session, owner_id: int, requesting_user_id: in
         return True
     return False
 
+def delete_all_wishlists(db: Session, requesting_user_id: int) -> bool:
+    requesting_user = get_family_member(db, requesting_user_id)
+    if not requesting_user or requesting_user.name.lower() != 'admin':
+        return False
+
+    try:
+        # First delete all comments
+        db.query(models.Comment).delete()
+        
+        # Then delete all wishlist items
+        db.query(models.WishlistItem).delete()
+        
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        print(f"Error deleting all wishlists: {e}")
+        return False
+
 # --- Comment CRUD ---
 def create_comment(db: Session, item_id: int, comment: schemas.CommentCreate, author_id: int) -> models.Comment:
     db_item = db.query(models.WishlistItem).filter(models.WishlistItem.id == item_id).first()

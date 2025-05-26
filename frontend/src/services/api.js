@@ -191,4 +191,8 @@ export const deleteAllWishlistItems = (ownerId) => {
   return apiClient.delete(`/members/${ownerId}/items`);
 };
 
+export const clearAllWishlists = () => {
+  return apiClient.delete('/admin/wishlists');
+};
+
 export default apiClient;
