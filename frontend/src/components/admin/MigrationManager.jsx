@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { getMigrations, upgradeMigration } from '../../services/api';
+import { getMigrations, upgradeMigration, createBackup, getBackups, restoreBackup } from '../../services/api';
+import { AlertCircle, Database, Archive, Download, RotateCcw, Plus } from 'lucide-react';
 
 const MigrationManager = () => {
     const [migrations, setMigrations] = useState([]);
     const [currentVersion, setCurrentVersion] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [backups, setBackups] = useState([]);
+    const [backupLoading, setBackupLoading] = useState(false);
+    const [backupError, setBackupError] = useState('');
 
     const fetchMigrations = async () => {
         try {
@@ -43,40 +47,172 @@ const MigrationManager = () => {
         }
     };
 
+    const fetchBackups = async () => {
+        try {
+            const response = await getBackups();
+            setBackups(response.data.backups || []);
+        } catch (err) {
+            setBackupError(err.response?.data?.detail || err.message || 'Failed to fetch backups');
+            console.error('Backup fetch error:', err);
+        }
+    };
+
     useEffect(() => {
         fetchMigrations();
+        fetchBackups();
     }, []);
+
+    const handleCreateBackup = async () => {
+        try {
+            setBackupLoading(true);
+            setBackupError('');
+            await createBackup();
+            await fetchBackups();
+        } catch (err) {
+            setBackupError(err.response?.data?.detail || err.message || 'Failed to create backup');
+        } finally {
+            setBackupLoading(false);
+        }
+    };
+
+    const handleRestoreBackup = async (filename) => {
+        if (!confirm('Are you sure you want to restore this backup? Current data will be backed up first.')) {
+            return;
+        }
+
+        try {
+            setBackupLoading(true);
+            setBackupError('');
+            const response = await restoreBackup(filename);
+            
+            if (response.data.requires_migration) {
+                alert('This backup requires migration. Please upgrade the database first.');
+                return;
+            }
+
+            if (response.data.success) {
+                alert('Backup restored successfully!');
+                await fetchMigrations();
+                await fetchBackups();
+            } else {
+                setBackupError(response.data.message);
+            }
+        } catch (err) {
+            setBackupError(err.response?.data?.detail || err.message || 'Failed to restore backup');
+        } finally {
+            setBackupLoading(false);
+        }
+    };
 
     if (loading) return <div>Loading migrations...</div>;
     if (error) return <div className="text-red-500">{error}</div>;
 
     return (
-        <div className="p-4">
-            <h2 className="text-xl font-bold mb-4">Database Migrations</h2>
+        <div className="p-4 space-y-8">
+            <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                <h3 className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200 font-medium mb-2">
+                    <AlertCircle size={18} />
+                    Important Safety Information
+                </h3>
+                <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                    A backup will be automatically created before each migration. 
+                    Backups are stored in the <code className="px-1 py-0.5 bg-yellow-100 dark:bg-yellow-900 rounded">data/backups</code> directory.
+                </p>
+            </div>
+
             <div className="mb-4">
                 <p>Current Version: {currentVersion || 'base'}</p>
             </div>
             <div className="space-y-2">
                 {migrations.map((migration) => (
                     <div key={migration.version} 
-                         className={`p-3 border rounded ${migration.applied ? 'bg-green-50' : 'bg-gray-50'}`}>
+                         className={`p-3 border rounded ${migration.applied ? 'bg-green-50 dark:bg-green-900/20' : 'bg-gray-50 dark:bg-gray-800'}`}>
                         <div className="flex justify-between items-center">
                             <div>
                                 <span className="font-mono text-sm">{migration.version}</span>
                                 <p className="text-sm text-gray-600">{migration.description}</p>
                             </div>
                             {!migration.applied && (
-                                <button
-                                    onClick={() => handleUpgrade(migration.version)}
-                                    className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-                                    disabled={loading}
-                                >
-                                    Upgrade to this version
-                                </button>
+                                <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                                    <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                        <Archive size={14} />
+                                        <span>Automatic backup will be created</span>
+                                    </div>
+                                    <button
+                                        onClick={() => handleUpgrade(migration.version)}
+                                        className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                                        disabled={loading}
+                                    >
+                                        Upgrade to this version
+                                    </button>
+                                </div>
                             )}
                         </div>
                     </div>
                 ))}
+            </div>
+
+            {/* Backups Section */}
+            <div className="border-t pt-8">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                        <Archive className="text-gray-500" size={20} />
+                        Database Backups
+                    </h3>
+                    <button
+                        onClick={handleCreateBackup}
+                        disabled={backupLoading}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+                    >
+                        <Plus size={16} />
+                        Create Backup
+                    </button>
+                </div>
+
+                {backupError && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
+                        {backupError}
+                    </div>
+                )}
+
+                <div className="space-y-2">
+                    {backups.map((backup) => (
+                        <div
+                            key={backup.filename}
+                            className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
+                        >
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <div className="font-mono text-sm">{backup.filename}</div>
+                                    <div className="text-xs text-gray-500 space-x-2">
+                                        <span>{new Date(backup.created_at).toLocaleString()}</span>
+                                        <span>•</span>
+                                        <span>{backup.size_kb.toFixed(1)} KB</span>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => handleRestoreBackup(backup.filename)}
+                                    disabled={backupLoading || !backup.can_restore}
+                                    className={`flex items-center gap-1 px-2 py-1 rounded text-sm ${
+                                        backup.can_restore
+                                            ? 'text-blue-500 hover:text-blue-600'
+                                            : 'text-gray-400 cursor-not-allowed'
+                                    }`}
+                                    title={backup.can_restore ? 'Restore this backup' : 'Schema mismatch - requires migration'}
+                                >
+                                    <RotateCcw size={14} />
+                                    {backup.can_restore ? 'Restore' : 'Needs Migration'}
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+
+                    {backups.length === 0 && (
+                        <div className="text-center py-6 text-gray-500">
+                            No backups available
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

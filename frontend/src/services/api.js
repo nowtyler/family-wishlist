@@ -252,4 +252,17 @@ export const createMigration = async (message) => {
   }
 };
 
+// --- Database Backups ---
+export const createBackup = () => {
+  return apiClient.post('/admin/backups/create');
+};
+
+export const getBackups = () => {
+  return apiClient.get('/admin/backups');
+};
+
+export const restoreBackup = (filename) => {
+  return apiClient.post(`/admin/backups/restore/${filename}`);
+};
+
 export default apiClient;

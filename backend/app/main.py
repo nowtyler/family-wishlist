@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional, Dict
 import logging
 import traceback
+import os
 from datetime import datetime
 from pydantic import BaseModel
 
@@ -19,6 +20,7 @@ from .database import (
 )
 from .services.auth_service import AuthenticationService
 from .services.migration_service import MigrationService
+from .services.backup_service import BackupService
 from .middleware.rate_limiter import RateLimiter
 
 # Create database tables on startup
@@ -608,6 +610,71 @@ async def create_migration(
             status_code=500,
             detail=f"Migration creation error: {str(e)}"
         )
+
+
+# --- Database Backup/Restore ---
+backup_service = BackupService(SQLALCHEMY_DATABASE_URL.replace('sqlite:///', ''))
+
+@app.post("/api/admin/backups/create", response_model=schemas.BackupResponse)
+async def create_backup(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Create a manual backup"""
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    try:
+        backup_path = backup_service.create_backup(manual=True)
+        return {
+            "success": True,
+            "message": "Backup created successfully",
+            "backup_path": os.path.basename(backup_path)
+        }
+    except Exception as e:
+        logger.error(f"Backup error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Backup failed: {str(e)}")
+
+@app.get("/api/admin/backups", response_model=schemas.BackupList)
+async def list_backups(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """List available backups"""
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    return {
+        "backups": backup_service.get_backups(),
+        "backup_directory": backup_service.backup_dir
+    }
+
+@app.post("/api/admin/backups/restore/{filename}", response_model=schemas.RestoreResponse)
+async def restore_backup(
+    filename: str,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Restore from a backup"""
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    if not backup_service.check_schema_compatibility(os.path.join(backup_service.backup_dir, filename)):
+        return {
+            "success": False,
+            "message": "Database schema has changed since this backup was created",
+            "requires_migration": True
+        }
+
+    success, message = backup_service.restore_from_backup(filename)
+    return {
+        "success": success,
+        "message": message,
+        "requires_migration": False
+    }
 
 
 # More explicit health check

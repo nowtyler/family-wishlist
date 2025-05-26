@@ -7,6 +7,7 @@ import os
 from typing import List, Dict
 from ..schemas import MigrationInfo
 import logging
+from .backup_service import BackupService
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ class MigrationService:
         # Ensure the engine uses the correct URL
         self.engine = create_engine(db_url)
         self.alembic_cfg.set_main_option('sqlalchemy.url', db_url)
+        self.backup_service = BackupService(db_url.replace('sqlite:///', ''))
 
     def get_current_version(self) -> str:
         with self.engine.connect() as connection:
@@ -71,8 +73,12 @@ class MigrationService:
     def upgrade(self, target: str = "head") -> str:
         """Upgrades database to target version"""
         try:
+            # Create backup before upgrading
+            backup_path = self.backup_service.create_backup()
+            logger.info(f"Created backup at {backup_path}")
+            
             command.upgrade(self.alembic_cfg, target)
-            return f"Successfully upgraded to {target}"
+            return f"Successfully upgraded to {target} (Backup created: {os.path.basename(backup_path)})"
         except Exception as e:
             return f"Failed to upgrade: {str(e)}"
 

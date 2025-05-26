@@ -189,3 +189,26 @@ class MigrationResponse(BaseModel):
     success: bool
     message: str
     new_version: Optional[str] = None
+
+# --- Backup Management ---
+class BackupInfo(BaseModel):
+    filename: str
+    created_at: datetime
+    size_kb: float
+    can_restore: bool  # True if backup matches current schema
+
+class BackupList(BaseModel):
+    backups: List[BackupInfo]
+    backup_directory: str
+
+class BackupResponse(BaseModel):
+    success: bool
+    message: str
+    backup_path: Optional[str] = None
+
+class RestoreResponse(BaseModel):
+    success: bool
+    message: str
+    requires_migration: bool = False
+    backup_version: Optional[str] = None
+    current_version: Optional[str] = None
