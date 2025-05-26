@@ -6,7 +6,7 @@ import WishlistCard from './WishlistCard';
 import GiftReminder from './GiftReminder';
 import AddItemForm from './AddItemForm';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus } from 'lucide-react';
+import { Plus, ChevronDown, Gift } from 'lucide-react';
 
 const DashboardScreen = () => {
   const { selectedUser, familyMembers, setFamilyMembers } = useAppContext();
@@ -17,6 +17,7 @@ const DashboardScreen = () => {
   const [error, setError] = useState(null);
   const [upcomingEvent, setUpcomingEvent] = useState(null);
   const [isAddingItem, setIsAddingItem] = useState(false); // State to control AddItemForm visibility
+  const [isBrowserExpanded, setBrowserExpanded] = useState(false);
 
   console.log('Dashboard State:', { selectedUser, familyMembers, viewingMember }); // Debug log
 
@@ -72,7 +73,8 @@ const DashboardScreen = () => {
 
   const handleSelectViewingMember = (member) => {
     setViewingMember(member);
-    setIsAddingItem(false); // Close the add item form when viewing another member's list
+    setBrowserExpanded(false); // Collapse after selection
+    setIsAddingItem(false);
   };
 
   const handleAddItem = async (newItem) => {
@@ -203,6 +205,7 @@ const DashboardScreen = () => {
     >
       {upcomingEvent && <GiftReminder eventName={upcomingEvent.event_name} displayText={upcomingEvent.display_text} />}
       
+      {/* Header section */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)]">
         <div>
           <h1 className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white">
@@ -217,26 +220,65 @@ const DashboardScreen = () => {
 
       {error && <p className="text-red-500 bg-red-100 p-3 rounded-md text-center">{error}</p>}
 
-      {/* User selection cards with dark mode */}
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-3">Browse Wishlists:</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {Array.isArray(familyMembers) && familyMembers
-            .filter(member => !member.name.toLowerCase().includes('admin'))
-            .map(member => (
-              <motion.button
-                key={member.id}
-                onClick={() => handleSelectViewingMember(member)}
-                className={`p-4 rounded-lg shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)] transition-all duration-200 ease-in-out
-                  ${viewingMember?.id === member.id
-                    ? 'bg-primary text-white dark:bg-primary-600'
-                    : 'bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-white'}`}
-              >
-                <p className="font-semibold text-lg">{member.name}</p>
-                <p className="text-xs opacity-75">{member.wishlist_item_count} items</p>
-              </motion.button>
-          ))}
-        </div>
+      {/* Collapsible Browse Wishlist Section */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)] overflow-hidden">
+        <button
+          onClick={() => setBrowserExpanded(!isBrowserExpanded)}
+          className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-200"
+        >
+          <div className="flex items-center gap-2">
+            <Gift className="w-4 h-4 text-primary dark:text-primary-400" />
+            <span className="font-semibold text-gray-800 dark:text-white">
+              Browse Wishlists
+            </span>
+            {Array.isArray(familyMembers) && (
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                ({familyMembers.filter(m => !m.name.toLowerCase().includes('admin')).length})
+              </span>
+            )}
+          </div>
+          <ChevronDown
+            className={`w-4 h-4 text-gray-500 dark:text-gray-400 transform transition-transform duration-200 ${
+              isBrowserExpanded ? 'rotate-180' : ''
+            }`}
+          />
+        </button>
+
+        <motion.div
+          initial={false}
+          animate={{
+            height: isBrowserExpanded ? 'auto' : 0,
+            opacity: isBrowserExpanded ? 1 : 0
+          }}
+          transition={{ duration: 0.2 }}
+          className="overflow-hidden border-t border-gray-100 dark:border-gray-700"
+        >
+          <div className="p-4 grid gap-2">
+            {Array.isArray(familyMembers) && familyMembers
+              .filter(member => !member.name.toLowerCase().includes('admin'))
+              .map(member => (
+                <motion.button
+                  key={member.id}
+                  onClick={() => handleSelectViewingMember(member)}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 rounded-lg transition-all duration-200
+                    ${viewingMember?.id === member.id
+                      ? 'bg-gradient-to-r from-sky-500 to-indigo-500 dark:from-sky-400 dark:to-indigo-400 text-white shadow-sm'
+                      : 'bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'
+                    }`}
+                >
+                  <span className="font-medium">{member.name}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full
+                    ${viewingMember?.id === member.id
+                      ? 'bg-white/20'
+                      : 'bg-white dark:bg-gray-600'
+                    }`}
+                  >
+                    {member.wishlist_item_count}
+                  </span>
+                </motion.button>
+            ))}
+          </div>
+        </motion.div>
       </div>
 
       {/* Wishlist items for viewingMember */}
