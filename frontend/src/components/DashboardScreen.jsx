@@ -241,17 +241,6 @@ const DashboardScreen = () => {
       {/* Wishlist items for viewingMember */}
       {viewingMember && (
         <div className="relative">
-          {(viewingMember?.id === selectedUser.id || isAdmin) && (
-            <div className="absolute right-8 top-4">
-              <button
-                onClick={handleOpenAddItemForm}
-                className="text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400 transition-colors"
-                title="Add new item"
-              >
-                <Plus size={24} />
-              </button>
-            </div>
-          )}
           <WishlistCard
             member={viewingMember}
             items={Array.isArray(wishlistItems) ? wishlistItems : []}
@@ -266,7 +255,20 @@ const DashboardScreen = () => {
         </div>
       )}
 
-      {/* Add Item Form (conditionally rendered as a modal) */}
+      {/* Floating Add Button */}
+      {(viewingMember?.id === selectedUser.id || isAdmin) && (
+        <motion.button
+          onClick={handleOpenAddItemForm}
+          className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-green-500 text-white shadow-lg hover:bg-green-600 flex items-center justify-center transition-colors duration-200 z-10"
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+          title="Add new item"
+        >
+          <Plus size={24} />
+        </motion.button>
+      )}
+
+      {/* Add Item Form Modal */}
       <AnimatePresence>
         {isAddingItem && (
           <motion.div
