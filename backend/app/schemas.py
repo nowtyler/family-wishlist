@@ -44,14 +44,20 @@ class CommentBase(BaseModel):
     text: str
 
 class CommentCreate(CommentBase):
-    author_id: int # This will be the ID of the logged-in (selected) user
-    text: str = Field(..., min_length=1, max_length=1000)
+    text: str = Field(
+        ..., 
+        min_length=1, 
+        max_length=1000,
+        description="Comment text content"
+    )
+    # Remove author_id requirement as it will be derived from the header
 
-    @validator('text')
-    def text_not_empty(cls, v):
-        if not v.strip():
-            raise ValueError('Comment cannot be empty')
-        return v.strip()
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "text": "I am thinking of getting this."
+            }
+        }
 
 class Comment(CommentBase):
     id: int

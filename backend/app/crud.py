@@ -269,12 +269,12 @@ def delete_all_wishlists(db: Session, requesting_user_id: int) -> bool:
         return False
 
 # --- Comment CRUD ---
-def create_comment(db: Session, item_id: int, comment: schemas.CommentCreate, author_id: int) -> models.Comment:
-    db_item = db.query(models.WishlistItem).filter(models.WishlistItem.id == item_id).first()
-    if not db_item or db_item.owner_id == author_id:  # Cannot comment on your own item
-        raise ValueError("Cannot comment on own item or item does not exist")
-
-    db_comment = models.Comment(**comment.model_dump(), item_id=item_id, author_id=author_id)
+def create_comment(db: Session, item_id: int, text: str, author_id: int) -> models.Comment:
+    db_comment = models.Comment(
+        text=text,
+        author_id=author_id,
+        item_id=item_id
+    )
     db.add(db_comment)
     db.commit()
     db.refresh(db_comment)

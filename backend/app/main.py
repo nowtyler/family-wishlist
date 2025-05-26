@@ -397,37 +397,43 @@ def delete_all_items(
     )
 
 # --- Comments ---
-@app.post("/api/items/{item_id}/comments", response_model=schemas.Comment, status_code=status.HTTP_201_CREATED)
+@app.post("/api/items/{item_id}/comments", 
+    response_model=schemas.Comment,
+    status_code=status.HTTP_201_CREATED
+)
 def add_comment_to_item(
     item_id: int,
-    comment_data: schemas.CommentCreate, # Frontend sends text, backend determines author_id from header
+    comment_data: schemas.CommentCreate,
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id_from_header)
 ):
     if current_user_id is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required to comment.")
+        raise HTTPException(status_code=403, detail="User context required")
     
-    # Ensure the author_id in the payload matches the current user context to prevent impersonation
-    # Or, better, derive author_id from current_user_id directly and ignore any author_id in payload
-    comment_data_with_author = schemas.CommentCreate(text=comment_data.text, author_id=current_user_id)
-
     try:
-        created_comment_model = crud.create_comment(db, item_id, comment_data_with_author, author_id=current_user_id)
-    except ValueError as e: # e.g., commenting on own item
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    
-    # Fetch author details for the response
-    author_model = crud.get_family_member(db, created_comment_model.author_id)
-    author_name = author_model.name if author_model else "Unknown"
+        # Get the item to check if it exists and if user owns it
+        item = crud.get_wishlist_item(db, item_id)
+        if not item:
+            raise HTTPException(status_code=404, detail="Item not found")
+        
+        if item.owner_id == current_user_id:
+            raise HTTPException(status_code=400, detail="Cannot comment on your own items")
 
-    return schemas.Comment(
-        id=created_comment_model.id,
-        text=created_comment_model.text,
-        author_id=created_comment_model.author_id,
-        author_name=author_name,
-        item_id=created_comment_model.item_id,
-        # created_at will be handled by model default or db if set up
-    )
+        comment = crud.create_comment(db, item_id, text=comment_data.text, author_id=current_user_id)
+        
+        # Get author name for response
+        author = crud.get_family_member(db, current_user_id)
+        
+        return schemas.Comment(
+            id=comment.id,
+            text=comment.text,
+            author_id=current_user_id,
+            author_name=author.name if author else "Unknown",
+            item_id=item_id,
+            created_at=datetime.now()
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 # --- Gift Reminder ---
 @app.get("/api/upcoming-event", response_model=Optional[schemas.UpcomingEventResponse])

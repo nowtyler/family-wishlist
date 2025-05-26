@@ -26,7 +26,7 @@ A full-stack web application that helps families manage gift wishlists and coord
 - Purchase status tracking
 - Hide purchased items from wishlist owners
 - Show purchase status to other family members
-- (coming soon) Comment on items (except your own)
+- Comment on items (except your own)
 
 ### Smart Features
 - Gift event reminders (birthdays and Christmas)

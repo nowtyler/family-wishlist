@@ -152,10 +152,20 @@ export const markPurchased = async (itemId) => {
 };
 
 // --- Comments ---
-export const addComment = (itemId, text) => {
-  // The backend's CommentCreate schema now only needs 'text'.
-  // author_id is derived from X-Current-User-Id header in the backend.
-  return apiClient.post(`/items/${itemId}/comments`, { text });
+export const addComment = async (itemId, text) => {
+  try {
+    console.log('Adding comment:', { itemId, text });
+    const response = await apiClient.post(`/items/${itemId}/comments`, { text });
+    console.log('Comment response:', response.data);
+    return response;
+  } catch (error) {
+    console.error('Comment creation error:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    });
+    throw error;
+  }
 };
 
 // --- Gift Reminder ---

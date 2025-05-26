@@ -1,14 +1,16 @@
 // WishlistCard.jsx
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, ExternalLink, Heart, Pencil, Check, X, ShoppingCart, ChevronDown, Star } from 'lucide-react';
-import { updateWishlistItem } from '../services/api';
+import { Trash2, ExternalLink, Heart, Pencil, Check, X, ShoppingCart, ChevronDown, Star, MessageCircle, Send } from 'lucide-react';
+import { updateWishlistItem, addComment } from '../services/api';
 
 function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, onUpdateItems, onDeleteItem, onThinkingAbout, onMarkPurchased }) {
   const [selectedItem, setSelectedItem] = useState(null);
   const [editingItemId, setEditingItemId] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [activeTooltip, setActiveTooltip] = useState(null); // 'interest-{itemId}' or 'purchase-{itemId}'
+  const [newComment, setNewComment] = useState('');
+  const [commentError, setCommentError] = useState('');
 
   const handleItemClick = (item) => {
     setSelectedItem(item);
@@ -57,6 +59,27 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
     } catch (error) {
       console.error('Failed to update item:', error);
       alert(error.userMessage || error.message || 'Failed to update item. Please try again.');
+    }
+  };
+
+  const handleAddComment = async (itemId) => {
+    if (!newComment.trim()) {
+      setCommentError('Comment cannot be empty');
+      return;
+    }
+
+    try {
+      setCommentError('');
+      await addComment(itemId, newComment.trim());
+      await onUpdateItems(); // Refresh the list to show new comment
+      setNewComment('');
+    } catch (err) {
+      console.error('Failed to add comment:', err);
+      setCommentError(
+        err.response?.data?.detail || 
+        err.userMessage || 
+        'Failed to add comment. Please try again.'
+      );
     }
   };
 
@@ -395,6 +418,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                 </a>
               )}
 
+              {/* After the existing price section */}
               <div className="flex flex-col space-y-4 mt-4">
                 {selectedItem.price !== null && (
                   <p className="text-lg font-semibold text-gray-700 dark:text-gray-300">
@@ -432,6 +456,67 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                         </span>
                       </div>
                     )}
+
+                    {/* Comments Section */}
+                    <div className="border-t dark:border-gray-700 pt-4">
+                      <h3 className="text-md font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                        <MessageCircle size={18} />
+                        Comments
+                      </h3>
+                      
+                      {/* Comments List */}
+                      <div className="space-y-3 mb-4">
+                        {selectedItem.comments?.length > 0 ? (
+                          selectedItem.comments.map((comment) => (
+                            <div key={comment.id} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                              <div className="flex justify-between items-start">
+                                <span className="font-medium text-sm text-gray-700 dark:text-gray-300">
+                                  {comment.author_name}
+                                </span>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  {new Date(comment.created_at).toLocaleDateString()}
+                                </span>
+                              </div>
+                              <p className="text-gray-600 dark:text-gray-300 text-sm mt-1">
+                                {comment.text}
+                              </p>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-gray-500 dark:text-gray-400 text-sm italic">
+                            No comments yet
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Add Comment Form */}
+                      <div className="mt-4">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={newComment}
+                            onChange={(e) => setNewComment(e.target.value)}
+                            placeholder="Add a comment..."
+                            className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleAddComment(selectedItem.id);
+                              }
+                            }}
+                          />
+                          <button
+                            onClick={() => handleAddComment(selectedItem.id)}
+                            className="p-2 text-white bg-primary hover:bg-primary-dark rounded-md"
+                          >
+                            <Send size={18} />
+                          </button>
+                        </div>
+                        {commentError && (
+                          <p className="text-red-500 text-xs mt-1">{commentError}</p>
+                        )}
+                      </div>
+                    </div>
                   </>
                 )}
               </div>
