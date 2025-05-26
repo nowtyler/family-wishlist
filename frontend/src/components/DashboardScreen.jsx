@@ -189,7 +189,7 @@ const DashboardScreen = () => {
       transition={{ duration: 0.3 }}
       className="space-y-8"
     >
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)]">
         <div>
           <h1 className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white">
             {viewingMember?.id === selectedUser.id ? "Your Wishlist" : `${viewingMember?.name || ''}'s Wishlist`}
@@ -214,7 +214,7 @@ const DashboardScreen = () => {
               <motion.button
                 key={member.id}
                 onClick={() => handleSelectViewingMember(member)}
-                className={`p-4 rounded-lg shadow-md transition-all duration-200 ease-in-out
+                className={`p-4 rounded-lg shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)] transition-all duration-200 ease-in-out
                   ${viewingMember?.id === member.id
                     ? 'bg-primary text-white dark:bg-primary-600'
                     : 'bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-white'}`}

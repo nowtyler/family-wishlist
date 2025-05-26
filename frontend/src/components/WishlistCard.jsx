@@ -286,7 +286,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
 
   return (
     <>
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-6">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)] p-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {items.length === 0 ? (
             <p className="text-gray-500 dark:text-gray-400 col-span-full text-center py-4">
@@ -297,10 +297,10 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
               <motion.div
                 key={item.id}
                 onClick={() => editingItemId !== item.id && handleItemClick(item)}
-                className={`bg-white dark:bg-gray-800 rounded-lg p-4 shadow-lg hover:shadow-xl transition-shadow cursor-pointer ${
+                className={`bg-white dark:bg-gray-800 rounded-lg p-4 shadow-[0_4px_12px_-2px_rgba(0,0,0,0.12),0_3px_6px_-3px_rgba(0,0,0,0.15)] hover:shadow-[0_10px_25px_-6px_rgba(0,0,0,0.2),0_8px_16px_-8px_rgba(0,0,0,0.2)] transition-all duration-300 cursor-pointer ${
                   item.purchased_by && !isOwnWishlist ? 'opacity-60' : ''
                 }`}
-                whileHover={{ y: -2 }}
+                whileHover={{ y: -3, transition: { duration: 0.2 } }}
               >
                 <div className="flex justify-between items-start">
                   {editingItemId === item.id ? (
@@ -401,7 +401,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-0"
             onClick={handleCloseModal}
           >
             <motion.div
