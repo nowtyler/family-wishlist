@@ -30,8 +30,12 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code
+# Copy application code and config files
 COPY ./app /app/app
+COPY ./alembic.ini /app/alembic.ini
+
+# Create migrations directory
+RUN mkdir -p /app/app/migrations/versions
 
 # Expose the port the app runs on
 EXPOSE 8000

@@ -10,8 +10,15 @@ from datetime import datetime
 from pydantic import BaseModel
 
 from . import crud, models, schemas, auth, database
-from .database import engine, create_db_and_tables, get_db, SessionLocal
+from .database import (
+    engine, 
+    create_db_and_tables, 
+    get_db, 
+    SessionLocal, 
+    SQLALCHEMY_DATABASE_URL
+)
 from .services.auth_service import AuthenticationService
+from .services.migration_service import MigrationService
 from .middleware.rate_limiter import RateLimiter
 
 # Create database tables on startup
@@ -507,6 +514,100 @@ def update_version(
     if not new_version:
         raise HTTPException(status_code=403, detail="Only admin can update version")
     return {"version": new_version}
+
+
+# --- Database Migrations ---
+migration_service = MigrationService(SQLALCHEMY_DATABASE_URL)
+
+@app.get("/api/admin/migrations", response_model=schemas.MigrationList)
+async def get_migrations(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get list of available migrations and current version"""
+    if current_user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User context required"
+        )
+
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    try:
+        return {
+            "current_version": migration_service.get_current_version(),
+            "available_migrations": migration_service.get_available_migrations()
+        }
+    except Exception as e:
+        logger.error(f"Migration error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Migration error: {str(e)}"
+        )
+
+@app.post("/api/admin/migrations/upgrade", response_model=schemas.MigrationResponse)
+async def upgrade_database(
+    target: str = "head",
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Upgrade database to specified version"""
+    if current_user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User context required"
+        )
+
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    try:
+        result = migration_service.upgrade(target)
+        new_version = migration_service.get_current_version()
+        return {
+            "success": "Failed" not in result,
+            "message": result,
+            "new_version": new_version
+        }
+    except Exception as e:
+        logger.error(f"Migration upgrade error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Migration upgrade error: {str(e)}"
+        )
+
+@app.post("/api/admin/migrations/create", response_model=schemas.MigrationResponse)
+async def create_migration(
+    message: str,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Create a new migration"""
+    if current_user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User context required"
+        )
+
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    try:
+        result = migration_service.create_migration(message)
+        return {
+            "success": "Failed" not in result,
+            "message": result
+        }
+    except Exception as e:
+        logger.error(f"Migration creation error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Migration creation error: {str(e)}"
+        )
 
 
 # More explicit health check

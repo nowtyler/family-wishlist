@@ -2,10 +2,11 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
-import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPlus, Trash2, AlertOctagon } from 'lucide-react';
+import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPlus, Trash2, AlertOctagon, Database } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems, getFamilyMembers, clearAllWishlists } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
+import MigrationModal from './admin/MigrationModal';
 
 const Navbar = ({ onClearWishlist }) => {
   const { selectedUser, logout, setSelectedUser, setFamilyMembers } = useAppContext();
@@ -18,6 +19,7 @@ const Navbar = ({ onClearWishlist }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteMode, setDeleteMode] = useState(null); // 'all' or 'user'
+  const [showMigrationModal, setShowMigrationModal] = useState(false);
   const settingsRef = useRef(null);
   const isAdmin = selectedUser?.name?.toLowerCase() === 'admin';
 
@@ -182,17 +184,29 @@ const Navbar = ({ onClearWishlist }) => {
                       Clear Wishlist
                     </button>
                     {isAdmin && (
-                      <button
-                        onClick={() => {
-                          setShowSettings(false);
-                          setDeleteMode('all');
-                          setShowDeleteConfirm(true);
-                        }}
-                        className="flex items-center w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-600 border-t border-gray-200 dark:border-gray-600"
-                      >
-                        <AlertOctagon className="w-4 h-4 mr-2" />
-                        Clear All Wishlists
-                      </button>
+                      <>
+                        <button
+                          onClick={() => {
+                            setShowSettings(false);
+                            setShowMigrationModal(true);
+                          }}
+                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                        >
+                          <Database className="w-4 h-4 mr-2" />
+                          Manage Migrations
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowSettings(false);
+                            setDeleteMode('all');
+                            setShowDeleteConfirm(true);
+                          }}
+                          className="flex items-center w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-600 border-t border-gray-200 dark:border-gray-600"
+                        >
+                          <AlertOctagon className="w-4 h-4 mr-2" />
+                          Clear All Wishlists
+                        </button>
+                      </>
                     )}
                     <button
                       onClick={handleLogout}
@@ -209,8 +223,14 @@ const Navbar = ({ onClearWishlist }) => {
         </div>
       </nav>
 
-      {/* Delete Confirmation Modal */}
+      {/* Modals */}
       <AnimatePresence>
+        {showMigrationModal && (
+          <MigrationModal 
+            isOpen={showMigrationModal}
+            onClose={() => setShowMigrationModal(false)}
+          />
+        )}
         {showDeleteConfirm && (
           <motion.div
             initial={{ opacity: 0 }}

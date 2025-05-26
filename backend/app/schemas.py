@@ -174,3 +174,18 @@ class GiftEvent(BaseModel):
 class UpcomingEventResponse(BaseModel):
     event_name: str
     display_text: str # e.g., "in 10 days" or "on Jan 5"
+
+# --- Migration Management ---
+class MigrationInfo(BaseModel):
+    version: str
+    description: str
+    applied: bool = False
+
+class MigrationList(BaseModel):
+    current_version: str
+    available_migrations: List[MigrationInfo]
+
+class MigrationResponse(BaseModel):
+    success: bool
+    message: str
+    new_version: Optional[str] = None

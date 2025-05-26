@@ -209,4 +209,47 @@ export const clearAllWishlists = () => {
   return apiClient.delete('/admin/wishlists');
 };
 
+// --- Database Migrations ---
+export const getMigrations = async () => {
+  try {
+    const response = await apiClient.get('/admin/migrations');
+    return response;
+  } catch (error) {
+    console.error('Failed to fetch migrations:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    });
+    throw error;
+  }
+};
+
+export const upgradeMigration = async (target) => {
+  try {
+    const response = await apiClient.post('/admin/migrations/upgrade', { target });
+    return response;
+  } catch (error) {
+    console.error('Failed to upgrade database:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    });
+    throw error;
+  }
+};
+
+export const createMigration = async (message) => {
+  try {
+    const response = await apiClient.post('/admin/migrations/create', { message });
+    return response;
+  } catch (error) {
+    console.error('Failed to create migration:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    });
+    throw error;
+  }
+};
+
 export default apiClient;
