@@ -286,7 +286,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
 
   return (
     <>
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {items.length === 0 ? (
             <p className="text-gray-500 dark:text-gray-400 col-span-full text-center py-4">
@@ -297,7 +297,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
               <motion.div
                 key={item.id}
                 onClick={() => editingItemId !== item.id && handleItemClick(item)}
-                className={`bg-white dark:bg-gray-700 rounded-lg p-4 shadow-lg hover:shadow-xl transition-shadow cursor-pointer ${
+                className={`bg-white dark:bg-gray-800 rounded-lg p-4 shadow-lg hover:shadow-xl transition-shadow cursor-pointer ${
                   item.purchased_by && !isOwnWishlist ? 'opacity-60' : ''
                 }`}
                 whileHover={{ y: -2 }}

@@ -11,7 +11,7 @@ const GiftReminder = ({ eventName, displayText }) => {
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.2, duration: 0.5 }}
-      className="p-4 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-lg shadow-lg flex items-center space-x-3"
+      className="p-4 bg-gradient-to-r from-pink-500 to-rose-500 dark:from-pink-800 dark:to-rose-900 text-white rounded-lg shadow-lg flex items-center space-x-3"
     >
       <Gift size={32} className="flex-shrink-0" />
       <div>
