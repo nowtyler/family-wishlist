@@ -245,21 +245,21 @@ const DashboardScreen = () => {
       {/* Wishlist items for viewingMember */}
       {viewingMember && (
         <div className="relative">
-          {viewingMember?.id === selectedUser.id && (
-            <div className="absolute right-8 top-4 flex items-center gap-2">
+          {(viewingMember?.id === selectedUser.id || isAdmin) && (
+            <div className="absolute right-8 top-4 flex items-center gap-4">
               <button
                 onClick={handleOpenAddItemForm}
-                className="p-2 rounded-full bg-green-500 hover:bg-green-600 text-white transition-colors"
+                className="text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400 transition-colors"
                 title="Add new item"
               >
-                <Plus size={20} />
+                <Plus size={24} />
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(true)}
-                className="p-2 rounded-full bg-red-500 hover:bg-red-600 text-white transition-colors"
+                className="text-red-600 hover:text-red-700 dark:text-red-500 dark:hover:text-red-400 transition-colors"
                 title="Delete all items"
               >
-                <Trash2 size={20} />
+                <Trash2 size={24} />
               </button>
             </div>
           )}
