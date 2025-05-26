@@ -322,8 +322,8 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                     </div>
                   ) : (
                     <>
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-2">{item.title}</h3>
+                      <div className="flex-1 max-w-full">
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-2 line-clamp-2 break-words overflow-hidden">{item.title}</h3>
                       </div>
                       <div className="flex items-center gap-2">
                         {item.price !== null && (
@@ -362,7 +362,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                 ) : (
                   <>
                     {item.description && (
-                      <p className="text-gray-600 dark:text-gray-300 text-sm mb-2 line-clamp-2">{item.description}</p>
+                      <p className="text-gray-600 dark:text-gray-300 text-sm mb-2 line-clamp-3 break-words whitespace-pre-wrap">{item.description}</p>
                     )}
 
                     {item.image_url && (
@@ -411,8 +411,8 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
               onClick={(e) => e.stopPropagation()}
               className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             >
-              <div className="flex justify-between items-start mb-4">
-                <h2 className="text-2xl font-bold text-gray-800 dark:text-white">{selectedItem.title}</h2>
+              <div className="flex justify-between items-start mb-4 w-full">
+                <h2 className="text-2xl font-bold text-gray-800 dark:text-white break-words max-w-[90%]">{selectedItem.title}</h2>
                 <button
                   onClick={handleCloseModal}
                   className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
@@ -422,7 +422,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
               </div>
 
               {selectedItem.description && (
-                <p className="text-gray-600 dark:text-gray-300 mb-4">{selectedItem.description}</p>
+                <p className="text-gray-600 dark:text-gray-300 mb-4 whitespace-pre-wrap break-words">{selectedItem.description}</p>
               )}
 
               {selectedItem.image_url && (
