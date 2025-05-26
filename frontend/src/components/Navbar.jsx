@@ -1,8 +1,8 @@
 // frontend/src/components/Navbar.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
-import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon } from 'lucide-react';
+import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPlus, Trash2 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { getSystemVersion, updateSystemVersion } from '../services/api';
 
@@ -14,6 +14,8 @@ const Navbar = () => {
   const [version, setVersion] = useState('');
   const [isEditingVersion, setIsEditingVersion] = useState(false);
   const [newVersion, setNewVersion] = useState('');
+  const [showSettings, setShowSettings] = useState(false);
+  const settingsRef = useRef(null);
   const isAdmin = selectedUser?.name?.toLowerCase() === 'admin';
 
   useEffect(() => {
@@ -26,6 +28,18 @@ const Navbar = () => {
       }
     };
     loadVersion();
+  }, []);
+
+  // Close settings menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (settingsRef.current && !settingsRef.current.contains(event.target)) {
+        setShowSettings(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const handleLogout = () => {
@@ -54,6 +68,7 @@ const Navbar = () => {
     <nav className="bg-white dark:bg-gray-800 shadow-md sticky top-0 z-50">
       <div className="container mx-auto px-6 py-3">
         <div className="flex justify-between items-center">
+          {/* Logo and Version */}
           <div className="flex items-center">
             <h1 className="text-2xl font-bold">
               <span className="bg-gradient-to-r from-sky-500 to-indigo-500 dark:from-sky-400 dark:to-indigo-400 bg-clip-text text-transparent">
@@ -95,88 +110,63 @@ const Navbar = () => {
             </div>
           </div>
 
-          {/* Desktop Menu */}
-          <div className="hidden md:flex items-center space-x-4">
+          {/* Right side with theme toggle and settings */}
+          <div className="flex items-center space-x-4">
             {selectedUser && (
-              <span className="text-gray-600 dark:text-gray-300">
+              <span className="text-gray-600 dark:text-gray-300 hidden md:inline-block">
                 Viewing as: <strong className="text-gray-800 dark:text-white">{selectedUser.name}</strong>
               </span>
             )}
             <button
               onClick={toggleDarkMode}
-              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className="p-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white transition-colors"
               aria-label="Toggle theme"
             >
-              {darkMode ? (
-                <Sun className="w-5 h-5 text-yellow-500" />
-              ) : (
-                <Moon className="w-5 h-5 text-gray-600" />
-              )}
+              {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
-            <button
-              onClick={handleChangeUser}
-              className="px-3 py-1 text-sm text-primary border border-primary rounded hover:bg-primary hover:text-white dark:text-primary-300 dark:border-primary-300 dark:hover:bg-primary-800 transition-colors"
-            >
-              Change User
-            </button>
-            <button
-              onClick={handleLogout}
-              className="px-3 py-1 text-sm text-red-500 dark:text-red-400 border border-red-500 dark:border-red-400 rounded hover:bg-red-500 hover:text-white dark:hover:bg-red-900 transition-colors"
-            >
-              Logout
-            </button>
-          </div>
 
-          {/* Mobile Menu Button */}
-          <div className="md:hidden flex items-center">
-            <button
-              onClick={toggleDarkMode}
-              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors mr-2"
-              aria-label="Toggle theme"
-            >
-              {darkMode ? (
-                <Sun className="w-5 h-5 text-yellow-500" />
-              ) : (
-                <Moon className="w-5 h-5 text-gray-600" />
-              )}
-            </button>
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              {isMenuOpen ? (
-                <X className="h-6 w-6 text-gray-600 dark:text-gray-300" />
-              ) : (
-                <Menu className="h-6 w-6 text-gray-600 dark:text-gray-300" />
-              )}
-            </button>
-          </div>
-        </div>
+            {/* Settings Menu */}
+            <div className="relative" ref={settingsRef}>
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="p-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white transition-colors"
+                aria-label="Settings"
+              >
+                <Settings className="w-5 h-5" />
+              </button>
 
-        {/* Mobile Menu Dropdown */}
-        {isMenuOpen && (
-          <div className="md:hidden py-4 space-y-4">
-            {selectedUser && (
-              <div className="text-gray-600 dark:text-gray-300 pb-2 border-b border-gray-200 dark:border-gray-700">
-                Viewing as: <strong className="text-gray-800 dark:text-white">{selectedUser.name}</strong>
-              </div>
-            )}
-            <div className="flex flex-col space-y-2">
-              <button
-                onClick={handleChangeUser}
-                className="w-full px-3 py-2 text-sm text-primary border border-primary rounded hover:bg-primary hover:text-white dark:text-primary-300 dark:border-primary-300 dark:hover:bg-primary-800 transition-colors"
-              >
-                Change User
-              </button>
-              <button
-                onClick={handleLogout}
-                className="w-full px-3 py-2 text-sm text-red-500 dark:text-red-400 border border-red-500 dark:border-red-400 rounded hover:bg-red-500 hover:text-white dark:hover:bg-red-900 transition-colors"
-              >
-                Logout
-              </button>
+              {/* Settings Dropdown */}
+              {showSettings && (
+                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-700 rounded-md shadow-lg py-1 z-50">
+                  <button
+                    onClick={handleChangeUser}
+                    className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                  >
+                    <UserPlus className="w-4 h-4 mr-2" />
+                    Change User
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowSettings(false);
+                      setShowDeleteConfirm(true);
+                    }}
+                    className="flex items-center w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-600"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Clear Wishlist
+                  </button>
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Logout
+                  </button>
+                </div>
+              )}
             </div>
           </div>
-        )}
+        </div>
       </div>
     </nav>
   );

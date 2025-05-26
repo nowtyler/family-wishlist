@@ -254,13 +254,6 @@ const DashboardScreen = () => {
               >
                 <Plus size={24} />
               </button>
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                className="text-red-600 hover:text-red-700 dark:text-red-500 dark:hover:text-red-400 transition-colors"
-                title="Delete all items"
-              >
-                <Trash2 size={24} />
-              </button>
             </div>
           )}
           <WishlistCard
