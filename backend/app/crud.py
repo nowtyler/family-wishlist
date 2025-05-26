@@ -98,8 +98,10 @@ def get_wishlist_items_by_owner(db: Session, owner_id: int, current_user_id: int
         visible_comments = []
         requesting_user = get_family_member(db, current_user_id)
         is_admin = requesting_user and requesting_user.name.lower() == 'admin'
-        
-        # Show comments if admin or not viewing own wishlist
+
+        # Show comments when:
+        # 1. User is admin OR
+        # 2. User is not viewing their own wishlist
         if is_admin or owner_id != current_user_id:
             visible_comments = [schemas.Comment(
                 id=comment.id,
