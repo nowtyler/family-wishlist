@@ -77,7 +77,7 @@ const DashboardScreen = () => {
   };
 
   const handleAddItem = async (newItem) => {
-    if (viewingMember?.id === selectedUser?.id) {
+    if (viewingMember?.id === selectedUser?.id || isAdmin) {
       try {
         setIsLoading(true);
         await createWishlistItem(viewingMember.id, newItem);
