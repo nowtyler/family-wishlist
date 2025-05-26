@@ -251,6 +251,46 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
     </div>
   );
 
+  const renderActionButtons = (item) => {
+    const hasComments = item.comments?.length > 0;
+    
+    return (
+      <div className="flex items-center gap-1 ml-auto shrink-0">
+        {!isOwnWishlist && (
+          <div className="flex items-center gap-1">
+            {renderThinkingAbout(item)}
+            {renderPurchaseButton(item)}
+          </div>
+        )}
+        {hasComments && (
+          <div className="flex items-center px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300">
+            <MessageCircle size={14} />
+            <span className="text-xs ml-0.5">{item.comments.length}</span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const formatCommentTime = (timestamp) => {
+    const commentDate = new Date(timestamp);
+    const now = new Date();
+    const diffMinutes = Math.floor((now - commentDate) / (1000 * 60));
+    const diffHours = Math.floor(diffMinutes / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMinutes < 1) return 'just now';
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    
+    return commentDate.toLocaleDateString(undefined, { 
+      month: 'short', 
+      day: 'numeric',
+      year: commentDate.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+    });
+  };
+
   if (isLoading) {
     return <div className="animate-pulse p-4 bg-white rounded-lg shadow">Loading wishlist...</div>;
   }
@@ -354,10 +394,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                       <div className="flex items-center gap-2">
                         {renderPriorityIcon(item.priority)}
                       </div>
-                      <div className="flex items-center justify-end gap-2 ml-auto shrink-0 min-w-[150px]">
-                        {renderThinkingAbout(item)}
-                        {renderPurchaseButton(item)}
-                      </div>
+                      {renderActionButtons(item)}
                     </>
                   )}
                 </div>
@@ -461,28 +498,30 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                     <div className="border-t dark:border-gray-700 pt-4">
                       <h3 className="text-md font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
                         <MessageCircle size={18} />
-                        Comments
+                        Comments ({selectedItem.comments?.length || 0})
                       </h3>
                       
-                      {/* Comments List */}
-                      <div className="space-y-3 mb-4">
-                        {selectedItem.comments?.length > 0 ? (
-                          selectedItem.comments.map((comment) => (
-                            <div key={comment.id} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-                              <div className="flex justify-between items-start">
-                                <span className="font-medium text-sm text-gray-700 dark:text-gray-300">
+                      {/* Comments List with scroll */}
+                      <div className="space-y-2 mb-3 max-h-[40vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
+                        {selectedItem.comments
+                          ?.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                          .map((comment) => (
+                            <div key={comment.id} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2">
+                              <div className="flex justify-between items-center text-xs">
+                                <span className="font-medium text-gray-700 dark:text-gray-300">
                                   {comment.author_name}
                                 </span>
-                                <span className="text-xs text-gray-500 dark:text-gray-400">
-                                  {new Date(comment.created_at).toLocaleDateString()}
+                                <span className="text-gray-500 dark:text-gray-400 ml-2">
+                                  {formatCommentTime(comment.created_at)}
                                 </span>
                               </div>
-                              <p className="text-gray-600 dark:text-gray-300 text-sm mt-1">
+                              <p className="text-gray-600 dark:text-gray-300 text-sm mt-0.5">
                                 {comment.text}
                               </p>
                             </div>
-                          ))
-                        ) : (
+                          ))}
+
+                        {selectedItem.comments?.length === 0 && (
                           <p className="text-gray-500 dark:text-gray-400 text-sm italic">
                             No comments yet
                           </p>
@@ -490,14 +529,14 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                       </div>
 
                       {/* Add Comment Form */}
-                      <div className="mt-4">
-                        <div className="flex gap-2">
+                      <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                        <div className="flex gap-1">
                           <input
                             type="text"
                             value={newComment}
                             onChange={(e) => setNewComment(e.target.value)}
                             placeholder="Add a comment..."
-                            className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                             onKeyPress={(e) => {
                               if (e.key === 'Enter' && !e.shiftKey) {
                                 e.preventDefault();
@@ -507,9 +546,9 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                           />
                           <button
                             onClick={() => handleAddComment(selectedItem.id)}
-                            className="p-2 text-white bg-primary hover:bg-primary-dark rounded-md"
+                            className="p-1.5 text-white bg-primary hover:bg-primary-dark rounded-md"
                           >
-                            <Send size={18} />
+                            <Send size={16} />
                           </button>
                         </div>
                         {commentError && (

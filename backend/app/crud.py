@@ -96,16 +96,15 @@ def get_wishlist_items_by_owner(db: Session, owner_id: int, current_user_id: int
         thinking_by_list = item.thinking_about_by.split(',') if item.thinking_about_by else []
         
         visible_comments = []
-        if owner_id != current_user_id: # Only show comments to others
-            for comment in item.comments:
-                visible_comments.append(schemas.Comment(
-                    id=comment.id,
-                    text=comment.text,
-                    author_id=comment.author_id,
-                    author_name=comment.author.name, # Assuming author relationship is loaded
-                    item_id=comment.item_id,
-                    created_at=comment.created_at if hasattr(comment, 'created_at') else datetime.now() # Handle if no timestamp
-                ))
+        if owner_id != current_user_id:  # Only show comments to others
+            visible_comments = [schemas.Comment(
+                id=comment.id,
+                text=comment.text,
+                author_id=comment.author_id,
+                author_name=comment.author.name,
+                item_id=comment.item_id,
+                created_at=comment.created_at  # Use the actual timestamp
+            ) for comment in item.comments]
 
         result_items.append(schemas.WishlistItem(
             id=item.id,
@@ -273,7 +272,8 @@ def create_comment(db: Session, item_id: int, text: str, author_id: int) -> mode
     db_comment = models.Comment(
         text=text,
         author_id=author_id,
-        item_id=item_id
+        item_id=item_id,
+        created_at=datetime.utcnow()  # Explicitly set creation time
     )
     db.add(db_comment)
     db.commit()

@@ -1,5 +1,5 @@
 # backend/app/models.py
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text, Date
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text, Date, DateTime
 from sqlalchemy.orm import relationship
 from datetime import date, datetime
 from .database import Base
@@ -38,6 +38,7 @@ class Comment(Base):
     text = Column(Text, nullable=False)
     author_id = Column(Integer, ForeignKey("family_members.id")) # Who wrote the comment
     item_id = Column(Integer, ForeignKey("wishlist_items.id"))
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)  # Add this line
 
     item = relationship("WishlistItem", back_populates="comments")
     author = relationship("FamilyMember") # To show who wrote the comment
