@@ -1,12 +1,13 @@
 // frontend/src/components/DashboardScreen.jsx
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../contexts/AppContext';
-import { getFamilyMembers, getWishlistItems, getUpcomingEvent, createWishlistItem, deleteWishlistItem, toggleThinkingAbout, markPurchased } from '../services/api'; // Import deleteWishlistItem and toggleThinkingAbout
+import { getFamilyMembers, getWishlistItems, getUpcomingEvent, createWishlistItem, deleteWishlistItem, toggleThinkingAbout, markPurchased, getMigrations } from '../services/api'; // Import deleteWishlistItem and toggleThinkingAbout
 import WishlistCard from './WishlistCard';
 import GiftReminder from './GiftReminder';
 import AddItemForm from './AddItemForm';
+import SchemaAlertModal from './SchemaAlertModal';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, ChevronDown, Gift } from 'lucide-react';
+import { Plus, ChevronDown, Gift, AlertTriangle } from 'lucide-react';
 
 const DashboardScreen = () => {
   const { selectedUser, familyMembers, setFamilyMembers } = useAppContext();
@@ -18,6 +19,8 @@ const DashboardScreen = () => {
   const [upcomingEvent, setUpcomingEvent] = useState(null);
   const [isAddingItem, setIsAddingItem] = useState(false); // State to control AddItemForm visibility
   const [isBrowserExpanded, setBrowserExpanded] = useState(false);
+  const [needsUpgrade, setNeedsUpgrade] = useState(false);
+  const [showUpgradeAlert, setShowUpgradeAlert] = useState(false);
 
   console.log('Dashboard State:', { selectedUser, familyMembers, viewingMember }); // Debug log
 
@@ -176,6 +179,27 @@ const DashboardScreen = () => {
     }
   };
 
+  // Check schema on mount
+  useEffect(() => {
+    const checkSchema = async () => {
+      try {
+        const response = await getMigrations();
+        if (response.data.needs_upgrade) {
+          setNeedsUpgrade(true);
+          setShowUpgradeAlert(true);
+        }
+      } catch (err) {
+        console.error('Failed to check schema:', err);
+      }
+    };
+
+    checkSchema();
+  }, []);
+
+  const handleCloseUpgradeAlert = () => {
+    setShowUpgradeAlert(false);
+  };
+
   // Early return for loading state
   if (isLoading) {
     return (
@@ -203,6 +227,15 @@ const DashboardScreen = () => {
       transition={{ duration: 0.3 }}
       className="space-y-8"
     >
+      <AnimatePresence>
+        {showUpgradeAlert && (
+          <SchemaAlertModal
+            isOpen={showUpgradeAlert}
+            onClose={handleCloseUpgradeAlert}
+          />
+        )}
+      </AnimatePresence>
+
       {upcomingEvent && <GiftReminder eventName={upcomingEvent.event_name} displayText={upcomingEvent.display_text} />}
       
       {/* Header section */}
