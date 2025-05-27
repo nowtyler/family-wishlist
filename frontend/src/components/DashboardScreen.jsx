@@ -237,6 +237,18 @@ const DashboardScreen = () => {
       </AnimatePresence>
 
       {upcomingEvent && <GiftReminder eventName={upcomingEvent.event_name} displayText={upcomingEvent.display_text} />}
+
+      {/* Schema Warning Banner */}
+      {needsUpgrade && !isAdmin && (
+        <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="text-yellow-500" size={18} />
+            <p className="text-yellow-800 dark:text-yellow-200">
+              Database update required. Some features may be limited until an administrator performs the update.
+            </p>
+          </div>
+        </div>
+      )}
       
       {/* Header section */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)]">
