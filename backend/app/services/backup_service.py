@@ -6,6 +6,7 @@ from typing import List, Tuple, Optional
 from sqlalchemy import create_engine, inspect, text
 from ..schemas import BackupInfo
 from pathlib import Path
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,29 @@ class BackupService:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             prefix = 'manual' if manual else 'auto'
             backup_path = os.path.join(self.backup_dir, f'{prefix}_{timestamp}.db')
+            
+            # Create backup metadata file
+            metadata_path = backup_path + '.meta'
+            
+            # Get current Alembic version instead of system version
+            version = "unknown"
+            try:
+                with self.engine.connect() as conn:
+                    result = conn.execute(text("SELECT version_num FROM alembic_version LIMIT 1"))
+                    row = result.fetchone()
+                    if row:
+                        version = row[0]
+            except Exception as e:
+                logger.error(f"Error getting Alembic version for backup: {e}")
+
+            # Store metadata
+            with open(metadata_path, 'w') as f:
+                json.dump({
+                    'version': version,
+                    'timestamp': timestamp,
+                    'manual': manual
+                }, f)
+
             shutil.copy2(self.db_path, backup_path)
             logger.info(f"Created backup at {backup_path}")
             return backup_path
@@ -40,11 +64,23 @@ class BackupService:
                 size_kb = stats.st_size / 1024
                 can_restore = self.check_schema_compatibility(path)
                 
+                # Try to read metadata file
+                version = "unknown"
+                metadata_path = path + '.meta'
+                if os.path.exists(metadata_path):
+                    try:
+                        with open(metadata_path, 'r') as f:
+                            metadata = json.load(f)
+                            version = metadata.get('version', 'unknown')
+                    except Exception as e:
+                        logger.error(f"Error reading backup metadata: {e}")
+                
                 backups.append(BackupInfo(
                     filename=filename,
                     created_at=created,
                     size_kb=size_kb,
-                    can_restore=can_restore
+                    can_restore=can_restore,
+                    version=version
                 ))
         
         return sorted(backups, key=lambda x: x.created_at, reverse=True)

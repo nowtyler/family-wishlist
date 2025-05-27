@@ -301,6 +301,16 @@ const MigrationManager = () => {
                                         <span>{new Date(backup.created_at).toLocaleString()}</span>
                                         <span>•</span>
                                         <span>{backup.size_kb.toFixed(1)} KB</span>
+                                        <span>•</span>
+                                        <span className={`${
+                                            backup.version === "unknown" 
+                                                ? 'text-gray-400'  // Gray for unknown versions
+                                                : backup.version === currentVersion 
+                                                    ? 'text-green-500'  // Green for matching versions
+                                                    : 'text-yellow-500'  // Yellow only for actual mismatches
+                                        }`}>
+                                            Version: {backup.version}
+                                        </span>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">

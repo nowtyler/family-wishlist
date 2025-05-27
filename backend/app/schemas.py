@@ -198,7 +198,8 @@ class BackupInfo(BaseModel):
     filename: str
     created_at: datetime
     size_kb: float
-    can_restore: bool  # True if backup matches current schema
+    can_restore: bool
+    version: str  # Add this field
 
 class BackupList(BaseModel):
     backups: List[BackupInfo]
