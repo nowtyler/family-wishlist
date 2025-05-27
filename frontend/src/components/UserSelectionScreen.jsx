@@ -44,7 +44,7 @@ const UserSelectionScreen = () => {
       setCurrentUserHeader(member.id);
       console.log('User set, navigating to dashboard');
       // If this is the admin user, navigate to admin dashboard
-      const isAdmin = member.name.toLowerCase() === 'admin';
+      const isAdmin = member?.name?.toLowerCase() === 'admin';
       navigate(isAdmin ? '/' : '/');  // Both go to dashboard now, but we keep the logic for future admin features
     } catch (err) {
       console.error('Error selecting user:', err);
@@ -52,11 +52,24 @@ const UserSelectionScreen = () => {
     }
   };
 
-  if (isLoading) return <div className="text-center p-10">Loading family members...</div>;
-  if (error) return <div className="text-center p-10 text-red-500">{error}</div>;
+  // Add admin object outside of render logic
+  const adminUser = {
+    id: -1,
+    name: 'admin',
+    is_admin: true
+  };
 
   return (
     <div className="relative min-h-screen">
+      {/* Always show Admin Access - moved outside of conditional rendering */}
+      <button
+        onClick={() => handleSelectUser(adminUser)}
+        className="fixed bottom-2 right-2 p-2 text-gray-300 dark:text-gray-700 hover:text-gray-400 dark:hover:text-gray-600 transition-colors opacity-30 hover:opacity-60 z-50"
+        aria-label="Admin access"
+      >
+        <Settings size={16} />
+      </button>
+
       <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -65,8 +78,16 @@ const UserSelectionScreen = () => {
       >
         <div className="w-full max-w-2xl p-8 bg-white dark:bg-gray-800 rounded-xl shadow-2xl text-center">
           <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-8">Who are you?</h2>
+          {error && (
+            <div className="mb-8 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
+              <p className="text-red-600 dark:text-red-400">{error}</p>
+              <p className="text-sm text-red-500 dark:text-red-400 mt-2">
+                An admin will need to access the migration manager to check for issues.
+              </p>
+            </div>
+          )}
           {familyMembers.length === 0 && !isLoading && (
-            <p className="text-gray-600 dark:text-gray-400">No family members found. Please check the backend configuration.</p>
+            <p className="text-gray-600 dark:text-gray-400">No family members found.</p>
           )}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 md:gap-6">
             {familyMembers
@@ -91,15 +112,6 @@ const UserSelectionScreen = () => {
           </div>
         </div>
       </motion.div>
-
-      {/* Subtle Admin Access */}
-      <button
-        onClick={() => handleSelectUser(familyMembers.find(m => m.name.toLowerCase() === 'admin'))}
-        className="fixed bottom-2 right-2 p-2 text-gray-300 dark:text-gray-700 hover:text-gray-400 dark:hover:text-gray-600 transition-colors opacity-30 hover:opacity-60"
-        aria-label="Admin access"
-      >
-        <Settings size={16} />
-      </button>
     </div>
   );
 };
