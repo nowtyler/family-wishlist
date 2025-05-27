@@ -238,15 +238,34 @@ class MigrationService:
         return current_hash != target_hash
 
     def delete_migration(self, version: str) -> Tuple[bool, str]:
-        """Delete a migration file"""
+        """Delete a migration file with safeguards"""
         try:
             script = ScriptDirectory.from_config(self.alembic_cfg)
             versions_dir = os.path.join(os.path.dirname(script.dir), "migrations", "versions")
             
-            # Create versions directory if it doesn't exist
-            os.makedirs(versions_dir, exist_ok=True)
+            # Get current version and its dependencies
+            current = self.get_current_version()
+            if current == version:
+                return False, "Cannot delete current version"
+                
+            # Get all migrations in the chain
+            migration_chain = set()
+            def get_chain(rev):
+                if not rev or rev == 'base':
+                    return
+                sc = script.get_revision(rev)
+                if sc:
+                    migration_chain.add(sc.revision)
+                    for dep in sc.dependencies:
+                        get_chain(dep)
             
-            # Find the migration file
+            get_chain(current)
+            
+            # Protect migrations in the active chain
+            if version in migration_chain:
+                return False, "Cannot delete migration in active chain"
+                
+            # Find and delete the migration file
             for filename in os.listdir(versions_dir):
                 if filename.startswith(version) and filename.endswith('.py'):
                     file_path = os.path.join(versions_dir, filename)

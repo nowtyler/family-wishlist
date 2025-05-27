@@ -180,6 +180,7 @@ class MigrationInfo(BaseModel):
     version: str
     description: str
     applied: bool = False
+    protected: bool = False  # Add this line
 
 class MigrationList(BaseModel):
     current_version: str

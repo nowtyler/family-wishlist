@@ -231,11 +231,18 @@ const MigrationManager = () => {
             <div className="space-y-2">
                 {migrations.map((migration) => (
                     <div key={migration.version} 
-                         className={`p-3 border rounded ${migration.applied ? 'bg-green-50 dark:bg-green-900/20' : 'bg-gray-50 dark:bg-gray-800'}`}>
+                         className={`p-3 border rounded ${
+                             migration.applied ? 'bg-green-50 dark:bg-green-900/20' : 'bg-gray-50 dark:bg-gray-800'
+                         }`}>
                         <div className="flex justify-between items-center">
                             <div>
                                 <span className="font-mono text-sm">{migration.version}</span>
                                 <p className="text-sm text-gray-600">{migration.description}</p>
+                                {migration.protected && (
+                                    <span className="text-xs text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded-full">
+                                        Protected
+                                    </span>
+                                )}
                             </div>
                             <div className="flex items-center gap-2">
                                 {!migration.applied && (
@@ -251,14 +258,16 @@ const MigrationManager = () => {
                                         }
                                     </button>
                                 )}
-                                <button
-                                    onClick={() => handleDeleteMigration(migration.version)}
-                                    className="p-1.5 text-red-500 hover:text-red-600 rounded-full w-8 h-8 flex items-center justify-center"
-                                    disabled={loading}
-                                    title="Delete this migration"
-                                >
-                                    <X size={16} />
-                                </button>
+                                {!migration.protected && (
+                                    <button
+                                        onClick={() => handleDeleteMigration(migration.version)}
+                                        className="p-1.5 text-red-500 hover:text-red-600 rounded-full w-8 h-8 flex items-center justify-center"
+                                        disabled={loading || migration.protected}
+                                        title={migration.protected ? "Cannot delete active migration" : "Delete this migration"}
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
