@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getMigrations, upgradeMigration, createBackup, getBackups, restoreBackup, deleteBackup, getSchemaHash } from '../../services/api';
-import { AlertCircle, Database, Archive, Download, RotateCcw, Plus, Trash2, ArrowUp } from 'lucide-react';
+import { getMigrations, upgradeMigration, createBackup, getBackups, restoreBackup, deleteBackup, getSchemaHash, deleteMigration } from '../../services/api';
+import { AlertCircle, Database, Archive, Download, RotateCcw, Plus, Trash2, ArrowUp, X } from 'lucide-react';
 
 const MigrationManager = () => {
     const [migrations, setMigrations] = useState([]);
@@ -135,6 +135,21 @@ const MigrationManager = () => {
         }
     };
 
+    const handleDeleteMigration = async (version) => {
+        try {
+            if (!confirm('Are you sure you want to delete this migration?')) {
+                return;
+            }
+            setLoading(true);
+            await deleteMigration(version);
+            await fetchMigrations();
+        } catch (err) {
+            setError('Failed to delete migration');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     if (loading) return <div>Loading migrations...</div>;
 
     return (
@@ -221,8 +236,8 @@ const MigrationManager = () => {
                                 <span className="font-mono text-sm">{migration.version}</span>
                                 <p className="text-sm text-gray-600">{migration.description}</p>
                             </div>
-                            {!migration.applied && (
-                                <div className="flex justify-end items-center">
+                            <div className="flex items-center gap-2">
+                                {!migration.applied && (
                                     <button
                                         onClick={() => handleUpgrade(migration.version)}
                                         className="p-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center"
@@ -234,8 +249,16 @@ const MigrationManager = () => {
                                             <ArrowUp size={16} />
                                         }
                                     </button>
-                                </div>
-                            )}
+                                )}
+                                <button
+                                    onClick={() => handleDeleteMigration(migration.version)}
+                                    className="p-1.5 text-red-500 hover:text-red-600 rounded-full w-8 h-8 flex items-center justify-center"
+                                    disabled={loading}
+                                    title="Delete this migration"
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
                         </div>
                     </div>
                 ))}

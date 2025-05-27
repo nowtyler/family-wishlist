@@ -252,6 +252,20 @@ export const createMigration = async (message) => {
   }
 };
 
+export const deleteMigration = async (version) => {
+  try {
+      const response = await apiClient.delete(`/admin/migrations/${version}`);
+      return response;
+  } catch (error) {
+      console.error('Failed to delete migration:', {
+          message: error.message,
+          response: error.response?.data,
+          status: error.response?.status
+      });
+      throw error;
+  }
+};
+
 // --- Database Backups ---
 export const createBackup = () => {
   return apiClient.post('/admin/backups/create');

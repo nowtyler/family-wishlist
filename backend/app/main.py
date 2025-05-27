@@ -625,6 +625,26 @@ async def create_migration(
             detail=f"Migration creation error: {str(e)}"
         )
 
+@app.delete("/api/admin/migrations/{version}", response_model=schemas.MigrationResponse)
+async def delete_migration(
+    version: str,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Delete a migration file"""
+    try:
+        result = migration_service.delete_migration(version)
+        return {
+            "success": result[0],
+            "message": result[1]
+        }
+    except Exception as e:
+        logger.error(f"Migration deletion error: {str(e)}")
+        return {
+            "success": False,
+            "message": f"Failed to delete migration: {str(e)}"
+        }
+
 
 # --- Database Backup/Restore ---
 backup_service = BackupService(SQLALCHEMY_DATABASE_URL.replace('sqlite:///', ''))

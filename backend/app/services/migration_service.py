@@ -5,7 +5,7 @@ from alembic.runtime.migration import MigrationContext
 from sqlalchemy import create_engine, inspect
 import os
 import hashlib
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from ..schemas import MigrationInfo
 import logging
 from .backup_service import BackupService
@@ -225,3 +225,28 @@ class MigrationService:
         """Check if current schema matches target hash"""
         current_hash = self.get_schema_hash()
         return current_hash != target_hash
+
+    def delete_migration(self, version: str) -> Tuple[bool, str]:
+        """Delete a migration file"""
+        try:
+            script = ScriptDirectory.from_config(self.alembic_cfg)
+            versions_dir = os.path.join(os.path.dirname(script.dir), "migrations", "versions")
+            
+            # Create versions directory if it doesn't exist
+            os.makedirs(versions_dir, exist_ok=True)
+            
+            # Find the migration file
+            for filename in os.listdir(versions_dir):
+                if filename.startswith(version) and filename.endswith('.py'):
+                    file_path = os.path.join(versions_dir, filename)
+                    os.remove(file_path)
+                    # Also remove the .pyc file if it exists
+                    pyc_file = file_path + 'c'
+                    if os.path.exists(pyc_file):
+                        os.remove(pyc_file)
+                    return True, f"Migration {version} deleted successfully"
+            
+            return False, f"Migration {version} not found"
+        except Exception as e:
+            logger.error(f"Error deleting migration: {e}")
+            return False, f"Error deleting migration: {str(e)}"
