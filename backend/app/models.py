@@ -24,13 +24,13 @@ class WishlistItem(Base):
     priority = Column(Integer, default=0) # e.g., 0=low, 1=medium, 2=high
     is_purchased = Column(Boolean, default=False)
     owner_id = Column(Integer, ForeignKey("family_members.id"))
-
-    owner = relationship("FamilyMember", back_populates="wishlist_items")
-    # Who is thinking about it (list of family member names or IDs, simple for now)
     thinking_about_by = Column(String, nullable=True)
-    comments = relationship("Comment", back_populates="item")
     purchased_by = Column(String, nullable=True)  # New column for who purchased the item
     price = Column(Integer, nullable=True)  # Store price in cents
+    owner = relationship("FamilyMember", back_populates="wishlist_items")
+    # Who is thinking about it (list of family member names or IDs, simple for now)
+    comments = relationship("Comment", back_populates="item")
+
 
 class Comment(Base):
     __tablename__ = "comments"
