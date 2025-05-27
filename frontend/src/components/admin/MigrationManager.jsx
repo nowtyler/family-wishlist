@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getMigrations, upgradeMigration, createBackup, getBackups, restoreBackup, deleteBackup, getSchemaHash } from '../../services/api';
-import { AlertCircle, Database, Archive, Download, RotateCcw, Plus, Trash2 } from 'lucide-react';
+import { AlertCircle, Database, Archive, Download, RotateCcw, Plus, Trash2, ArrowUp } from 'lucide-react';
 
 const MigrationManager = () => {
     const [migrations, setMigrations] = useState([]);
@@ -148,10 +148,14 @@ const MigrationManager = () => {
                         </div>
                         <button 
                             onClick={() => handleUpgrade('head')}
-                            className="px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded"
+                            className="px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-full w-8 h-8 flex items-center justify-center"
                             disabled={loading}
+                            title="Bootstrap Database"
                         >
-                            {loading ? 'Bootstrapping...' : 'Bootstrap Database'}
+                            {loading ? 
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/> : 
+                                <ArrowUp size={16} />
+                            }
                         </button>
                     </div>
                 </div>
@@ -166,10 +170,14 @@ const MigrationManager = () => {
                         </div>
                         <button 
                             onClick={() => handleUpgrade('head')}
-                            className="px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded"
+                            className="px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-full w-8 h-8 flex items-center justify-center"
                             disabled={loading}
+                            title="Upgrade Database"
                         >
-                            {loading ? 'Upgrading...' : 'Upgrade Database'}
+                            {loading ? 
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/> : 
+                                <ArrowUp size={16} />
+                            }
                         </button>
                     </div>
                 </div>
@@ -214,17 +222,17 @@ const MigrationManager = () => {
                                 <p className="text-sm text-gray-600">{migration.description}</p>
                             </div>
                             {!migration.applied && (
-                                <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-                                    <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                                        <Archive size={14} />
-                                        <span>Automatic backup will be created</span>
-                                    </div>
+                                <div className="flex justify-end items-center">
                                     <button
                                         onClick={() => handleUpgrade(migration.version)}
-                                        className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                                        className="p-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center"
                                         disabled={loading}
+                                        title="Upgrade to this version"
                                     >
-                                        Upgrade to this version
+                                        {loading ? 
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/> : 
+                                            <ArrowUp size={16} />
+                                        }
                                     </button>
                                 </div>
                             )}
