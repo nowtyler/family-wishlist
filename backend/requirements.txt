@@ -4,4 +4,4 @@ sqlalchemy==2.0.30
 pydantic==2.7.1
 passlib[bcrypt]==1.7.4
 python-dotenv==1.0.1
-alembic==1.13.1 # For database migrations (optional but good practice)
+alembic==1.13.1

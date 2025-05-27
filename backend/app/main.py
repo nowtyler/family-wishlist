@@ -538,18 +538,29 @@ async def get_migrations(
         raise HTTPException(status_code=403, detail="Admin access required")
 
     try:
-        stored_hash = crud.get_schema_hash(db)  # Add function to get stored hash
+        current_version = migration_service.get_current_version()
+        available_migrations = migration_service.get_available_migrations()
+        stored_hash = crud.get_schema_hash(db)
+        current_hash = migration_service.get_schema_hash()
+        
+        needs_bootstrap = stored_hash == "bootstrap_required"
+        
         return {
-            "current_version": migration_service.get_current_version(),
-            "available_migrations": migration_service.get_available_migrations(),
-            "stored_schema_hash": stored_hash
+            "current_version": current_version,
+            "available_migrations": available_migrations,
+            "stored_schema_hash": stored_hash if not needs_bootstrap else None,
+            "needs_upgrade": needs_bootstrap or (stored_hash != current_hash),
+            "db_version": "bootstrap" if needs_bootstrap else ("legacy" if stored_hash is None else "current")
         }
     except Exception as e:
         logger.error(f"Migration error: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Migration error: {str(e)}"
-        )
+        return {
+            "current_version": "unknown",
+            "available_migrations": [],
+            "stored_schema_hash": None,
+            "needs_upgrade": True,
+            "db_version": "bootstrap"
+        }
 
 @app.post("/api/admin/migrations/upgrade", response_model=schemas.MigrationResponse)
 async def upgrade_database(
@@ -569,6 +580,13 @@ async def upgrade_database(
         raise HTTPException(status_code=403, detail="Admin access required")
 
     try:
+        # Handle bootstrap case first
+        stored_hash = crud.get_schema_hash(db)
+        if stored_hash == "bootstrap_required":
+            if not crud.bootstrap_schema_hash(db):
+                raise Exception("Failed to bootstrap schema_hash column")
+
+        # Now proceed with normal upgrade
         result = migration_service.upgrade(target)
         new_version = migration_service.get_current_version()
         

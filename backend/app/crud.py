@@ -1,5 +1,6 @@
 # backend/app/crud.py
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import text
 from . import models, schemas
 from typing import List, Optional, Tuple
 from datetime import date, datetime, timedelta
@@ -381,20 +382,55 @@ def update_system_version(db: Session, new_version: str, user_id: int) -> Option
         db.rollback()
         return None
 
+def bootstrap_schema_hash(db: Session) -> bool:
+    """Bootstraps the schema_hash column in an existing database"""
+    try:
+        # Use SQLAlchemy text() for raw SQL
+        db.execute(text("ALTER TABLE system_settings ADD COLUMN schema_hash TEXT"))
+        db.commit()
+        return True
+    except Exception as e:
+        print(f"Error bootstrapping schema_hash: {e}")
+        db.rollback()
+        return False
+
 def get_schema_hash(db: Session) -> Optional[str]:
-    """Get the stored schema hash"""
-    settings = db.query(models.SystemSettings).first()
-    return settings.schema_hash if settings else None
+    """Get the stored schema hash, safely handling older DB versions"""
+    try:
+        settings = db.query(models.SystemSettings).first()
+        if settings is None:
+            settings = models.SystemSettings()
+            db.add(settings)
+            db.commit()
+        try:
+            return settings.schema_hash
+        except Exception as e:
+            print(f"Column access error: {e}")
+            # Column doesn't exist, try to bootstrap
+            if bootstrap_schema_hash(db):
+                settings.schema_hash = None
+                db.commit()
+                return None
+            return "bootstrap_required"
+    except Exception as e:
+        print(f"Error getting schema hash: {e}")
+        return "bootstrap_required"
 
 def update_schema_hash(db: Session, new_hash: str) -> bool:
-    """Update the stored schema hash"""
+    """Update the stored schema hash, handling bootstrap case"""
     try:
         settings = db.query(models.SystemSettings).first()
         if not settings:
             settings = models.SystemSettings(schema_hash=new_hash)
             db.add(settings)
         else:
-            settings.schema_hash = new_hash
+            try:
+                settings.schema_hash = new_hash
+            except Exception:
+                if bootstrap_schema_hash(db):
+                    settings.schema_hash = new_hash
+                else:
+                    return False
         db.commit()
         return True
     except Exception as e:

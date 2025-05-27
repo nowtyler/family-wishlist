@@ -184,6 +184,9 @@ class MigrationInfo(BaseModel):
 class MigrationList(BaseModel):
     current_version: str
     available_migrations: List[MigrationInfo]
+    stored_schema_hash: Optional[str]
+    needs_upgrade: bool
+    db_version: str  # "legacy" or "current"
 
 class MigrationResponse(BaseModel):
     success: bool

@@ -10,6 +10,7 @@ const MigrationManager = () => {
     const [backups, setBackups] = useState([]);
     const [backupLoading, setBackupLoading] = useState(false);
     const [backupError, setBackupError] = useState('');
+    const [dbVersion, setDbVersion] = useState('current');
 
     const fetchMigrations = async () => {
         try {
@@ -23,6 +24,7 @@ const MigrationManager = () => {
             if (migrationsResponse.data) {
                 setMigrations(migrationsResponse.data.available_migrations || []);
                 setCurrentVersion(migrationsResponse.data.current_version || 'base');
+                setDbVersion(migrationsResponse.data.db_version || 'current');
                 
                 // Only compare if we have a stored hash
                 if (migrationsResponse.data.stored_schema_hash && 
@@ -33,6 +35,7 @@ const MigrationManager = () => {
         } catch (err) {
             console.error('Migration fetch error:', err);
             setError('Failed to fetch migrations');
+            setDbVersion('unknown');
         } finally {
             setLoading(false);
         }
@@ -136,6 +139,42 @@ const MigrationManager = () => {
 
     return (
         <div className="p-4 space-y-8">
+            {dbVersion === "bootstrap" && (
+                <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
+                            <AlertCircle size={18} />
+                            <span>Database needs initialization. Bootstrap upgrade required.</span>
+                        </div>
+                        <button 
+                            onClick={() => handleUpgrade('head')}
+                            className="px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded"
+                            disabled={loading}
+                        >
+                            {loading ? 'Bootstrapping...' : 'Bootstrap Database'}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {dbVersion === "legacy" && (
+                <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
+                            <AlertCircle size={18} />
+                            <span>Legacy database detected. Database upgrade required.</span>
+                        </div>
+                        <button 
+                            onClick={() => handleUpgrade('head')}
+                            className="px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded"
+                            disabled={loading}
+                        >
+                            {loading ? 'Upgrading...' : 'Upgrade Database'}
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {error && (
                 <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
                     <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
