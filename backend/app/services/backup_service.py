@@ -74,19 +74,23 @@ class BackupService:
         if not os.path.exists(backup_path):
             return False, "Backup file not found"
         
-        if not self.check_schema_compatibility(backup_path):
-            return False, "Schema mismatch - migration required"
-        
         try:
             # Create a backup of current state first
-            self.create_backup(manual=False)
+            pre_restore_backup = self.create_backup(manual=False)
+            logger.info(f"Created pre-restore backup at: {pre_restore_backup}")
             
+            # Stop database connections
+            with self.engine.connect() as connection:
+                connection.execute(text("PRAGMA wal_checkpoint(FULL)"))
+                
             # Restore the backup
             shutil.copy2(backup_path, self.db_path)
+            logger.info(f"Successfully restored from backup: {backup_filename}")
             return True, "Database restored successfully"
         except Exception as e:
-            logger.error(f"Restore failed: {str(e)}")
-            return False, f"Restore failed: {str(e)}"
+            error_msg = f"Restore failed: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
 
     def delete_backup(self, backup_filename: str) -> Tuple[bool, str]:
         """Deletes a backup file"""

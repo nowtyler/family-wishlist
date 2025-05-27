@@ -385,8 +385,28 @@ def update_system_version(db: Session, new_version: str, user_id: int) -> Option
 def bootstrap_schema_hash(db: Session) -> bool:
     """Bootstraps the schema_hash column in an existing database"""
     try:
-        # Use SQLAlchemy text() for raw SQL
-        db.execute(text("ALTER TABLE system_settings ADD COLUMN schema_hash TEXT"))
+        # Create temporary table
+        db.execute(text("""
+            CREATE TABLE system_settings_new (
+                id INTEGER PRIMARY KEY,
+                version STRING,
+                schema_hash STRING,
+                last_updated DATE
+            )
+        """))
+        
+        # Copy data
+        db.execute(text("""
+            INSERT INTO system_settings_new (id, version, last_updated)
+            SELECT id, version, last_updated FROM system_settings
+        """))
+        
+        # Drop old table
+        db.execute(text("DROP TABLE system_settings"))
+        
+        # Rename new table
+        db.execute(text("ALTER TABLE system_settings_new RENAME TO system_settings"))
+        
         db.commit()
         return True
     except Exception as e:

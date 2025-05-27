@@ -34,8 +34,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY ./app /app/app
 COPY ./alembic.ini /app/alembic.ini
 
-# Create migrations directory
-RUN mkdir -p /app/app/migrations/versions
+# Create migrations directory and add template
+RUN mkdir -p /app/app/migrations/versions && \
+    mkdir -p /app/app/migrations/versions/__pycache__
+
+# Copy the migration script template
+COPY ./app/migrations/script.py.mako /app/app/migrations/script.py.mako
 
 # Expose the port the app runs on
 EXPOSE 8000

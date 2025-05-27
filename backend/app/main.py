@@ -671,23 +671,27 @@ async def restore_backup(
     current_user_id: int = Depends(get_current_user_id_from_header)
 ):
     """Restore from a backup"""
-    user = crud.get_family_member(db, current_user_id)
-    if not user or not user.is_admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
+    try:
+        if not backup_service.check_schema_compatibility(os.path.join(backup_service.backup_dir, filename)):
+            return schemas.RestoreResponse(
+                success=False,
+                message="Database schema has changed since this backup was created",
+                requires_migration=True
+            )
 
-    if not backup_service.check_schema_compatibility(os.path.join(backup_service.backup_dir, filename)):
-        return {
-            "success": False,
-            "message": "Database schema has changed since this backup was created",
-            "requires_migration": True
-        }
-
-    success, message = backup_service.restore_from_backup(filename)
-    return {
-        "success": success,
-        "message": message,
-        "requires_migration": False
-    }
+        success, message = backup_service.restore_from_backup(filename)
+        return schemas.RestoreResponse(
+            success=success,
+            message=message,
+            requires_migration=False
+        )
+    except Exception as e:
+        logger.error(f"Restore error: {str(e)}")
+        return schemas.RestoreResponse(
+            success=False,
+            message=f"Restore failed: {str(e)}",
+            requires_migration=False
+        )
 
 @app.delete("/api/admin/backups/{filename}", response_model=schemas.BackupResponse)
 async def delete_backup(
@@ -696,15 +700,18 @@ async def delete_backup(
     current_user_id: int = Depends(get_current_user_id_from_header)
 ):
     """Delete a backup file"""
-    user = crud.get_family_member(db, current_user_id)
-    if not user or not user.is_admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
-
-    success, message = backup_service.delete_backup(filename)
-    return {
-        "success": success,
-        "message": message
-    }
+    try:
+        success, message = backup_service.delete_backup(filename)
+        return {
+            "success": success,
+            "message": message
+        }
+    except Exception as e:
+        logger.error(f"Backup deletion error: {str(e)}")
+        return {
+            "success": False,
+            "message": f"Failed to delete backup: {str(e)}"
+        }
 
 @app.get("/api/admin/schema/hash")
 async def get_schema_hash(

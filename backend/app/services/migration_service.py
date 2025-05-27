@@ -9,13 +9,42 @@ from typing import List, Dict
 from ..schemas import MigrationInfo
 import logging
 from .backup_service import BackupService
+from ..database import Base
+from ..models import *  # Import all models to register them with Base.metadata
 
 logger = logging.getLogger(__name__)
+
+# Add the template content at module level
+SCRIPT_TEMPLATE = '''"""${message}
+
+Revision ID: ${up_revision}
+Revises: ${down_revision | comma,n}
+Create Date: ${create_date}
+
+"""
+from alembic import op
+import sqlalchemy as sa
+${imports if imports else ""}
+
+# revision identifiers, used by Alembic.
+revision = ${repr(up_revision)}
+down_revision = ${repr(down_revision)}
+branch_labels = ${repr(branch_labels)}
+depends_on = ${repr(depends_on)}
+
+
+def upgrade() -> None:
+    ${upgrades if upgrades else "pass"}
+
+
+def downgrade() -> None:
+    ${downgrades if downgrades else "pass"}
+'''
 
 class MigrationService:
     def __init__(self, db_url: str):
         self.db_url = db_url
-        # Look for alembic.ini in the app root directory
+        # Look for alembic.ini and script.py.mako
         config_paths = [
             '/app/alembic.ini',  # Docker path
             'alembic.ini',       # Local development path
@@ -27,6 +56,18 @@ class MigrationService:
             if os.path.exists(config_path):
                 logger.info(f"Found alembic.ini at: {config_path}")
                 self.alembic_cfg = Config(config_path)
+                
+                # Set SQLite-specific options
+                self.alembic_cfg.set_main_option('render_as_batch', 'True')
+                self.alembic_cfg.set_main_option('compare_type', 'True')
+                
+                # Also check for script template
+                script_template = os.path.join(os.path.dirname(config_path), 'app', 'migrations', 'script.py.mako')
+                if not os.path.exists(script_template):
+                    logger.warning(f"Creating script template at: {script_template}")
+                    os.makedirs(os.path.dirname(script_template), exist_ok=True)
+                    with open(script_template, 'w') as f:
+                        f.write(SCRIPT_TEMPLATE)
                 break
         
         if not self.alembic_cfg:
@@ -42,45 +83,117 @@ class MigrationService:
             context = MigrationContext.configure(connection)
             return context.get_current_revision() or "base"
 
-    def get_available_migrations(self) -> List[MigrationInfo]:
-        script = ScriptDirectory.from_config(self.alembic_cfg)
-        current = self.get_current_version()
-        
-        migrations = []
-        for sc in script.walk_revisions():
-            migrations.append(MigrationInfo(
-                version=sc.revision,
-                description=sc.doc,
-                applied=sc.revision <= current if current else False
-            ))
-        
-        return sorted(migrations, key=lambda x: x.version)
-
-    def create_migration(self, message: str) -> str:
-        """Creates a new migration file"""
+    def detect_model_changes(self) -> bool:
+        """Check if there are any model changes that need migration"""
         try:
-            # Ensure migrations directory exists
-            os.makedirs(os.path.join("app", "migrations", "versions"), exist_ok=True)
-            # Create new migration
-            revision = command.revision(
-                self.alembic_cfg,
-                message=message,
-                autogenerate=True
-            )
-            return f"Created migration {revision}"
+            from alembic.autogenerate.compare import compare_metadata
+            script = ScriptDirectory.from_config(self.alembic_cfg)
+            
+            with self.engine.connect() as connection:
+                context = MigrationContext.configure(
+                    connection,
+                    opts={
+                        'compare_type': True,
+                        'compare_server_default': True,
+                        'target_metadata': Base.metadata,
+                        'include_schemas': True,
+                        'render_as_batch': True,
+                        'sqlite_on_connect': self.sqlite_on_connect,
+                    }
+                )
+                
+                # Get the diff using compare_metadata
+                diff = compare_metadata(context, Base.metadata)
+                if diff:
+                    logger.info(f"Detected schema changes: {diff}")
+                return bool(diff)
         except Exception as e:
-            return f"Failed to create migration: {str(e)}"
+            logger.error(f"Error detecting model changes: {e}")
+            return True  # Return True on error to force checking
+
+    def sqlite_on_connect(self, dbapi_connection, connection_record):
+        """Enable SQLite foreign key support and other optimizations"""
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.close()
+
+    def get_available_migrations(self) -> List[MigrationInfo]:
+        try:
+            has_changes = self.detect_model_changes()
+            script = ScriptDirectory.from_config(self.alembic_cfg)
+            current = self.get_current_version()
+            
+            migrations = []
+            
+            # Add pending model changes as a virtual migration if detected
+            if has_changes:
+                migrations.append(MigrationInfo(
+                    version="pending",
+                    description="Pending model changes detected - Click upgrade to apply",
+                    applied=False
+                ))
+
+            # Add existing migrations
+            for sc in script.walk_revisions():
+                migrations.append(MigrationInfo(
+                    version=sc.revision,
+                    description=sc.doc,
+                    applied=sc.revision <= current if current else False
+                ))
+            
+            return sorted(migrations, key=lambda x: x.version if x.version != "pending" else "zzz")
+        except Exception as e:
+            logger.error(f"Error getting migrations: {e}")
+            return []
 
     def upgrade(self, target: str = "head") -> str:
-        """Upgrades database to target version"""
+        """Upgrades database to target version with SQLite compatibility"""
         try:
             # Create backup before upgrading
             backup_path = self.backup_service.create_backup()
             logger.info(f"Created backup at {backup_path}")
             
-            command.upgrade(self.alembic_cfg, target)
-            return f"Successfully upgraded to {target} (Backup created: {os.path.basename(backup_path)})"
+            if target == "pending" or self.detect_model_changes():
+                # Configure for SQLite batch operations
+                script = ScriptDirectory.from_config(self.alembic_cfg)
+                
+                with self.engine.connect() as connection:
+                    context = MigrationContext.configure(
+                        connection,
+                        opts={
+                            'compare_type': True,
+                            'compare_server_default': True,
+                            'target_metadata': Base.metadata,
+                            'include_schemas': True,
+                            'render_as_batch': True,
+                            'transaction_per_migration': True,
+                        }
+                    )
+
+                    # Create migration script
+                    revision = command.revision(
+                        self.alembic_cfg,
+                        message="auto generated migration",
+                        autogenerate=True
+                    )
+
+                    # Apply migration with batch operations
+                    command.upgrade(
+                        self.alembic_cfg,
+                        "head",
+                        sql=False,
+                        tag=None
+                    )
+                    
+                return f"Successfully created and applied auto-migration (Backup: {os.path.basename(backup_path)})"
+            else:
+                command.upgrade(self.alembic_cfg, target)
+                return f"Successfully upgraded to {target} (Backup: {os.path.basename(backup_path)})"
+
         except Exception as e:
+            logger.error(f"Migration error: {str(e)}")
             return f"Failed to upgrade: {str(e)}"
 
     def downgrade(self, target: str) -> str:
@@ -93,45 +206,20 @@ class MigrationService:
     
     def get_schema_hash(self) -> str:
         """Generate a hash of the current schema definition"""
-        schema_def = []
-        inspector = inspect(self.engine)
-        
-        # Get all tables
-        for table_name in sorted(inspector.get_table_names()):  # Sort table names
-            # Get columns
-            columns = inspector.get_columns(table_name)
-            col_info = sorted(  # Sort column info
-                [(col['name'], str(col['type']), col.get('nullable', True)) 
-                 for col in columns],
-                key=lambda x: x[0]  # Sort by column name
-            )
+        try:
+            from sqlalchemy.schema import CreateTable
+            schema_def = []
             
-            # Get foreign keys and sort them
-            foreign_keys = sorted(
-                [(fk['referred_table'], tuple(sorted(fk['constrained_columns'])), tuple(sorted(fk['referred_columns'])))
-                 for fk in inspector.get_foreign_keys(table_name)],
-                key=lambda x: (x[0], x[1], x[2])
-            )
+            # Get table definitions from metadata
+            for table in Base.metadata.sorted_tables:
+                create_stmt = str(CreateTable(table).compile(self.engine))
+                schema_def.append(create_stmt)
             
-            # Get indexes and sort them
-            indexes = sorted(
-                [(idx['name'], tuple(sorted(idx['column_names'])), idx.get('unique', False))
-                 for idx in inspector.get_indexes(table_name)],
-                key=lambda x: (x[0] or '', x[1], x[2])
-            )
-            
-            # Create a tuple of sorted components
-            table_def = (
-                table_name,
-                tuple(col_info),
-                tuple(foreign_keys),
-                tuple(indexes)
-            )
-            schema_def.append(table_def)
-        
-        # Create deterministic string representation
-        schema_str = repr(sorted(schema_def))
-        return hashlib.sha256(schema_str.encode()).hexdigest()
+            schema_str = '\n'.join(sorted(schema_def))
+            return hashlib.sha256(schema_str.encode()).hexdigest()
+        except Exception as e:
+            logger.error(f"Error generating schema hash: {e}")
+            return "error_generating_hash"
 
     def schema_requires_migration(self, target_hash: str) -> bool:
         """Check if current schema matches target hash"""
