@@ -37,7 +37,7 @@ const MigrationModal = ({ isOpen, onClose }) => {
         </div>
         
         <div className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-          <p className="mb-2">⚠️ Warning: Database migrations can potentially modify your data structure.</p>
+          <p className="mb-2">Warning: Database migrations can potentially modify your data structure.</p>
           <p>Make sure you have a backup before proceeding with any migration.</p>
         </div>
 

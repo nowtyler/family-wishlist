@@ -1,5 +1,5 @@
 from alembic.config import Config
-from alembic import command
+from alembic import command, autogenerate
 from alembic.script import ScriptDirectory
 from alembic.runtime.migration import MigrationContext
 from sqlalchemy import create_engine, inspect
@@ -86,7 +86,6 @@ class MigrationService:
     def detect_model_changes(self) -> bool:
         """Check if there are any model changes that need migration"""
         try:
-            from alembic.autogenerate.compare import compare_metadata
             script = ScriptDirectory.from_config(self.alembic_cfg)
             
             with self.engine.connect() as connection:
@@ -102,14 +101,17 @@ class MigrationService:
                     }
                 )
                 
-                # Get the diff using compare_metadata
-                diff = compare_metadata(context, Base.metadata)
+                # Use the correct autogenerate method
+                diff = autogenerate.compare_metadata(context, Base.metadata)
+                
+                # Only return True if there are actual changes
                 if diff:
                     logger.info(f"Detected schema changes: {diff}")
-                return bool(diff)
+                    return True
+                return False
         except Exception as e:
             logger.error(f"Error detecting model changes: {e}")
-            return True  # Return True on error to force checking
+            return False  # Changed to return False on error
 
     def sqlite_on_connect(self, dbapi_connection, connection_record):
         """Enable SQLite foreign key support and other optimizations"""
@@ -127,7 +129,7 @@ class MigrationService:
             
             migrations = []
             
-            # Add pending model changes as a virtual migration if detected
+            # Only add pending changes if actual changes are detected
             if has_changes:
                 migrations.append(MigrationInfo(
                     version="pending",
@@ -187,9 +189,18 @@ class MigrationService:
                         tag=None
                     )
                     
+                    # Force metadata refresh after upgrade
+                    Base.metadata.clear()
+                    Base.metadata.reflect(bind=self.engine)
+                    
                 return f"Successfully created and applied auto-migration (Backup: {os.path.basename(backup_path)})"
             else:
                 command.upgrade(self.alembic_cfg, target)
+                
+                # Force metadata refresh here too
+                Base.metadata.clear()
+                Base.metadata.reflect(bind=self.engine)
+                
                 return f"Successfully upgraded to {target} (Backup: {os.path.basename(backup_path)})"
 
         except Exception as e:

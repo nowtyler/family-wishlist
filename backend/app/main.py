@@ -530,13 +530,27 @@ async def get_migrations(
     try:
         current_version = migration_service.get_current_version()
         available_migrations = migration_service.get_available_migrations()
+        
         try:
             stored_hash = crud.get_schema_hash(db)
             current_hash = migration_service.get_schema_hash()
+            
+            # More strict hash comparison logic
+            needs_upgrade = False
+            if stored_hash is None:
+                needs_upgrade = True
+            elif stored_hash == "bootstrap_required":
+                needs_upgrade = True
+            elif stored_hash != current_hash:
+                # Only set needs_upgrade if there are actual model changes
+                needs_upgrade = migration_service.detect_model_changes()
+            
+            logger.info(f"Schema comparison - Stored: {stored_hash}, Current: {current_hash}, Needs Upgrade: {needs_upgrade}")
         except Exception as e:
             logger.error(f"Schema hash error: {str(e)}")
             stored_hash = "bootstrap_required"
             current_hash = None
+            needs_upgrade = True
         
         needs_bootstrap = stored_hash == "bootstrap_required"
         
@@ -544,7 +558,7 @@ async def get_migrations(
             "current_version": current_version,
             "available_migrations": available_migrations,
             "stored_schema_hash": stored_hash if not needs_bootstrap else None,
-            "needs_upgrade": needs_bootstrap or (stored_hash != current_hash),
+            "needs_upgrade": needs_upgrade,
             "db_version": "bootstrap" if needs_bootstrap else ("legacy" if stored_hash is None else "current")
         }
     except Exception as e:

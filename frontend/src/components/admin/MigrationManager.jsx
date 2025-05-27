@@ -16,20 +16,19 @@ const MigrationManager = () => {
         try {
             setLoading(true);
             setError('');
-            const [migrationsResponse, schemaResponse] = await Promise.all([
-                getMigrations(),
-                getSchemaHash()
-            ]);
+            const migrationsResponse = await getMigrations();
 
             if (migrationsResponse.data) {
                 setMigrations(migrationsResponse.data.available_migrations || []);
                 setCurrentVersion(migrationsResponse.data.current_version || 'base');
                 setDbVersion(migrationsResponse.data.db_version || 'current');
                 
-                // Only compare if we have a stored hash
-                if (migrationsResponse.data.stored_schema_hash && 
-                    migrationsResponse.data.stored_schema_hash !== schemaResponse.data.hash) {
+                // Only show warning if both needs_upgrade is true and there are actual changes
+                const hasModelChanges = migrationsResponse.data.available_migrations?.some(m => m.version === 'pending');
+                if (migrationsResponse.data.needs_upgrade && hasModelChanges) {
                     setError('Schema changes detected. New migrations may be available.');
+                } else {
+                    setError(''); // Clear error if no changes needed
                 }
             }
         } catch (err) {
@@ -48,6 +47,8 @@ const MigrationManager = () => {
             const response = await upgradeMigration(version);
             if (response.data.success) {
                 setCurrentVersion(response.data.new_version);
+                // Clear error and force a fresh fetch of migrations
+                setError('');
                 await fetchMigrations();
             } else {
                 setError(response.data.message || 'Upgrade failed');
