@@ -86,16 +86,21 @@ class BackupService:
         return sorted(backups, key=lambda x: x.created_at, reverse=True)
 
     def check_schema_compatibility(self, backup_path: str) -> bool:
-        """Checks if backup database schema matches current schema"""
+        """Check if backup database is upgradeable"""
         try:
             backup_engine = create_engine(f'sqlite:///{backup_path}')
             
-            # Fix the query execution
+            # First check if we can connect
             try:
                 with backup_engine.connect() as conn:
-                    conn.execute(text("SELECT 1"))  # Use SQLAlchemy text() for raw SQL
-                    conn.commit()  # Make sure to commit the transaction
-                return True
+                    conn.execute(text("SELECT 1"))  # Basic connectivity test
+                    # Check for alembic version table
+                    result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='alembic_version'"))
+                    has_alembic = result.scalar() is not None
+                    if not has_alembic:
+                        logger.warning("Backup has no alembic_version table - might be from older version")
+                        return True  # Allow restore and migration
+                    return True  # Database is valid and can be migrated if needed
             except Exception as e:
                 logger.error(f"Failed to connect to backup database: {str(e)}")
                 return False
@@ -114,14 +119,26 @@ class BackupService:
             # Create a backup of current state first
             pre_restore_backup = self.create_backup(manual=False)
             logger.info(f"Created pre-restore backup at: {pre_restore_backup}")
-            
-            # Stop database connections
+
+            # Stop database connections and restore
             with self.engine.connect() as connection:
                 connection.execute(text("PRAGMA wal_checkpoint(FULL)"))
-                
+            
+            # Read metadata for version info
+            version = "unknown"
+            metadata_path = backup_path + '.meta'
+            if os.path.exists(metadata_path):
+                try:
+                    with open(metadata_path, 'r') as f:
+                        metadata = json.load(f)
+                        version = metadata.get('version', 'unknown')
+                except Exception:
+                    pass
+
             # Restore the backup
             shutil.copy2(backup_path, self.db_path)
             logger.info(f"Successfully restored from backup: {backup_filename}")
+            
             return True, "Database restored successfully"
         except Exception as e:
             error_msg = f"Restore failed: {str(e)}"

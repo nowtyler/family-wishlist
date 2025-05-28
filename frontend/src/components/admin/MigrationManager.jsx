@@ -40,14 +40,13 @@ const MigrationManager = () => {
         }
     };
 
-    const handleUpgrade = async (version) => {
+    const handleUpgrade = async () => {
         try {
             setLoading(true);
             setError('');
-            const response = await upgradeMigration(version);
+            const response = await upgradeMigration("head"); // Always upgrade to head
             if (response.data.success) {
                 setCurrentVersion(response.data.new_version);
-                // Clear error and force a fresh fetch of migrations
                 setError('');
                 await fetchMigrations();
             } else {
@@ -229,49 +228,53 @@ const MigrationManager = () => {
                 <p>Current Version: {currentVersion || 'base'}</p>
             </div>
             <div className="space-y-2">
-                {migrations.map((migration) => (
-                    <div key={migration.version} 
-                         className={`p-3 border rounded ${
-                             migration.applied ? 'bg-green-50 dark:bg-green-900/20' : 'bg-gray-50 dark:bg-gray-800'
-                         }`}>
-                        <div className="flex justify-between items-center">
+                {migrations.some(m => !m.applied || m.version === "pending") && (
+                    <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <div className="flex items-center justify-between">
                             <div>
-                                <span className="font-mono text-sm">{migration.version}</span>
-                                <p className="text-sm text-gray-600">{migration.description}</p>
-                                {migration.protected && (
-                                    <span className="text-xs text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded-full">
-                                        Protected
-                                    </span>
-                                )}
+                                <h3 className="font-medium text-blue-800 dark:text-blue-200">
+                                    Database Updates Available
+                                </h3>
+                                <p className="text-sm text-blue-600 dark:text-blue-300 mt-1">
+                                    Click upgrade to apply all pending changes
+                                </p>
                             </div>
-                            <div className="flex items-center gap-2">
-                                {!migration.applied && (
-                                    <button
-                                        onClick={() => handleUpgrade(migration.version)}
-                                        className="p-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center"
-                                        disabled={loading}
-                                        title="Upgrade to this version"
-                                    >
-                                        {loading ? 
-                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/> : 
-                                            <ArrowUp size={16} />
-                                        }
-                                    </button>
+                            <button
+                                onClick={handleUpgrade}
+                                className="p-2 bg-blue-500 hover:bg-blue-600 text-white rounded-full w-10 h-10 flex items-center justify-center"
+                                disabled={loading}
+                                title="Upgrade database to latest version"
+                            >
+                                {loading ? (
+                                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"/>
+                                ) : (
+                                    <ArrowUp size={20} />
                                 )}
-                                {!migration.protected && (
-                                    <button
-                                        onClick={() => handleDeleteMigration(migration.version)}
-                                        className="p-1.5 text-red-500 hover:text-red-600 rounded-full w-8 h-8 flex items-center justify-center"
-                                        disabled={loading || migration.protected}
-                                        title={migration.protected ? "Cannot delete active migration" : "Delete this migration"}
-                                    >
-                                        <X size={16} />
-                                    </button>
-                                )}
-                            </div>
+                            </button>
                         </div>
                     </div>
-                ))}
+                )}
+
+                {/* Show migrations list as read-only info */}
+                <div className="mt-4">
+                    <h3 className="text-lg font-medium mb-2">Migration History</h3>
+                    {migrations.map((migration) => (
+                        <div key={migration.version} 
+                             className={`p-3 border rounded mb-2 ${
+                               migration.applied ? 'bg-green-50 dark:bg-green-900/20' : 'bg-gray-50 dark:bg-gray-800'
+                             }`}>
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <span className="font-mono text-sm">{migration.version}</span>
+                                    <p className="text-sm text-gray-600 dark:text-gray-300">{migration.description}</p>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                      {migration.applied ? "✓ Applied" : "Pending"}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
 
             {/* Backups Section */}

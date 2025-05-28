@@ -2,7 +2,7 @@ from alembic.config import Config
 from alembic import command, autogenerate
 from alembic.script import ScriptDirectory
 from alembic.runtime.migration import MigrationContext
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 import os
 import hashlib
 from typing import List, Dict, Tuple
@@ -157,51 +157,31 @@ class MigrationService:
             backup_path = self.backup_service.create_backup()
             logger.info(f"Created backup at {backup_path}")
             
-            if target == "pending" or self.detect_model_changes():
-                # Configure for SQLite batch operations
-                script = ScriptDirectory.from_config(self.alembic_cfg)
-                
-                with self.engine.connect() as connection:
-                    context = MigrationContext.configure(
-                        connection,
-                        opts={
-                            'compare_type': True,
-                            'compare_server_default': True,
-                            'target_metadata': Base.metadata,
-                            'include_schemas': True,
-                            'render_as_batch': True,
-                            'transaction_per_migration': True,
-                        }
-                    )
+            # Always force to head when upgrading
+            if target != "head":
+                logger.info("Forcing upgrade to head")
+                target = "head"
 
-                    # Create migration script
-                    revision = command.revision(
-                        self.alembic_cfg,
-                        message="auto generated migration",
-                        autogenerate=True
-                    )
-
-                    # Apply migration with batch operations
-                    command.upgrade(
-                        self.alembic_cfg,
-                        "head",
-                        sql=False,
-                        tag=None
-                    )
-                    
-                    # Force metadata refresh after upgrade
-                    Base.metadata.clear()
-                    Base.metadata.reflect(bind=self.engine)
-                    
-                return f"Successfully created and applied auto-migration (Backup: {os.path.basename(backup_path)})"
-            else:
-                command.upgrade(self.alembic_cfg, target)
+            with self.engine.connect() as connection:
+                # First ensure alembic_version table exists
+                try:
+                    connection.execute(text("SELECT version_num FROM alembic_version"))
+                except Exception:
+                    logger.info("No alembic_version table found - initializing fresh")
+                    connection.execute(text(
+                        "CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32))"
+                    ))
+                    connection.execute(text("INSERT INTO alembic_version (version_num) VALUES ('base')"))
+                    connection.commit()
                 
-                # Force metadata refresh here too
+                # Now proceed with upgrade
+                command.upgrade(self.alembic_cfg, "head")
+                
+                # Force metadata refresh
                 Base.metadata.clear()
                 Base.metadata.reflect(bind=self.engine)
                 
-                return f"Successfully upgraded to {target} (Backup: {os.path.basename(backup_path)})"
+                return f"Successfully upgraded database (Backup: {os.path.basename(backup_path)})"
 
         except Exception as e:
             logger.error(f"Migration error: {str(e)}")
