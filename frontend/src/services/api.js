@@ -121,7 +121,8 @@ export const updateWishlistItem = async (itemId, itemData) => {
       link: itemData.link || null,
       image_url: itemData.image_url || null,
       description: itemData.description || null,
-      price: itemData.price !== null && itemData.price !== undefined ? 
+      // Fix price handling to match create item
+      price: itemData.price !== null && itemData.price !== undefined && itemData.price !== '' ? 
         parseFloat(itemData.price) : null  // Backend will convert to cents
     };
     console.log('Sending data to API:', cleanData);

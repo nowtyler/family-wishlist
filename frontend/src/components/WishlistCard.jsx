@@ -25,7 +25,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
     setEditingItemId(item.id);
     setEditForm({
       ...item,
-      price: item.price ? (item.price / 100) : ''  // Convert cents to dollars for editing
+      price: item.price !== null ? (item.price / 100).toFixed(2) : ''  // Convert cents to dollars for editing and format
     });
   };
 
@@ -42,7 +42,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
         throw new Error('Title is required');
       }
 
-      // Improved price handling
+      // Improved price handling for edit
       let processedPrice = null;
       if (editForm.price !== undefined && editForm.price !== null && editForm.price !== '') {
         const floatPrice = parseFloat(editForm.price);
@@ -251,8 +251,8 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
           type="number"
           step="0.01"
           min="0"
-          value={editForm.price}
-          onChange={e => setEditForm({ ...editForm, price: e.target.value })}
+          value={editForm.price !== null ? editForm.price : ''}
+          onChange={e => setEditForm({ ...editForm, price: e.target.value ? e.target.value : null })}
           className="w-full px-2 py-1 border rounded dark:bg-gray-600 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary"
         />
       </div>

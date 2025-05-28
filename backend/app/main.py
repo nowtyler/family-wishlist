@@ -326,7 +326,24 @@ def update_item(
     if not db_item:
         raise HTTPException(status_code=404, detail="Item not found")
 
-    updated_item = crud.update_wishlist_item(db, item_id, item_update, current_user_id)
+    # Log the raw update data for debugging
+    logger.info(f"Update data received: {item_update.dict()}")
+    
+    # Process the update data - similar to create logic
+    update_data = item_update.dict(exclude_unset=True)
+    
+    # Handle price conversion the same way as in create_wishlist_item
+    if 'price' in update_data and update_data['price'] is not None:
+        try:
+            # Store price in cents as integer
+            update_data['price'] = int(float(update_data['price']) * 100)
+            logger.info(f"Processed price: {update_data['price']} cents")
+        except (ValueError, TypeError) as e:
+            logger.error(f"Price conversion error: {e}")
+            raise HTTPException(status_code=400, detail=f"Invalid price format: {str(e)}")
+    
+    # Update the item with processed data
+    updated_item = crud.update_wishlist_item(db, item_id, schemas.WishlistItemUpdate(**update_data), current_user_id)
     if not updated_item:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
