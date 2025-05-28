@@ -157,29 +157,28 @@ def create_wishlist_item(db: Session, item: schemas.WishlistItemCreate, owner_id
 def get_wishlist_item(db: Session, item_id: int) -> Optional[models.WishlistItem]:
     return db.query(models.WishlistItem).filter(models.WishlistItem.id == item_id).first()
 
-def update_wishlist_item(db: Session, item_id: int, item_update: schemas.WishlistItemUpdate, requesting_user_id: int) -> Optional[models.WishlistItem]:
-    db_item = get_wishlist_item(db, item_id)
+def update_wishlist_item(db: Session, item_id: int, item_update: schemas.WishlistItemUpdate, current_user_id: int):
+    """Update a wishlist item with proper authorization checks"""
+    db_item = db.query(models.WishlistItem).filter(models.WishlistItem.id == item_id).first()
     if not db_item:
         return None
-
-    requesting_user = get_family_member(db, requesting_user_id)
-    if not requesting_user:
+    
+    # Check if user is authorized to update (owner or admin)
+    user = get_family_member(db, current_user_id)
+    if not user or (user.name.lower() != 'admin' and db_item.owner_id != current_user_id):
         return None
-        
-    is_admin = requesting_user.name.lower() == 'admin'
-    if not (is_admin or db_item.owner_id == requesting_user_id):
-        return None
-
+    
+    # Update fields that were provided
     update_data = item_update.model_dump(exclude_unset=True)
     
+    # Make sure price is already converted to cents and is an integer
+    if 'price' in update_data and update_data['price'] is not None:
+        # If somehow the price is still a float here, convert it
+        if isinstance(update_data['price'], float):
+            update_data['price'] = int(update_data['price'] * 100)
+    
     for key, value in update_data.items():
-        if hasattr(db_item, key):
-            if key in ['link', 'image_url'] and value is not None:
-                setattr(db_item, key, str(value))
-            elif key == 'price' and value is not None:
-                setattr(db_item, key, int(value))  # Store as integer cents
-            else:
-                setattr(db_item, key, value)
+        setattr(db_item, key, value)
     
     db.commit()
     db.refresh(db_item)

@@ -147,15 +147,18 @@ class WishlistItemCreate(BaseModel):
             }
         }
 
-class WishlistItemUpdate(WishlistItemBase):
+class WishlistItemUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    link: Optional[HttpUrl] = None
-    image_url: Optional[HttpUrl] = None
+    link: Optional[str] = None
+    image_url: Optional[str] = None
     priority: Optional[int] = None
-    price: Optional[int] = None  # Make sure price is included
-    is_purchased: Optional[bool] = None
-    thinking_about_by: Optional[str] = None # Comma-separated list of names
+    price: Optional[Union[float, int, None]] = None  # Allow either float or int
+    
+    class Config:
+        # Enable ORM mode for Pydantic
+        from_attributes = True  # Modern Pydantic v2 name
+        orm_mode = True  # Legacy name for compatibility
 
 class WishlistItem(WishlistItemBase):
     id: int
