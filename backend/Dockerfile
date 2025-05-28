@@ -34,8 +34,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY ./app /app/app
 COPY ./alembic.ini /app/alembic.ini
 
-# Create migrations directory and add template
-RUN mkdir -p /app/app/migrations/versions && \
+# Create required directories
+RUN mkdir -p /app/data/backups && \
+    mkdir -p /app/app/migrations/versions && \
     mkdir -p /app/app/migrations/versions/__pycache__
 
 # Copy the migration script template

@@ -150,6 +150,34 @@ class MigrationService:
             logger.error(f"Error getting migrations: {e}")
             return []
 
+    def is_foundation_database(self) -> bool:
+        """Check if this is the foundation database"""
+        try:
+            with self.engine.connect() as connection:
+                # First check if the table exists
+                inspector = inspect(self.engine)
+                if 'system_settings' not in inspector.get_table_names():
+                    return False
+                    
+                # Check if the column exists
+                has_foundation_column = False
+                for column in inspector.get_columns('system_settings'):
+                    if column['name'] == 'is_foundation':
+                        has_foundation_column = True
+                        break
+                        
+                if not has_foundation_column:
+                    return False
+                    
+                # Finally check the value
+                result = connection.execute(text(
+                    "SELECT is_foundation FROM system_settings WHERE id = 1"
+                )).scalar()
+                return bool(result)
+        except Exception as e:
+            logger.error(f"Error checking foundation status: {e}")
+            return False
+
     def upgrade(self, target: str = "head") -> str:
         """Upgrades database to target version with SQLite compatibility"""
         try:
@@ -157,34 +185,77 @@ class MigrationService:
             backup_path = self.backup_service.create_backup()
             logger.info(f"Created backup at {backup_path}")
             
-            # Always force to head when upgrading
-            if target != "head":
-                logger.info("Forcing upgrade to head")
-                target = "head"
-
-            with self.engine.connect() as connection:
-                # First ensure alembic_version table exists
+            current_version = self.get_current_version()
+            logger.info(f"Current version before upgrade: {current_version}")
+            
+            # Check if this is a foundation database to adjust upgrade strategy
+            is_foundation = self.is_foundation_database()
+            logger.info(f"Is foundation database: {is_foundation}")
+            
+            # Store current schema hash before migration
+            pre_migration_hash = self.get_schema_hash()
+            
+            with self.engine.begin() as connection:
                 try:
-                    connection.execute(text("SELECT version_num FROM alembic_version"))
-                except Exception:
-                    logger.info("No alembic_version table found - initializing fresh")
-                    connection.execute(text(
-                        "CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32))"
-                    ))
-                    connection.execute(text("INSERT INTO alembic_version (version_num) VALUES ('base')"))
-                    connection.commit()
+                    # For foundation database, no special handling needed
+                    if not is_foundation:
+                        logger.info("Non-foundation database - ensuring alembic_version is properly initialized")
+                        # Make sure alembic_version is properly set up
+                        try:
+                            connection.execute(text("SELECT version_num FROM alembic_version"))
+                        except Exception:
+                            logger.info("Creating alembic_version table")
+                            connection.execute(text(
+                                "CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32))"
+                            ))
+                            connection.execute(text("INSERT INTO alembic_version (version_num) VALUES ('base')"))
+                    
+                    # Check for model changes and create migrations if needed
+                    if self.detect_model_changes():
+                        logger.info("Creating new migration for detected changes")
+                        revision = command.revision(
+                            self.alembic_cfg,
+                            message="auto generated migration",
+                            autogenerate=True
+                        )
+                        logger.info(f"Created new migration: {revision}")
+                    
+                    # Run the actual migration
+                    logger.info(f"Running upgrade to {target}")
+                    command.upgrade(self.alembic_cfg, target)
+                    
+                    # Get final version
+                    new_version = self.get_current_version()
+                    logger.info(f"Successfully upgraded to {new_version}")
+                    
+                    # Verify alembic_version table state
+                    result = connection.execute(text("SELECT version_num FROM alembic_version")).scalar()
+                    logger.info(f"Final alembic_version: {result}")
+                    
+                    # Update schema hash in system_settings
+                    try:
+                        post_migration_hash = self.get_schema_hash()
+                        if pre_migration_hash != post_migration_hash:
+                            logger.info(f"Schema hash changed: {pre_migration_hash[:8]}... -> {post_migration_hash[:8]}...")
+                            connection.execute(text(
+                                "UPDATE system_settings SET schema_hash = :hash, last_updated = CURRENT_DATE WHERE id = 1"
+                            ), {"hash": post_migration_hash})
+                    except Exception as e:
+                        logger.warning(f"Failed to update schema hash: {e}")
+                    
+                except Exception as e:
+                    logger.error(f"Migration error during transaction: {e}")
+                    raise
+                    
+            # Force metadata refresh
+            Base.metadata.clear()
+            Base.metadata.reflect(bind=self.engine)
+            
+            return f"Successfully upgraded database from {current_version} to {new_version} (Backup: {os.path.basename(backup_path)})"
                 
-                # Now proceed with upgrade
-                command.upgrade(self.alembic_cfg, "head")
-                
-                # Force metadata refresh
-                Base.metadata.clear()
-                Base.metadata.reflect(bind=self.engine)
-                
-                return f"Successfully upgraded database (Backup: {os.path.basename(backup_path)})"
-
         except Exception as e:
-            logger.error(f"Migration error: {str(e)}")
+            error_msg = f"Migration error: {str(e)}\n{traceback.format_exc()}"
+            logger.error(error_msg)
             return f"Failed to upgrade: {str(e)}"
 
     def downgrade(self, target: str) -> str:

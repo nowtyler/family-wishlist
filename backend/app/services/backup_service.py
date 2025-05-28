@@ -13,8 +13,10 @@ logger = logging.getLogger(__name__)
 class BackupService:
     def __init__(self, db_path: str):
         self.db_path = db_path
-        self.backup_dir = os.path.join(os.path.dirname(db_path), 'backups')
+        # Always use /app/data/backups inside container
+        self.backup_dir = "/app/data/backups"
         os.makedirs(self.backup_dir, exist_ok=True)
+        logger.info(f"Using backup directory: {self.backup_dir}")
         self.engine = create_engine(f'sqlite:///{db_path}')
 
     def create_backup(self, manual: bool = False) -> str:
@@ -27,27 +29,43 @@ class BackupService:
             # Create backup metadata file
             metadata_path = backup_path + '.meta'
             
-            # Get current Alembic version instead of system version
+            # Get current Alembic version and foundation status
             version = "unknown"
+            is_foundation = False
             try:
                 with self.engine.connect() as conn:
-                    result = conn.execute(text("SELECT version_num FROM alembic_version LIMIT 1"))
-                    row = result.fetchone()
-                    if row:
-                        version = row[0]
+                    # Get alembic version
+                    try:
+                        result = conn.execute(text("SELECT version_num FROM alembic_version LIMIT 1"))
+                        row = result.fetchone()
+                        if row:
+                            version = row[0]
+                    except Exception as e:
+                        logger.warning(f"Could not get alembic version: {e}")
+                    
+                    # Check foundation status
+                    try:
+                        result = conn.execute(text("SELECT is_foundation FROM system_settings LIMIT 1"))
+                        row = result.fetchone()
+                        if row:
+                            is_foundation = bool(row[0])
+                    except Exception as e:
+                        logger.warning(f"Could not get foundation status: {e}")
+                        
             except Exception as e:
-                logger.error(f"Error getting Alembic version for backup: {e}")
+                logger.error(f"Error getting database metadata: {e}")
 
             # Store metadata
             with open(metadata_path, 'w') as f:
                 json.dump({
                     'version': version,
                     'timestamp': timestamp,
-                    'manual': manual
+                    'manual': manual,
+                    'is_foundation': is_foundation
                 }, f)
 
             shutil.copy2(self.db_path, backup_path)
-            logger.info(f"Created backup at {backup_path}")
+            logger.info(f"Created backup at {backup_path} (version: {version}, foundation: {is_foundation})")
             return backup_path
         except Exception as e:
             logger.error(f"Backup failed: {str(e)}")
@@ -126,20 +144,34 @@ class BackupService:
             
             # Read metadata for version info
             version = "unknown"
+            is_foundation = False
             metadata_path = backup_path + '.meta'
             if os.path.exists(metadata_path):
                 try:
                     with open(metadata_path, 'r') as f:
                         metadata = json.load(f)
                         version = metadata.get('version', 'unknown')
-                except Exception:
-                    pass
+                        is_foundation = metadata.get('is_foundation', False)
+                except Exception as e:
+                    logger.warning(f"Error reading backup metadata: {e}")
 
             # Restore the backup
             shutil.copy2(backup_path, self.db_path)
             logger.info(f"Successfully restored from backup: {backup_filename}")
             
-            return True, "Database restored successfully"
+            # Preserve foundation status after restore
+            if is_foundation:
+                try:
+                    with self.engine.begin() as connection:
+                        # Make sure the system_settings has is_foundation set correctly
+                        connection.execute(text(
+                            "UPDATE system_settings SET is_foundation = TRUE WHERE id = 1"
+                        ))
+                        logger.info("Preserved foundation database status")
+                except Exception as e:
+                    logger.error(f"Failed to preserve foundation status: {e}")
+            
+            return True, f"Database restored successfully (version: {version})"
         except Exception as e:
             error_msg = f"Restore failed: {str(e)}"
             logger.error(error_msg)

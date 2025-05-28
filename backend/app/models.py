@@ -30,7 +30,6 @@ class WishlistItem(Base):
     owner = relationship("FamilyMember", back_populates="wishlist_items")
     # Who is thinking about it (list of family member names or IDs, simple for now)
     comments = relationship("Comment", back_populates="item")
-    on_markup = Column(Boolean, default=False)  # New column to indicate if the item is on sale
 
 class Comment(Base):
     __tablename__ = "comments"
@@ -68,3 +67,5 @@ class SystemSettings(Base):
     version = Column(String)
     schema_hash = Column(String)  # Add this line
     last_updated = Column(Date, default=date.today)
+    is_foundation = Column(Boolean, default=False)  # New column
+    created_at = Column(DateTime, default=datetime.utcnow)  # New column

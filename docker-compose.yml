@@ -15,6 +15,7 @@ services:
       - TZ=${TZ} # Timezone
     volumes:
       - /home/queen-bee/apps/family-wishlist/data:/app/data  # Storage for SQLite database
+      - /home/queen-bee/apps/family-wishlist/data/backups:/app/data/backups  # Backups directory
       - /home/queen-bee/apps/family-wishlist/data/migrations:/app/app/migrations/versions
       # For development, you might mount the code:
       # - ./backend/app:/app/app
