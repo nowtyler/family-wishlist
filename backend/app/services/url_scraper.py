@@ -17,39 +17,6 @@ class ProductScraper:
             'Accept-Language': 'en-US,en;q=0.9',
         }
 
-    def fetch_product_details(self, url: str) -> Dict[str, Any]:
-        """Fetch product details from a URL."""
-        try:
-            # Parse the URL to determine the website
-            parsed_url = urlparse(url)
-            domain = parsed_url.netloc.lower()
-
-            # Attempt to get the page content
-            response = requests.get(url, headers=self.headers, timeout=10)
-            response.raise_for_status()
-            
-            # Parse using Beautiful Soup
-            soup = BeautifulSoup(response.content, 'html.parser')
-            
-            # Extract data based on the website
-            if 'amazon' in domain:
-                return self._extract_amazon(soup, url)
-            elif 'etsy' in domain:
-                return self._extract_etsy(soup, url)
-            elif 'walmart' in domain:
-                return self._extract_walmart(soup, url)
-            elif 'target' in domain:
-                return self._extract_target(soup, url)
-            elif 'ebay' in domain:
-                return self._extract_ebay(soup, url)
-            else:
-                # Generic extraction for unknown sites
-                return self._extract_generic(soup, url)
-                
-        except Exception as e:
-            logger.error(f"Error fetching product details: {str(e)}")
-            return {"error": f"Failed to fetch product details: {str(e)}"}
-
     def _extract_amazon(self, soup: BeautifulSoup, url: str) -> Dict[str, Any]:
         """Extract product details from Amazon."""
         result = {"url": url}
@@ -87,28 +54,105 @@ class ProductScraper:
         """Extract product details from Etsy."""
         result = {"url": url}
         
-        # Get product title
-        title_element = soup.select_one('h1.wt-text-body-01')
-        if title_element:
-            result["title"] = title_element.get_text().strip()
-            
-        # Get product image
-        img_element = soup.select_one('img.wt-max-width-full')
-        if img_element and 'src' in img_element.attrs:
-            result["image_url"] = img_element['src']
-            
-        # Get product price
-        price_element = soup.select_one('p.wt-text-title-medium span.money')
-        if price_element:
-            price_text = price_element.get_text().strip()
-            try:
-                # Remove any currency symbols and commas
-                price_text = re.sub(r'[^\d.]', '', price_text)
-                price = float(price_text)
-                result["price"] = price
-            except ValueError:
-                pass
+        try:
+            # Etsy blocks most web scrapers, so we need to be more clever
+            # Try to get data from JSON-LD first (most reliable)
+            json_ld = None
+            for script in soup.find_all('script', type='application/ld+json'):
+                try:
+                    import json
+                    data = json.loads(script.string)
+                    if isinstance(data, dict) and data.get('@type') in ['Product', 'IndividualProduct']:
+                        json_ld = data
+                        break
+                except:
+                    continue
                 
+            if json_ld:
+                # Parse JSON-LD data
+                result["title"] = json_ld.get('name')
+                
+                # Handle offers data structure
+                if 'offers' in json_ld:
+                    offers = json_ld['offers']
+                    if isinstance(offers, dict):
+                        price_str = offers.get('price')
+                        if price_str:
+                            try:
+                                result["price"] = float(price_str)
+                            except ValueError:
+                                pass
+                    
+                # Get image from JSON-LD
+                if 'image' in json_ld:
+                    img_data = json_ld['image']
+                    if isinstance(img_data, list) and len(img_data) > 0:
+                        result["image_url"] = img_data[0]
+                    else:
+                        result["image_url"] = img_data
+                        
+                return result
+        except Exception as e:
+            logger.error(f"Error in JSON-LD extraction for Etsy: {e}")
+            # Continue to fallback methods
+        
+        try:
+            # Traditional scraping as fallback
+            # Get product title
+            title_element = soup.select_one('h1.wt-text-body-01') or soup.select_one('.listing-page-title-component')
+            if title_element:
+                result["title"] = title_element.get_text().strip()
+            
+            # Get product image - try multiple selector patterns
+            img_element = (
+                soup.select_one('img.wt-max-width-full') or
+                soup.select_one('img[data-src-zoom-image]') or
+                soup.select_one('img.carousel-image')
+            )
+            if img_element:
+                if 'src' in img_element.attrs:
+                    result["image_url"] = img_element['src']
+                elif 'data-src-zoom-image' in img_element.attrs:
+                    result["image_url"] = img_element['data-src-zoom-image']
+                
+            # Try to get metadata from meta tags as another fallback
+            og_image = soup.find('meta', property='og:image')
+            if og_image and 'content' in og_image.attrs and not result.get("image_url"):
+                result["image_url"] = og_image['content']
+                
+            og_title = soup.find('meta', property='og:title')
+            if og_title and 'content' in og_title.attrs and not result.get("title"):
+                result["title"] = og_title['content']
+                
+            # Get product price - try multiple approaches
+            price_element = (
+                soup.select_one('p.wt-text-title-medium span.money') or
+                soup.select_one('p.wt-text-title-01 span.money') or
+                soup.select_one('.listing-page-price')
+            )
+            if price_element:
+                price_text = price_element.get_text().strip()
+                try:
+                    # Remove any currency symbols and commas
+                    price_text = re.sub(r'[^\d.]', '', price_text)
+                    price = float(price_text)
+                    result["price"] = price
+                except ValueError:
+                    pass
+            
+            # If we still don't have a price, try to find it in any text containing price patterns
+            if "price" not in result:
+                price_pattern = r'(?:Price:|US\$|EUR|£|€)\s*(\d+(?:,\d+)*(?:\.\d+)?)'
+                price_matches = re.search(price_pattern, soup.get_text())
+                if price_matches:
+                    try:
+                        price_str = price_matches.group(1).replace(',', '')
+                        result["price"] = float(price_str)
+                    except ValueError:
+                        pass
+        except Exception as e:
+            logger.error(f"Traditional scraping for Etsy failed: {e}")
+        
         return result
 
     def _extract_walmart(self, soup: BeautifulSoup, url: str) -> Dict[str, Any]:
@@ -256,3 +300,60 @@ class ProductScraper:
                     continue
         
         return result
+
+    def fetch_product_details(self, url: str) -> Dict[str, Any]:
+        """Fetch product details from a URL."""
+        original_url = url
+        try:
+            # Parse the URL to determine the website
+            parsed_url = urlparse(url)
+            domain = parsed_url.netloc.lower()
+
+            # Use more robust headers that look more like a real browser
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Connection': 'keep-alive',
+                'Referer': 'https://www.google.com/',
+                'DNT': '1',
+                'Upgrade-Insecure-Requests': '1',
+            }
+            
+            # Attempt to get the page content with longer timeout
+            response = requests.get(url, headers=headers, timeout=15)
+            response.raise_for_status()
+            
+            # Parse using Beautiful Soup
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Extract data based on the website
+            if 'amazon' in domain:
+                return self._extract_amazon(soup, url)
+            elif 'etsy' in domain:
+                return self._extract_etsy(soup, url)
+            elif 'walmart' in domain:
+                return self._extract_walmart(soup, url)
+            elif 'target' in domain:
+                return self._extract_target(soup, url)
+            elif 'ebay' in domain:
+                return self._extract_ebay(soup, url)
+            else:
+                # Generic extraction for unknown sites
+                return self._extract_generic(soup, url)
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request error fetching product details: {str(e)}")
+            
+            # Special handling for 403 (Forbidden) responses
+            if hasattr(e, 'response') and e.response and e.response.status_code == 403:
+                # For sites that block scrapers, return a more user-friendly message
+                return {
+                    "error": "This website blocked our request. Try copying the product details manually.",
+                    "url": original_url
+                }
+            
+            return {"error": f"Failed to fetch product details: {str(e)}"}
+        except Exception as e:
+            logger.error(f"Error fetching product details: {str(e)}")
+            return {"error": f"Failed to fetch product details: {str(e)}"}

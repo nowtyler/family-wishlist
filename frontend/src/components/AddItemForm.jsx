@@ -77,23 +77,46 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
     try {
       const productDetails = await fetchProductDetailsFromUrl(urlToImport);
       
-      // Update form with fetched data
-      setFormData({
-        ...formData,
-        title: productDetails.title || '',
-        description: formData.description, // Keep existing description if any
-        link: productDetails.url || urlToImport,
-        image_url: productDetails.image_url || '',
-        price: productDetails.price ? productDetails.price.toString() : ''
-      });
-      
-      setImportSuccess(true);
-      setIsAddMode(false);
-      setUrlImportVisible(false);
-      setShowAdvancedFields(true);
+      // Check if we got an error response
+      if (productDetails.error) {
+        setError(productDetails.message || productDetails.error);
+        
+        // Still let the user continue with manual entry
+        if (productDetails.url) {
+          setFormData({
+            ...formData,
+            link: productDetails.url
+          });
+        }
+        
+        // Show manual entry form
+        setIsAddMode(false);
+        setShowAdvancedFields(true);
+      } else {
+        // Update form with fetched data
+        setFormData({
+          ...formData,
+          title: productDetails.title || '',
+          description: formData.description, // Keep existing description if any
+          link: productDetails.url || urlToImport,
+          image_url: productDetails.image_url || '',
+          price: productDetails.price ? productDetails.price.toString() : ''
+        });
+        
+        setImportSuccess(true);
+        setIsAddMode(false);
+        setUrlImportVisible(false);
+        setShowAdvancedFields(true);
+      }
     } catch (err) {
       console.error('URL import error:', err);
-      setError(err.response?.data?.detail || 'Failed to import product details. Please try entering them manually.');
+      setError('Failed to import product details. Please try entering them manually.');
+      // Still let the user continue with manual entry
+      setFormData({
+        ...formData,
+        link: urlToImport
+      });
+      setShowAdvancedFields(true);
     } finally {
       setIsImporting(false);
     }
@@ -135,7 +158,7 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
             Paste a product URL to automatically import details
           </p>
           
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <input
               type="url"
               value={urlToImport}
@@ -147,19 +170,15 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
             <button
               onClick={handleImportUrl}
               disabled={isImporting}
-              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 dark:bg-blue-700 dark:hover:bg-blue-600 text-white rounded-md flex items-center"
+              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 dark:bg-blue-700 dark:hover:bg-blue-600 text-white rounded-md flex items-center justify-center"
+              aria-label="Import from URL"
             >
               {isImporting ? (
-                <>
-                  <Loader size={16} className="mr-2 animate-spin" />
-                  Importing...
-                </>
+                <Loader size={16} className="animate-spin" />
               ) : (
-                <>
-                  <ArrowRight size={16} className="mr-2" />
-                  Import
-                </>
+                <ArrowRight size={16} />
               )}
+              <span className="ml-2 sm:hidden">Import</span>
             </button>
           </div>
           

@@ -12,8 +12,8 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  // Increased timeout for better handling in Docker
-  timeout: 10000,
+  // Increased timeout for better handling of large wishlist imports
+  timeout: 60000, // Increased from 10000 to 60000 (1 minute)
   withCredentials: true, // Important for CORS
   validateStatus: (status) => {
     return status >= 200 && status < 500;
@@ -342,9 +342,52 @@ export const fetchProductDetailsFromUrl = async (url) => {
     console.log('Fetching product details from URL:', url);
     const response = await apiClient.post('/items/fetch-url-details', { url });
     console.log('Product details response:', response.data);
+    
+    // We always return the response data, even if it contains an error
+    // This allows the UI to handle the error in a user-friendly way
     return response.data;
   } catch (error) {
     console.error('Failed to fetch product details:', error?.response?.data || error);
+    
+    // Create a formatted error response similar to the server's format
+    return {
+      error: error?.response?.data?.detail || error.message || 'Network error',
+      url: url,
+      message: 'Unable to automatically import product details. Please enter them manually.'
+    };
+  }
+};
+
+// --- External Wishlist Import ---
+export const importExternalWishlist = async (url) => {
+  try {
+    console.log('Importing external wishlist:', url);
+    const response = await apiClient.post('/wishlists/import', { url });
+    console.log('Import response:', response.data);
+    return response;
+  } catch (error) {
+    console.error('Failed to import wishlist:', error?.response?.data || error);
+    throw error;
+  }
+};
+
+export const syncExternalWishlist = async (url, ownerId, options = {}) => {
+  try {
+    const { addNewItems = true, removeMissingItems = false, defaultPriority = 1 } = options;
+    console.log('Syncing external wishlist:', { url, ownerId, addNewItems, removeMissingItems, defaultPriority });
+    
+    const response = await apiClient.post('/wishlists/sync', { 
+      url, 
+      owner_id: ownerId,
+      add_new_items: addNewItems,
+      remove_missing_items: removeMissingItems,
+      default_priority: defaultPriority
+    });
+    
+    console.log('Sync response:', response.data);
+    return response;
+  } catch (error) {
+    console.error('Failed to sync wishlist:', error?.response?.data || error);
     throw error;
   }
 };

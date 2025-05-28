@@ -1025,10 +1025,13 @@ async def fetch_url_details(
         product_details = product_scraper.fetch_product_details(url)
         
         if "error" in product_details:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=product_details["error"]
-            )
+            # Return a 200 response with the error info instead of raising an exception
+            # This lets the frontend handle the error more gracefully
+            return {
+                "error": product_details["error"],
+                "url": url,
+                "message": "Unable to automatically import product details. Please enter them manually."
+            }
         
         # Ensure the URL is included
         product_details["url"] = url
@@ -1036,7 +1039,8 @@ async def fetch_url_details(
     
     except Exception as e:
         logger.error(f"Error fetching URL details: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch product details: {str(e)}"
-        )
+        return {
+            "error": f"Failed to fetch product details: {str(e)}",
+            "url": url,
+            "message": "Unable to automatically import product details. Please enter them manually."
+        }
