@@ -138,40 +138,55 @@ class BackupService:
             pre_restore_backup = self.create_backup(manual=False)
             logger.info(f"Created pre-restore backup at: {pre_restore_backup}")
 
-            # Stop database connections and restore
+            # First, close all active connections to the database
             with self.engine.connect() as connection:
                 connection.execute(text("PRAGMA wal_checkpoint(FULL)"))
             
             # Read metadata for version info
             version = "unknown"
-            is_foundation = False
+            backup_version = "unknown"
+            needs_migration = False
             metadata_path = backup_path + '.meta'
             if os.path.exists(metadata_path):
                 try:
                     with open(metadata_path, 'r') as f:
                         metadata = json.load(f)
-                        version = metadata.get('version', 'unknown')
-                        is_foundation = metadata.get('is_foundation', False)
+                        backup_version = metadata.get('version', 'unknown')
+                        
+                        # Check if the current version differs from the backup version
+                        try:
+                            with self.engine.connect() as conn:
+                                result = conn.execute(text("SELECT version_num FROM alembic_version LIMIT 1"))
+                                row = result.fetchone()
+                                if row:
+                                    version = row[0]
+                        except Exception:
+                            pass
+                        
+                        needs_migration = backup_version != version and backup_version != "unknown"
                 except Exception as e:
                     logger.warning(f"Error reading backup metadata: {e}")
-
-            # Restore the backup
+            
+            # Restore the backup regardless of version
             shutil.copy2(backup_path, self.db_path)
             logger.info(f"Successfully restored from backup: {backup_filename}")
             
-            # Preserve foundation status after restore
-            if is_foundation:
-                try:
-                    with self.engine.begin() as connection:
-                        # Make sure the system_settings has is_foundation set correctly
-                        connection.execute(text(
-                            "UPDATE system_settings SET is_foundation = TRUE WHERE id = 1"
-                        ))
-                        logger.info("Preserved foundation database status")
-                except Exception as e:
-                    logger.error(f"Failed to preserve foundation status: {e}")
+            # Reset the alembic_version table to be safe if it's an older backup
+            try:
+                with self.engine.begin() as conn:
+                    conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
+                    conn.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32))"))
+                    if backup_version != "unknown":
+                        conn.execute(text(
+                            "INSERT INTO alembic_version (version_num) VALUES (:version)"
+                        ), {"version": backup_version})
+                    else:
+                        conn.execute(text("INSERT INTO alembic_version (version_num) VALUES ('base')"))
+                    logger.info(f"Reset alembic_version table to: {backup_version or 'base'}")
+            except Exception as e:
+                logger.error(f"Failed to reset alembic_version: {e}")
             
-            return True, f"Database restored successfully (version: {version})"
+            return True, f"Database restored successfully from {backup_filename} (version: {backup_version})"
         except Exception as e:
             error_msg = f"Restore failed: {str(e)}"
             logger.error(error_msg)

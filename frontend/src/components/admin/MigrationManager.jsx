@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getMigrations, upgradeMigration, createBackup, getBackups, restoreBackup, deleteBackup, getSchemaHash, deleteMigration } from '../../services/api';
-import { AlertCircle, Database, Archive, Download, RotateCcw, Plus, Trash2, ArrowUp, X } from 'lucide-react';
+import { getMigrations, upgradeMigration, createBackup, getBackups, restoreBackup, deleteBackup, getSchemaHash, deleteMigration, resetMigrationState, hardResetMigrations } from '../../services/api';
+import { AlertCircle, Database, Archive, Download, RotateCcw, Plus, Trash2, ArrowUp, X, GitMerge, AlertTriangle } from 'lucide-react';
 
 const MigrationManager = () => {
     const [migrations, setMigrations] = useState([]);
@@ -21,12 +21,18 @@ const MigrationManager = () => {
             if (migrationsResponse.data) {
                 setMigrations(migrationsResponse.data.available_migrations || []);
                 setCurrentVersion(migrationsResponse.data.current_version || 'base');
-                setDbVersion(migrationsResponse.data.db_version || 'current');
                 
-                // Only show warning if both needs_upgrade is true and there are actual changes
+                // Check for multiple heads
+                const hasMultipleHeads = migrationsResponse.data.current_version?.includes(',');
+                
+                // Show warning if both needs_upgrade is true or we have multiple heads
                 const hasModelChanges = migrationsResponse.data.available_migrations?.some(m => m.version === 'pending');
-                if (migrationsResponse.data.needs_upgrade && hasModelChanges) {
-                    setError('Schema changes detected. New migrations may be available.');
+                if (migrationsResponse.data.needs_upgrade || hasMultipleHeads) {
+                    if (hasMultipleHeads) {
+                        setError('Multiple migration branches detected. Click upgrade to merge them.');
+                    } else if (hasModelChanges) {
+                        setError('Schema changes detected. New migrations may be available.');
+                    }
                 } else {
                     setError(''); // Clear error if no changes needed
                 }
@@ -34,7 +40,6 @@ const MigrationManager = () => {
         } catch (err) {
             console.error('Migration fetch error:', err);
             setError('Failed to fetch migrations');
-            setDbVersion('unknown');
         } finally {
             setLoading(false);
         }
@@ -49,12 +54,25 @@ const MigrationManager = () => {
                 setCurrentVersion(response.data.new_version);
                 setError('');
                 await fetchMigrations();
+                await fetchBackups(); // Refresh backups too since we just created one
             } else {
                 setError(response.data.message || 'Upgrade failed');
             }
         } catch (err) {
-            setError(err.response?.data?.detail || err.message || 'Failed to upgrade database');
             console.error('Migration upgrade error:', err);
+            
+            // Show detailed error message from the server if available
+            const errorDetail = err.response?.data?.detail || 
+                               err.response?.data?.message || 
+                               err.message || 
+                               'Failed to upgrade database';
+            setError(`Upgrade failed: ${errorDetail}`);
+            
+            // If the error might be related to missing traceback, show a hint
+            if (errorDetail.includes("name 'traceback' is not defined")) {
+                setError(`Upgrade failed: Python traceback module is not properly imported in the migration service. 
+                        Please refresh the page and try again after the server has been updated.`);
+            }
         } finally {
             setLoading(false);
         }
@@ -150,54 +168,42 @@ const MigrationManager = () => {
         }
     };
 
+    const handleHardReset = async () => {
+        if (!confirm('WARNING: This will perform a hard reset of the migration state. Only use this as a last resort if normal upgrades are failing. A backup will be created first. Are you sure you want to proceed?')) {
+            return;
+        }
+        
+        try {
+            setLoading(true);
+            setError('');
+            const response = await hardResetMigrations();
+            if (response.data.success) {
+                setCurrentVersion(response.data.new_version);
+                setError('');
+                alert('Migration state has been hard reset successfully. The database should now be stable.');
+                await fetchMigrations();
+                await fetchBackups();
+            } else {
+                setError(response.data.message || 'Hard reset failed');
+            }
+        } catch (err) {
+            console.error('Migration hard reset error:', err);
+            setError(`Hard reset failed: ${err.response?.data?.detail || err.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Determine if we're dealing with multiple heads
+    const hasMultipleHeads = currentVersion?.includes(',');
+    const buttonIcon = hasMultipleHeads ? <GitMerge size={20} /> : <ArrowUp size={20} />;
+    const buttonTitle = hasMultipleHeads ? "Merge migration branches" : "Upgrade database to latest version";
+    const actionMessage = hasMultipleHeads ? "Click to merge branches" : "Click to apply pending changes";
+
     if (loading) return <div>Loading migrations...</div>;
 
     return (
         <div className="p-4 space-y-8">
-            {dbVersion === "bootstrap" && (
-                <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                    <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
-                            <AlertCircle size={18} />
-                            <span>Database needs initialization. Bootstrap upgrade required.</span>
-                        </div>
-                        <button 
-                            onClick={() => handleUpgrade('head')}
-                            className="px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-full w-8 h-8 flex items-center justify-center"
-                            disabled={loading}
-                            title="Bootstrap Database"
-                        >
-                            {loading ? 
-                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/> : 
-                                <ArrowUp size={16} />
-                            }
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {dbVersion === "legacy" && (
-                <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                    <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
-                            <AlertCircle size={18} />
-                            <span>Legacy database detected. Database upgrade required.</span>
-                        </div>
-                        <button 
-                            onClick={() => handleUpgrade('head')}
-                            className="px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-full w-8 h-8 flex items-center justify-center"
-                            disabled={loading}
-                            title="Upgrade Database"
-                        >
-                            {loading ? 
-                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/> : 
-                                <ArrowUp size={16} />
-                            }
-                        </button>
-                    </div>
-                </div>
-            )}
-
             {error && (
                 <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
                     <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
@@ -226,30 +232,49 @@ const MigrationManager = () => {
 
             <div className="mb-4">
                 <p>Current Version: {currentVersion || 'base'}</p>
+                
+                {/* Add hard reset button for emergencies */}
+                {currentVersion?.includes(',') && (
+                    <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                        <h3 className="flex items-center gap-2 text-red-800 dark:text-red-200 font-medium mb-2">
+                            <AlertTriangle size={18} />
+                            Migration State Issue Detected
+                        </h3>
+                        <p className="text-sm text-red-600 dark:text-red-300 mb-3">
+                            Multiple migration heads detected. Normal merge attempts have failed. You may need to use the emergency hard reset.
+                        </p>
+                        <button
+                            onClick={handleHardReset}
+                            className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm font-medium flex items-center gap-2"
+                            disabled={loading}
+                        >
+                            <AlertTriangle size={14} />
+                            Emergency Hard Reset
+                        </button>
+                    </div>
+                )}
             </div>
             <div className="space-y-2">
-                {migrations.some(m => !m.applied || m.version === "pending") && (
+                {(migrations.some(m => !m.applied || m.version === "pending") || hasMultipleHeads) && (
                     <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                         <div className="flex items-center justify-between">
                             <div>
                                 <h3 className="font-medium text-blue-800 dark:text-blue-200">
-                                    Database Updates Available
+                                    {hasMultipleHeads ? "Migration Branches Need Merging" : "Database Updates Available"}
                                 </h3>
                                 <p className="text-sm text-blue-600 dark:text-blue-300 mt-1">
-                                    Click upgrade to apply all pending changes
+                                    {actionMessage}
                                 </p>
                             </div>
                             <button
                                 onClick={handleUpgrade}
                                 className="p-2 bg-blue-500 hover:bg-blue-600 text-white rounded-full w-10 h-10 flex items-center justify-center"
                                 disabled={loading}
-                                title="Upgrade database to latest version"
+                                title={buttonTitle}
                             >
                                 {loading ? (
                                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"/>
-                                ) : (
-                                    <ArrowUp size={20} />
-                                )}
+                                ) : buttonIcon}
                             </button>
                         </div>
                     </div>

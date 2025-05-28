@@ -4,7 +4,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
 import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPlus, Trash2, AlertOctagon, Database } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
-import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems, getFamilyMembers, clearAllWishlists } from '../services/api';
+import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems, 
+         getFamilyMembers, clearAllWishlists, getAdminAccess } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import MigrationModal from './admin/MigrationModal';
 
@@ -61,11 +62,52 @@ const Navbar = ({ onClearWishlist }) => {
 
   const handleUpdateVersion = async () => {
     try {
+      setIsEditingVersion(false); // Hide form immediately for better UX
+      console.log('Updating version to:', newVersion);
+      console.log('Current user:', selectedUser);
+      
+      // If user is admin by name but ID might be invalid, try getting proper admin access
+      if (selectedUser?.name?.toLowerCase() === 'admin' && 
+          (!selectedUser.id || selectedUser.id < 1)) {
+        try {
+          console.log('Getting proper admin access first');
+          const adminData = await getAdminAccess();
+          setSelectedUser(adminData);
+        } catch (adminErr) {
+          console.error('Failed to get admin access:', adminErr);
+          // Continue anyway with current user
+        }
+      }
+      
       const response = await updateSystemVersion(newVersion);
-      setVersion(response.data.version);
-      setIsEditingVersion(false);
+      if (response && response.data) {
+        setVersion(response.data.version);
+        console.log('Version updated successfully');
+      } else {
+        console.error('Invalid response from server:', response);
+        alert('Failed to update version: Invalid server response');
+        setIsEditingVersion(true); // Re-show form
+      }
     } catch (err) {
       console.error('Failed to update version:', err);
+      console.error('Response details:', err.response?.data);
+      
+      // Special handling for admin access issues
+      if (err.response?.status === 403 || err.response?.status === 404) {
+        try {
+          console.log('Attempting to get proper admin access');
+          const adminData = await getAdminAccess();
+          setSelectedUser(adminData);
+          alert("Admin access refreshed. Please try updating the version again.");
+        } catch (adminErr) {
+          console.error('Failed to get admin access:', adminErr);
+          alert(`Failed to update version: ${err.response?.data?.detail || err.message || 'Unknown error'}`);
+        }
+      } else {
+        alert(`Failed to update version: ${err.response?.data?.detail || err.message || 'Unknown error'}`);
+      }
+      
+      setIsEditingVersion(true); // Re-show form on error
     }
   };
 
@@ -111,10 +153,18 @@ const Navbar = ({ onClearWishlist }) => {
                       onChange={(e) => setNewVersion(e.target.value)}
                       className="w-20 px-1 py-0.5 text-xs border rounded"
                     />
-                    <button onClick={handleUpdateVersion} className="text-green-500 hover:text-green-600">
+                    <button 
+                      onClick={handleUpdateVersion} 
+                      className="text-green-500 hover:text-green-600"
+                      title="Save version"
+                    >
                       <Check size={14} />
                     </button>
-                    <button onClick={() => setIsEditingVersion(false)} className="text-red-500 hover:text-red-600">
+                    <button 
+                      onClick={() => setIsEditingVersion(false)} 
+                      className="text-red-500 hover:text-red-600"
+                      title="Cancel"
+                    >
                       <XIcon size={14} />
                     </button>
                   </div>
@@ -128,6 +178,7 @@ const Navbar = ({ onClearWishlist }) => {
                           setIsEditingVersion(true);
                         }}
                         className="ml-1 text-gray-400 hover:text-gray-600"
+                        title="Edit version"
                       >
                         <Pencil size={12} />
                       </button>

@@ -101,7 +101,7 @@ export const createWishlistItem = async (ownerId, itemData) => {
       link: itemData.link || null,
       image_url: itemData.image_url || null,
       description: itemData.description || null,
-      price: itemData.price ? parseFloat(itemData.price) : null  // Pass price as is, API will convert to cents
+      price: itemData.price ? parseFloat(itemData.price) : null  // Backend will convert to cents
     };
     console.log('Sending data to API:', cleanData);
     const response = await apiClient.post(`/members/${ownerId}/items`, cleanData);
@@ -121,7 +121,8 @@ export const updateWishlistItem = async (itemId, itemData) => {
       link: itemData.link || null,
       image_url: itemData.image_url || null,
       description: itemData.description || null,
-      price: itemData.price  // Remove the multiplication, just pass the value as is
+      price: itemData.price !== null && itemData.price !== undefined ? 
+        parseFloat(itemData.price) : null  // Backend will convert to cents
     };
     console.log('Sending data to API:', cleanData);
     const response = await apiClient.put(`/items/${itemId}`, cleanData);
@@ -183,6 +184,12 @@ export const getSystemVersion = () => {
 };
 
 export const updateSystemVersion = (version) => {
+  console.log('Updating system version to:', version);
+  console.log('Current headers:', apiClient.defaults.headers);
+  
+  const userId = apiClient.defaults.headers.common['X-Current-User-Id'];
+  console.log('Current user ID from header:', userId);
+  
   return apiClient.put('/system/version', { version });
 };
 
@@ -266,6 +273,34 @@ export const deleteMigration = async (version) => {
   }
 };
 
+export const resetMigrationState = async () => {
+  try {
+    const response = await apiClient.post('/admin/migrations/reset');
+    return response;
+  } catch (error) {
+    console.error('Failed to reset migration state:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    });
+    throw error;
+  }
+};
+
+export const hardResetMigrations = async () => {
+  try {
+    const response = await apiClient.post('/admin/migrations/hard-reset');
+    return response;
+  } catch (error) {
+    console.error('Failed to hard reset migrations:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    });
+    throw error;
+  }
+};
+
 // --- Database Backups ---
 export const createBackup = () => {
   return apiClient.post('/admin/backups/create');
@@ -286,6 +321,18 @@ export const deleteBackup = (filename) => {
 // --- Schema Management ---
 export const getSchemaHash = () => {
   return apiClient.get('/admin/schema/hash');
+};
+
+// --- Admin Access ---
+export const getAdminAccess = async () => {
+  try {
+    const response = await apiClient.post('/admin/emergency-access');
+    console.log('Admin access response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to get admin access:', error);
+    throw error;
+  }
 };
 
 export default apiClient;

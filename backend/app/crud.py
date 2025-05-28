@@ -8,7 +8,12 @@ import os
 
 # --- Family Member CRUD ---
 def get_family_member(db: Session, member_id: int) -> Optional[models.FamilyMember]:
-    return db.query(models.FamilyMember).filter(models.FamilyMember.id == member_id).first()
+    """Get a family member by ID with better error handling"""
+    try:
+        return db.query(models.FamilyMember).filter(models.FamilyMember.id == member_id).first()
+    except Exception as e:
+        print(f"Database error in get_family_member: {e}")
+        return None
 
 def get_family_member_by_name(db: Session, name: str) -> Optional[models.FamilyMember]:
     return db.query(models.FamilyMember).filter(models.FamilyMember.name == name).first()
@@ -362,10 +367,18 @@ def get_system_version(db: Session) -> str:
 def update_system_version(db: Session, new_version: str, user_id: int) -> Optional[str]:
     try:
         user = get_family_member(db, user_id)
-        # Debug log
-        print(f"Updating version - User: {user.name if user else 'None'}, is_admin: {user.is_admin if user else False}")
+        if not user:
+            print(f"User not found: ID {user_id}")
+            return None
+            
+        # More comprehensive admin check
+        is_admin = user.is_admin or user.name.lower() == 'admin'
+        
+        # Debug log with comprehensive information
+        print(f"Update version attempt - User: {user.name}, ID: {user.id}, is_admin flag: {user.is_admin}, name check: {user.name.lower() == 'admin'}, Final result: {is_admin}")
     
-        if not user or not user.is_admin:
+        if not is_admin:
+            print(f"User {user.name} (ID: {user_id}) is not admin. Permission denied.")
             return None
 
         settings = db.query(models.SystemSettings).first()
@@ -374,83 +387,38 @@ def update_system_version(db: Session, new_version: str, user_id: int) -> Option
             db.add(settings)
         else:
             settings.version = new_version
-            settings.last_updated = date.today()
+            settings.last_updated = datetime.now().date()
         db.commit()
+        print(f"Version updated successfully to {new_version} by {user.name}")
         return settings.version
     except Exception as e:
         print(f"Error updating system version: {e}")
         db.rollback()
         return None
 
-def bootstrap_schema_hash(db: Session) -> bool:
-    """Bootstraps the schema_hash column in an existing database"""
-    try:
-        # Create temporary table
-        db.execute(text("""
-            CREATE TABLE system_settings_new (
-                id INTEGER PRIMARY KEY,
-                version STRING,
-                schema_hash STRING,
-                last_updated DATE
-            )
-        """))
-        
-        # Copy data
-        db.execute(text("""
-            INSERT INTO system_settings_new (id, version, last_updated)
-            SELECT id, version, last_updated FROM system_settings
-        """))
-        
-        # Drop old table
-        db.execute(text("DROP TABLE system_settings"))
-        
-        # Rename new table
-        db.execute(text("ALTER TABLE system_settings_new RENAME TO system_settings"))
-        
-        db.commit()
-        return True
-    except Exception as e:
-        print(f"Error bootstrapping schema_hash: {e}")
-        db.rollback()
-        return False
-
 def get_schema_hash(db: Session) -> Optional[str]:
-    """Get the stored schema hash, safely handling older DB versions"""
+    """Get the stored schema hash"""
     try:
         settings = db.query(models.SystemSettings).first()
         if settings is None:
             settings = models.SystemSettings()
             db.add(settings)
             db.commit()
-        try:
-            return settings.schema_hash
-        except Exception as e:
-            print(f"Column access error: {e}")
-            # Column doesn't exist, try to bootstrap
-            if bootstrap_schema_hash(db):
-                settings.schema_hash = None
-                db.commit()
-                return None
-            return "bootstrap_required"
+            
+        return settings.schema_hash
     except Exception as e:
         print(f"Error getting schema hash: {e}")
-        return "bootstrap_required"
+        return None
 
 def update_schema_hash(db: Session, new_hash: str) -> bool:
-    """Update the stored schema hash, handling bootstrap case"""
+    """Update the stored schema hash"""
     try:
         settings = db.query(models.SystemSettings).first()
         if not settings:
             settings = models.SystemSettings(schema_hash=new_hash)
             db.add(settings)
         else:
-            try:
-                settings.schema_hash = new_hash
-            except Exception:
-                if bootstrap_schema_hash(db):
-                    settings.schema_hash = new_hash
-                else:
-                    return False
+            settings.schema_hash = new_hash
         db.commit()
         return True
     except Exception as e:

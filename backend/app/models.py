@@ -7,12 +7,18 @@ from pydantic import BaseModel, HttpUrl
 
 class FamilyMember(Base):
     __tablename__ = "family_members"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, index=True, nullable=False)
-    birthday = Column(Date, nullable=True) # YYYY-MM-DD
-    is_admin = Column(Boolean, default=False)  # Add this line
 
-    wishlist_items = relationship("WishlistItem", back_populates="owner")
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True)
+    birthday = Column(Date, nullable=True)
+    is_admin = Column(Boolean, default=False)  # Ensure this is a Boolean with default False
+    
+    # Add relationship if they don't exist
+    wishlist_items = relationship("WishlistItem", back_populates="owner", cascade="all, delete-orphan")
+    comments = relationship("Comment", back_populates="author", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<FamilyMember(id={self.id}, name='{self.name}', is_admin={self.is_admin})>"
 
 class WishlistItem(Base):
     __tablename__ = "wishlist_items"

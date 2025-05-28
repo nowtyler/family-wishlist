@@ -31,13 +31,16 @@ class FamilyMemberBase(BaseModel):
 class FamilyMemberCreate(FamilyMemberBase):
     pass
 
-class FamilyMember(FamilyMemberBase):
+class FamilyMember(BaseModel):
     id: int
-    wishlist_item_count: int = 0 # For summary card
-    is_admin: bool = False  # Add this line
+    name: str
+    birthday: Optional[date] = None
+    is_admin: bool = False
+    wishlist_item_count: int = 0  # Added field that's populated in API handler
 
     class Config:
-        from_attributes = True # Changed from orm_mode for Pydantic v2
+        orm_mode = True
+        from_attributes = True  # For newer versions of Pydantic
 
 # --- Comment ---
 class CommentBase(BaseModel):
@@ -128,7 +131,8 @@ class WishlistItemCreate(BaseModel):
         if v is not None:
             if v < 0:
                 raise ValueError('Price cannot be negative')
-            return int(v * 100)  # Convert dollars to cents in the API
+            # Convert dollars to cents and ensure it's an integer
+            return int(round(v * 100))
         return None
 
     class Config:
@@ -217,3 +221,10 @@ class RestoreResponse(BaseModel):
     requires_migration: bool = False
     backup_version: Optional[str] = None
     current_version: Optional[str] = None
+
+# --- Admin Access ---
+class AdminAccessResponse(BaseModel):
+    id: int
+    name: str
+    is_admin: bool = True
+    message: str = "Admin access granted"

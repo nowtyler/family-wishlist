@@ -104,17 +104,25 @@ rate_limiter = RateLimiter(requests_per_minute=60)
 # --- App Startup ---
 @app.on_event("startup")
 async def startup_event():
-    # Create the database and tables
-    create_db_and_tables()
-    
-    # Initialize family members from .env if they don't exist
-    db = SessionLocal()
     try:
-        crud.initialize_family_members(db)
-    finally:
-        db.close()
-    print("Family Wishlist API startup complete. Database and tables checked/created.")
-
+        # Create the database and tables
+        create_db_and_tables()
+        
+        # Initialize family members from .env if they don't exist
+        db = SessionLocal()
+        try:
+            crud.initialize_family_members(db)
+        except Exception as e:
+            logger.error(f"Failed to initialize family members: {e}")
+            # Don't block app startup - we'll handle admin access separately
+        finally:
+            db.close()
+        print("Family Wishlist API startup complete. Database and tables checked/created.")
+    except Exception as e:
+        logger.error(f"Database initialization error: {e}")
+        print(f"WARNING: Database initialization error: {e}")
+        # Continue startup despite errors - we'll provide emergency access
+    
     await rate_limiter.start_cleanup()
 
 # Add rate limiting middleware
@@ -188,8 +196,6 @@ async def verify_family_password(
 def get_current_user_id_from_header(x_current_user_id: Optional[int] = Header(None)) -> Optional[int]:
     if x_current_user_id is None:
         # For some public endpoints or if user context isn't strictly needed for a route.
-        # However, for most wishlist operations, we'll need it.
-        # Consider raising HTTPException if it's mandatory for a route.
         return None
     return x_current_user_id
 
@@ -509,14 +515,65 @@ def update_version(
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id_from_header)
 ):
-    user = crud.get_family_member(db, current_user_id)
-    print(f"Version update request from user: {user.name if user else 'None'}, id: {current_user_id}, is_admin: {user.is_admin if user else False}")
-    
-    new_version = crud.update_system_version(db, version_update.version, current_user_id)
-    if not new_version:
-        raise HTTPException(status_code=403, detail="Only admin can update version")
-    return {"version": new_version}
+    """Update the system version - accessible by admin only"""
+    if current_user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User context required"
+        )
 
+    try:
+        # First get the user
+        user = crud.get_family_member(db, current_user_id)
+        if not user:
+            # Special case - if user not found but ID is 1, try to get admin
+            if current_user_id == 1:
+                # Try to find admin by name as fallback
+                user = db.query(models.FamilyMember).filter(
+                    models.FamilyMember.name.ilike('admin')
+                ).first()
+                
+                if not user:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="User not found and admin fallback failed"
+                    )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found"
+                )
+            
+        # Check if user is admin (by flag OR name)
+        is_admin = user.is_admin or user.name.lower() == 'admin'
+        logger.debug(f"Version update check - User: {user.name}, ID: {user.id}, is_admin: {is_admin}")
+        
+        if not is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admin can update version"
+            )
+            
+        # Update the version directly in the database
+        settings = db.query(models.SystemSettings).first()
+        if not settings:
+            settings = models.SystemSettings(version=version_update.version)
+            db.add(settings)
+        else:
+            settings.version = version_update.version
+            settings.last_updated = datetime.utcnow().date()
+        
+        db.commit()
+        return {"version": version_update.version}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Version update error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update version: {str(e)}"
+        )
 
 # --- Database Migrations ---
 migration_service = MigrationService(SQLALCHEMY_DATABASE_URL)
@@ -535,40 +592,41 @@ async def get_migrations(
             stored_hash = crud.get_schema_hash(db)
             current_hash = migration_service.get_schema_hash()
             
-            # More strict hash comparison logic
+            # Check if there are actual model changes
             needs_upgrade = False
-            if stored_hash is None:
-                needs_upgrade = True
-            elif stored_hash == "bootstrap_required":
-                needs_upgrade = True
-            elif stored_hash != current_hash:
-                # Only set needs_upgrade if there are actual model changes
+            if stored_hash != current_hash:
                 needs_upgrade = migration_service.detect_model_changes()
+            
+            # Check for multiple heads
+            if "," in current_version:
+                needs_upgrade = True  # Multiple heads need resolution
             
             logger.info(f"Schema comparison - Stored: {stored_hash}, Current: {current_hash}, Needs Upgrade: {needs_upgrade}")
         except Exception as e:
             logger.error(f"Schema hash error: {str(e)}")
-            stored_hash = "bootstrap_required"
+            import traceback
+            logger.error(traceback.format_exc())
+            stored_hash = None
             current_hash = None
             needs_upgrade = True
-        
-        needs_bootstrap = stored_hash == "bootstrap_required"
         
         return {
             "current_version": current_version,
             "available_migrations": available_migrations,
-            "stored_schema_hash": stored_hash if not needs_bootstrap else None,
+            "stored_schema_hash": stored_hash,
             "needs_upgrade": needs_upgrade,
-            "db_version": "bootstrap" if needs_bootstrap else ("legacy" if stored_hash is None else "current")
+            "db_version": "current"  # Remove bootstrap/legacy references
         }
     except Exception as e:
         logger.error(f"Migration error: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         return {
             "current_version": "unknown",
             "available_migrations": [],
             "stored_schema_hash": None,
             "needs_upgrade": True,
-            "db_version": "bootstrap"
+            "db_version": "current"
         }
 
 @app.post("/api/admin/migrations/upgrade", response_model=schemas.MigrationResponse)
@@ -579,14 +637,22 @@ async def upgrade_database(
 ):
     """Upgrade database to specified version"""
     try:
-        # Handle bootstrap case first
-        try:
-            stored_hash = crud.get_schema_hash(db)
-            if stored_hash == "bootstrap_required":
-                crud.bootstrap_schema_hash(db)
-        except Exception as e:
-            logger.error(f"Schema hash error during upgrade: {str(e)}")
-
+        # First check if there are multiple heads
+        current_version = migration_service.get_current_version()
+        if "," in current_version:
+            # Attempt to merge heads first
+            merge_result = migration_service.merge_heads()
+            logger.info(f"Merge result: {merge_result}")
+            
+            # Check if merge was successful
+            new_version = migration_service.get_current_version()
+            if "," in new_version:
+                return {
+                    "success": False,
+                    "message": f"Failed to merge heads: {merge_result}",
+                    "new_version": new_version
+                }
+        
         # Now proceed with normal upgrade
         result = migration_service.upgrade(target)
         new_version = migration_service.get_current_version()
@@ -596,6 +662,8 @@ async def upgrade_database(
             crud.update_schema_hash(db, new_hash)
         except Exception as e:
             logger.error(f"Failed to update schema hash: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
         
         return {
             "success": "Failed" not in result,
@@ -604,6 +672,8 @@ async def upgrade_database(
         }
     except Exception as e:
         logger.error(f"Migration upgrade error: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=500,
             detail=f"Migration upgrade error: {str(e)}"
@@ -659,6 +729,80 @@ async def delete_migration(
             "message": f"Failed to delete migration: {str(e)}"
         }
 
+@app.post("/api/admin/migrations/reset", response_model=schemas.MigrationResponse)
+async def reset_migration_state(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Reset migration state for fresh start - Admin only"""
+    try:
+        # Verify admin
+        user = crud.get_family_member(db, current_user_id)
+        if not user or not (user.is_admin or user.name.lower() == 'admin'):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admin can reset migration state"
+            )
+            
+        # Create backup first
+        backup_path = backup_service.create_backup(manual=True)
+        logger.info(f"Created backup before reset: {backup_path}")
+        
+        # Reset migration state
+        result = migration_service.reset_migration_state()
+        
+        return {
+            "success": "successfully" in result.lower(),
+            "message": result
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Migration reset error: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=500,
+            detail=f"Migration reset error: {str(e)}"
+        )
+
+@app.post("/api/admin/migrations/hard-reset", response_model=schemas.MigrationResponse)
+async def hard_reset_migration_state(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Hard reset migration state for fixing broken migrations - Admin only"""
+    try:
+        # Verify admin
+        user = crud.get_family_member(db, current_user_id)
+        if not user or not (user.is_admin or user.name.lower() == 'admin'):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admin can reset migration state"
+            )
+            
+        # Create backup first
+        backup_path = backup_service.create_backup(manual=True)
+        logger.info(f"Created backup before hard reset: {backup_path}")
+        
+        # Hard reset migration state
+        result = migration_service.hard_reset_migrations()
+        
+        return {
+            "success": "failed" not in result.lower(),
+            "message": result,
+            "new_version": migration_service.get_current_version()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Migration hard reset error: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=500,
+            detail=f"Migration hard reset error: {str(e)}"
+        )
 
 # --- Database Backup/Restore ---
 backup_service = BackupService(SQLALCHEMY_DATABASE_URL.replace('sqlite:///', ''))
@@ -795,3 +939,44 @@ def delete_all_wishlists(
 
 # Catch-all for documentation (FastAPI provides /docs and /redoc automatically)
 # If you were serving a frontend from FastAPI, you'd have a catch-all route here.
+
+@app.post("/api/admin/emergency-access", response_model=schemas.FamilyMember)
+async def emergency_admin_access(
+    db: Session = Depends(get_db)
+):
+    """Emergency endpoint to get or create admin access"""
+    try:
+        # Try to find existing admin user
+        admin = db.query(models.FamilyMember).filter(
+            models.FamilyMember.name.ilike('admin')
+        ).first()
+        
+        if not admin:
+            # Create admin user if doesn't exist
+            admin = models.FamilyMember(
+                name="Admin",
+                is_admin=True
+            )
+            db.add(admin)
+            db.commit()
+            db.refresh(admin)
+        elif not admin.is_admin:
+            # Ensure admin flag is set
+            admin.is_admin = True
+            db.commit()
+            db.refresh(admin)
+            
+        return schemas.FamilyMember(
+            id=admin.id,
+            name=admin.name,
+            is_admin=admin.is_admin,
+            wishlist_item_count=0
+        )
+    except Exception as e:
+        logger.error(f"Emergency admin access error: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to access admin: {str(e)}"
+        )

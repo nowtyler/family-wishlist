@@ -5,7 +5,11 @@ from alembic.runtime.migration import MigrationContext
 from sqlalchemy import create_engine, inspect, text
 import os
 import hashlib
-from typing import List, Dict, Tuple
+import subprocess
+import traceback
+from datetime import datetime
+from pathlib import Path
+from typing import List, Dict, Tuple, Any, Union
 from ..schemas import MigrationInfo
 import logging
 from .backup_service import BackupService
@@ -79,9 +83,24 @@ class MigrationService:
         self.backup_service = BackupService(db_url.replace('sqlite:///', ''))
 
     def get_current_version(self) -> str:
-        with self.engine.connect() as connection:
-            context = MigrationContext.configure(connection)
-            return context.get_current_revision() or "base"
+        """Get the current migration version from alembic, handling multiple heads"""
+        try:
+            with self.engine.connect() as connection:
+                context = MigrationContext.configure(connection)
+                current_heads = context.get_current_heads()
+                
+                if not current_heads:
+                    return "base"  # No migrations applied
+                elif len(current_heads) == 1:
+                    return current_heads[0]  # Single head
+                else:
+                    # Multiple heads case - return comma-separated list
+                    logger.warning(f"Multiple migration heads detected: {current_heads}")
+                    return ",".join(current_heads)
+        except Exception as e:
+            logger.error(f"Error getting current version: {e}")
+            traceback.print_exc()
+            return "unknown"
 
     def detect_model_changes(self) -> bool:
         """Check if there are any model changes that need migration"""
@@ -178,6 +197,82 @@ class MigrationService:
             logger.error(f"Error checking foundation status: {e}")
             return False
 
+    def merge_heads(self) -> str:
+        """Merge multiple migration heads"""
+        try:
+            current_version = self.get_current_version()
+            if "," not in current_version:
+                return f"No multiple heads to merge: {current_version}"
+                
+            heads = current_version.split(",")
+            logger.info(f"Attempting to merge heads: {heads}")
+            
+            # Find alembic executable path
+            alembic_path = "alembic"  # Default assumption
+            try:
+                # Try to find alembic in common locations
+                for path in ["/usr/local/bin/alembic", "/usr/bin/alembic", "alembic"]:
+                    result = subprocess.run(["which", path], capture_output=True, text=True)
+                    if result.returncode == 0:
+                        alembic_path = path
+                        break
+            except Exception:
+                pass  # Fall back to default "alembic"
+            
+            # Use full alembic command with proper config file
+            config_path = self.alembic_cfg.config_file_name
+            command = [
+                alembic_path,
+                "-c", config_path,
+                "merge",
+                "-m", f"Merge branches {current_version}"
+            ]
+            command.extend(heads)
+            
+            logger.info(f"Running merge command: {' '.join(command)}")
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            
+            # Get the new migration revision from the output
+            merge_revision = None
+            output = result.stdout
+            logger.info(f"Merge result: {output}")
+            
+            # Extract the revision ID from the output
+            import re
+            match = re.search(r"Generating .+?/([a-f0-9]+)_merge", output)
+            if match:
+                merge_revision = match.group(1)
+                logger.info(f"Extracted merge revision: {merge_revision}")
+            
+            # Now apply this merge migration immediately
+            if merge_revision:
+                # Run the upgrade to the merge revision
+                upgrade_cmd = [
+                    alembic_path,
+                    "-c", config_path,
+                    "upgrade", merge_revision
+                ]
+                logger.info(f"Running upgrade to merge revision: {' '.join(upgrade_cmd)}")
+                upgrade_result = subprocess.run(upgrade_cmd, capture_output=True, text=True, check=True)
+                logger.info(f"Upgrade result: {upgrade_result.stdout}")
+                
+            return f"Successfully merged heads: {current_version}"
+            
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Merge failed: {e.stderr}"
+            logger.error(error_msg)
+            return error_msg
+        except Exception as e:
+            error_msg = f"Merge error: {str(e)}"
+            logger.error(error_msg)
+            traceback.print_exc()
+            return error_msg
+
     def upgrade(self, target: str = "head") -> str:
         """Upgrades database to target version with SQLite compatibility"""
         try:
@@ -188,65 +283,121 @@ class MigrationService:
             current_version = self.get_current_version()
             logger.info(f"Current version before upgrade: {current_version}")
             
-            # Check if this is a foundation database to adjust upgrade strategy
-            is_foundation = self.is_foundation_database()
-            logger.info(f"Is foundation database: {is_foundation}")
+            # Handle multiple heads case first by forcing a merge
+            if "," in current_version:
+                logger.warning("Multiple heads detected, attempting to merge them first")
+                merge_result = self.merge_heads()
+                logger.info(f"Merge result: {merge_result}")
+                
+                # Check if merge was successful by getting current version again
+                new_current = self.get_current_version()
+                logger.info(f"Version after merge attempt: {new_current}")
+                if "," in new_current:
+                    # If we still have multiple heads after merge, try direct SQL fix
+                    try:
+                        logger.warning("Merge didn't resolve multiple heads, trying direct database fix")
+                        with self.engine.begin() as connection:
+                            # Get the latest revision
+                            latest_rev = new_current.split(',')[0]  # Just take the first one
+                            # Update the alembic_version table to use only this revision
+                            connection.execute(text("DELETE FROM alembic_version"))
+                            connection.execute(
+                                text("INSERT INTO alembic_version (version_num) VALUES (:rev)"),
+                                {'rev': latest_rev}
+                            )
+                            logger.info(f"Forced alembic_version to {latest_rev}")
+                            
+                            # Confirm the change
+                            context = MigrationContext.configure(connection)
+                            heads = context.get_current_heads()
+                            logger.info(f"Current heads after direct fix: {heads}")
+                            new_current = heads[0] if heads else 'base'
+                            
+                            # If we have just 'base', create a new migration to get us to a good state
+                            if new_current == 'base':
+                                logger.info("Database reset to 'base', will create new migration")
+                                return self.upgrade(target)  # Recursive call to create new migration
+                                
+                    except Exception as e:
+                        logger.error(f"Error in direct database fix: {e}")
+                        return f"Failed to merge heads. Please resolve manually. Current heads: {new_current}"
             
             # Store current schema hash before migration
             pre_migration_hash = self.get_schema_hash()
             
+            # Make sure alembic_version is properly set up
             with self.engine.begin() as connection:
                 try:
-                    # For foundation database, no special handling needed
-                    if not is_foundation:
-                        logger.info("Non-foundation database - ensuring alembic_version is properly initialized")
-                        # Make sure alembic_version is properly set up
-                        try:
-                            connection.execute(text("SELECT version_num FROM alembic_version"))
-                        except Exception:
-                            logger.info("Creating alembic_version table")
-                            connection.execute(text(
-                                "CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32))"
-                            ))
-                            connection.execute(text("INSERT INTO alembic_version (version_num) VALUES ('base')"))
-                    
-                    # Check for model changes and create migrations if needed
-                    if self.detect_model_changes():
-                        logger.info("Creating new migration for detected changes")
-                        revision = command.revision(
-                            self.alembic_cfg,
-                            message="auto generated migration",
-                            autogenerate=True
-                        )
-                        logger.info(f"Created new migration: {revision}")
-                    
-                    # Run the actual migration
-                    logger.info(f"Running upgrade to {target}")
-                    command.upgrade(self.alembic_cfg, target)
-                    
-                    # Get final version
-                    new_version = self.get_current_version()
-                    logger.info(f"Successfully upgraded to {new_version}")
-                    
-                    # Verify alembic_version table state
-                    result = connection.execute(text("SELECT version_num FROM alembic_version")).scalar()
-                    logger.info(f"Final alembic_version: {result}")
-                    
-                    # Update schema hash in system_settings
-                    try:
-                        post_migration_hash = self.get_schema_hash()
-                        if pre_migration_hash != post_migration_hash:
-                            logger.info(f"Schema hash changed: {pre_migration_hash[:8]}... -> {post_migration_hash[:8]}...")
-                            connection.execute(text(
-                                "UPDATE system_settings SET schema_hash = :hash, last_updated = CURRENT_DATE WHERE id = 1"
-                            ), {"hash": post_migration_hash})
-                    except Exception as e:
-                        logger.warning(f"Failed to update schema hash: {e}")
-                    
+                    connection.execute(text("SELECT version_num FROM alembic_version"))
+                except Exception:
+                    logger.info("Creating alembic_version table")
+                    connection.execute(text(
+                        "CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32))"
+                    ))
+                    if current_version == "base" or current_version == "unknown":
+                        connection.execute(text("INSERT INTO alembic_version (version_num) VALUES ('base')"))
+        
+            # Check for model changes and create migrations if needed
+            if self.detect_model_changes():
+                logger.info("Creating new migration for detected changes")
+                try:
+                    revision_result = self.create_migration("Auto-generated migration for model changes")
+                    logger.info(f"Created new migration: {revision_result}")
                 except Exception as e:
-                    logger.error(f"Migration error during transaction: {e}")
-                    raise
-                    
+                    logger.error(f"Error creating migration: {e}")
+                    traceback.print_exc()
+        
+            # Run the actual migration
+            logger.info(f"Running upgrade to {target}")
+            try:
+                command.upgrade(self.alembic_cfg, target)
+                logger.info("Upgrade command completed successfully")
+            except Exception as e:
+                logger.error(f"Upgrade command error: {e}")
+                traceback.print_exc()
+                # Try one more approach - execute alembic directly
+                try:
+                    logger.info("Attempting direct alembic command as fallback")
+                    alembic_cmd = ["alembic", "-c", self.alembic_cfg.config_file_name, "upgrade", target]
+                    logger.info(f"Executing: {' '.join(alembic_cmd)}")
+                    result = subprocess.run(alembic_cmd, capture_output=True, text=True, check=False)
+                    if result.returncode != 0:
+                        return f"Failed to upgrade: {result.stderr}"
+                    logger.info(f"Direct alembic upgrade result: {result.stdout}")
+                except Exception as fallback_error:
+                    logger.error(f"Fallback approach also failed: {fallback_error}")
+                    return f"Failed to upgrade using all methods: {str(e)} and {str(fallback_error)}"
+                
+            # Get final version and verify success
+            new_version = self.get_current_version()
+            logger.info(f"Successfully upgraded to {new_version}")
+            
+            # Verify that we don't still have multiple heads
+            if "," in new_version:
+                logger.warning(f"Still have multiple heads after upgrade: {new_version}")
+                # Try one more direct fix
+                try:
+                    with self.engine.begin() as conn:
+                        latest_rev = new_version.split(',')[-1]  # Get the last one this time
+                        conn.execute(text("DELETE FROM alembic_version"))
+                        conn.execute(text("INSERT INTO alembic_version (version_num) VALUES (:rev)"), {'rev': latest_rev})
+                        logger.info(f"Final fix: forced alembic_version to {latest_rev}")
+                        new_version = latest_rev
+                except Exception as e:
+                    logger.error(f"Final fix error: {e}")
+            
+            # Update schema hash in system_settings
+            try:
+                post_migration_hash = self.get_schema_hash()
+                if pre_migration_hash != post_migration_hash:
+                    logger.info(f"Schema hash changed: {pre_migration_hash[:8]}... -> {post_migration_hash[:8]}...")
+                    with self.engine.begin() as conn:
+                        conn.execute(text(
+                            "UPDATE system_settings SET schema_hash = :hash, last_updated = CURRENT_DATE WHERE id = 1"
+                        ), {"hash": post_migration_hash})
+            except Exception as e:
+                logger.warning(f"Failed to update schema hash: {e}")
+            
             # Force metadata refresh
             Base.metadata.clear()
             Base.metadata.reflect(bind=self.engine)
@@ -331,3 +482,49 @@ class MigrationService:
         except Exception as e:
             logger.error(f"Error deleting migration: {e}")
             return False, f"Error deleting migration: {str(e)}"
+
+    def reset_migration_state(self) -> str:
+        """Reset the migration state for fresh start"""
+        try:
+            with self.engine.begin() as conn:
+                # Drop the alembic_version table and recreate it
+                conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
+                conn.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32))"))
+                conn.execute(text("INSERT INTO alembic_version (version_num) VALUES ('base')"))
+                
+            return "Migration state reset successfully"
+        except Exception as e:
+            error_msg = f"Failed to reset migration state: {str(e)}"
+            logger.error(error_msg)
+            traceback.print_exc()
+            return error_msg
+
+    def create_migration(self, message: str) -> str:
+        """Create a new migration with the given message"""
+        try:
+            # Create a revision with autogenerate=True to detect model changes
+            from alembic.command import revision
+            
+            # Make sure the message is safe
+            safe_message = message.replace("'", "").replace('"', "").replace(";", "")
+            
+            # Log the migration creation attempt
+            logger.info(f"Creating migration with message: {safe_message}")
+            
+            # Call the alembic revision command
+            revision(
+                self.alembic_cfg,
+                message=safe_message,
+                autogenerate=True
+            )
+            
+            # Get the latest revision after creation
+            script_directory = ScriptDirectory.from_config(self.alembic_cfg)
+            current_head = script_directory.get_current_head()
+            
+            return f"Successfully created migration: {current_head}"
+        except Exception as e:
+            error_msg = f"Failed to create migration: {str(e)}"
+            logger.error(error_msg)
+            traceback.print_exc()
+            return error_msg

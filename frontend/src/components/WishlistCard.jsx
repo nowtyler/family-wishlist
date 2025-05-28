@@ -42,6 +42,16 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
         throw new Error('Title is required');
       }
 
+      // Improved price handling
+      let processedPrice = null;
+      if (editForm.price !== undefined && editForm.price !== null && editForm.price !== '') {
+        const floatPrice = parseFloat(editForm.price);
+        if (isNaN(floatPrice) || floatPrice < 0) {
+          throw new Error('Price must be a valid positive number');
+        }
+        processedPrice = floatPrice;
+      }
+
       const updatedData = {
         ...editForm,
         title: editForm.title.trim(),
@@ -49,7 +59,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
         link: editForm.link?.trim() || null,
         image_url: editForm.image_url?.trim() || null,
         priority: Number(editForm.priority),
-        price: editForm.price ? Math.round(parseFloat(editForm.price) * 100) : null  // Convert to cents
+        price: processedPrice  // Backend will convert to cents
       };
 
       await updateWishlistItem(itemId, updatedData);

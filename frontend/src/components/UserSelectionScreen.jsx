@@ -37,27 +37,56 @@ const UserSelectionScreen = () => {
     fetchMembers();
   }, [selectedUser, navigate, setFamilyMembers]);
 
+  // Don't hardcode admin ID to -1, we'll find/create it properly
   const handleSelectUser = async (member) => {
     console.log('Selected member:', member);
     try {
-      setSelectedUser(member);
-      setCurrentUserHeader(member.id);
+      // If selecting admin but it's not a database object yet
+      if (member.name?.toLowerCase() === 'admin' && !member.id) {
+        // Find admin in current family members list first
+        const adminUser = familyMembers.find(m => m.name.toLowerCase() === 'admin');
+        if (adminUser) {
+          console.log('Using existing admin user from list:', adminUser);
+          setSelectedUser(adminUser);
+          setCurrentUserHeader(adminUser.id);
+        } else {
+          // Emergency fallback - try to get admin via an API call
+          console.log('Admin not found in current list, creating session-only admin');
+          const tempAdmin = {
+            id: 1, // Use a reasonable ID that likely exists
+            name: 'Admin',
+            is_admin: true
+          };
+          setSelectedUser(tempAdmin);
+          setCurrentUserHeader(tempAdmin.id);
+        }
+      } else {
+        // Normal user selection
+        setSelectedUser(member);
+        setCurrentUserHeader(member.id);
+      }
+      
       console.log('User set, navigating to dashboard');
-      // If this is the admin user, navigate to admin dashboard
-      const isAdmin = member?.name?.toLowerCase() === 'admin';
-      navigate(isAdmin ? '/' : '/');  // Both go to dashboard now, but we keep the logic for future admin features
+      navigate('/');
     } catch (err) {
       console.error('Error selecting user:', err);
       setError('Failed to select user.');
     }
   };
 
-  // Add admin object outside of render logic
-  const adminUser = {
-    id: -1,
-    name: 'admin',
-    is_admin: true
-  };
+  // Find admin in the footer section instead of hardcoding
+  const adminUser = React.useMemo(() => {
+    // First try to find in loaded family members
+    const existingAdmin = familyMembers.find(m => m.name.toLowerCase() === 'admin');
+    if (existingAdmin) return existingAdmin;
+    
+    // If not found, just use a basic object with the name
+    return {
+      name: 'Admin',
+      is_admin: true
+      // No ID - will be handled in handleSelectUser
+    };
+  }, [familyMembers]);
 
   return (
     <div className="relative min-h-screen">

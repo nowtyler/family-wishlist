@@ -76,6 +76,13 @@ npm run dev
 - CORS configuration for security
 - Rate limiting to prevent abuse
 
+### Database Management
+- The application automatically creates the required database structure on first run
+- Database migrations are handled through schema version tracking
+- Admin users can manage database backups and restore
+- Emergency admin access is available if the database becomes corrupted
+- Schema changes are tracked with hash validation for reliable upgrades
+
 ## Usage Guide
 
 1. **Initial Access**
@@ -101,6 +108,8 @@ npm run dev
    - Clear all wishlists
    - Update system version
    - Manage family member data
+   - Handle database backups and migrations
+   - Use emergency access if database is corrupted
 
 ## Best Practices
 
