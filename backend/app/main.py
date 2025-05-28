@@ -21,7 +21,11 @@ from .database import (
 from .services.auth_service import AuthenticationService
 from .services.migration_service import MigrationService
 from .services.backup_service import BackupService
+from .services.url_scraper import ProductScraper
 from .middleware.rate_limiter import RateLimiter
+
+# Initialize the product scraper service
+product_scraper = ProductScraper()
 
 # Create database tables on startup
 # In a more complex app, you'd use Alembic migrations for this.
@@ -996,4 +1000,43 @@ async def emergency_admin_access(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to access admin: {str(e)}"
+        )
+
+# Add this new endpoint after other item endpoints
+@app.post("/api/items/fetch-url-details")
+async def fetch_url_details(
+    url_data: dict,
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Fetch product details from a URL"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required.")
+    
+    url = url_data.get("url")
+    if not url:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="URL is required")
+    
+    try:
+        # Make sure the URL is valid
+        if not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
+        
+        # Fetch product details
+        product_details = product_scraper.fetch_product_details(url)
+        
+        if "error" in product_details:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=product_details["error"]
+            )
+        
+        # Ensure the URL is included
+        product_details["url"] = url
+        return product_details
+    
+    except Exception as e:
+        logger.error(f"Error fetching URL details: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch product details: {str(e)}"
         )

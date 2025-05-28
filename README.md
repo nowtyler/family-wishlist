@@ -18,6 +18,7 @@ A full-stack web application that helps families manage gift wishlists and coord
   - Priority levels (Low, Medium, High)
   - External links to items
   - Image URLs
+- URL Auto-Import: Fetch item details by pasting a product URL
 - Sort items by priority and recency
 - Bulk delete operations (personal list or all lists as admin)
 

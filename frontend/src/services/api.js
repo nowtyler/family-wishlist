@@ -336,4 +336,17 @@ export const getAdminAccess = async () => {
   }
 };
 
+// --- URL Import ---
+export const fetchProductDetailsFromUrl = async (url) => {
+  try {
+    console.log('Fetching product details from URL:', url);
+    const response = await apiClient.post('/items/fetch-url-details', { url });
+    console.log('Product details response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch product details:', error?.response?.data || error);
+    throw error;
+  }
+};
+
 export default apiClient;
