@@ -13,12 +13,16 @@ A full-stack web application that helps families manage gift wishlists and coord
 ### Wishlist Management
 - Create, edit, and delete wishlist items
 - Add item details:
-  - Title and description
+  - Title and description (supports longer titles up to 500 characters)
   - Price (stored in cents for precision)
   - Priority levels (Low, Medium, High)
   - External links to items
   - Image URLs
 - URL Auto-Import: Fetch item details by pasting a product URL
+- External Wishlist Integration:
+  - Import from Amazon wishlists (supports multi-page wishlists with up to 1000+ items)
+  - Import from Etsy lists/registries
+  - Sync with external wishlists (add new/remove missing items)
 - Sort items by priority and recency
 - Bulk delete operations (personal list or all lists as admin)
 
@@ -63,6 +67,16 @@ uvicorn app.main:app --reload
 cd frontend
 npm install
 npm run dev
+```
+
+3. Node.js Setup (for advanced product scraping):
+```bash
+# Install Node.js (if not already installed)
+# Visit https://nodejs.org/ for installation instructions
+
+# Install required Node.js packages
+cd backend/app/services/browser_scripts
+npm install
 ```
 
 ### API Documentation

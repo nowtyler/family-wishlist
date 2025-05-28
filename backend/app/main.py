@@ -9,6 +9,7 @@ import traceback
 import os
 from datetime import datetime
 from pydantic import BaseModel
+from urllib.parse import urlparse  # Add this missing import
 
 from . import crud, models, schemas, auth, database
 from .database import (
@@ -1021,12 +1022,19 @@ async def fetch_url_details(
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
         
-        # Fetch product details
-        product_details = product_scraper.fetch_product_details(url)
+        # Check if this is Etsy or another problematic site that needs browser scraping
+        parsed_url = urlparse(url)
+        domain = parsed_url.netloc.lower()
+        
+        if 'etsy.com' in domain:
+            # Use async browser scraping for Etsy
+            product_details = await product_scraper.fetch_product_details_async(url)
+        else:
+            # Use normal scraping for other sites
+            product_details = product_scraper.fetch_product_details(url)
         
         if "error" in product_details:
             # Return a 200 response with the error info instead of raising an exception
-            # This lets the frontend handle the error more gracefully
             return {
                 "error": product_details["error"],
                 "url": url,
