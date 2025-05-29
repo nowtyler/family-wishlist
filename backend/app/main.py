@@ -89,8 +89,7 @@ origins = [
     "http://localhost",
     "http://localhost:5173",
     "http://localhost:3000",
-    "http://localhost:8888",  # Add local Docker port
-    "http://192.168.50.188:8888",  # Add your local IP
+    "http://localhost:8000",  # Add local Docker port
     "https://wishlist.ariahive.top",
     "http://wishlist.ariahive.top",
 ]
