@@ -75,13 +75,13 @@ else
   
   # Run the backend container
   docker run -d --name wishlist-backend \
-    --network wishlist-net \
+    --network backend \
     -p 8000:8000 \
     $REPOSITORY:$TAG-backend
   
   # Run the frontend container, setting the backend URL
   docker run -d --name wishlist-frontend \
-    --network wishlist-net \
+    --network frontend, backend \
     -p 5173:80 \
     -e BACKEND_URL=http://wishlist-backend:8000 \
     $REPOSITORY:$TAG-frontend

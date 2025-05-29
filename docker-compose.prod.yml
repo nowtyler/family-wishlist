@@ -1,17 +1,52 @@
-# Production Docker Compose configuration
-version: '3.8'
 
-# Create a custom network for the application
-networks:
-  wishlist-net:
-    driver: bridge
+services:
+  backend:
+    image: tylernow/family-wishlist:latest-backend
+    container_name: backend
+    networks:
+      - backend
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DATABASE_URL=sqlite:///./data/wishlist.db
+      - FAMILY_PASSWORD_HASH=${FAMILY_PASSWORD_HASH}
+      - FAMILY_MEMBERS_CONFIG=${FAMILY_MEMBERS_CONFIG}
+      - CHRISTMAS_MONTH=${CHRISTMAS_MONTH:-12}
+      - CHRISTMAS_DAY=${CHRISTMAS_DAY:-25}
+      # Add CORS origins configuration
+      - ALLOWED_ORIGINS=http://localhost,http://localhost:5173,http://localhost:80,http://wishlist-frontend:80,http://wishlist-frontend,https://wishlist.${ROOT_DOMAIN},http://wishlist.${ROOT_DOMAIN}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://wishlist-backend:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    
+  frontend:
+    image: tylernow/family-wishlist:latest-frontend
+    container_name: frontend
+    networks:
+      - frontend
+      - backend
+    environment:
+      - BACKEND_URL=http://backend:8000
+    ports:
+      - "80:80"
+    depends_on:
+      - wishlist-backend
+    restart: unless-stopped
+    # Create logs directory in container
+    volumes:
+      - ./logs/nginx:/var/log/nginx
+
 
 services:
   backend:
     image: tylernow/family-wishlist:latest-backend
     container_name: wishlist-backend
     networks:
-      - wishlist-net
+      - backend
     volumes:
       - ./data:/app/data
     environment:
@@ -21,12 +56,12 @@ services:
       - CHRISTMAS_MONTH=${CHRISTMAS_MONTH:-12}
       - CHRISTMAS_DAY=${CHRISTMAS_DAY:-25}
       # Add CORS origins for your domain
-      - CORS_ORIGINS=https://wishlist.ariahive.top,http://wishlist.ariahive.top
+      - CORS_ORIGINS=https://wishlist.${ROOT_DOMAIN},http://wishlist.${ROOT_DOMAIN}
     ports:
       - "8000:8000"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      test: ["CMD", "curl", "-f", "http://wishlist-backend:8000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -36,9 +71,10 @@ services:
     image: tylernow/family-wishlist:latest-frontend
     container_name: wishlist-frontend
     networks:
-      - wishlist-net
+      - frontend
+      - backedn
     environment:
-      - BACKEND_URL=http://backend:8000
+      - BACKEND_URL=http://wishlist-backend:8000
     ports:
       - "80:80"
     depends_on:
@@ -70,7 +106,7 @@ services:
     image: tylernow/family-wishlist:latest-frontend
     container_name: wishlist-frontend
     environment:
-      - BACKEND_URL=http://backend:8000
+      - BACKEND_URL=http://wishlist-backend:8000
     ports:
       - "80:80"
     depends_on:

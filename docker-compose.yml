@@ -103,7 +103,7 @@ services:
     ports:
       - "5173:80"
     environment:
-      - VITE_API_BASE_URL=http://localhost:8000/api
+      - VITE_API_BASE_URL=http://wishlist-backend:8000/api
     depends_on:
       - backend
     restart: unless-stopped

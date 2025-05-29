@@ -6,31 +6,27 @@ WORKDIR /app
 
 # Copy package.json and package-lock.json (or yarn.lock)
 COPY package*.json ./
-# COPY pnpm-lock.yaml ./ # If using pnpm
 
 # Install dependencies
 RUN npm install
-# RUN pnpm install # If using pnpm
-# RUN yarn install # If using yarn
 
 # Copy the rest of the application code
 COPY . .
 
 # Build the application
-# The VITE_API_BASE_URL can be set here if needed for the build,
-# but often it's better to configure the runtime proxy (Nginx)
 ENV VITE_API_BASE_URL=/api
 RUN npm run build
-# RUN pnpm build # If using pnpm
-# RUN yarn build # If using yarn
 
 
 # Stage 2: Serve the static files with Nginx
 FROM nginx:1.28.0-alpine-slim
 WORKDIR /usr/share/nginx/html
 
-# Install envsubst utility
-RUN apk add --no-cache bash gettext
+# Install curl for health checks and utilities
+RUN apk add --no-cache curl bash
+
+# Create log directories
+RUN mkdir -p /var/log/nginx
 
 # Remove default Nginx static assets
 RUN rm -rf ./*
@@ -38,25 +34,18 @@ RUN rm -rf ./*
 # Copy static assets from builder stage
 COPY --from=build /app/dist .
 
-# Copy the Nginx configuration as a template
-COPY nginx.conf /etc/nginx/templates/default.conf.template
+# Copy the Nginx configuration file directly (no templating)
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Set default backend URL for Nginx configuration
-ENV BACKEND_URL=http://backend:8000
+# Create directories for logs
+RUN mkdir -p /var/log/nginx && \
+    chmod -R 755 /var/log/nginx
 
-# Create a proper entrypoint script
-RUN printf '#!/bin/sh\n\
-# Verify config syntax\n\
-echo "Checking Nginx configuration..."\n\
-nginx -t\n\
-\n\
-# Start Nginx\n\
-echo "Starting Nginx server..."\n\
-exec nginx -g "daemon off;"\n'\
-> /docker-entrypoint.sh \
-&& chmod +x /docker-entrypoint.sh
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost/health || exit 1
 
 EXPOSE 80
 
-# Use our custom entrypoint
-CMD ["/docker-entrypoint.sh"]
+# Default command - Nginx automatically runs as foreground process
+CMD ["nginx", "-g", "daemon off;"]
