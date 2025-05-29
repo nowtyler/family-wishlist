@@ -44,10 +44,8 @@ COPY nginx.conf /etc/nginx/templates/default.conf.template
 # Set default backend URL for Nginx configuration
 ENV BACKEND_URL=http://backend:8000
 
-# Create a simple entrypoint script
-RUN echo '#!/bin/sh \n\
-envsubst < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf \n\
-exec nginx -g "daemon off;"' > /docker-entrypoint.sh \
+# Create a separate entrypoint script file instead of using echo
+RUN printf '#!/bin/sh\nenvsubst < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf\nexec nginx -g "daemon off;"\n' > /docker-entrypoint.sh \
     && chmod +x /docker-entrypoint.sh
 
 EXPOSE 80
