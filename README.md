@@ -19,10 +19,6 @@ A full-stack web application that helps families manage gift wishlists and coord
   - External links to items
   - Image URLs
 - URL Auto-Import: Fetch item details by pasting a product URL
-- External Wishlist Integration:
-  - Import from Amazon wishlists (supports multi-page wishlists with up to 1000+ items)
-  - Import from Etsy lists/registries
-  - Sync with external wishlists (add new/remove missing items)
 - Sort items by priority and recency
 - Bulk delete operations (personal list or all lists as admin)
 
