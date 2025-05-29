@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import re
 
 # Configure logging with more security
-log_path = '/app/data/auth.log'
+log_path = '/app/logs/auth.log'
 log_dir = os.path.dirname(log_path)
 
 # Create log directory if it doesn't exist
@@ -17,7 +17,7 @@ if not os.path.exists(log_dir):
     try:
         os.makedirs(log_dir, exist_ok=True)
     except Exception:
-        # Fallback to current directory if /app/data isn't writable
+        # Fallback to current directory if /app/logs isn't writable
         log_path = 'auth.log'
 
 # Use rotating file handler with max 5 backups of 1MB each
