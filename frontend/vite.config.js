@@ -10,7 +10,7 @@ export default defineConfig({
     proxy: {
       // Proxy API requests to the backend container
       '/api': {
-        target: 'http://backend:8000', // Changed back to backend:8000
+        target: 'http://wishlist-backend:8000/api', // Changed back to wishlist-backend:8000
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path, // Remove path rewriting
