@@ -7,3 +7,4 @@ python-dotenv==1.0.1
 alembic==1.13.1
 beautifulsoup4>=4.12.2
 requests>=2.31.0
+starlette>=0.40.0  # Add explicit starlette dependency with secure version

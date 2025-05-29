@@ -38,7 +38,7 @@ A full-stack web application that helps families manage gift wishlists and coord
 ## Technical Details
 
 ### Environment Setup
-1. Create a `.env` file with required configurations:
+1. Copy `.env.example` to `.env` and update with your configuration:
 ```env
 FAMILY_PASSWORD_HASH='your_bcrypt_hash'
 DATABASE_URL="sqlite:///./data/wishlist.db"
@@ -51,9 +51,9 @@ CHRISTMAS_DAY=25
 
 #### Option 1: Using Docker (Recommended)
 
-You can either use the pre-built Docker images or build them yourself.
+You can either use the pre-built Docker images from DockerHub or build them yourself locally.
 
-1. Using pre-built images:
+1. Using pre-built images from DockerHub:
 
 ```bash
 # For production environment
@@ -71,16 +71,17 @@ curl -O https://raw.githubusercontent.com/username/family-wishlist/main/docker-c
 docker-compose -f docker-compose.dev-env.yml up -d
 ```
 
-3. Building locally:
+3. Building and running locally for development:
 
 ```bash
 git clone https://github.com/username/family-wishlist.git
 cd family-wishlist
-# Create your .env file with the required variables
-docker-compose up -d
+cp .env.example .env
+# Edit your .env file with the appropriate values
+docker-compose -f docker-compose.local.yml up -d
 ```
 
-#### Option 2: Manual Setup
+#### Option 2: Manual Development Setup
 
 1. Backend Setup (Python/FastAPI):
 ```bash
@@ -265,3 +266,36 @@ For issues or questions:
 ## License
 
 Private use only. All rights reserved.
+
+## Local Development Workflow
+
+1. Clone the repository
+```bash
+git clone https://github.com/username/family-wishlist.git
+cd family-wishlist
+```
+
+2. Set up your environment
+```bash
+cp .env.example .env
+# Edit .env with your configurations
+```
+
+3. Start the application using Docker
+```bash
+docker-compose -f docker-compose.local.yml up -d
+```
+
+4. Make changes to the code
+   - Backend changes in `./backend/app/`
+   - Frontend changes in `./frontend/src/`
+
+5. Publishing to DockerHub (if you have access)
+```bash
+# Make the script executable
+chmod +x scripts/publish-docker.sh
+# Publish with a specific tag
+./scripts/publish-docker.sh v1.2.3
+# Or publish with the 'dev' tag
+./scripts/publish-docker.sh
+```

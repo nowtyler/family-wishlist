@@ -1,0 +1,31 @@
+# Local development Docker Compose configuration
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+    volumes:
+      - ./backend/app:/app/app
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/wishlist.db}
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build: 
+      context: ./frontend
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+    ports:
+      - "5173:80"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000/api
+    depends_on:
+      - backend
+    restart: unless-stopped
