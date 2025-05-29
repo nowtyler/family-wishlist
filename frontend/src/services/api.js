@@ -353,7 +353,7 @@ export const fetchProductDetailsFromUrl = async (url) => {
     return {
       error: error?.response?.data?.detail || error.message || 'Network error',
       url: url,
-      message: 'Unable to automatically import product details. Please enter them manually.'
+      message: 'Unable to import product details. This website may block our scraper - please enter details manually.'
     };
   }
 };

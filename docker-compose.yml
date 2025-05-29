@@ -1,4 +1,6 @@
 # family-wishlist/docker-compose.yml
+version: '3.8'
+
 services:
   backend:
     build:
@@ -71,3 +73,37 @@ networks:
     external: true # Assumes 'frontend' network already exists from your Traefik setup
   backend:
     external: true  # This ensures backend network is only accessible internally
+
+# Development Docker Compose configuration
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+    volumes:
+      - ./backend/app:/app/app
+      - ./data:/app/data
+    environment:
+      - DATABASE_URL=sqlite:///./data/wishlist.db
+      - FAMILY_PASSWORD_HASH=${FAMILY_PASSWORD_HASH}
+      - FAMILY_MEMBERS_CONFIG=${FAMILY_MEMBERS_CONFIG}
+      - CHRISTMAS_MONTH=${CHRISTMAS_MONTH:-12}
+      - CHRISTMAS_DAY=${CHRISTMAS_DAY:-25}
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    
+  frontend:
+    build:
+      context: ./frontend
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+    ports:
+      - "5173:80"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000/api
+    depends_on:
+      - backend
+    restart: unless-stopped

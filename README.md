@@ -47,7 +47,40 @@ CHRISTMAS_MONTH=12
 CHRISTMAS_DAY=25
 ```
 
-### Installation
+### Installation Options
+
+#### Option 1: Using Docker (Recommended)
+
+You can either use the pre-built Docker images or build them yourself.
+
+1. Using pre-built images:
+
+```bash
+# For production environment
+curl -O https://raw.githubusercontent.com/username/family-wishlist/main/docker-compose.prod.yml
+# Create your .env file with the required variables
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+2. Using development environment with the latest development images:
+
+```bash
+# For development environment
+curl -O https://raw.githubusercontent.com/username/family-wishlist/main/docker-compose.dev-env.yml
+# Create your .env file with the required variables
+docker-compose -f docker-compose.dev-env.yml up -d
+```
+
+3. Building locally:
+
+```bash
+git clone https://github.com/username/family-wishlist.git
+cd family-wishlist
+# Create your .env file with the required variables
+docker-compose up -d
+```
+
+#### Option 2: Manual Setup
 
 1. Backend Setup (Python/FastAPI):
 ```bash
@@ -142,6 +175,79 @@ npm install
 - **Backend**: Python, FastAPI, SQLAlchemy
 - **Database**: SQLite
 - **Authentication**: Custom password system with rate limiting
+
+## Docker Images
+
+This application is available as Docker images on DockerHub:
+
+- Backend: `tylernow/family-wishlist:latest-backend` (stable) or `tylernow/family-wishlist:dev-backend` (development)
+- Frontend: `tylernow/family-wishlist:latest-frontend` (stable) or `tylernow/family-wishlist:dev-frontend` (development)
+
+### Tags
+
+- `latest`: Production-ready stable release
+- `dev`: Latest development build
+- `x.y.z`: Specific version releases
+- `x.y`: Latest patch release for a specific minor version
+
+## Deployment Examples
+
+### Simple Docker Deployment
+
+```bash
+# Create a directory for your wishlist application
+mkdir family-wishlist && cd family-wishlist
+
+# Download the production docker-compose file
+curl -O https://raw.githubusercontent.com/username/family-wishlist/main/docker-compose.prod.yml
+
+# Create your .env file
+cat > .env << EOF
+FAMILY_PASSWORD_HASH='your_bcrypt_hash'
+FAMILY_MEMBERS_CONFIG="Name1:YYYY-MM-DD,Name2:YYYY-MM-DD,Admin:admin"
+EOF
+
+# Start the containers
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+### Using Docker with Traefik for SSL
+
+```yaml
+version: '3.8'
+
+services:
+  backend:
+    image: tylernow/family-wishlist:latest-backend
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DATABASE_URL=sqlite:///./data/wishlist.db
+      - FAMILY_PASSWORD_HASH=${FAMILY_PASSWORD_HASH}
+      - FAMILY_MEMBERS_CONFIG=${FAMILY_MEMBERS_CONFIG}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wishlist-api.rule=Host(`wishlist.ariahive.top`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.wishlist-api.tls=true"
+      - "traefik.http.routers.wishlist-api.tls.certresolver=letsencrypt"
+    restart: unless-stopped
+    
+  frontend:
+    image: tylernow/family-wishlist:latest-frontend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wishlist.rule=Host(`wishlist.ariahive.top`)"
+      - "traefik.http.routers.wishlist.tls=true"
+      - "traefik.http.routers.wishlist.tls.certresolver=letsencrypt"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+networks:
+  default:
+    external:
+      name: traefik-network
+```
 
 ## Contributing
 

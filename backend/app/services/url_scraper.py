@@ -2,10 +2,8 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import logging
-from typing import Dict, Optional, Any
+from typing import Dict, Any
 from urllib.parse import urlparse
-from .browser_scraper import BrowserScraper
-import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +16,6 @@ class ProductScraper:
             'Accept': 'text/html,application/xhtml+xml,application/xml',
             'Accept-Language': 'en-US,en;q=0.9',
         }
-        # Initialize the browser scraper
-        self.browser_scraper = BrowserScraper()
 
     def _extract_amazon(self, soup: BeautifulSoup, url: str) -> Dict[str, Any]:
         """Extract product details from Amazon."""
@@ -306,32 +302,14 @@ class ProductScraper:
         return result
 
     async def fetch_product_details_async(self, url: str) -> Dict[str, Any]:
-        """Fetch product details asynchronously, with fallback to browser scraping."""
+        """Fetch product details asynchronously, without browser scraping."""
         try:
             # Parse the URL to determine the website
             parsed_url = urlparse(url)
             domain = parsed_url.netloc.lower()
             
-            # For Etsy (and other sites that block scrapers), use browser scraping
-            if 'etsy.com' in domain:
-                logger.info(f"Using browser scraper for {domain}")
-                result = await self.browser_scraper.scrape_url(url)
-                
-                # Check if browser scraping failed and we need to fall back
-                if result.get("error") and result.get("fallback_needed"):
-                    logger.info("Browser scraping failed, falling back to regular scraping")
-                    # Try traditional scraping as a fallback
-                    try:
-                        fallback_result = self.fetch_product_details(url)
-                        if "error" not in fallback_result:
-                            return fallback_result
-                        # If fallback also fails, return browser scraping result
-                    except Exception as e:
-                        logger.error(f"Fallback scraping also failed: {e}")
-                
-                return result
-            
-            # For other sites, use the normal scraping method
+            # Direct call to regular scraping for all sites
+            logger.info(f"Fetching product details for {domain} using regular scraper")
             result = self.fetch_product_details(url)
             return result
                 
