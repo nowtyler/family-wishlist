@@ -4,6 +4,35 @@ version: '3.8'
 services:
   backend:
     image: tylernow/family-wishlist:latest-backend
+    container_name: wishlist-backend
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DATABASE_URL=sqlite:///./data/wishlist.db
+      - FAMILY_PASSWORD_HASH=${FAMILY_PASSWORD_HASH}
+      - FAMILY_MEMBERS_CONFIG=${FAMILY_MEMBERS_CONFIG}
+      - CHRISTMAS_MONTH=${CHRISTMAS_MONTH:-12}
+      - CHRISTMAS_DAY=${CHRISTMAS_DAY:-25}
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    
+  frontend:
+    image: tylernow/family-wishlist:latest-frontend
+    container_name: wishlist-frontend
+    environment:
+      - BACKEND_URL=http://backend:8000
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+# Production Docker Compose configuration
+version: '3.8'
+
+services:
+  backend:
+    image: tylernow/family-wishlist:latest-backend
     volumes:
       - ./data:/app/data
     environment:

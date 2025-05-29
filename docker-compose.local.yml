@@ -19,13 +19,10 @@ services:
   frontend:
     build: 
       context: ./frontend
-    volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/public:/app/public
+    environment:
+      - BACKEND_URL=http://backend:8000
     ports:
       - "5173:80"
-    environment:
-      - VITE_API_BASE_URL=http://localhost:8000/api
     depends_on:
       - backend
     restart: unless-stopped

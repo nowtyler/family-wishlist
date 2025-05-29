@@ -29,15 +29,28 @@ RUN npm run build
 FROM nginx:1.28.0-alpine-slim
 WORKDIR /usr/share/nginx/html
 
+# Install envsubst utility
+RUN apk add --no-cache bash gettext
+
 # Remove default Nginx static assets
 RUN rm -rf ./*
 
 # Copy static assets from builder stage
 COPY --from=build /app/dist .
 
-# Copy custom Nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy the Nginx configuration as a template
+COPY nginx.conf /etc/nginx/templates/default.conf.template
+
+# Set default backend URL for Nginx configuration
+ENV BACKEND_URL=http://backend:8000
+
+# Create a simple entrypoint script
+RUN echo '#!/bin/sh \n\
+envsubst < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf \n\
+exec nginx -g "daemon off;"' > /docker-entrypoint.sh \
+    && chmod +x /docker-entrypoint.sh
 
 EXPOSE 80
 
-CMD ["nginx", "-g", "daemon off;"]
+# Use our custom entrypoint
+CMD ["/docker-entrypoint.sh"]
