@@ -16,10 +16,10 @@ services:
       - PGID=${PGID} # Group ID for file permissions
       - TZ=${TZ} # Timezone
     volumes:
-      - /home/queen-bee/apps/family-wishlist/data:/app/data  # Storage for SQLite database
-      - /home/queen-bee/apps/family-wishlist/data/backups:/app/data/backups  # Backups directory
-      - /home/queen-bee/apps/family-wishlist/data/migrations:/app/app/migrations/versions
-      - /home/queen-bee/apps/family-wishlist/browser_scripts:/app/app/services/browser_scripts  # Browser scripts directory
+      - ${LOCAL_APPS_PATH}family-wishlist/data:/app/data  # Storage for SQLite database
+      - ${LOCAL_APPS_PATH}family-wishlist/data/backups:/app/data/backups  # Backups directory
+      - ${LOCAL_APPS_PATH}family-wishlist/data/migrations:/app/app/migrations/versions
+      - ${LOCAL_APPS_PATH}family-wishlist/browser_scripts:/app/app/services/browser_scripts  # Browser scripts directory
       # For development, you might mount the code:
       # - ./backend/app:/app/app
     networks:
@@ -63,7 +63,7 @@ services:
       - traefik.enable=true
       - traefik.constraint=proxy-public
 #      - traefik.http.routers.open-webui.middlewares=authentik@file
-      - traefik.http.routers.wishlist-frontend.rule=Host(`wishlist.ariahive.top`)
+      - traefik.http.routers.wishlist-frontend.rule=Host(`wishlist.${DOMAIN_NAME}`)
       - traefik.http.routers.wishlist-frontend.tls=true
       - traefik.http.routers.wishlist-frontend.entrypoints=websecure
       - traefik.http.services.wishlist-frontend.loadbalancer.server.port=80

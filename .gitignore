@@ -84,3 +84,5 @@ auth.log
 # Project-specific files
 backend/app/services/browser_scripts/node_modules/
 backend/app/services/browser_scripts/package-lock.json
+family-wishlist.code-workspace
+.git-instuctions.sh

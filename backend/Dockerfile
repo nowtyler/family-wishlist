@@ -3,12 +3,9 @@ FROM python:3.12-slim-bookworm
 
 WORKDIR /app
 
-# Set environment variables for Python
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
-
-# Install system dependencies if any (e.g., for database drivers if not using SQLite)
-# RUN apt-get update && apt-get install -y some-package
+# Set environment variables for Python (correct format)
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 # Copy requirements first to leverage Docker cache
 COPY requirements.txt .
@@ -19,16 +16,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     python3-dev \
     libffi-dev \
-    zlib1g-dev
-# Clean up apt cache
-RUN apt-get clean && rm -rf /var/lib/apt/lists/*
-# Install Python dependencies
-# Using --no-cache-dir to avoid caching the packages in the image
-# This is useful for reducing the image size
-# and ensuring that the latest versions are installed
-# If you have a requirements.txt file, it should be in the same directory as this Dockerfil
+    zlib1g-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies - fix the pip install command
+# Note: Added verbose output to help debug any installation issues
+RUN pip install --no-cache-dir --verbose -r requirements.txt
 
 # Copy application code and config files
 COPY ./app /app/app

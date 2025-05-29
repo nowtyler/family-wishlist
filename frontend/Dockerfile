@@ -19,7 +19,7 @@ COPY . .
 # Build the application
 # The VITE_API_BASE_URL can be set here if needed for the build,
 # but often it's better to configure the runtime proxy (Nginx)
-# ENV VITE_API_BASE_URL=/api
+ENV VITE_API_BASE_URL=/api
 RUN npm run build
 # RUN pnpm build # If using pnpm
 # RUN yarn build # If using yarn
@@ -35,8 +35,7 @@ RUN rm -rf ./*
 # Copy static assets from builder stage
 COPY --from=build /app/dist .
 
-# Copy custom Nginx configuration (optional, but good for SPAs and proxying)
-# We will create nginx.conf next
+# Copy custom Nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
