@@ -46,10 +46,6 @@ ENV BACKEND_URL=http://backend:8000
 
 # Create a proper entrypoint script
 RUN printf '#!/bin/sh\n\
-# Process template with environment variables\n\
-echo "Processing Nginx config template with BACKEND_URL=$BACKEND_URL"\n\
-envsubst "$$BACKEND_URL" < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf\n\
-\n\
 # Verify config syntax\n\
 echo "Checking Nginx configuration..."\n\
 nginx -t\n\
