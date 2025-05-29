@@ -1,35 +1,41 @@
 // frontend/src/services/api.js
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.PROD ? '/api' : 'http://localhost:8000/api';
+// Fix the API base URL handling
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 // Add debugging for API client creation
 console.log('Environment:', import.meta.env.MODE);
 console.log('API Base URL:', API_BASE_URL);
 
 const apiClient = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  // Increased timeout for better handling of large wishlist imports
-  timeout: 60000, // Increased from 10000 to 60000 (1 minute)
-  withCredentials: true, // Important for CORS
-  validateStatus: (status) => {
-    return status >= 200 && status < 500;
-  },
+    baseURL: API_BASE_URL,
+    headers: {
+        'Content-Type': 'application/json',
+    },
+    // Increased timeout for better handling of large wishlist imports
+    timeout: 60000, // Increased from 10000 to 60000 (1 minute)
+    withCredentials: true, // Important for CORS
+    validateStatus: (status) => {
+        return status >= 200 && status < 500;
+    },
 });
 
-// Add request/response interceptors for debugging
+// Add more debug information to see what's happening
 apiClient.interceptors.request.use(
-  (config) => {
-    console.log('API Request:', config.method?.toUpperCase(), config.url);
-    return config;
-  },
-  (error) => {
-    console.error('Request Error:', error);
-    return Promise.reject(error);
-  }
+    (config) => {
+        console.log('API Request:', {
+            method: config.method?.toUpperCase(),
+            url: config.url,
+            fullUrl: config.baseURL + config.url,
+            headers: config.headers
+        });
+        return config;
+    },
+    (error) => {
+        console.error('Request Error:', error);
+        return Promise.reject(error);
+    }
 );
 
 apiClient.interceptors.response.use(
@@ -67,20 +73,21 @@ export const setCurrentUserHeader = (userId) => {
 
 // --- Auth ---
 export const verifyPassword = async (password) => {
-  try {
-    console.log('Attempting password verification...');
-    const response = await apiClient.post('/auth/verify-password', { password });
-    console.log('Verification response:', response);
-    return response;
-  } catch (error) {
-    console.error('Detailed error:', {
-      message: error.message,
-      response: error.response,
-      request: error.request,
-      config: error.config
-    });
-    throw error;
-  }
+    try {
+        console.log('Attempting password verification...');
+        // Fix the endpoint path - should be consistent with backend
+        const response = await apiClient.post('/auth/verify-password', { password });
+        console.log('Verification response:', response);
+        return response;
+    } catch (error) {
+        console.error('Detailed error:', {
+            message: error.message,
+            response: error.response,
+            request: error.request,
+            config: error.config
+        });
+        throw error;
+    }
 };
 
 // --- Family Members ---
