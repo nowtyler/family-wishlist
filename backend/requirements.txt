@@ -1,10 +1,9 @@
-fastapi==0.111.0
-uvicorn[standard]==0.29.0
-sqlalchemy==2.0.30
-pydantic==2.7.1
+fastapi==0.115.23
+uvicorn[standard]==0.34.2
+sqlalchemy==2.0.41
+pydantic==2.11.5
 passlib[bcrypt]==1.7.4
-python-dotenv==1.0.1
-alembic==1.13.1
+python-dotenv==1.1.0
+alembic==1.16.1
 beautifulsoup4>=4.12.2
 requests>=2.31.0
-starlette>=0.40.0  # Add explicit starlette dependency with secure version
