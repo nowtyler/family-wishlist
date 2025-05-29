@@ -14,7 +14,6 @@ RUN npm install
 COPY . .
 
 # Build the application
-ENV VITE_API_BASE_URL=/api
 RUN npm run build
 
 
