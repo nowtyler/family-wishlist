@@ -49,6 +49,8 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+    environment:
+      - VITE_API_BASE_URL=/api  # Use a relative URL instead of absolute URL with Docker hostname
     networks:
       - frontend
       - backend # Internal network for app communication
@@ -103,7 +105,7 @@ services:
     ports:
       - "5173:80"
     environment:
-      - VITE_API_BASE_URL=http://backend:8000/api
+      - VITE_API_BASE_URL=/api  # Use a relative URL instead of absolute URL with Docker hostname
     depends_on:
       - backend
     restart: unless-stopped

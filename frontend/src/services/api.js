@@ -1,7 +1,7 @@
 // frontend/src/services/api.js
 import axios from 'axios';
 
-// Fix the API base URL handling
+// Fix the API base URL handling - use relative URL instead of absolute with Docker hostname
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 // Add debugging for API client creation
