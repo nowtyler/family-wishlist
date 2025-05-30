@@ -1,7 +1,7 @@
 // WishlistCard.jsx
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, ExternalLink, Heart, Pencil, Check, X, ShoppingCart, ChevronDown, Star, MessageCircle, Send } from 'lucide-react';
+import { Trash2, ExternalLink, Heart, Pencil, Check, X, ShoppingCart, ChevronDown, Flag, MessageCircle, Send } from 'lucide-react';
 import { updateWishlistItem, addComment, deleteComment } from '../services/api';
 
 function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, onUpdateItems, onDeleteItem, onThinkingAbout, onMarkPurchased }) {
@@ -189,17 +189,21 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
   const renderPriorityIcon = (priority) => {
     return (
       <div className="flex items-center">
-        {[...Array(priority + 1)].map((_, i) => (
-          <Star
-            key={i}
-            size={16}
-            className={`fill-current ${
-              priority === 2 ? 'text-red-500' :
-              priority === 1 ? 'text-yellow-500' :
-              'text-green-500'
-            }`}
-          />
-        ))}
+        <Flag
+          size={16}
+          className={`fill-current ${
+            priority === 2 ? 'text-red-500' :
+            priority === 1 ? 'text-yellow-500' :
+            'text-green-500'
+          }`}
+        />
+        <span className={`ml-1 text-xs font-medium ${
+          priority === 2 ? 'text-red-500' :
+          priority === 1 ? 'text-yellow-500' :
+          'text-green-500'
+        }`}>
+          {priority === 2 ? 'High' : priority === 1 ? 'Medium' : 'Low'}
+        </span>
       </div>
     );
   };
