@@ -8,8 +8,9 @@ import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems,
          getFamilyMembers, clearAllWishlists, getAdminAccess } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import MigrationModal from './admin/MigrationModal';
+import ExternalWishlistsDropdown from './ExternalWishlistsDropdown';
 
-const Navbar = ({ onClearWishlist }) => {
+const Navbar = ({ onClearWishlist, viewingMember }) => {
   const { selectedUser, logout, setSelectedUser, setFamilyMembers } = useAppContext();
   const { darkMode, toggleDarkMode } = useTheme();
   const navigate = useNavigate();
@@ -21,6 +22,7 @@ const Navbar = ({ onClearWishlist }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteMode, setDeleteMode] = useState(null); // 'all' or 'user'
   const [showMigrationModal, setShowMigrationModal] = useState(false);
+  const [isDevEnvironment, setIsDevEnvironment] = useState(false);
   const settingsRef = useRef(null);
   const isAdmin = selectedUser?.name?.toLowerCase() === 'admin';
 
@@ -34,6 +36,21 @@ const Navbar = ({ onClearWishlist }) => {
       }
     };
     loadVersion();
+  }, []);
+
+  // Check if we're in development environment
+  useEffect(() => {
+    const checkEnvironment = async () => {
+      try {
+        const response = await fetch('/api/health');
+        const data = await response.json();
+        setIsDevEnvironment(data.environment === 'dev');
+      } catch (err) {
+        console.error('Failed to check environment:', err);
+      }
+    };
+    
+    checkEnvironment();
   }, []);
 
   // Close settings menu when clicking outside
@@ -132,18 +149,31 @@ const Navbar = ({ onClearWishlist }) => {
     }
   };
 
+  // Close migration modal on outside click
+  useEffect(() => {
+    const handleClickOutsideModal = (event) => {
+      if (showMigrationModal && !event.target.closest('.modal-content')) {
+        setShowMigrationModal(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutsideModal);
+    return () => document.removeEventListener('mousedown', handleClickOutsideModal);
+  }, [showMigrationModal]);
+
   return (
     <>
       <nav className="bg-white dark:bg-gray-800 shadow-md sticky top-0 z-50">
         <div className="container mx-auto px-6 py-3">
           <div className="flex justify-between items-center">
-            {/* Logo and Version */}
+            {/* Logo, Version, and Development Badge */}
             <div className="flex items-center">
               <h1 className="text-2xl font-bold">
                 <span className="bg-gradient-to-r from-sky-500 to-indigo-500 dark:from-sky-400 dark:to-indigo-400 bg-clip-text text-transparent">
                   Family Wishlist
                 </span>
               </h1>
+              {/* Version Display */}
               <div className="ml-2 flex items-center text-sm text-gray-500 dark:text-gray-400">
                 {isEditingVersion && isAdmin ? (
                   <div className="flex items-center space-x-1">
@@ -186,15 +216,28 @@ const Navbar = ({ onClearWishlist }) => {
                   </span>
                 )}
               </div>
+              
+              {/* Development Environment Badge */}
+              {isDevEnvironment && (
+                <div className="ml-2 px-2 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200 text-xs rounded-full">
+                  DEV
+                </div>
+              )}
             </div>
 
-            {/* Right side with theme toggle and settings */}
+            {/* Right side with theme toggle, external wishlists, and settings */}
             <div className="flex items-center space-x-4">
               {selectedUser && (
                 <span className="text-gray-600 dark:text-gray-300 hidden md:inline-block">
                   Viewing as: <strong className="text-gray-800 dark:text-white">{selectedUser.name}</strong>
                 </span>
               )}
+              
+              {/* Add External Wishlists dropdown */}
+              {selectedUser && viewingMember && (
+                <ExternalWishlistsDropdown member={viewingMember} />
+              )}
+              
               <button
                 onClick={toggleDarkMode}
                 className="p-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white transition-colors"

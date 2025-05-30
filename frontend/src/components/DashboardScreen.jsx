@@ -9,7 +9,7 @@ import SchemaAlertModal from './SchemaAlertModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, ChevronDown, Gift, AlertTriangle } from 'lucide-react';
 
-const DashboardScreen = () => {
+const DashboardScreen = ({ onViewingMemberChange }) => {
   const { selectedUser, familyMembers, setFamilyMembers } = useAppContext();
   const isAdmin = selectedUser?.name?.toLowerCase() === 'admin';
   const [viewingMember, setViewingMember] = useState(selectedUser); // Initialize with selectedUser
@@ -78,7 +78,18 @@ const DashboardScreen = () => {
     setViewingMember(member);
     setBrowserExpanded(false); // Collapse after selection
     setIsAddingItem(false);
+    // Notify parent about the viewing member change
+    if (onViewingMemberChange) {
+      onViewingMemberChange(member);
+    }
   };
+
+  // Also notify on initial render when selectedUser is set as viewingMember
+  useEffect(() => {
+    if (viewingMember && onViewingMemberChange) {
+      onViewingMemberChange(viewingMember);
+    }
+  }, [viewingMember?.id, onViewingMemberChange]);
 
   const handleAddItem = async (newItem) => {
     if (viewingMember?.id === selectedUser?.id || isAdmin) {

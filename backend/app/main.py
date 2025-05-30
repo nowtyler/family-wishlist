@@ -62,6 +62,11 @@ tags_metadata = [
     }
 ]
 
+# Add environment info to the application
+import os
+ENVIRONMENT = os.getenv("ENVIRONMENT", "prod").lower()
+IS_DEV = ENVIRONMENT == "dev"
+
 # Enhanced API documentation
 app = FastAPI(
     title="Family Wishlist API",
@@ -71,7 +76,7 @@ app = FastAPI(
     * Mark items as "thinking about" or "purchased"
     * Add comments on wishlist items
     * Track upcoming events and gift reminders
-    """,
+    """ + (f"\n\n**DEVELOPMENT ENVIRONMENT**" if IS_DEV else ""),
     version="1.0.0",
     openapi_tags=tags_metadata,
     contact={
@@ -936,7 +941,9 @@ async def health_check():
         return {
             "status": "healthy",
             "timestamp": datetime.utcnow().isoformat(),
-            "database": "connected"
+            "database": "connected",
+            "environment": ENVIRONMENT,
+            "database_path": SQLALCHEMY_DATABASE_URL
         }
     except Exception as e:
         raise HTTPException(
@@ -1052,3 +1059,88 @@ async def fetch_url_details(
             "url": url,
             "message": "Unable to automatically import product details. Please enter them manually."
         }
+
+# --- External Wishlists ---
+@app.get("/api/members/{owner_id}/external-wishlists", response_model=List[schemas.ExternalWishlist])
+def get_external_wishlists_for_member(
+    owner_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get all external wishlists for a specific member"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    db_member = crud.get_family_member(db, member_id=owner_id)
+    if not db_member:
+        raise HTTPException(status_code=404, detail="Family member not found")
+    
+    return crud.get_external_wishlists(db, owner_id=owner_id)
+
+@app.post("/api/members/{owner_id}/external-wishlists", response_model=schemas.ExternalWishlist)
+def create_external_wishlist_for_member(
+    owner_id: int,
+    wishlist: schemas.ExternalWishlistCreate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Create a new external wishlist link for a member"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+    
+    # Check authorization (owner or admin)
+    user = crud.get_family_member(db, current_user_id)
+    is_admin = user and user.name.lower() == 'admin'
+    
+    if not is_admin and current_user_id != owner_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only add external wishlists to your own profile unless you're an admin."
+        )
+    
+    db_member = crud.get_family_member(db, member_id=owner_id)
+    if not db_member:
+        raise HTTPException(status_code=404, detail="Owner (family member) not found")
+    
+    try:
+        return crud.create_external_wishlist(db=db, wishlist=wishlist, owner_id=owner_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to create external wishlist: {str(e)}")
+
+@app.put("/api/external-wishlists/{wishlist_id}", response_model=schemas.ExternalWishlist)
+def update_external_wishlist_endpoint(
+    wishlist_id: int,
+    wishlist_update: schemas.ExternalWishlistUpdate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Update an external wishlist link"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    updated_wishlist = crud.update_external_wishlist(db, wishlist_id, wishlist_update, current_user_id)
+    if not updated_wishlist:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="External wishlist not found or you're not authorized to update it"
+        )
+    
+    return updated_wishlist
+
+@app.delete("/api/external-wishlists/{wishlist_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_external_wishlist_endpoint(
+    wishlist_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Delete an external wishlist link"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    if crud.delete_external_wishlist(db, wishlist_id, current_user_id):
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="External wishlist not found or you're not authorized to delete it"
+    )

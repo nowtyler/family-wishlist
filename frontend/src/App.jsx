@@ -1,5 +1,5 @@
 // frontend/src/App.jsx
-import React from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppProvider, useAppContext } from './contexts/AppContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -27,17 +27,23 @@ const ProtectedRoute = ({ children }) => {
 
 const AppContent = () => {
   const { isAuthenticated, selectedUser } = useAppContext();
+  const [viewingMember, setViewingMember] = useState(null);
   
   const handleClearWishlist = async () => {
     if (window.refreshWishlistItems) {
       await window.refreshWishlistItems();
     }
   };
+  
+  // This function will be called by DashboardScreen when user changes the viewing member
+  const handleViewingMemberChange = (member) => {
+    setViewingMember(member);
+  };
 
   return (
     <Router>
       <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-100 to-sky-100 dark:from-gray-900 dark:to-gray-800">
-        {isAuthenticated && selectedUser && <Navbar onClearWishlist={handleClearWishlist} />}
+        {isAuthenticated && selectedUser && <Navbar onClearWishlist={handleClearWishlist} viewingMember={viewingMember} />}
         <main className="flex-grow container mx-auto p-4 md:p-6 lg:p-8">
           <Routes>
             <Route path="/auth" element={
@@ -50,7 +56,7 @@ const AppContent = () => {
             } />
             <Route path="/" element={
               <ProtectedRoute>
-                {selectedUser ? <DashboardScreen /> : <Navigate to="/select-user" replace />}
+                {selectedUser ? <DashboardScreen onViewingMemberChange={handleViewingMemberChange} /> : <Navigate to="/select-user" replace />}
               </ProtectedRoute>
             } />
             <Route path="*" element={

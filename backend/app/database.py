@@ -1,13 +1,37 @@
 # backend/app/database.py
+import os
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import Column, String
-import os
+import logging
 
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/wishlist.db")
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+# Get environment from env var (defaults to 'prod')
+ENVIRONMENT = os.getenv("ENVIRONMENT", "prod").lower()
+
+# Choose database based on environment
+if ENVIRONMENT == "dev":
+    SQLALCHEMY_DATABASE_URL = os.getenv("DEV_DATABASE_URL", "sqlite:///./data/dev-wishlist.db")
+    logger.info(f"Using DEVELOPMENT database: {SQLALCHEMY_DATABASE_URL}")
+else:
+    SQLALCHEMY_DATABASE_URL = os.getenv("PROD_DATABASE_URL", "sqlite:///./data/wishlist.db")
+    logger.info(f"Using PRODUCTION database: {SQLALCHEMY_DATABASE_URL}")
+
+# Remove SQLite URL prefix for path operations
+DB_PATH = SQLALCHEMY_DATABASE_URL.replace("sqlite:///", "")
+DB_DIR = os.path.dirname(DB_PATH)
+
+# Create database directory if it doesn't exist
+if not os.path.exists(DB_DIR) and DB_DIR:
+    os.makedirs(DB_DIR)
+    logger.info(f"Created database directory: {DB_DIR}")
+
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
@@ -30,10 +54,10 @@ def create_db_and_tables():
     if not existing_tables:
         # This is a fresh install - create all tables
         Base.metadata.create_all(bind=engine)
-        print("Created fresh database and tables")
+        logger.info("Created fresh database and tables")
         is_fresh_install = True
     else:
-        print("Database tables already exist, skipping creation")
+        logger.info("Database tables already exist, skipping creation")
 
     # If this is a fresh install, set up system settings
     if is_fresh_install:
@@ -55,7 +79,7 @@ def create_db_and_tables():
                 """), {"version": "1.0.0", "hash": initial_hash})
                 
                 db.commit()
-                print(f"Initialized system settings with hash: {initial_hash[:8]}...")
+                logger.info(f"Initialized system settings with hash: {initial_hash[:8]}...")
             
                 # Initialize alembic_version table for fresh install
                 db.execute(text("DROP TABLE IF EXISTS alembic_version"))
@@ -64,13 +88,14 @@ def create_db_and_tables():
                 ))
                 db.execute(text("INSERT INTO alembic_version (version_num) VALUES ('base')"))
                 db.commit()
-                print("Initialized alembic_version table")
+                logger.info("Initialized alembic_version table")
         except Exception as e:
-            print(f"Error initializing system settings: {e}")
+            logger.error(f"Error initializing system settings: {e}")
             db.rollback()
         finally:
             db.close()
 
+# Dependency to get a database session
 def get_db():
     db = SessionLocal()
     try:

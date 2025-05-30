@@ -75,3 +75,18 @@ class SystemSettings(Base):
     last_updated = Column(Date, default=date.today)
     is_foundation = Column(Boolean, default=False)  # New column
     created_at = Column(DateTime, default=datetime.utcnow)  # New column
+
+class ExternalWishlist(Base):
+    __tablename__ = "external_wishlists"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("family_members.id"))
+    name = Column(String, nullable=False)  # e.g., "Amazon", "Etsy", etc.
+    url = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationship to owner
+    owner = relationship("FamilyMember", backref="external_wishlists")
+    
+    def __repr__(self):
+        return f"<ExternalWishlist(id={self.id}, name='{self.name}', owner_id={self.owner_id})>"

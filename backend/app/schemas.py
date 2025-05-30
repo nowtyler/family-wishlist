@@ -231,3 +231,22 @@ class AdminAccessResponse(BaseModel):
     name: str
     is_admin: bool = True
     message: str = "Admin access granted"
+
+# --- External Wishlist ---
+class ExternalWishlistBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    url: HttpUrl = Field(..., description="URL to the external wishlist")
+
+class ExternalWishlistCreate(ExternalWishlistBase):
+    pass
+
+class ExternalWishlistUpdate(BaseModel):
+    name: Optional[str] = None
+    url: Optional[HttpUrl] = None
+
+class ExternalWishlist(ExternalWishlistBase):
+    id: int
+    owner_id: int
+    
+    class Config:
+        from_attributes = True

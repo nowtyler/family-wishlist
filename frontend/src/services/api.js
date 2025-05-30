@@ -406,4 +406,21 @@ export const syncExternalWishlist = async (url, ownerId, options = {}) => {
   }
 };
 
+// --- External Wishlists ---
+export const getExternalWishlists = (ownerId) => {
+  return apiClient.get(`/members/${ownerId}/external-wishlists`);
+};
+
+export const createExternalWishlist = (ownerId, wishlistData) => {
+  return apiClient.post(`/members/${ownerId}/external-wishlists`, wishlistData);
+};
+
+export const updateExternalWishlist = (wishlistId, wishlistData) => {
+  return apiClient.put(`/external-wishlists/${wishlistId}`, wishlistData);
+};
+
+export const deleteExternalWishlist = (wishlistId) => {
+  return apiClient.delete(`/external-wishlists/${wishlistId}`);
+};
+
 export default apiClient;

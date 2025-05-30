@@ -424,3 +424,63 @@ def update_schema_hash(db: Session, new_hash: str) -> bool:
         print(f"Error updating schema hash: {e}")
         db.rollback()
         return False
+
+# --- External Wishlist CRUD ---
+def get_external_wishlists(db: Session, owner_id: int) -> List[models.ExternalWishlist]:
+    """Get all external wishlists for a specific owner"""
+    return db.query(models.ExternalWishlist).filter(models.ExternalWishlist.owner_id == owner_id).all()
+
+def create_external_wishlist(db: Session, wishlist: schemas.ExternalWishlistCreate, owner_id: int) -> models.ExternalWishlist:
+    """Create a new external wishlist link"""
+    db_wishlist = models.ExternalWishlist(
+        owner_id=owner_id,
+        name=wishlist.name,
+        url=str(wishlist.url)
+    )
+    db.add(db_wishlist)
+    db.commit()
+    db.refresh(db_wishlist)
+    return db_wishlist
+
+def get_external_wishlist(db: Session, wishlist_id: int) -> Optional[models.ExternalWishlist]:
+    """Get a specific external wishlist by ID"""
+    return db.query(models.ExternalWishlist).filter(models.ExternalWishlist.id == wishlist_id).first()
+
+def update_external_wishlist(db: Session, wishlist_id: int, wishlist_update: schemas.ExternalWishlistUpdate, current_user_id: int) -> Optional[models.ExternalWishlist]:
+    """Update an external wishlist with authorization check"""
+    db_wishlist = get_external_wishlist(db, wishlist_id)
+    if not db_wishlist:
+        return None
+    
+    # Check authorization (owner or admin)
+    user = get_family_member(db, current_user_id)
+    if not user or (user.name.lower() != 'admin' and db_wishlist.owner_id != current_user_id):
+        return None
+    
+    update_data = wishlist_update.model_dump(exclude_unset=True)
+    
+    # Convert URL to string if present
+    if 'url' in update_data and update_data['url'] is not None:
+        update_data['url'] = str(update_data['url'])
+    
+    for key, value in update_data.items():
+        setattr(db_wishlist, key, value)
+    
+    db.commit()
+    db.refresh(db_wishlist)
+    return db_wishlist
+
+def delete_external_wishlist(db: Session, wishlist_id: int, current_user_id: int) -> bool:
+    """Delete an external wishlist with authorization check"""
+    db_wishlist = get_external_wishlist(db, wishlist_id)
+    if not db_wishlist:
+        return False
+    
+    # Check authorization (owner or admin)
+    user = get_family_member(db, current_user_id)
+    if not user or (user.name.lower() != 'admin' and db_wishlist.owner_id != current_user_id):
+        return False
+    
+    db.delete(db_wishlist)
+    db.commit()
+    return True

@@ -2,9 +2,9 @@ version: '3.8'
 
 services:
   backend:
-    image: tylernow/family-wishlist:latest-backend
+    image: tylernow/family-wishlist:dev-backend
     environment:
-      - ENVIRONMENT=prod
+      - ENVIRONMENT=dev
       - DEV_DATABASE_URL=sqlite:///./data/dev-wishlist.db
       - PROD_DATABASE_URL=sqlite:///./data/wishlist.db
       - FAMILY_PASSWORD_HASH=${FAMILY_PASSWORD_HASH}
@@ -15,7 +15,7 @@ services:
       - "8000:8000"
 
   frontend:
-    image: tylernow/family-wishlist:latest-frontend
+    image: tylernow/family-wishlist:dev-frontend
     environment:
       - BACKEND_URL=http://backend:8000
     ports:
