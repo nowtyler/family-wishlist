@@ -81,6 +81,7 @@ services:
     environment:
       - ENVIRONMENT=dev # Explicitly set to 'dev'
       - BACKEND_SERVICE=dev-backend # Explicitly set the backend service name
+      - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx/conf.d # Ensure environment substitution happens
       - FAMILY_PASSWORD_HASH=${FAMILY_PASSWORD_HASH}
       - VITE_API_BASE_URL=${VITE_API_BASE_URL} # Backend API URL
       - DOMAIN_NAME=${ROOT_DOMAIN} # Domain name for the service

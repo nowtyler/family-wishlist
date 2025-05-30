@@ -10,9 +10,16 @@ else
   echo "Production environment: Using backend service"
 fi
 
+# Debug the environment variable
+echo "BACKEND_SERVICE is set to: $BACKEND_SERVICE"
+
 # Apply the environment variables to the nginx configuration
-envsubst '$BACKEND_SERVICE' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf
+envsubst '\$BACKEND_SERVICE' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf
 echo "Configured Nginx to use $BACKEND_SERVICE"
+
+# Verify the configuration
+echo "Checking generated Nginx configuration:"
+grep -n "proxy_pass" /etc/nginx/conf.d/default.conf
 
 # Execute the CMD from the Dockerfile
 exec "$@"

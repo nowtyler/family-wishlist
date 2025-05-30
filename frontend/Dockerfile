@@ -53,6 +53,9 @@ ENV BACKEND_SERVICE=backend
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
+# Make sure the entrypoint script has proper line endings
+RUN sed -i 's/\r$//' /docker-entrypoint.sh
+
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD curl -f http://localhost/health || exit 1
