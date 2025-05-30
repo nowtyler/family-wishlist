@@ -299,3 +299,21 @@ chmod +x scripts/publish-docker.sh
 # Or publish with the 'dev' tag
 ./scripts/publish-docker.sh
 ```
+
+## Development vs Production Environments
+
+This application supports separate development and production environments:
+
+### Production
+To run the production environment:
+```bash
+./run-prod.sh
+```
+This will start the application using the database at `/home/queen-bee/family-wishlist/data/wishlist.db`.
+
+### Development
+To run the development environment:
+```bash
+./run-dev.sh
+```
+This will create a copy of the application at `/home/queen-bee/dev-family-wishlist` and start the application using a separate database at `/home/queen-bee/dev-family-wishlist/data/wishlist.db`.

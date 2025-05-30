@@ -84,7 +84,6 @@ services:
     build:
       context: ./backend
     volumes:
-      - ./backend/app:/app/app
       - ./data:/app/data
     environment:
       - DATABASE_URL=sqlite:///./data/wishlist.db
@@ -92,20 +91,17 @@ services:
       - FAMILY_MEMBERS_CONFIG=${FAMILY_MEMBERS_CONFIG}
       - CHRISTMAS_MONTH=${CHRISTMAS_MONTH:-12}
       - CHRISTMAS_DAY=${CHRISTMAS_DAY:-25}
-    ports:
-      - "8000:8000"
+      - ENVIRONMENT=${ENVIRONMENT:-prod}
     restart: unless-stopped
     
   frontend:
     build:
       context: ./frontend
-    volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/public:/app/public
     ports:
-      - "5173:80"
-    environment:
-      - VITE_API_BASE_URL=/api  # Use a relative URL instead of absolute URL with Docker hostname
+      - "80:80"
     depends_on:
       - backend
+    environment:
+      - VITE_API_BASE_URL=/api
+      - ENVIRONMENT=${ENVIRONMENT:-prod}
     restart: unless-stopped

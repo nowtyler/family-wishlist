@@ -12,28 +12,19 @@ logger = logging.getLogger(__name__)
 # Get environment from env var (defaults to 'prod')
 ENVIRONMENT = os.getenv("ENVIRONMENT", "prod").lower()
 
-# Choose database based on environment
-if ENVIRONMENT == "dev":
-    SQLALCHEMY_DATABASE_URL = os.getenv("DEV_DATABASE_URL", "sqlite:///./data/dev-wishlist.db")
-    logger.info(f"Using DEVELOPMENT database: {SQLALCHEMY_DATABASE_URL}")
-else:
-    SQLALCHEMY_DATABASE_URL = os.getenv("PROD_DATABASE_URL", "sqlite:///./data/wishlist.db")
-    logger.info(f"Using PRODUCTION database: {SQLALCHEMY_DATABASE_URL}")
+# Use a single database URL from environment variable
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/wishlist.db")
 
-# Remove SQLite URL prefix for path operations
-DB_PATH = SQLALCHEMY_DATABASE_URL.replace("sqlite:///", "")
-DB_DIR = os.path.dirname(DB_PATH)
-
-# Create database directory if it doesn't exist
-if not os.path.exists(DB_DIR) and DB_DIR:
-    os.makedirs(DB_DIR)
-    logger.info(f"Created database directory: {DB_DIR}")
-
+# Create the engine with SQLite-specific parameters
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    SQLALCHEMY_DATABASE_URL, 
+    connect_args={"check_same_thread": False} if SQLALCHEMY_DATABASE_URL.startswith("sqlite") else {}
 )
+
+# Create a SessionLocal class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# Create a Base class
 Base = declarative_base()
 
 def create_db_and_tables():
