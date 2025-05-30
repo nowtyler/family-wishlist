@@ -224,7 +224,7 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
               )}
             </div>
 
-            {/* Right side with theme toggle and settings (removed external wishlists) */}
+            {/* Right side with theme toggle and settings */}
             <div className="flex items-center space-x-4">
               {selectedUser && (
                 <span className="text-gray-600 dark:text-gray-300 hidden md:inline-block">

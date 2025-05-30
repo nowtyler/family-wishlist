@@ -34,15 +34,10 @@ const AppContent = () => {
     }
   };
   
-  // Keep the function to track viewingMember for the DashboardScreen
-  const handleViewingMemberChange = (member) => {
-    // We'll use this to update the dashboard but not the navbar
-  };
-
   return (
     <Router>
       <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-100 to-sky-100 dark:from-gray-900 dark:to-gray-800">
-        {/* Remove viewingMember from Navbar props */}
+        {/* Make sure viewingMember is not passed to Navbar */}
         {isAuthenticated && selectedUser && <Navbar onClearWishlist={handleClearWishlist} />}
         <main className="flex-grow container mx-auto p-4 md:p-6 lg:p-8">
           <Routes>
@@ -56,7 +51,7 @@ const AppContent = () => {
             } />
             <Route path="/" element={
               <ProtectedRoute>
-                {selectedUser ? <DashboardScreen onViewingMemberChange={handleViewingMemberChange} /> : <Navigate to="/select-user" replace />}
+                {selectedUser ? <DashboardScreen /> : <Navigate to="/select-user" replace />}
               </ProtectedRoute>
             } />
             <Route path="*" element={

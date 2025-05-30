@@ -1,12 +1,12 @@
 // frontend/src/components/DashboardScreen.jsx
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../contexts/AppContext';
-import { getFamilyMembers, getWishlistItems, getUpcomingEvent, createWishlistItem, deleteWishlistItem, toggleThinkingAbout, markPurchased, getMigrations } from '../services/api'; // Import deleteWishlistItem and toggleThinkingAbout
+import { getFamilyMembers, getWishlistItems, getUpcomingEvent, createWishlistItem, deleteWishlistItem, toggleThinkingAbout, markPurchased, getMigrations } from '../services/api'; 
 import WishlistCard from './WishlistCard';
 import GiftReminder from './GiftReminder';
 import AddItemForm from './AddItemForm';
 import SchemaAlertModal from './SchemaAlertModal';
-import ExternalWishlistsButton from './ExternalWishlistsButton'; // Import the new component
+import ExternalWishlistsButton from './ExternalWishlistsButton'; // Confirm this import exists
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, ChevronDown, Gift, AlertTriangle } from 'lucide-react';
 
@@ -274,7 +274,7 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
           </p>
         </div>
         
-        {/* Add External Wishlists Button */}
+        {/* Make sure ExternalWishlistsButton is properly rendered */}
         {viewingMember && <ExternalWishlistsButton member={viewingMember} />}
       </div>
 

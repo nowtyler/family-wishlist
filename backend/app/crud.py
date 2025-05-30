@@ -430,7 +430,6 @@ def get_external_wishlists(db: Session, owner_id: int) -> List[models.ExternalWi
     """Get all external wishlists for a specific owner"""
     try:
         wishlists = db.query(models.ExternalWishlist).filter(models.ExternalWishlist.owner_id == owner_id).all()
-        # Ensure we return an empty list instead of None
         return wishlists if wishlists else []
     except Exception as e:
         print(f"Error fetching external wishlists: {str(e)}")
