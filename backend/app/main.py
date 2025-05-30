@@ -66,7 +66,7 @@ tags_metadata = [
 import os
 ENVIRONMENT = os.getenv("ENVIRONMENT", "prod").lower()
 IS_DEV = ENVIRONMENT == "dev"
-DATABASE_PATH = os.getenv("DATABASE_URL", "sqlite:///./data/wishlist.db")
+DATABASE_PATH = os.getenv("WISHLIST_DATABASE_URL", "sqlite:///./data/wishlist.db")
 
 # Enhanced API documentation
 app = FastAPI(
@@ -939,14 +939,19 @@ async def health_check():
         db = SessionLocal()
         db.execute("SELECT 1")
         db.close()
+        
+        # Return clearer environment information
         return {
             "status": "healthy",
             "timestamp": datetime.utcnow().isoformat(),
             "database": "connected",
             "environment": ENVIRONMENT,
-            "database_path": SQLALCHEMY_DATABASE_URL
+            "is_dev": IS_DEV,
+            "database_path": SQLALCHEMY_DATABASE_URL,
+            "version": crud.get_system_version(SessionLocal())
         }
     except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
         raise HTTPException(
             status_code=503,
             detail=f"Service unhealthy: {str(e)}"

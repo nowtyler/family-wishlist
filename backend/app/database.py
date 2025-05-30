@@ -12,8 +12,9 @@ logger = logging.getLogger(__name__)
 # Get environment from env var (defaults to 'prod')
 ENVIRONMENT = os.getenv("ENVIRONMENT", "prod").lower()
 
-# Use a single database URL from environment variable
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/wishlist.db")
+# Use the specific database URL from environment variable
+SQLALCHEMY_DATABASE_URL = os.getenv("WISHLIST_DATABASE_URL", "sqlite:///./data/wishlist.db")
+logger.info(f"Using database URL: {SQLALCHEMY_DATABASE_URL} (Environment: {ENVIRONMENT})")
 
 # Create the engine with SQLite-specific parameters
 engine = create_engine(

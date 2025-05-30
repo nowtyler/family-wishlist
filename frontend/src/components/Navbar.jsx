@@ -37,15 +37,24 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
     loadVersion();
   }, []);
 
-  // Check if we're in development environment
+  // Check if we're in development environment (improved detection)
   useEffect(() => {
     const checkEnvironment = async () => {
       try {
+        // First check if the environment is set directly in env vars
+        if (import.meta.env.IS_DEV_ENV || import.meta.env.ENVIRONMENT === 'dev') {
+          setIsDevEnvironment(true);
+          return;
+        }
+        
+        // Fallback to checking the API
         const response = await fetch('/api/health');
         const data = await response.json();
-        setIsDevEnvironment(data.environment === 'dev');
+        setIsDevEnvironment(data.environment === 'dev' || data.is_dev === true);
       } catch (err) {
         console.error('Failed to check environment:', err);
+        // Default to checking Vite environment variables as fallback
+        setIsDevEnvironment(import.meta.env.DEV === true);
       }
     };
     

@@ -2,15 +2,21 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// Load environment variables
+const environment = process.env.ENVIRONMENT || 'prod';
+const isDev = environment === 'dev';
+
+console.log(`Building for environment: ${environment}`);
+
 export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173, // Default Vite port
     host: '0.0.0.0', // Changed for Docker compatibility
     proxy: {
-      // Proxy API requests to the backend container
+      // Proxy API requests to the correct backend container based on environment
       '/api': {
-        target: 'http://backend:8000', // Changed back to backend:8000
+        target: isDev ? 'http://dev-backend:8000' : 'http://backend:8000',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path, // Remove path rewriting
@@ -26,6 +32,11 @@ export default defineConfig({
     }
   },
   build: {
-    outDir: 'dist' // Output directory for production build
+    outDir: 'dist', // Output directory for production build
+    // Pass environment variables to the client
+    define: {
+      'import.meta.env.ENVIRONMENT': JSON.stringify(environment),
+      'import.meta.env.IS_DEV_ENV': isDev
+    }
   }
 })
