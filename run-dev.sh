@@ -13,12 +13,13 @@ fi
 # This script runs the development environment with a separate database
 cd "$DEV_FOLDER"
 
-# Set the development database path
+# Set the development database path and environment variables
 export DB_PATH="$DEV_FOLDER/data"
 export ENVIRONMENT=dev
+export WISHLIST_DATABASE_URL="sqlite:///./data/wishlist.db"
 
 echo "Starting development environment..."
-docker-compose up -d
+docker-compose up -d dev-frontend dev-backend
 
 echo "Development environment started."
 echo "Access the application at http://localhost"

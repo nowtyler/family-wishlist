@@ -1,40 +1,68 @@
-# family-wishlist/docker-compose.yml
-version: '3.8'
-
+####### Wishlist Service Production #######
 services:
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: wishlist-backend
+  frontend:
+    image: tylernow/family-wishlist:latest-frontend
+    container_name: wishlist-frontend
     restart: unless-stopped
-    env_file:
-      - .env # Loads FAMILY_PASSWORD_HASH, DATABASE_URL etc.
+    depends_on:
+      - backend
     environment:
+      - ENVIRONMENT=prod # Environment type
       - FAMILY_PASSWORD_HASH=${FAMILY_PASSWORD_HASH}
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL} # Backend API URL
+      - DOMAIN_NAME=${ROOT_DOMAIN} # Domain name for the service
       - PUID=${PUID} # User ID for file permissions
       - PGID=${PGID} # Group ID for file permissions
       - TZ=${TZ} # Timezone
-      - DATABASE_URL=sqlite:///./data/wishlist.db # Path inside container is always the same
-    volumes:
-      - ${DB_PATH:-${LOCAL_APPS_PATH}family-wishlist/data}:/app/data  # Dynamic path based on environment
-      - ${DB_PATH:-${LOCAL_APPS_PATH}family-wishlist/data}/backups:/app/data/backups  # Backups directory
-      - ${DB_PATH:-${LOCAL_APPS_PATH}family-wishlist/data}/migrations:/app/app/migrations/versions
-      - ${LOCAL_APPS_PATH}family-wishlist/browser_scripts:/app/app/services/browser_scripts  # Browser scripts directory
-      # For development, you might mount the code:
-      # - ./backend/app:/app/app
     networks:
-      - backend # Internal network for app communication
-    expose: # Expose port to internal network, Traefik will handle external
-      - 8000
+      - frontend
+      - backend
     labels:
       - com.centurylinklabs.watchtower.enable=true
       - traefik.enable=true
+      - traefik.constraint=proxy-public
+#      - traefik.http.routers.open-webui.middlewares=authentik@file
+      - traefik.http.routers.wishlist-frontend.rule=Host(`wishlist.${ROOT_DOMAIN}`)
+      - traefik.http.routers.wishlist-frontend.tls=true
+      - traefik.http.routers.wishlist-frontend.entrypoints=websecure
+      - traefik.http.services.wishlist-frontend.loadbalancer.server.port=80
+      # Add a comment to explain the routing
+      # ^ This routes wishlist.domain.com to this container's port 80
+
+  backend:
+     image: tylernow/family-wishlist:latest-backend
+     container_name: wishlist-backend
+     restart: unless-stopped
+     environment:
+      - ENVIRONMENT=prod
+      - WISHLIST_DATABASE_URL=sqlite:///./data/wishlist.db # Fixed path inside container
+      - FAMILY_PASSWORD_HASH=${FAMILY_PASSWORD_HASH} # Password hash for family access
+      - DOMAIN_NAME=${ROOT_DOMAIN} # Domain name for the service
+      - PUID=${PUID} # User ID for file permissions
+      - PGID=${PGID} # Group ID for file permissions
+      - TZ=${TZ} # Timezone
+      - FAMILY_MEMBERS_CONFIG=${FAMILY_MEMBERS_CONFIG}
+      - CHRISTMAS_MONTH=${CHRISTMAS_MONTH}
+      - CHRISTMAS_DAY=${CHRISTMAS_DAY}
+     volumes:
+      - ${LOCAL_APPS_PATH}family-wishlist/data:/app/data  # Production data path
+      - ${LOCAL_APPS_PATH}family-wishlist/data/backups:/app/data/backups
+      - ${LOCAL_APPS_PATH}family-wishlist/data/migrations:/app/app/migrations/versions
+      # For development, you might mount the code:
+      # - ./backend/app:/app/app
+     networks:
+      - backend 
+     expose: # Expose port to internal network, Traefik will handle external
+      - 8000
+     labels:
+      - com.centurylinklabs.watchtower.enable=true
+      - traefik.enable=true
       # Basic routing
-      - traefik.http.routers.wishlist-backend.rule=Host(`wishlist.${DOMAIN_NAME}`) && PathPrefix(`/api`)
+      - traefik.http.routers.wishlist-backend.rule=Host(`wishlist.${ROOT_DOMAIN}`) && PathPrefix(`/api`)
       - traefik.http.routers.wishlist-backend.tls=true
       - traefik.http.routers.wishlist-backend.entrypoints=websecure
       - traefik.http.services.wishlist-backend.loadbalancer.server.port=8000
+      # ^ This routes wishlist.domain.com/api to this container's port 8000
       # Timeouts and healthcheck
       - traefik.http.middlewares.wishlist-backend-timeouts.forwardauth.trustForwardHeader=true
       - traefik.http.routers.wishlist-backend.middlewares=wishlist-backend-timeouts
@@ -42,68 +70,72 @@ services:
       # Add response timeouts
       - traefik.http.middlewares.wishlist-backend-timeouts.headers.customResponseHeaders.X-Gateway-Timeout=30
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: wishlist-frontend
+####### Wishlist Service Non-Production #######
+
+  dev-frontend:
+    image: tylernow/family-wishlist:dev-frontend
+    container_name: wishlist-dev-frontend
     restart: unless-stopped
     depends_on:
-      - backend
+      - dev-backend
     environment:
-      - VITE_API_BASE_URL=/api  # Use a relative URL instead of absolute URL with Docker hostname
-      - ENVIRONMENT=${ENVIRONMENT:-prod}
+      - FAMILY_PASSWORD_HASH=${FAMILY_PASSWORD_HASH}
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL} # Backend API URL
+      - DOMAIN_NAME=${ROOT_DOMAIN} # Domain name for the service
+      - PUID=${PUID} # User ID for file permissions
+      - PGID=${PGID} # Group ID for file permissions
+      - TZ=${TZ} # Timezone
     networks:
       - frontend
-      - backend # Internal network for app communication
-    # No explicit port exposure needed if only Traefik accesses it
-    # expose:
-    #   - "80"
-    ports:
-      - 8888:80 # For local testing, maps to host port 8888
+      - backend
     labels:
-      # Traefik labels for the frontend
       - com.centurylinklabs.watchtower.enable=true
       - traefik.enable=true
       - traefik.constraint=proxy-public
 #      - traefik.http.routers.open-webui.middlewares=authentik@file
-      - traefik.http.routers.wishlist-frontend.rule=Host(`wishlist.${DOMAIN_NAME}`)
-      - traefik.http.routers.wishlist-frontend.tls=true
-      - traefik.http.routers.wishlist-frontend.entrypoints=websecure
-      - traefik.http.services.wishlist-frontend.loadbalancer.server.port=80
+      - traefik.http.routers.dev-wishlist-frontend.rule=Host(`dev-wishlist.${ROOT_DOMAIN}`)
+      - traefik.http.routers.dev-wishlist-frontend.tls=true
+      - traefik.http.routers.dev-wishlist-frontend.entrypoints=websecure
+      - traefik.http.services.dev-wishlist-frontend.loadbalancer.server.port=80
+      # ^ This routes dev-wishlist.domain.com to this container's port 80
 
-networks:
-  frontend:
-    external: true # Assumes 'frontend' network already exists from your Traefik setup
-  backend:
-    external: true  # This ensures backend network is only accessible internally
-
-# Development Docker Compose configuration
-version: '3.8'
-
-services:
-  backend:
-    build:
-      context: ./backend
-    volumes:
-      - ./data:/app/data
-    environment:
-      - DATABASE_URL=sqlite:///./data/wishlist.db
-      - FAMILY_PASSWORD_HASH=${FAMILY_PASSWORD_HASH}
+  dev-backend:
+     image: tylernow/family-wishlist:dev-backend
+     container_name: wishlist-dev-backend
+     restart: unless-stopped
+     environment:
+      - ENVIRONMENT=dev
+      - WISHLIST_DATABASE_URL=sqlite:///./data/wishlist.db # Fixed path inside container
+      - FAMILY_PASSWORD_HASH=${FAMILY_PASSWORD_HASH} # Password hash for family access
+      - DOMAIN_NAME=${ROOT_DOMAIN} # Domain name for the service
+      - PUID=${PUID} # User ID for file permissions
+      - PGID=${PGID} # Group ID for file permissions
+      - TZ=${TZ} # Timezone
       - FAMILY_MEMBERS_CONFIG=${FAMILY_MEMBERS_CONFIG}
-      - CHRISTMAS_MONTH=${CHRISTMAS_MONTH:-12}
-      - CHRISTMAS_DAY=${CHRISTMAS_DAY:-25}
-      - ENVIRONMENT=${ENVIRONMENT:-prod}
-    restart: unless-stopped
-    
-  frontend:
-    build:
-      context: ./frontend
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
-    environment:
-      - VITE_API_BASE_URL=/api
-      - ENVIRONMENT=${ENVIRONMENT:-prod}
-    restart: unless-stopped
+      - CHRISTMAS_MONTH=${CHRISTMAS_MONTH}
+      - CHRISTMAS_DAY=${CHRISTMAS_DAY}
+     volumes:
+      - ${LOCAL_APPS_PATH}dev-family-wishlist/data:/app/data  # Development data path
+      - ${LOCAL_APPS_PATH}dev-family-wishlist/data/backups:/app/data/backups
+      - ${LOCAL_APPS_PATH}dev-family-wishlist/data/migrations:/app/app/migrations/versions
+      # For development, you might mount the code:
+      # - ./backend/app:/app/app
+     networks:
+      - backend 
+     expose: # Expose port to internal network, Traefik will handle external
+      - 8000
+     labels:
+      - com.centurylinklabs.watchtower.enable=true
+      - traefik.enable=true
+      # Basic routing
+      - traefik.http.routers.dev-wishlist-backend.rule=Host(`dev-wishlist.${ROOT_DOMAIN}`) && PathPrefix(`/api`)
+      - traefik.http.routers.dev-wishlist-backend.tls=true
+      - traefik.http.routers.dev-wishlist-backend.entrypoints=websecure
+      - traefik.http.services.dev-wishlist-backend.loadbalancer.server.port=8000
+      # ^ This routes dev-wishlist.domain.com/api to this container's port 8000
+      # Timeouts and healthcheck
+      - traefik.http.middlewares.dev-wishlist-backend-timeouts.forwardauth.trustForwardHeader=true
+      - traefik.http.routers.dev-wishlist-backend.middlewares=dev-wishlist-backend-timeouts
+      - traefik.http.middlewares.dev-wishlist-backend-timeouts.headers.customRequestHeaders.X-Forwarded-Proto=https
+      # Add response timeouts
+      - traefik.http.middlewares.dev-wishlist-backend-timeouts.headers.customResponseHeaders.X-Gateway-Timeout=30

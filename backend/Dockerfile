@@ -18,6 +18,7 @@ ENV PYTHONUNBUFFERED=1
 
 # Set default environment (will be overridden by docker-compose)
 ENV ENVIRONMENT=prod
+ENV WISHLIST_DATABASE_URL=sqlite:///./data/wishlist.db
 
 # Expose the port the app runs on
 EXPOSE 8000

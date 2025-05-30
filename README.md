@@ -317,3 +317,32 @@ To run the development environment:
 ./run-dev.sh
 ```
 This will create a copy of the application at `/home/queen-bee/dev-family-wishlist` and start the application using a separate database at `/home/queen-bee/dev-family-wishlist/data/wishlist.db`.
+
+## Using Docker Compose for Separate Environments
+
+You can run both production and development environments side-by-side using the provided Docker Compose file:
+
+```bash
+# Clone the repository or download the docker-compose file
+curl -O https://raw.githubusercontent.com/username/family-wishlist/main/docker-compose.example.yml
+mv docker-compose.example.yml docker-compose.yml
+
+# Create directories for production and development data
+mkdir -p prod-data dev-data
+
+# Start both environments
+docker-compose up -d
+
+# Access production environment at http://localhost:8080
+# Access development environment at http://localhost:8081
+```
+
+### Environment Separation
+
+The production and development environments use:
+- Different container names
+- Different data directories
+- Different ports
+- Different networks
+
+This ensures complete separation between environments, allowing you to test new features in development without affecting your production data.

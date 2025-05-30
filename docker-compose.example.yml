@@ -1,0 +1,64 @@
+version: '3.8'
+
+####### Production Environment #######
+services:
+  wishlist-frontend:
+    image: tylernow/family-wishlist:latest-frontend
+    container_name: wishlist-frontend
+    restart: unless-stopped
+    depends_on:
+      - wishlist-backend
+    environment:
+      - ENVIRONMENT=prod
+      - VITE_API_BASE_URL=/api
+    ports:
+      - "8080:80"  # Map to port 8080 for production
+    networks:
+      - wishlist-network
+
+  wishlist-backend:
+    image: tylernow/family-wishlist:latest-backend
+    container_name: wishlist-backend
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=prod
+      - WISHLIST_DATABASE_URL=sqlite:///./data/wishlist.db
+      - FAMILY_PASSWORD_HASH=${FAMILY_PASSWORD_HASH:-'$2b$12$sjqGfxMxVrY6VOrrblg54OsTq.HkhGMwPOQqeF5Tq6Wn2/QA3c5Oa'}
+      - FAMILY_MEMBERS_CONFIG=${FAMILY_MEMBERS_CONFIG:-"Admin:admin"}
+    volumes:
+      - ./prod-data:/app/data  # Store production data in ./prod-data
+    networks:
+      - wishlist-network
+
+####### Development Environment #######
+  dev-wishlist-frontend:
+    image: tylernow/family-wishlist:dev-frontend
+    container_name: dev-wishlist-frontend
+    restart: unless-stopped
+    depends_on:
+      - dev-wishlist-backend
+    environment:
+      - ENVIRONMENT=dev
+      - VITE_API_BASE_URL=/api
+    ports:
+      - "8081:80"  # Map to port 8081 for development
+    networks:
+      - dev-wishlist-network
+
+  dev-wishlist-backend:
+    image: tylernow/family-wishlist:dev-backend
+    container_name: dev-wishlist-backend
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=dev
+      - WISHLIST_DATABASE_URL=sqlite:///./data/wishlist.db
+      - FAMILY_PASSWORD_HASH=${FAMILY_PASSWORD_HASH:-'$2b$12$sjqGfxMxVrY6VOrrblg54OsTq.HkhGMwPOQqeF5Tq6Wn2/QA3c5Oa'}
+      - FAMILY_MEMBERS_CONFIG=${FAMILY_MEMBERS_CONFIG:-"Admin:admin"}
+    volumes:
+      - ./dev-data:/app/data  # Store development data in ./dev-data
+    networks:
+      - dev-wishlist-network
+
+networks:
+  wishlist-network:
+  dev-wishlist-network:
