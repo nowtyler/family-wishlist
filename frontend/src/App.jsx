@@ -7,6 +7,7 @@ import AuthScreen from './components/AuthScreen';
 import UserSelectionScreen from './components/UserSelectionScreen';
 import DashboardScreen from './components/DashboardScreen';
 import Navbar from './components/Navbar';
+import { logEnvironmentVariables } from './debug-env';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, selectedUser } = useAppContext();
@@ -66,12 +67,17 @@ const AppContent = () => {
   );
 };
 
-const App = () => (
-  <AppProvider>
-    <ThemeProvider>
-      <AppContent />
-    </ThemeProvider>
-  </AppProvider>
-);
+const App = () => {
+  // Log environment variables on app start
+  logEnvironmentVariables();
+  
+  return (
+    <AppProvider>
+      <ThemeProvider>
+        <AppContent />
+      </ThemeProvider>
+    </AppProvider>
+  );
+};
 
 export default App;

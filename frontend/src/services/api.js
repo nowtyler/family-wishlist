@@ -1,12 +1,13 @@
 // frontend/src/services/api.js
 import axios from 'axios';
 
-// Fix the API base URL handling - use relative URL instead of absolute with Docker hostname
+// Fix the API base URL handling - use relative URL instead of absolute URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
-// Add debugging for API client creation
+// Add clearer debugging for API client creation
 console.log('Environment:', import.meta.env.MODE);
-console.log('API Base URL:', API_BASE_URL);
+console.log('API Base URL from env:', import.meta.env.VITE_API_BASE_URL);
+console.log('API Base URL used:', API_BASE_URL);
 
 const apiClient = axios.create({
     baseURL: API_BASE_URL,
@@ -21,13 +22,19 @@ const apiClient = axios.create({
     },
 });
 
-// Add more debug information to see what's happening
+// Improve the request logging to clarify what's happening
 apiClient.interceptors.request.use(
     (config) => {
+        // Show the actual full URL that will be requested (with baseURL resolved)
+        const fullUrl = config.baseURL.endsWith('/') && config.url.startsWith('/') 
+            ? `${config.baseURL}${config.url.substring(1)}` 
+            : `${config.baseURL}${config.url}`;
+            
         console.log('API Request:', {
             method: config.method?.toUpperCase(),
             url: config.url,
-            fullUrl: config.baseURL + config.url,
+            resolvedUrl: fullUrl, // Changed to be more descriptive
+            baseURL: config.baseURL, // Show the base URL separately
             headers: config.headers
         });
         return config;
