@@ -79,7 +79,8 @@ services:
     depends_on:
       - dev-backend
     environment:
-      - ENVIRONMENT=dev # Explicitly set to 'dev' (was missing)
+      - ENVIRONMENT=dev # Explicitly set to 'dev'
+      - BACKEND_SERVICE=dev-backend # Explicitly set the backend service name
       - FAMILY_PASSWORD_HASH=${FAMILY_PASSWORD_HASH}
       - VITE_API_BASE_URL=${VITE_API_BASE_URL} # Backend API URL
       - DOMAIN_NAME=${ROOT_DOMAIN} # Domain name for the service
