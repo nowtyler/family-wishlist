@@ -8,7 +8,6 @@ import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems,
          getFamilyMembers, clearAllWishlists, getAdminAccess } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import MigrationModal from './admin/MigrationModal';
-import ExternalWishlistsDropdown from './ExternalWishlistsDropdown';
 
 const Navbar = ({ onClearWishlist, viewingMember }) => {
   const { selectedUser, logout, setSelectedUser, setFamilyMembers } = useAppContext();
@@ -225,17 +224,12 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
               )}
             </div>
 
-            {/* Right side with theme toggle, external wishlists, and settings */}
+            {/* Right side with theme toggle and settings (removed external wishlists) */}
             <div className="flex items-center space-x-4">
               {selectedUser && (
                 <span className="text-gray-600 dark:text-gray-300 hidden md:inline-block">
                   Viewing as: <strong className="text-gray-800 dark:text-white">{selectedUser.name}</strong>
                 </span>
-              )}
-              
-              {/* Add External Wishlists dropdown */}
-              {selectedUser && viewingMember && (
-                <ExternalWishlistsDropdown member={viewingMember} />
               )}
               
               <button

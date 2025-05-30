@@ -1,0 +1,361 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Link2, ExternalLink, Plus, Edit2, Trash2, Check, X } from 'lucide-react';
+import { useAppContext } from '../contexts/AppContext';
+import { getExternalWishlists, createExternalWishlist, updateExternalWishlist, deleteExternalWishlist } from '../services/api';
+
+const ExternalWishlistsButton = ({ member }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [wishlists, setWishlists] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [formData, setFormData] = useState({ name: '', url: '' });
+  const [error, setError] = useState('');
+  const [showConfirmDelete, setShowConfirmDelete] = useState(null);
+  const { selectedUser } = useAppContext();
+  const modalRef = useRef(null);
+  
+  const isAdmin = selectedUser?.name?.toLowerCase() === 'admin';
+  const canEdit = isAdmin || selectedUser?.id === member.id;
+  
+  // Close modal when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (modalRef.current && !modalRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+  
+  // Fetch external wishlists when modal is opened
+  useEffect(() => {
+    if (isOpen && member?.id) {
+      fetchWishlists();
+    }
+  }, [isOpen, member?.id]);
+  
+  const fetchWishlists = async () => {
+    if (!member?.id) return;
+    
+    setIsLoading(true);
+    setError('');
+    
+    try {
+      const response = await getExternalWishlists(member.id);
+      // Ensure we have an array even if the API returns null or undefined
+      setWishlists(Array.isArray(response.data) ? response.data : []);
+    } catch (err) {
+      console.error('Failed to fetch external wishlists:', err);
+      setError('Failed to load external wishlists');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const handleAddNew = async () => {
+    if (!formData.name.trim() || !formData.url.trim()) {
+      setError('Both name and URL are required');
+      return;
+    }
+    
+    // Add http:// if missing
+    let url = formData.url;
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = `https://${url}`;
+    }
+    
+    setIsLoading(true);
+    setError('');
+    
+    try {
+      await createExternalWishlist(member.id, { 
+        name: formData.name.trim(), 
+        url 
+      });
+      await fetchWishlists();
+      setFormData({ name: '', url: '' });
+      setIsAddingNew(false);
+    } catch (err) {
+      console.error('Failed to add external wishlist:', err);
+      setError(err.response?.data?.detail || 'Failed to add wishlist');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const handleUpdate = async (id) => {
+    if (!formData.name.trim() || !formData.url.trim()) {
+      setError('Both name and URL are required');
+      return;
+    }
+    
+    // Add http:// if missing
+    let url = formData.url;
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = `https://${url}`;
+    }
+    
+    setIsLoading(true);
+    setError('');
+    
+    try {
+      await updateExternalWishlist(id, { 
+        name: formData.name.trim(), 
+        url 
+      });
+      await fetchWishlists();
+      setEditingId(null);
+    } catch (err) {
+      console.error('Failed to update external wishlist:', err);
+      setError(err.response?.data?.detail || 'Failed to update wishlist');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const handleDelete = async (id) => {
+    setIsLoading(true);
+    setError('');
+    
+    try {
+      await deleteExternalWishlist(id);
+      await fetchWishlists();
+      setShowConfirmDelete(null);
+    } catch (err) {
+      console.error('Failed to delete external wishlist:', err);
+      setError(err.response?.data?.detail || 'Failed to delete wishlist');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const startEdit = (wishlist) => {
+    setFormData({ name: wishlist.name, url: wishlist.url });
+    setEditingId(wishlist.id);
+    setError('');
+  };
+  
+  const cancelEdit = () => {
+    setEditingId(null);
+    setIsAddingNew(false);
+    setFormData({ name: '', url: '' });
+    setError('');
+  };
+  
+  return (
+    <>
+      <button
+        onClick={() => setIsOpen(true)}
+        className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm transition-colors"
+        title="External Wishlists"
+      >
+        <Link2 size={18} className="text-primary dark:text-primary-400" />
+        <span className="text-gray-700 dark:text-gray-300">External Wishlists</span>
+      </button>
+      
+      <AnimatePresence>
+        {isOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <motion.div
+              ref={modalRef}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto"
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200">
+                    {member.name}'s External Wishlists
+                  </h3>
+                  <button
+                    onClick={() => setIsOpen(false)}
+                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+                
+                {isLoading && (
+                  <div className="py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                  </div>
+                )}
+                
+                {error && (
+                  <div className="text-red-500 text-sm p-2 bg-red-50 dark:bg-red-900/20 rounded-md mb-4">
+                    {error}
+                  </div>
+                )}
+                
+                {canEdit && !isAddingNew && !editingId && (
+                  <button
+                    onClick={() => {
+                      setIsAddingNew(true);
+                      setFormData({ name: '', url: '' });
+                    }}
+                    className="w-full flex items-center justify-center gap-2 p-3 mb-4 border border-dashed border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 transition-colors"
+                  >
+                    <Plus size={16} />
+                    <span>Add External Wishlist</span>
+                  </button>
+                )}
+                
+                {/* Add New Form */}
+                {isAddingNew && canEdit && (
+                  <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-md mb-4 bg-gray-50 dark:bg-gray-700/50">
+                    <h4 className="font-medium text-sm mb-2 text-gray-700 dark:text-gray-300">Add External Wishlist</h4>
+                    <div className="space-y-2 mb-3">
+                      <input
+                        type="text"
+                        value={formData.name}
+                        onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Name (e.g., Amazon, Etsy)"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                      <input
+                        type="url"
+                        value={formData.url}
+                        onChange={(e) => setFormData(prev => ({ ...prev, url: e.target.value }))}
+                        placeholder="URL (e.g., https://amazon.com/...)"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={cancelEdit}
+                        className="px-3 py-1 text-sm text-gray-600 dark:text-gray-400"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleAddNew}
+                        disabled={isLoading}
+                        className="px-3 py-1 text-sm text-white bg-primary hover:bg-primary-dark rounded-md"
+                      >
+                        Add Wishlist
+                      </button>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Wishlist List */}
+                {!isLoading && (!wishlists || wishlists.length === 0) ? (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    <span>No external wishlists {canEdit ? 'added yet.' : 'found.'}</span>
+                  </div>
+                ) : (
+                  <div className="space-y-3 mt-4">
+                    {Array.isArray(wishlists) && wishlists.map(wishlist => (
+                      <div 
+                        key={wishlist.id}
+                        className="border border-gray-200 dark:border-gray-700 rounded-md p-3"
+                      >
+                        {editingId === wishlist.id ? (
+                          <div className="space-y-3">
+                            <input
+                              type="text"
+                              value={formData.name}
+                              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"
+                            />
+                            <input
+                              type="url"
+                              value={formData.url}
+                              onChange={(e) => setFormData(prev => ({ ...prev, url: e.target.value }))}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"
+                            />
+                            <div className="flex justify-end gap-2">
+                              <button
+                                onClick={cancelEdit}
+                                className="p-1 text-gray-500 hover:text-gray-700"
+                                title="Cancel"
+                              >
+                                <X size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleUpdate(wishlist.id)}
+                                className="p-1 text-green-500 hover:text-green-700"
+                                title="Save"
+                              >
+                                <Check size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        ) : showConfirmDelete === wishlist.id ? (
+                          <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded-md">
+                            <p className="text-sm text-red-600 dark:text-red-400 mb-3">
+                              Are you sure you want to delete this wishlist?
+                            </p>
+                            <div className="flex justify-end gap-2">
+                              <button
+                                onClick={() => setShowConfirmDelete(null)}
+                                className="px-2 py-1 text-sm text-gray-600 dark:text-gray-400"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={() => handleDelete(wishlist.id)}
+                                className="px-2 py-1 text-sm text-white bg-red-500 hover:bg-red-600 rounded-md"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="flex justify-between items-start">
+                              <span className="font-medium text-gray-800 dark:text-gray-200">
+                                {wishlist.name}
+                              </span>
+                              <div className="flex items-center space-x-1 ml-2">
+                                {canEdit && (
+                                  <>
+                                    <button
+                                      onClick={() => startEdit(wishlist)}
+                                      className="p-1 text-gray-500 hover:text-gray-700"
+                                      title="Edit"
+                                    >
+                                      <Edit2 size={16} />
+                                    </button>
+                                    <button
+                                      onClick={() => setShowConfirmDelete(wishlist.id)}
+                                      className="p-1 text-red-500 hover:text-red-700"
+                                      title="Delete"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            <a 
+                              href={wishlist.url} 
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center mt-2 text-sm text-blue-500 hover:text-blue-700"
+                            >
+                              <span className="truncate">{wishlist.url}</span>
+                              <ExternalLink size={14} className="ml-1 flex-shrink-0" />
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+};
+
+export default ExternalWishlistsButton;

@@ -428,7 +428,13 @@ def update_schema_hash(db: Session, new_hash: str) -> bool:
 # --- External Wishlist CRUD ---
 def get_external_wishlists(db: Session, owner_id: int) -> List[models.ExternalWishlist]:
     """Get all external wishlists for a specific owner"""
-    return db.query(models.ExternalWishlist).filter(models.ExternalWishlist.owner_id == owner_id).all()
+    try:
+        wishlists = db.query(models.ExternalWishlist).filter(models.ExternalWishlist.owner_id == owner_id).all()
+        # Ensure we return an empty list instead of None
+        return wishlists if wishlists else []
+    except Exception as e:
+        print(f"Error fetching external wishlists: {str(e)}")
+        return []  # Always return a list even on error
 
 def create_external_wishlist(db: Session, wishlist: schemas.ExternalWishlistCreate, owner_id: int) -> models.ExternalWishlist:
     """Create a new external wishlist link"""

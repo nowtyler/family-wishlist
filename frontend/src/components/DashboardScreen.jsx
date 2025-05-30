@@ -6,6 +6,7 @@ import WishlistCard from './WishlistCard';
 import GiftReminder from './GiftReminder';
 import AddItemForm from './AddItemForm';
 import SchemaAlertModal from './SchemaAlertModal';
+import ExternalWishlistsButton from './ExternalWishlistsButton'; // Import the new component
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, ChevronDown, Gift, AlertTriangle } from 'lucide-react';
 
@@ -272,6 +273,9 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
             see what others are hoping for!
           </p>
         </div>
+        
+        {/* Add External Wishlists Button */}
+        {viewingMember && <ExternalWishlistsButton member={viewingMember} />}
       </div>
 
       {error && <p className="text-red-500 bg-red-100 p-3 rounded-md text-center">{error}</p>}
