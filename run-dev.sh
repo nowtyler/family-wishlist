@@ -13,9 +13,13 @@ fi
 # This script runs the development environment with a separate database
 cd "$DEV_FOLDER"
 
+# Set the development database path
+export DB_PATH="$DEV_FOLDER/data"
+export ENVIRONMENT=dev
+
 echo "Starting development environment..."
-ENVIRONMENT=dev docker-compose up -d
+docker-compose up -d
 
 echo "Development environment started."
 echo "Access the application at http://localhost"
-echo "The development database is at $DEV_FOLDER/data/wishlist.db"
+echo "The development database is at ${DB_PATH}/wishlist.db"

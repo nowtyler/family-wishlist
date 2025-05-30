@@ -66,6 +66,7 @@ tags_metadata = [
 import os
 ENVIRONMENT = os.getenv("ENVIRONMENT", "prod").lower()
 IS_DEV = ENVIRONMENT == "dev"
+DATABASE_PATH = os.getenv("DATABASE_URL", "sqlite:///./data/wishlist.db")
 
 # Enhanced API documentation
 app = FastAPI(
@@ -76,7 +77,7 @@ app = FastAPI(
     * Mark items as "thinking about" or "purchased"
     * Add comments on wishlist items
     * Track upcoming events and gift reminders
-    """ + (f"\n\n**DEVELOPMENT ENVIRONMENT**" if IS_DEV else ""),
+    """ + (f"\n\n**DEVELOPMENT ENVIRONMENT** - Using database: {DATABASE_PATH}" if IS_DEV else ""),
     version="1.0.0",
     openapi_tags=tags_metadata,
     contact={
