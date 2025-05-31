@@ -1,7 +1,7 @@
 // AddItemForm.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { fetchProductDetailsFromUrl } from '../services/api';
+import { fetchProductDetailsFromUrl, getWishlistItems } from '../services/api';
 import { X, Link, Loader, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
 
 // Add priority mapping
@@ -27,6 +27,45 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
   const [isImporting, setIsImporting] = useState(false);
   const [importSuccess, setImportSuccess] = useState(false);
   const [showAdvancedFields, setShowAdvancedFields] = useState(false);
+  const [existingItems, setExistingItems] = useState([]);
+  const [isFetchingItems, setIsFetchingItems] = useState(false);
+  const [isDuplicateTitle, setIsDuplicateTitle] = useState(false);
+
+  // Fetch existing items to check for duplicate titles
+  useEffect(() => {
+    const fetchExistingItems = async () => {
+      if (!wishlistId) return;
+      
+      try {
+        setIsFetchingItems(true);
+        const response = await getWishlistItems(wishlistId);
+        if (response && response.data) {
+          setExistingItems(response.data);
+        }
+      } catch (err) {
+        console.error('Error fetching existing items:', err);
+      } finally {
+        setIsFetchingItems(false);
+      }
+    };
+
+    fetchExistingItems();
+  }, [wishlistId]);
+
+  // Check for duplicate titles when form data changes
+  useEffect(() => {
+    if (!formData.title.trim()) {
+      setIsDuplicateTitle(false);
+      return;
+    }
+
+    const normalizedTitle = formData.title.trim().toLowerCase();
+    const isDuplicate = existingItems.some(item => 
+      item.title.toLowerCase() === normalizedTitle
+    );
+    
+    setIsDuplicateTitle(isDuplicate);
+  }, [formData.title, existingItems]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -35,6 +74,12 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
     // Basic validation
     if (!formData.title?.trim()) {
       setError('Title is required');
+      return;
+    }
+
+    // Check for duplicate titles before submitting
+    if (isDuplicateTitle) {
+      setError('An item with this title already exists in your wishlist');
       return;
     }
 
@@ -217,10 +262,15 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
           <input
             type="text"
             required
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            className={`w-full px-4 py-2 border ${isDuplicateTitle ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'} rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100`}
             value={formData.title}
             onChange={(e) => setFormData({ ...formData, title: e.target.value })}
           />
+          {isDuplicateTitle && (
+            <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+              An item with this title already exists in your wishlist
+            </p>
+          )}
         </div>
 
         <div>
@@ -336,7 +386,8 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
           </div>
         )}
 
-        <div className="flex justify-end space-x-3 pt-4 border-t border-gray-300 dark:border-gray-600">
+        {/* Fixed button placement */}
+        <div className="sticky bottom-0 flex justify-end space-x-3 pt-4 border-t border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 pb-2">
           <button
             type="button"
             onClick={onClose}
@@ -346,7 +397,12 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
           </button>
           <button
             type="submit"
-            className="px-4 py-2 text-sm font-medium text-white bg-primary dark:bg-primary-600 border border-transparent rounded-md hover:bg-primary-dark dark:hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:focus:ring-offset-gray-800"
+            disabled={isDuplicateTitle}
+            className={`px-4 py-2 text-sm font-medium text-white border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:focus:ring-offset-gray-800 ${
+              isDuplicateTitle 
+                ? 'bg-gray-400 cursor-not-allowed' 
+                : 'bg-primary dark:bg-primary-600 hover:bg-primary-dark dark:hover:bg-primary-700'
+            }`}
           >
             Add Item
           </button>

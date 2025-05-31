@@ -385,16 +385,14 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 overflow-y-auto"
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 overflow-y-auto z-50"
             style={{
               position: 'fixed',
               top: 0,
               left: 0,
               right: 0,
               bottom: 0,
-              zIndex: 0,
-              minHeight: '100vh',
-              minWidth: '100vw'
+              zIndex: 50,
             }}
             onClick={handleCloseAddItemForm} // Close on backdrop click
           >
@@ -402,7 +400,7 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="relative w-full max-w-2xl mx-auto my-8"
+              className="relative w-full max-w-2xl mx-auto my-8 max-h-[90vh] overflow-y-auto"
               onClick={e => e.stopPropagation()} // Prevent closing when clicking the form
             >
               <AddItemForm
