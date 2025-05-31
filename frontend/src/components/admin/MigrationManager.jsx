@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getMigrations, upgradeMigration, createBackup, getBackups, restoreBackup, deleteBackup, getSchemaHash, deleteMigration, resetMigrationState, hardResetMigrations } from '../../services/api';
 import { AlertCircle, Database, Archive, Download, RotateCcw, Plus, Trash2, ArrowUp, X, GitMerge, AlertTriangle } from 'lucide-react';
 
-const MigrationManager = () => {
+const MigrationManager = ({ setProcessingStatus = () => {} }) => {
     const [migrations, setMigrations] = useState([]);
     const [currentVersion, setCurrentVersion] = useState('');
     const [loading, setLoading] = useState(false);
@@ -11,9 +11,12 @@ const MigrationManager = () => {
     const [backupLoading, setBackupLoading] = useState(false);
     const [backupError, setBackupError] = useState('');
     const [dbVersion, setDbVersion] = useState('current');
+    const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(null);
+    const [deleteBackupFilename, setDeleteBackupFilename] = useState(null);
 
     const fetchMigrations = async () => {
         try {
+            setProcessingStatus(true);
             setLoading(true);
             setError('');
             const migrationsResponse = await getMigrations();
@@ -42,21 +45,26 @@ const MigrationManager = () => {
             setError('Failed to fetch migrations');
         } finally {
             setLoading(false);
+            setProcessingStatus(false);
         }
     };
 
+    // Update the existing handleUpgrade function
     const handleUpgrade = async () => {
         try {
+            setProcessingStatus(true);
             setLoading(true);
             setError('');
-            const response = await upgradeMigration("head"); // Always upgrade to head
+            const response = await upgradeMigration("head");
             if (response.data.success) {
                 setCurrentVersion(response.data.new_version);
                 setError('');
                 await fetchMigrations();
-                await fetchBackups(); // Refresh backups too since we just created one
+                await fetchBackups();
+                alert("Database upgraded successfully!");
             } else {
                 setError(response.data.message || 'Upgrade failed');
+                alert("Upgrade failed: " + (response.data.message || 'Unknown error'));
             }
         } catch (err) {
             console.error('Migration upgrade error:', err);
@@ -67,6 +75,7 @@ const MigrationManager = () => {
                                err.message || 
                                'Failed to upgrade database';
             setError(`Upgrade failed: ${errorDetail}`);
+            alert(`Upgrade failed: ${errorDetail}`);
             
             // If the error might be related to missing traceback, show a hint
             if (errorDetail.includes("name 'traceback' is not defined")) {
@@ -75,35 +84,79 @@ const MigrationManager = () => {
             }
         } finally {
             setLoading(false);
+            setProcessingStatus(false);
         }
     };
 
     const fetchBackups = async () => {
         try {
+            setProcessingStatus(true);
             const response = await getBackups();
             setBackups(response.data.backups || []);
         } catch (err) {
             setBackupError(err.response?.data?.detail || err.message || 'Failed to fetch backups');
             console.error('Backup fetch error:', err);
+        } finally {
+            setProcessingStatus(false);
         }
     };
 
     useEffect(() => {
-        fetchMigrations();
-        fetchBackups();
+        const init = async () => {
+            setProcessingStatus(true);
+            await fetchMigrations();
+            await fetchBackups();
+            setProcessingStatus(false);
+        };
+        init();
         // Remove schema polling
     }, []);
 
     const handleCreateBackup = async () => {
         try {
+            setProcessingStatus(true);
             setBackupLoading(true);
             setBackupError('');
             await createBackup();
             await fetchBackups();
+            alert("Backup created successfully!");
         } catch (err) {
             setBackupError(err.response?.data?.detail || err.message || 'Failed to create backup');
+            alert("Failed to create backup: " + (err.response?.data?.detail || err.message || 'Unknown error'));
         } finally {
             setBackupLoading(false);
+            setProcessingStatus(false);
+        }
+    };
+
+    const handleDeleteBackupConfirm = (filename) => {
+        setDeleteBackupFilename(filename);
+        setShowDeleteConfirmation(true);
+    };
+
+    const handleDeleteBackupCancel = () => {
+        setDeleteBackupFilename(null);
+        setShowDeleteConfirmation(false);
+    };
+
+    const handleDeleteBackupConfirmed = async () => {
+        if (!deleteBackupFilename) return;
+        
+        try {
+            setProcessingStatus(true);
+            setBackupLoading(true);
+            setBackupError('');
+            const result = await deleteBackup(deleteBackupFilename);
+            await fetchBackups();
+            alert("Backup deleted successfully!");
+        } catch (err) {
+            setBackupError(err.response?.data?.detail || err.message || 'Failed to delete backup');
+            alert("Failed to delete backup: " + (err.response?.data?.detail || err.message || 'Unknown error'));
+        } finally {
+            setBackupLoading(false);
+            setDeleteBackupFilename(null);
+            setShowDeleteConfirmation(false);
+            setProcessingStatus(false);
         }
     };
 
@@ -113,6 +166,7 @@ const MigrationManager = () => {
         }
 
         try {
+            setProcessingStatus(true);
             setBackupLoading(true);
             setBackupError('');
             const response = await restoreBackup(filename);
@@ -128,28 +182,14 @@ const MigrationManager = () => {
                 await fetchBackups();
             } else {
                 setBackupError(response.data.message);
+                alert("Restore failed: " + response.data.message);
             }
         } catch (err) {
             setBackupError(err.response?.data?.detail || err.message || 'Failed to restore backup');
+            alert("Failed to restore backup: " + (err.response?.data?.detail || err.message || 'Unknown error'));
         } finally {
             setBackupLoading(false);
-        }
-    };
-
-    const handleDeleteBackup = async (filename) => {
-        if (!confirm('Are you sure you want to delete this backup? This action cannot be undone.')) {
-            return;
-        }
-
-        try {
-            setBackupLoading(true);
-            setBackupError('');
-            await deleteBackup(filename);
-            await fetchBackups();
-        } catch (err) {
-            setBackupError(err.response?.data?.detail || err.message || 'Failed to delete backup');
-        } finally {
-            setBackupLoading(false);
+            setProcessingStatus(false);
         }
     };
 
@@ -158,13 +198,17 @@ const MigrationManager = () => {
             if (!confirm('Are you sure you want to delete this migration?')) {
                 return;
             }
+            setProcessingStatus(true);
             setLoading(true);
             await deleteMigration(version);
             await fetchMigrations();
+            alert("Migration deleted successfully!");
         } catch (err) {
             setError('Failed to delete migration');
+            alert("Failed to delete migration: " + (err.response?.data?.detail || err.message || 'Unknown error'));
         } finally {
             setLoading(false);
+            setProcessingStatus(false);
         }
     };
 
@@ -174,6 +218,7 @@ const MigrationManager = () => {
         }
         
         try {
+            setProcessingStatus(true);
             setLoading(true);
             setError('');
             const response = await hardResetMigrations();
@@ -185,12 +230,15 @@ const MigrationManager = () => {
                 await fetchBackups();
             } else {
                 setError(response.data.message || 'Hard reset failed');
+                alert("Hard reset failed: " + (response.data.message || 'Unknown error'));
             }
         } catch (err) {
             console.error('Migration hard reset error:', err);
             setError(`Hard reset failed: ${err.response?.data?.detail || err.message}`);
+            alert(`Hard reset failed: ${err.response?.data?.detail || err.message || 'Unknown error'}`);
         } finally {
             setLoading(false);
+            setProcessingStatus(false);
         }
     };
 
@@ -302,9 +350,9 @@ const MigrationManager = () => {
                 </div>
             </div>
 
-            {/* Backups Section */}
+            {/* Backups Section - Improved mobile layout */}
             <div className="border-t pt-8">
-                <div className="flex justify-between items-center mb-4">
+                <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
                     <h3 className="text-lg font-semibold flex items-center gap-2">
                         <Archive className="text-gray-500" size={20} />
                         Database Backups
@@ -331,46 +379,47 @@ const MigrationManager = () => {
                             key={backup.filename}
                             className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
                         >
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <div className="font-mono text-sm">{backup.filename}</div>
-                                    <div className="text-xs text-gray-500 space-x-2">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
+                                <div className="flex-grow min-w-0">
+                                    <div className="font-mono text-sm truncate">{backup.filename}</div>
+                                    <div className="text-xs text-gray-500 flex flex-wrap gap-x-2 gap-y-1">
                                         <span>{new Date(backup.created_at).toLocaleString()}</span>
                                         <span>•</span>
                                         <span>{backup.size_kb.toFixed(1)} KB</span>
                                         <span>•</span>
                                         <span className={`${
                                             backup.version === "unknown" 
-                                                ? 'text-gray-400'  // Gray for unknown versions
+                                                ? 'text-gray-400'
                                                 : backup.version === currentVersion 
-                                                    ? 'text-green-500'  // Green for matching versions
-                                                    : 'text-yellow-500'  // Yellow only for actual mismatches
+                                                    ? 'text-green-500'
+                                                    : 'text-yellow-500'
                                         }`}>
                                             Version: {backup.version}
                                         </span>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 mt-1 sm:mt-0">
                                     <button
                                         onClick={() => handleRestoreBackup(backup.filename)}
                                         disabled={backupLoading}
                                         className={`flex items-center gap-1 px-2 py-1 rounded text-sm ${
                                             backup.can_restore
-                                                ? 'text-blue-500 hover:text-blue-600'
-                                                : 'text-gray-400 cursor-not-allowed'
+                                                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-500 hover:bg-blue-200 dark:hover:bg-blue-800/30'
+                                                : 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
                                         }`}
                                         title={backup.can_restore ? 'Restore this backup' : 'Schema mismatch - requires migration'}
                                     >
                                         <RotateCcw size={14} />
-                                        Restore
+                                        <span>Restore</span>
                                     </button>
                                     <button
-                                        onClick={() => handleDeleteBackup(backup.filename)}
+                                        onClick={() => handleDeleteBackupConfirm(backup.filename)}
                                         disabled={backupLoading}
-                                        className="flex items-center gap-1 px-2 py-1 rounded text-sm text-red-500 hover:text-red-600"
+                                        className="flex items-center gap-1 px-2 py-1 rounded text-sm bg-red-100 dark:bg-red-900/30 text-red-500 hover:bg-red-200 dark:hover:bg-red-800/30"
                                         title="Delete this backup"
                                     >
                                         <Trash2 size={14} />
+                                        <span>Delete</span>
                                     </button>
                                 </div>
                             </div>
@@ -384,6 +433,32 @@ const MigrationManager = () => {
                     )}
                 </div>
             </div>
+
+            {/* Delete confirmation modal */}
+            {showDeleteConfirmation && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl">
+                        <h4 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-3">Delete Backup</h4>
+                        <p className="text-gray-700 dark:text-gray-300 mb-4">
+                            Are you sure you want to delete this backup? This action cannot be undone.
+                        </p>
+                        <div className="flex justify-end gap-3">
+                            <button 
+                                onClick={handleDeleteBackupCancel}
+                                className="px-4 py-2 rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={handleDeleteBackupConfirmed}
+                                className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

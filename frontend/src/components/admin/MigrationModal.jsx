@@ -1,9 +1,24 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { X, AlertTriangle } from 'lucide-react';
 import MigrationManager from './MigrationManager';
 
 const MigrationModal = ({ isOpen, onClose }) => {
+  // Add state to control when the modal can be closed
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // This function will be passed to the MigrationManager
+  const setProcessingStatus = useCallback((status) => {
+    setIsProcessing(status);
+  }, []);
+
+  // Prevent closing while processing
+  const handleClose = () => {
+    if (!isProcessing) {
+      onClose();
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -12,7 +27,7 @@ const MigrationModal = ({ isOpen, onClose }) => {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-      onClick={onClose}
+      onClick={isProcessing ? undefined : handleClose}
     >
       <motion.div
         initial={{ scale: 0.95 }}
@@ -23,8 +38,13 @@ const MigrationModal = ({ isOpen, onClose }) => {
       >
         {/* Improved close button - larger, more accessible */}
         <button
-          onClick={onClose}
-          className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 z-10"
+          onClick={handleClose}
+          disabled={isProcessing}
+          className={`absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 ${
+            isProcessing 
+              ? 'opacity-50 cursor-not-allowed' 
+              : 'hover:bg-gray-200 dark:hover:bg-gray-600'
+          } z-10`}
           aria-label="Close modal"
         >
           <X size={20} />
@@ -44,7 +64,8 @@ const MigrationModal = ({ isOpen, onClose }) => {
           </div>
         </div>
 
-        <MigrationManager />
+        {/* Pass the setProcessingStatus to MigrationManager */}
+        <MigrationManager setProcessingStatus={setProcessingStatus} />
       </motion.div>
     </motion.div>
   );
