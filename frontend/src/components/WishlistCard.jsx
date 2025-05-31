@@ -1,11 +1,12 @@
 // WishlistCard.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trash2, ExternalLink, Heart, Pencil, Check, X, ShoppingCart, ChevronDown, Flag, MessageCircle, Send } from 'lucide-react';
 import { updateWishlistItem, addComment, deleteComment, getWishlistItems } from '../services/api';
 
 // Constants
 const MAX_TITLE_LENGTH = 200;
+const MAX_TITLE_DISPLAY_LENGTH = 100; // Length at which to truncate title in modal view
 
 function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, onUpdateItems, onDeleteItem, onThinkingAbout, onMarkPurchased }) {
   const [selectedItem, setSelectedItem] = useState(null);
@@ -15,6 +16,8 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
   const [newComment, setNewComment] = useState('');
   const [commentError, setCommentError] = useState('');
   const [isDuplicateTitle, setIsDuplicateTitle] = useState(false);
+  const [showFullTitle, setShowFullTitle] = useState(false);
+  const modalRef = useRef(null);
 
   // Check for duplicate titles when editing
   useEffect(() => {
@@ -110,6 +113,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
       await addComment(itemId, newComment.trim());
       await onUpdateItems(); // Refresh the list to show new comment
       setNewComment('');
+      // Don't close the modal here
     } catch (err) {
       console.error('Failed to add comment:', err);
       setCommentError(
@@ -118,6 +122,11 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
         'Failed to add comment. Please try again.'
       );
     }
+  };
+  
+  // Prevent modal from closing when clicking inside
+  const handleModalClick = (e) => {
+    e.stopPropagation();
   };
 
   const handleDeleteComment = async (commentId) => {
@@ -505,10 +514,11 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
             onClick={handleCloseModal}
           >
             <motion.div
+              ref={modalRef}
               initial={{ scale: 0.95 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0.95 }}
-              onClick={(e) => e.stopPropagation()}
+              onClick={handleModalClick}
               className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-4 sm:p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
             >
               {/* Improved close button - larger, sticky at top corner */}
@@ -521,12 +531,38 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
               </button>
               
               <div className="pr-6 mb-4 w-full">
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white break-words max-w-full pr-4">{selectedItem.title}</h2>
+                {selectedItem.title.length > MAX_TITLE_DISPLAY_LENGTH && !showFullTitle ? (
+                  <div>
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white break-words max-w-full pr-4">
+                      {selectedItem.title.substring(0, MAX_TITLE_DISPLAY_LENGTH)}...
+                    </h2>
+                    <button 
+                      onClick={() => setShowFullTitle(true)} 
+                      className="text-sm text-primary hover:text-primary-dark dark:text-primary-400 mt-1"
+                    >
+                      Show full title
+                    </button>
+                  </div>
+                ) : (
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white break-words max-w-full pr-4">
+                    {selectedItem.title}
+                    {showFullTitle && (
+                      <button 
+                        onClick={() => setShowFullTitle(false)} 
+                        className="text-sm text-primary hover:text-primary-dark dark:text-primary-400 block mt-1"
+                      >
+                        Show less
+                      </button>
+                    )}
+                  </h2>
+                )}
               </div>
 
               {/* More spacing around description for readability */}
               {selectedItem.description && (
-                <p className="text-gray-600 dark:text-gray-300 mb-5 whitespace-pre-wrap break-words">{selectedItem.description}</p>
+                <p className="text-gray-600 dark:text-gray-300 mb-5 whitespace-pre-wrap break-words">
+                  {selectedItem.description}
+                </p>
               )}
 
               {/* Set max-height for image and optimize for mobile */}
@@ -637,37 +673,58 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                         )}
                       </div>
 
-                      {/* Add Comment Form */}
+                      {/* Add Comment Form with character counter */}
                       <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
-                        <div className="flex gap-1">
-                          <input
-                            type="text"
-                            value={newComment}
-                            onChange={(e) => setNewComment(e.target.value)}
-                            placeholder="Add a comment..."
-                            className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                            onKeyPress={(e) => {
-                              if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                handleAddComment(selectedItem.id);
-                              }
-                            }}
-                          />
-                          <button
-                            onClick={() => handleAddComment(selectedItem.id)}
-                            className="p-1.5 text-white bg-primary hover:bg-primary-dark rounded-md"
-                          >
-                            <Send size={16} />
-                          </button>
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400 px-1">
+                            <span>Add a comment</span>
+                            <span>{newComment.length}/200</span>
+                          </div>
+                          <div className="flex gap-1">
+                            <input
+                              type="text"
+                              value={newComment}
+                              onChange={(e) => setNewComment(e.target.value.slice(0, 200))}
+                              placeholder="Type your comment..."
+                              className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                              onKeyPress={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  handleAddComment(selectedItem.id);
+                                }
+                              }}
+                            />
+                            <button
+                              onClick={() => handleAddComment(selectedItem.id)}
+                              className="p-1.5 text-white bg-primary hover:bg-primary-dark rounded-md"
+                            >
+                              <Send size={16} />
+                            </button>
+                          </div>
+                          {commentError && (
+                            <p className="text-red-500 text-xs mt-1">{commentError}</p>
+                          )}
                         </div>
-                        {commentError && (
-                          <p className="text-red-500 text-xs mt-1">{commentError}</p>
-                        )}
                       </div>
                     </div>
                   </>
                 )}
               </div>
+              
+              {/* Sticky "View Item" button if URL exists */}
+              {selectedItem.link && (
+                <div className="sticky bottom-0 left-0 right-0 mt-6 pt-3 pb-2 bg-gradient-to-t from-white dark:from-gray-800 to-transparent">
+                  <a
+                    href={selectedItem.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg shadow-sm hover:from-blue-600 hover:to-indigo-700 transition-all duration-300"
+                  >
+                    <ExternalLink size={18} />
+                    <span className="font-medium">View Item</span>
+                  </a>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         </AnimatePresence>

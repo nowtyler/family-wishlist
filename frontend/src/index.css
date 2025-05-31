@@ -46,3 +46,34 @@ body {
 .highlight-pulse {
   animation: highlightPulse 1s 2;
 }
+
+/* Modal improvements */
+.modal-content {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Gradient fade for bottom buttons */
+.fade-to-bottom {
+  background: linear-gradient(to top, 
+    rgba(255,255,255,1) 0%, 
+    rgba(255,255,255,0.9) 50%, 
+    rgba(255,255,255,0) 100%);
+}
+
+.dark .fade-to-bottom {
+  background: linear-gradient(to top, 
+    rgba(31,41,55,1) 0%, 
+    rgba(31,41,55,0.9) 50%, 
+    rgba(31,41,55,0) 100%);
+}
+
+/* Improved comment input styles */
+.comment-input-container {
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.comment-input-container:focus-within {
+  transform: translateY(-2px);
+}
