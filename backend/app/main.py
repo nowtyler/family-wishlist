@@ -1118,7 +1118,7 @@ def create_external_wishlist_for_member(
 def update_external_wishlist(
     wishlist_id: int, 
     wishlist: schemas.ExternalWishlistUpdate, 
-    current_user_id: int = Depends(get_current_user_id)
+    current_user_id: int = Depends(get_current_user_id_from_header)
 ):
     """Update an existing external wishlist link"""
     if current_user_id is None:
