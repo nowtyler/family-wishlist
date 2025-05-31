@@ -108,8 +108,8 @@ export const getFamilyMembers = () => {
  * @param {number} userId - The user ID
  * @returns {Promise} API response with wishlist items
  */
-export const getWishlistItems = (userId) => {
-  return apiClient.get(`/wishlist/items/${userId}`, {
+export const getWishlistItems = (ownerId) => {
+  return apiClient.get(`/members/${ownerId}/items`, {
     params: {
       _t: new Date().getTime() // Add cache-busting timestamp for fresh data
     }
