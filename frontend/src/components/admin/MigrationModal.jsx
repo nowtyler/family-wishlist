@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { X, AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import MigrationManager from './MigrationManager';
 
 const MigrationModal = ({ isOpen, onClose }) => {
@@ -60,21 +60,9 @@ const MigrationModal = ({ isOpen, onClose }) => {
         onClick={handleContentClick}
         className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-4 sm:p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto relative modal-content"
       >
-        {/* Improved close button - larger, more accessible */}
-        <button
-          onClick={handleClose}
-          disabled={isProcessing}
-          className={`absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 ${
-            isProcessing 
-              ? 'opacity-50 cursor-not-allowed' 
-              : 'hover:bg-gray-200 dark:hover:bg-gray-600'
-          } z-10`}
-          aria-label="Close modal"
-        >
-          <X size={20} />
-        </button>
+        {/* Remove the X button from the top */}
         
-        <div className="pr-6 mb-6">
+        <div className="mb-6">
           <div className="flex items-start gap-2 mb-1">
             <AlertTriangle className="text-yellow-500 mt-1" size={20} />
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">
@@ -90,6 +78,20 @@ const MigrationModal = ({ isOpen, onClose }) => {
 
         {/* Pass the setProcessingStatus to MigrationManager */}
         <MigrationManager setProcessingStatus={setProcessingStatus} />
+        
+        {/* Add sticky close button at the bottom */}
+        <div className="sticky bottom-0 left-0 right-0 pt-4 mt-6 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 pb-2">
+          <button
+            onClick={handleClose}
+            disabled={isProcessing}
+            className={`w-full py-2.5 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 rounded-lg text-gray-800 dark:text-gray-200 font-medium transition-colors duration-200 ${
+              isProcessing ? 'opacity-50 cursor-not-allowed' : 'dark:hover:bg-gray-600'
+            }`}
+            aria-label="Close modal"
+          >
+            {isProcessing ? 'Processing...' : 'Close'}
+          </button>
+        </div>
       </motion.div>
     </motion.div>
   );

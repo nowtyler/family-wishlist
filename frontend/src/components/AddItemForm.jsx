@@ -247,13 +247,7 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
     >
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 pr-8">Add New Item</h2>
-        <button
-          onClick={onClose}
-          className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
-          aria-label="Close form"
-        >
-          <X size={20} />
-        </button>
+        {/* Remove the X button from here */}
       </div>
 
       {urlImportVisible && (
@@ -463,9 +457,9 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:focus:ring-offset-gray-800"
+            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 border border-transparent rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors duration-200"
           >
-            Cancel
+            Close
           </button>
           <button
             type="submit"
@@ -473,15 +467,4 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
             className={`px-4 py-2 text-sm font-medium text-white border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:focus:ring-offset-gray-800 ${
               isDuplicateTitle && !/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
                 ? 'bg-gray-400 cursor-not-allowed' 
-                : 'bg-primary dark:bg-primary-600 hover:bg-primary-dark dark:hover:bg-primary-700'
-            }`}
-          >
-            Add Item
-          </button>
-        </div>
-      </form>
-    </motion.div>
-  );
-}
-
-export default AddItemForm;
+                : 'bg-primary dark:bg-primary-600 hover:bg-primary-dark dark:hover:bg-primary-

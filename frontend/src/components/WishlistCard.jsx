@@ -521,15 +521,6 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
               onClick={handleModalClick}
               className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-4 sm:p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
             >
-              {/* Improved close button - larger, sticky at top corner */}
-              <button
-                onClick={handleCloseModal}
-                className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 z-10"
-                aria-label="Close modal"
-              >
-                <X size={20} />
-              </button>
-              
               <div className="pr-6 mb-4 w-full">
                 {selectedItem.title.length > MAX_TITLE_DISPLAY_LENGTH && !showFullTitle ? (
                   <div>
@@ -711,20 +702,29 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                 )}
               </div>
               
-              {/* Sticky "View Item" button if URL exists */}
-              {selectedItem.link && (
-                <div className="sticky bottom-0 left-0 right-0 mt-6 pt-3 pb-2 bg-gradient-to-t from-white dark:from-gray-800 to-transparent">
-                  <a
-                    href={selectedItem.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg shadow-sm hover:from-blue-600 hover:to-indigo-700 transition-all duration-300"
+              {/* Sticky footer with View Item and Close buttons */}
+              <div className="sticky bottom-0 left-0 right-0 mt-6 pt-3 pb-2 bg-gradient-to-t from-white dark:from-gray-800 to-transparent">
+                <div className="flex gap-3">
+                  {selectedItem.link && (
+                    <a
+                      href={selectedItem.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg shadow-sm hover:from-blue-600 hover:to-indigo-700 transition-all duration-300"
+                    >
+                      <ExternalLink size={18} />
+                      <span className="font-medium">View Item</span>
+                    </a>
+                  )}
+                  <button
+                    onClick={handleCloseModal}
+                    className={`${selectedItem.link ? 'w-28' : 'flex-1'} py-2.5 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg text-gray-800 dark:text-gray-200 font-medium transition-colors duration-200`}
+                    aria-label="Close modal"
                   >
-                    <ExternalLink size={18} />
-                    <span className="font-medium">View Item</span>
-                  </a>
+                    Close
+                  </button>
                 </div>
-              )}
+              </div>
             </motion.div>
           </motion.div>
         </AnimatePresence>
