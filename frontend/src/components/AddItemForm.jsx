@@ -11,6 +11,8 @@ const PRIORITY_MAP = {
   'Low': 0
 };
 
+const MAX_TITLE_LENGTH = 200;
+
 function AddItemForm({ wishlistId, onAddItem, onClose }) {
   const [formData, setFormData] = useState({
     title: '',
@@ -102,6 +104,13 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
     }
   }, [importSuccess, isDuplicateTitle]);
 
+  // Add a function to truncate titles
+  const truncateTitle = (title) => {
+    return title && title.length > MAX_TITLE_LENGTH 
+      ? title.substring(0, MAX_TITLE_LENGTH) 
+      : title;
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError('');
@@ -124,6 +133,7 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
     // Convert form data to API format
     const apiData = {
       ...formData,
+      title: truncateTitle(formData.title.trim()), // Truncate title to 200 chars
       priority: PRIORITY_MAP[formData.priority],
       link: formData.link || null,
       image_url: formData.image_url || null,
@@ -182,10 +192,10 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
         setIsAddMode(false);
         setShowAdvancedFields(true);
       } else {
-        // Update form with fetched data
+        // Update form with fetched data and truncate title if needed
         const updatedFormData = {
           ...formData,
-          title: productDetails.title || '',
+          title: truncateTitle(productDetails.title || ''), // Truncate imported title
           description: productDetails.description || formData.description,
           link: productDetails.url || urlToImport,
           image_url: productDetails.image_url || '',
@@ -310,13 +320,20 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
         <div>
           <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
             Title <span className="text-red-500">*</span>
+            <span className="text-xs text-gray-500 ml-1">
+              ({formData.title ? formData.title.length : 0}/{MAX_TITLE_LENGTH})
+            </span>
           </label>
           <input
             type="text"
             required
+            maxLength={MAX_TITLE_LENGTH}
             className={`w-full px-4 py-2 border ${isDuplicateTitle ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'} rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100`}
             value={formData.title}
-            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+            onChange={(e) => {
+              const newTitle = e.target.value.substring(0, MAX_TITLE_LENGTH);
+              setFormData({ ...formData, title: newTitle });
+            }}
           />
           {isDuplicateTitle && (
             <p className="mt-1 text-sm text-red-600 dark:text-red-400">

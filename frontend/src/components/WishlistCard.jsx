@@ -4,6 +4,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Trash2, ExternalLink, Heart, Pencil, Check, X, ShoppingCart, ChevronDown, Flag, MessageCircle, Send } from 'lucide-react';
 import { updateWishlistItem, addComment, deleteComment, getWishlistItems } from '../services/api';
 
+// Constants
+const MAX_TITLE_LENGTH = 200;
+
 function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, onUpdateItems, onDeleteItem, onThinkingAbout, onMarkPurchased }) {
   const [selectedItem, setSelectedItem] = useState(null);
   const [editingItemId, setEditingItemId] = useState(null);
@@ -39,9 +42,11 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
 
   const handleEditClick = (e, item) => {
     e.stopPropagation();
+    // Make sure item.title is truncated before setting in edit form
     setEditingItemId(item.id);
     setEditForm({
       ...item,
+      title: truncateTitle(item.title),
       price: item.price !== null ? (item.price / 100).toFixed(2) : ''  // Convert cents to dollars for editing and format
     });
   };
@@ -76,7 +81,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
 
       const updatedData = {
         ...editForm,
-        title: editForm.title.trim(),
+        title: truncateTitle(editForm.title.trim()), // Ensure title is truncated
         description: editForm.description?.trim() || null,
         link: editForm.link?.trim() || null,
         image_url: editForm.image_url?.trim() || null,
@@ -230,14 +235,27 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
     );
   };
 
+  // Helper function to truncate title
+  const truncateTitle = (title) => {
+    return title && title.length > MAX_TITLE_LENGTH 
+      ? title.substring(0, MAX_TITLE_LENGTH) 
+      : title;
+  };
+
   const renderEditableContent = (item) => (
     <div onClick={e => e.stopPropagation()} className="space-y-3">
       <div className="flex flex-col">
-        <label className="text-sm text-gray-600 dark:text-gray-400">Title*</label>
+        <label className="text-sm text-gray-600 dark:text-gray-400">
+          Title* 
+          <span className="text-xs text-gray-500 ml-1">
+            ({editForm.title ? editForm.title.length : 0}/{MAX_TITLE_LENGTH})
+          </span>
+        </label>
         <input
           type="text"
           value={editForm.title}
-          onChange={e => setEditForm({ ...editForm, title: e.target.value })}
+          maxLength={MAX_TITLE_LENGTH}
+          onChange={e => setEditForm({ ...editForm, title: e.target.value.substring(0, MAX_TITLE_LENGTH) })}
           className={`w-full px-2 py-1 border rounded dark:bg-gray-600 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary ${
             isDuplicateTitle ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-500'
           }`}
