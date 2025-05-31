@@ -233,6 +233,15 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
     return <div className="text-center p-10 text-red-500">{error}</div>;
   }
 
+  // Add these handler functions for the WishlistCard component
+  const handleItemClick = (item) => {
+    setSelectedItem(item);
+  };
+
+  const handleItemModalClose = () => {
+    setSelectedItem(null);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
