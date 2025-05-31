@@ -109,7 +109,7 @@ export const getFamilyMembers = () => {
  * @returns {Promise} API response with wishlist items
  */
 export const getWishlistItems = (userId) => {
-  return axiosInstance.get(`/wishlist/items/${userId}`, {
+  return apiClient.get(`/wishlist/items/${userId}`, {
     params: {
       _t: new Date().getTime() // Add cache-busting timestamp for fresh data
     }
@@ -184,7 +184,7 @@ export const markPurchased = async (itemId) => {
  * @returns {Promise} API response
  */
 export const addComment = (itemId, text) => {
-  return axiosInstance.post(`/comments/${itemId}`, { text });
+  return apiClient.post(`/comments/${itemId}`, { text });
 };
 
 export const deleteComment = (commentId) => {
