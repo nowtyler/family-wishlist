@@ -1115,24 +1115,33 @@ def create_external_wishlist_for_member(
         raise HTTPException(status_code=400, detail=f"Failed to create external wishlist: {str(e)}")
 
 @app.put("/api/external-wishlists/{wishlist_id}", response_model=schemas.ExternalWishlist)
-def update_external_wishlist_endpoint(
-    wishlist_id: int,
-    wishlist_update: schemas.ExternalWishlistUpdate,
-    db: Session = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id_from_header)
+def update_external_wishlist(
+    wishlist_id: int, 
+    wishlist: schemas.ExternalWishlistUpdate, 
+    current_user_id: int = Depends(get_current_user_id)
 ):
-    """Update an external wishlist link"""
+    """Update an existing external wishlist link"""
     if current_user_id is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+        raise HTTPException(status_code=401, detail="Not authenticated")
     
-    updated_wishlist = crud.update_external_wishlist(db, wishlist_id, wishlist_update, current_user_id)
-    if not updated_wishlist:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="External wishlist not found or you're not authorized to update it"
+    db = SessionLocal()
+    try:
+        updated_wishlist = crud.update_external_wishlist(
+            db=db,
+            wishlist_id=wishlist_id,
+            wishlist_update=wishlist,
+            current_user_id=current_user_id
         )
-    
-    return updated_wishlist
+        
+        if updated_wishlist is None:
+            raise HTTPException(
+                status_code=404, 
+                detail="External wishlist not found or you don't have permission to update it"
+            )
+            
+        return updated_wishlist
+    finally:
+        db.close()
 
 @app.delete("/api/external-wishlists/{wishlist_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_external_wishlist_endpoint(
@@ -1140,14 +1149,12 @@ def delete_external_wishlist_endpoint(
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id_from_header)
 ):
-    if current_user_id is None:ist link"""
+    if current_user_id is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
     if crud.delete_external_wishlist(db, wishlist_id, current_user_id):
-        return Response(status_code=status.HTTP_204_NO_CONTENT)ser_id):
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
         detail="External wishlist not found or you're not authorized to delete it"
-    )   detail="External wishlist not found or you're not authorized to delete it"
     )
