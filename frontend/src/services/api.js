@@ -184,7 +184,8 @@ export const markPurchased = async (itemId) => {
  * @returns {Promise} API response
  */
 export const addComment = (itemId, text) => {
-  return apiClient.post(`/comments/${itemId}`, { text });
+  // Update the endpoint to match what the backend expects
+  return apiClient.post(`/items/${itemId}/comments`, { text });
 };
 
 export const deleteComment = (commentId) => {

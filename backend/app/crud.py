@@ -94,6 +94,10 @@ def get_wishlist_items_by_owner(db: Session, owner_id: int, current_user_id: int
         effective_is_purchased = item.is_purchased
         effective_purchased_by = item.purchased_by
 
+        # Get the requesting user to check if they're an admin
+        requesting_user = get_family_member(db, current_user_id)
+        is_admin = requesting_user and requesting_user.name.lower() == 'admin'
+
         if owner_id == current_user_id:  # Current user IS the owner
             # Owner can still see the item but not who purchased it
             effective_purchased_by = None
@@ -102,8 +106,6 @@ def get_wishlist_items_by_owner(db: Session, owner_id: int, current_user_id: int
         thinking_by_list = item.thinking_about_by.split(',') if item.thinking_about_by else []
         
         visible_comments = []
-        requesting_user = get_family_member(db, current_user_id)
-        is_admin = requesting_user and requesting_user.name.lower() == 'admin'
 
         # Show comments when:
         # 1. User is admin OR
