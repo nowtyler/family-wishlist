@@ -648,92 +648,95 @@ function WishlistCard({
                         </span>
                       </div>
                     )}
-
-                    {/* Comments Section */}
-                    <div className="border-t dark:border-gray-700 pt-4">
-                      <h3 className="text-md font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
-                        <MessageCircle size={18} />
-                        Comments ({selectedItem.comments?.length || 0})
-                      </h3>
-                      
-                      {/* Comments List with scroll - reduced max height for mobile and ordering changed */}
-                      <div className="space-y-2 mb-3 max-h-[25vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
-                        {selectedItem.comments
-                          ?.slice() // Create a copy so we don't mutate the original array
-                          .sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) // Oldest first
-                          .map((comment) => (
-                            <div key={comment.id} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2">
-                              <div className="flex justify-between items-center text-xs">
-                                <span className="font-medium text-gray-700 dark:text-gray-300">
-                                  {comment.author_name}
-                                </span>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-gray-500 dark:text-gray-400">
-                                    {formatCommentTime(comment.created_at)}
-                                  </span>
-                                  {(member.name.toLowerCase() === 'admin' || currentUserId === comment.author_id) && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDeleteComment(comment.id);
-                                      }}
-                                      className="text-gray-400 hover:text-red-500 transition-colors p-1"
-                                      title="Delete comment"
-                                    >
-                                      <Trash2 size={12} />
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                              <p className="text-gray-600 dark:text-gray-300 text-sm mt-0.5">
-                                {comment.text}
-                              </p>
-                            </div>
-                          ))}
-
-                        {selectedItem.comments?.length === 0 && (
-                          <p className="text-gray-500 dark:text-gray-400 text-sm italic">
-                            No comments yet
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Add Comment Form with character counter */}
-                      <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
-                        <div className="space-y-1">
-                          <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400 px-1">
-                            <span>Add a comment</span>
-                            <span>{newComment.length}/200</span>
-                          </div>
-                          <div className="flex gap-1">
-                            <input
-                              type="text"
-                              value={newComment}
-                              onChange={(e) => setNewComment(e.target.value.slice(0, 200))}
-                              placeholder="Type your comment..."
-                              className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                              onKeyPress={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                  e.preventDefault();
-                                  handleAddComment(selectedItem.id);
-                                }
-                              }}
-                            />
-                            <button
-                              onClick={() => handleAddComment(selectedItem.id)}
-                              className="p-1.5 text-white bg-primary hover:bg-primary-dark rounded-md"
-                            >
-                              <Send size={16} />
-                            </button>
-                          </div>
-                          {commentError && (
-                            <p className="text-red-500 text-xs mt-1">{commentError}</p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
                   </>
                 )}
+
+                {/* Comments Section - Always show for admin users */}
+                <div className="border-t dark:border-gray-700 pt-4">
+                  <h3 className="text-md font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                    <MessageCircle size={18} />
+                    Comments ({selectedItem.comments?.length || 0})
+                  </h3>
+                  
+                  {/* Comments List with scroll - reduced max height for mobile and ordering changed */}
+                  <div className="space-y-2 mb-3 max-h-[25vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
+                    {selectedItem.comments
+                      ?.slice() // Create a copy so we don't mutate the original array
+                      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) // Oldest first
+                      .map((comment) => (
+                        <div key={comment.id} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-medium text-gray-700 dark:text-gray-300">
+                              {comment.author_name}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-500 dark:text-gray-400">
+                                {formatCommentTime(comment.created_at)}
+                              </span>
+                              {/* Allow admin or comment author to delete */}
+                              {(member.name.toLowerCase() === 'admin' || currentUserId === comment.author_id) && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteComment(comment.id);
+                                  }}
+                                  className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                                  title="Delete comment"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-gray-600 dark:text-gray-300 text-sm mt-0.5">
+                            {comment.text}
+                          </p>
+                        </div>
+                      ))}
+
+                    {selectedItem.comments?.length === 0 && (
+                      <p className="text-gray-500 dark:text-gray-400 text-sm italic">
+                        No comments yet
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Add Comment Form - Only show for non-owners or admin */}
+                  {(!isOwnWishlist || member.name.toLowerCase() === 'admin') && (
+                    <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                      <div className="space-y-1">
+                        <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400 px-1">
+                          <span>Add a comment</span>
+                          <span>{newComment.length}/200</span>
+                        </div>
+                        <div className="flex gap-1">
+                          <input
+                            type="text"
+                            value={newComment}
+                            onChange={(e) => setNewComment(e.target.value.slice(0, 200))}
+                            placeholder="Type your comment..."
+                            className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleAddComment(selectedItem.id);
+                              }
+                            }}
+                          />
+                          <button
+                            onClick={() => handleAddComment(selectedItem.id)}
+                            className="p-1.5 text-white bg-primary hover:bg-primary-dark rounded-md"
+                          >
+                            <Send size={16} />
+                          </button>
+                        </div>
+                        {commentError && (
+                          <p className="text-red-500 text-xs mt-1">{commentError}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
               
               {/* Sticky footer with View Item and Close buttons */}

@@ -103,9 +103,10 @@ def get_wishlist_items_by_owner(db: Session, owner_id: int, current_user_id: int
         
         visible_comments = []
 
-        # Show comments when:
-        # 1. User is admin (regardless of ownership) OR
-        # 2. User is not viewing their own wishlist
+        # Fix for admin comment visibility:
+        # Always show comments for:
+        # 1. Admin users (regardless of viewing their own list or others)
+        # 2. Regular users viewing someone else's wishlist
         if is_admin or owner_id != current_user_id:
             visible_comments = [schemas.Comment(
                 id=comment.id,
@@ -115,7 +116,7 @@ def get_wishlist_items_by_owner(db: Session, owner_id: int, current_user_id: int
                 item_id=comment.item_id,
                 created_at=comment.created_at
             ) for comment in item.comments]
-
+        
         result_items.append(schemas.WishlistItem(
             id=item.id,
             title=item.title,

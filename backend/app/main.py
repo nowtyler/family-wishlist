@@ -460,7 +460,12 @@ def add_comment_to_item(
         if not item:
             raise HTTPException(status_code=404, detail="Item not found")
         
-        if item.owner_id == current_user_id:
+        # Check if the user is admin
+        user = crud.get_family_member(db, current_user_id)
+        is_admin = user and user.name.lower() == 'admin'
+        
+        # Allow admins to comment on any items, including their own
+        if not is_admin and item.owner_id == current_user_id:
             raise HTTPException(status_code=400, detail="Cannot comment on your own items")
 
         comment = crud.create_comment(db, item_id, text=comment_data.text, author_id=current_user_id)
