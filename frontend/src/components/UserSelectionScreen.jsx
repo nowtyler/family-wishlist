@@ -7,17 +7,23 @@ import { motion } from 'framer-motion';
 import { Settings } from 'lucide-react';  // Add this import
 
 const UserSelectionScreen = () => {
-  const { setSelectedUser, familyMembers, setFamilyMembers } = useAppContext();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { familyMembers, setFamilyMembers, setSelectedUser, selectedUser } = useAppContext();
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  console.log('UserSelection State:', { familyMembers }); // Debug log
+  console.log('UserSelection State:', { familyMembers, selectedUser }); // Debug log
 
   useEffect(() => {
+    if (selectedUser) {
+      console.log('Redirecting to dashboard, user:', selectedUser);
+      navigate('/');
+      return;
+    }
+
     const fetchMembers = async () => {
       try {
-        setLoading(true);
+        setIsLoading(true);
         const response = await getFamilyMembers();
         console.log('Fetched family members:', response.data);
         setFamilyMembers(response.data);
@@ -25,11 +31,11 @@ const UserSelectionScreen = () => {
         console.error('Failed to fetch family members:', err);
         setError('Failed to load family members.');
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
     fetchMembers();
-  }, [setFamilyMembers]);
+  }, [selectedUser, navigate, setFamilyMembers]);
 
   // Don't hardcode admin ID to -1, we'll find/create it properly
   const handleSelectUser = async (member) => {
@@ -83,7 +89,7 @@ const UserSelectionScreen = () => {
   }, [familyMembers]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen px-4 py-10">
+    <div className="relative min-h-screen">
       {/* Always show Admin Access - moved outside of conditional rendering */}
       <button
         onClick={() => handleSelectUser(adminUser)}
@@ -94,36 +100,25 @@ const UserSelectionScreen = () => {
       </button>
 
       <motion.div 
-        className="max-w-md w-full mx-auto bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+        className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-slate-100 to-sky-100 dark:from-gray-900 dark:to-gray-800"
       >
-        <h2 className="text-2xl sm:text-3xl font-bold text-center text-gray-800 dark:text-white mb-2">
-          Who are you?
-        </h2>
-        
-        {/* Add explanation text here */}
-        <p className="text-center text-gray-600 dark:text-gray-300 mb-6">
-          Select your name from the list below. This helps keep gifts a surprise – always select your own name, not someone you're shopping for!
-        </p>
-        
-        {loading ? (
-          <div className="flex justify-center py-8">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-          </div>
-        ) : error ? (
-          <div className="text-red-500 text-center py-6">
-            {error}
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-              An admin will need to access the migration manager to check for issues.
-            </p>
-            <button className="block mx-auto mt-4 px-4 py-2 bg-primary text-white rounded" onClick={fetchFamilyMembers}>
-              Retry
-            </button>
-          </div>
-        ) : (
-          <ul className="space-y-2 mb-4">
+        <div className="w-full max-w-2xl p-8 bg-white dark:bg-gray-800 rounded-xl shadow-2xl text-center">
+          <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-8">Who are you?</h2>
+          {error && (
+            <div className="mb-8 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
+              <p className="text-red-600 dark:text-red-400">{error}</p>
+              <p className="text-sm text-red-500 dark:text-red-400 mt-2">
+                An admin will need to access the migration manager to check for issues.
+              </p>
+            </div>
+          )}
+          {familyMembers.length === 0 && !isLoading && (
+            <p className="text-gray-600 dark:text-gray-400">No family members found.</p>
+          )}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 md:gap-6">
             {familyMembers
               .filter(member => !member.name.toLowerCase().includes('admin'))
               .map((member) => (
@@ -131,7 +126,7 @@ const UserSelectionScreen = () => {
                   key={member.id}
                   onClick={() => handleSelectUser(member)}
                   className={`p-4 md:p-6 ${
-                    setSelectedUser?.id === member.id
+                    selectedUser?.id === member.id
                       ? 'bg-primary text-white dark:bg-primary-600'
                       : 'bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-white'
                   } rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-opacity-75
@@ -143,8 +138,8 @@ const UserSelectionScreen = () => {
                   <p className="text-xs opacity-75">{member.wishlist_item_count} items</p>
                 </motion.button>
             ))}
-          </ul>
-        )}
+          </div>
+        </div>
       </motion.div>
     </div>
   );
