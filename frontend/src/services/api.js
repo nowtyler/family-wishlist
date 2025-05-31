@@ -103,8 +103,17 @@ export const getFamilyMembers = () => {
 };
 
 // --- Wishlist Items ---
-export const getWishlistItems = (ownerId) => {
-  return apiClient.get(`/members/${ownerId}/items`);
+/**
+ * Get wishlist items for a specific user
+ * @param {number} userId - The user ID
+ * @returns {Promise} API response with wishlist items
+ */
+export const getWishlistItems = (userId) => {
+  return axiosInstance.get(`/wishlist/items/${userId}`, {
+    params: {
+      _t: new Date().getTime() // Add cache-busting timestamp for fresh data
+    }
+  });
 };
 
 export const createWishlistItem = async (ownerId, itemData) => {
@@ -168,20 +177,14 @@ export const markPurchased = async (itemId) => {
 };
 
 // --- Comments ---
-export const addComment = async (itemId, text) => {
-  try {
-    console.log('Adding comment:', { itemId, text });
-    const response = await apiClient.post(`/items/${itemId}/comments`, { text });
-    console.log('Comment response:', response.data);
-    return response;
-  } catch (error) {
-    console.error('Comment creation error:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status
-    });
-    throw error;
-  }
+/**
+ * Add a comment to a wishlist item
+ * @param {number} itemId - Item ID to comment on
+ * @param {string} text - Comment text
+ * @returns {Promise} API response
+ */
+export const addComment = (itemId, text) => {
+  return axiosInstance.post(`/comments/${itemId}`, { text });
 };
 
 export const deleteComment = (commentId) => {

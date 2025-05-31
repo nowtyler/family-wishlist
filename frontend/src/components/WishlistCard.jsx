@@ -8,8 +8,25 @@ import { updateWishlistItem, addComment, deleteComment, getWishlistItems } from 
 const MAX_TITLE_LENGTH = 200;
 const MAX_TITLE_DISPLAY_LENGTH = 100; // Length at which to truncate title in modal view
 
-function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, onUpdateItems, onDeleteItem, onThinkingAbout, onMarkPurchased }) {
-  const [selectedItem, setSelectedItem] = useState(null);
+function WishlistCard({ 
+  member, 
+  items, 
+  isLoading, 
+  isOwnWishlist, 
+  currentUserId, 
+  onUpdateItems, 
+  onDeleteItem, 
+  onThinkingAbout, 
+  onMarkPurchased,
+  onItemClick, // Add these new props
+  onItemModalClose,
+  selectedItem: externalSelectedItem // Coming from parent
+}) {
+  // Change this from useState to use the passed-in value if available
+  const [internalSelectedItem, setInternalSelectedItem] = useState(null);
+  // Use the external value if provided, otherwise use internal state
+  const selectedItem = externalSelectedItem || internalSelectedItem;
+  
   const [editingItemId, setEditingItemId] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [activeTooltip, setActiveTooltip] = useState(null); // 'interest-{itemId}' or 'purchase-{itemId}'
@@ -36,11 +53,13 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
   }, [editForm.title, editingItemId, items]);
 
   const handleItemClick = (item) => {
-    setSelectedItem(item);
+    setInternalSelectedItem(item);
+    if (onItemClick) onItemClick(item);
   };
 
   const handleCloseModal = () => {
-    setSelectedItem(null);
+    setInternalSelectedItem(null);
+    if (onItemModalClose) onItemModalClose();
   };
 
   const handleEditClick = (e, item) => {
@@ -113,7 +132,21 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
       await addComment(itemId, newComment.trim());
       await onUpdateItems(); // Refresh the list to show new comment
       setNewComment('');
-      // Don't close the modal here
+      // Don't close the modal - improved!
+      
+      // Re-fetch the updated item to show the new comment immediately
+      if (selectedItem && selectedItem.id === itemId) {
+        const updatedItems = await getWishlistItems(member.id);
+        const updatedItem = updatedItems.data.find(item => item.id === itemId);
+        
+        // Update the selected item with the latest data
+        if (updatedItem) {
+          // Update internal state
+          setInternalSelectedItem(updatedItem);
+          // Also update parent state if available
+          if (onItemClick) onItemClick(updatedItem);
+        }
+      }
     } catch (err) {
       console.error('Failed to add comment:', err);
       setCommentError(

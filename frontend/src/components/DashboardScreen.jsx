@@ -22,6 +22,7 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
   const [isBrowserExpanded, setBrowserExpanded] = useState(false);
   const [needsUpgrade, setNeedsUpgrade] = useState(false);
   const [showUpgradeAlert, setShowUpgradeAlert] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null); // Add this state to track open modal
 
   console.log('Dashboard State:', { selectedUser, familyMembers, viewingMember }); // Debug log
 
@@ -282,11 +283,11 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
 
       {error && <p className="text-red-500 bg-red-100 p-3 rounded-md text-center">{error}</p>}
 
-      {/* Collapsible Browse Wishlist Section */}
+      {/* Collapsible Browse Wishlist Section - Enhanced with gradient styling */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)] overflow-hidden">
         <button
           onClick={() => setBrowserExpanded(!isBrowserExpanded)}
-          className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-200"
+          className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-sky-50 to-indigo-50 dark:from-sky-900/20 dark:to-indigo-900/20 hover:from-sky-100 hover:to-indigo-100 dark:hover:from-sky-900/30 dark:hover:to-indigo-900/30 transition-colors duration-200"
         >
           <div className="flex items-center gap-2">
             <Gift className="w-4 h-4 text-primary dark:text-primary-400" />
@@ -298,6 +299,9 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
                 ({familyMembers.filter(m => !m.name.toLowerCase().includes('admin')).length})
               </span>
             )}
+            <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full">
+              View Others
+            </span>
           </div>
           <ChevronDown
             className={`w-4 h-4 text-gray-500 dark:text-gray-400 transform transition-transform duration-200 ${
@@ -356,13 +360,16 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
             onDeleteItem={handleDeleteItem}
             onThinkingAbout={handleThinkingAbout}
             onMarkPurchased={handleMarkPurchased}
+            onItemClick={handleItemClick}
+            onItemModalClose={handleItemModalClose}
+            selectedItem={selectedItem}
           />
         </div>
       )}
 
-      {/* Floating Add Button */}
+      {/* Floating Add Button - Updated to hide when modal is open */}
       <AnimatePresence>
-        {(viewingMember?.id === selectedUser.id || isAdmin) && !isAddingItem && (
+        {(viewingMember?.id === selectedUser.id || isAdmin) && !isAddingItem && !selectedItem && (
           <motion.button
             onClick={handleOpenAddItemForm}
             initial={{ scale: 0, opacity: 0 }}
