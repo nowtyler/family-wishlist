@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { getMigrations, upgradeMigration, createBackup, getBackups, restoreBackup, deleteBackup, getSchemaHash, deleteMigration, resetMigrationState, hardResetMigrations } from '../../services/api';
+import { motion, AnimatePresence } from 'framer-motion'; // Add AnimatePresence import
+import { getMigrations, upgradeMigration, getBackups, restoreBackup, deleteBackup, getSchemaHash, deleteMigration, resetMigrationState, hardResetMigrations } from '../../services/api';
 import { AlertCircle, Database, Archive, Download, RotateCcw, Plus, Trash2, ArrowUp, X, GitMerge, AlertTriangle, Check, RefreshCw } from 'lucide-react';
 
-const MigrationManager = ({ setProcessingStatus = () => {} }) => {
+const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setSelectedBackup }) => {
     const [migrations, setMigrations] = useState([]);
     const [currentVersion, setCurrentVersion] = useState('');
     const [loading, setLoading] = useState(false);
@@ -13,7 +14,12 @@ const MigrationManager = ({ setProcessingStatus = () => {} }) => {
     const [dbVersion, setDbVersion] = useState('current');
     const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(null);
     const [deleteBackupFilename, setDeleteBackupFilename] = useState(null);
-    const [confirmingDelete, setConfirmingDelete] = useState(null);
+
+    // Action states for backup operations
+    const [backupAction, setBackupAction] = useState(null); // 'restore' or 'delete'
+    const [backupActionConfirm, setBackupActionConfirm] = useState(false);
+    const [backupActionLoading, setBackupActionLoading] = useState(false);
+    const [backupActionResult, setBackupActionResult] = useState(null); // 'success' or 'failure'
 
     const fetchMigrations = async () => {
         try {
@@ -94,6 +100,14 @@ const MigrationManager = ({ setProcessingStatus = () => {} }) => {
             setProcessingStatus(true);
             const response = await getBackups();
             setBackups(response.data.backups || []);
+            
+            // Clear any selected backup if it no longer exists
+            if (selectedBackup) {
+                const stillExists = response.data.backups.some(b => b.filename === selectedBackup.filename);
+                if (!stillExists) {
+                    setSelectedBackup(null);
+                }
+            }
         } catch (err) {
             setBackupError(err.response?.data?.detail || err.message || 'Failed to fetch backups');
             console.error('Backup fetch error:', err);
@@ -120,147 +134,130 @@ const MigrationManager = ({ setProcessingStatus = () => {} }) => {
         };
     }, []);
 
-    const handleCreateBackup = async (e) => {
-        // Prevent the event from bubbling up which could close modals
-        e?.preventDefault();
-        e?.stopPropagation();
+    const handleBackupItemClick = (backup) => {
+        // Toggle selection or select new backup
+        setSelectedBackup(selectedBackup?.filename === backup.filename ? null : backup);
         
-        try {
-            setProcessingStatus(true);
-            setBackupLoading(true);
-            setBackupError('');
-            await createBackup();
-            await fetchBackups();
-            alert("Backup created successfully!");
-        } catch (err) {
-            setBackupError(err.response?.data?.detail || err.message || 'Failed to create backup');
-            alert("Failed to create backup: " + (err.response?.data?.detail || err.message || 'Unknown error'));
-        } finally {
-            setBackupLoading(false);
-            setProcessingStatus(false);
-        }
+        // Reset action states when selecting a new backup
+        setBackupAction(null);
+        setBackupActionConfirm(false);
+        setBackupActionLoading(false);
+        setBackupActionResult(null);
     };
 
-    // Replace the old handleDeleteBackupConfirm with this new approach
-    const handleDeleteClick = (e, filename) => {
-        e.preventDefault();
-        e.stopPropagation();
-
-        // If already confirming this file, go ahead with deletion
-        if (confirmingDelete === filename) {
-            deleteBackupNow(filename);
+    const handleActionClick = (action) => {
+        if (!selectedBackup) return;
+        
+        if (backupAction === action && !backupActionConfirm) {
+            // If same action clicked twice, set to confirm state
+            setBackupActionConfirm(true);
         } else {
-            // Set this file as the one we're confirming, which will change the icon to Check
-            setConfirmingDelete(filename);
+            // First time clicking this action
+            setBackupAction(action);
+            setBackupActionConfirm(false);
+            setBackupActionResult(null);
+        }
+    };
+
+    const handleActionConfirm = async () => {
+        if (!selectedBackup || !backupAction || !backupActionConfirm) return;
+
+        try {
+            setBackupActionLoading(true);
+            setProcessingStatus(true);
+            setBackupError('');
+
+            if (backupAction === 'restore') {
+                const response = await restoreBackup(selectedBackup.filename);
+                
+                if (response.data.requires_migration) {
+                    setBackupActionResult('failure');
+                    setBackupError('This backup requires migration. Please upgrade the database first.');
+                    return;
+                }
+
+                if (response.data.success) {
+                    setBackupActionResult('success');
+                    await fetchMigrations();
+                } else {
+                    setBackupActionResult('failure');
+                    setBackupError(response.data.message);
+                }
+            } 
+            else if (backupAction === 'delete') {
+                const result = await deleteBackup(selectedBackup.filename);
+                setBackupActionResult('success');
+            }
             
-            // Auto-reset after 3 seconds if user doesn't confirm
+            // After 2 seconds, refresh the backup list
+            setTimeout(async () => {
+                await fetchBackups();
+                // After refreshing, reset all action states
+                setTimeout(() => {
+                    setBackupAction(null);
+                    setBackupActionConfirm(false);
+                    setBackupActionLoading(false);
+                    setBackupActionResult(null);
+                    setSelectedBackup(null);
+                }, 3000); // Show success/failure for 3 more seconds after refresh
+            }, 2000);
+        } catch (err) {
+            setBackupError(err.response?.data?.detail || err.message || `Failed to ${backupAction} backup`);
+            setBackupActionResult('failure');
+            
+            // Reset after error display
             setTimeout(() => {
-                setConfirmingDelete(current => current === filename ? null : current);
-            }, 3000);
-        }
-    };
-
-    const deleteBackupNow = async (filename) => {
-        try {
-            setProcessingStatus(true);
-            setBackupLoading(true);
-            setBackupError('');
-            const result = await deleteBackup(filename);
-            await fetchBackups();
-            setConfirmingDelete(null);
-            alert("Backup deleted successfully!");
-        } catch (err) {
-            setBackupError(err.response?.data?.detail || err.message || 'Failed to delete backup');
-            alert("Failed to delete backup: " + (err.response?.data?.detail || err.message || 'Unknown error'));
+                setBackupActionLoading(false);
+                setBackupAction(null);
+                setBackupActionConfirm(false);
+                setBackupActionResult(null);
+            }, 5000);
         } finally {
-            setBackupLoading(false);
-            setConfirmingDelete(null);
+            setBackupActionLoading(false);
             setProcessingStatus(false);
         }
     };
 
-    const handleRestoreBackup = async (e, filename) => {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        if (!confirm('Are you sure you want to restore this backup? Current data will be backed up first.')) {
-            return;
-        }
-
-        try {
-            setProcessingStatus(true);
-            setBackupLoading(true);
-            setBackupError('');
-            const response = await restoreBackup(filename);
-            
-            if (response.data.requires_migration) {
-                alert('This backup requires migration. Please upgrade the database first.');
-                return;
-            }
-
-            if (response.data.success) {
-                alert('Backup restored successfully!');
-                await fetchMigrations();
-                await fetchBackups();
-            } else {
-                setBackupError(response.data.message);
-                alert("Restore failed: " + response.data.message);
-            }
-        } catch (err) {
-            setBackupError(err.response?.data?.detail || err.message || 'Failed to restore backup');
-            alert("Failed to restore backup: " + (err.response?.data?.detail || err.message || 'Unknown error'));
-        } finally {
-            setBackupLoading(false);
-            setProcessingStatus(false);
+    // Handle delete/restore button clicks based on current state
+    const handleActionButtonClick = () => {
+        if (backupActionConfirm) {
+            handleActionConfirm();
+        } else {
+            handleActionClick(backupAction);
         }
     };
 
-    const handleDeleteMigration = async (version) => {
-        try {
-            if (!confirm('Are you sure you want to delete this migration?')) {
-                return;
-            }
-            setProcessingStatus(true);
-            setLoading(true);
-            await deleteMigration(version);
-            await fetchMigrations();
-            alert("Migration deleted successfully!");
-        } catch (err) {
-            setError('Failed to delete migration');
-            alert("Failed to delete migration: " + (err.response?.data?.detail || err.message || 'Unknown error'));
-        } finally {
-            setLoading(false);
-            setProcessingStatus(false);
-        }
-    };
+    // Function to get button styles for action buttons
+    const getActionButtonStyles = (type) => {
+        // Set base styles based on action type
+        let baseStyles = type === 'restore' 
+            ? 'bg-blue-500 hover:bg-blue-600'
+            : 'bg-red-500 hover:bg-red-600';
 
-    const handleHardReset = async () => {
-        if (!confirm('WARNING: This will perform a hard reset of the migration state. Only use this as a last resort if normal upgrades are failing. A backup will be created first. Are you sure you want to proceed?')) {
-            return;
+        // Add styles based on action state
+        if (backupActionLoading) {
+            return 'bg-gray-400 cursor-not-allowed';
+        } else if (backupActionResult === 'success') {
+            return 'bg-green-500';
+        } else if (backupActionResult === 'failure') {
+            return 'bg-orange-500';
         }
         
-        try {
-            setProcessingStatus(true);
-            setLoading(true);
-            setError('');
-            const response = await hardResetMigrations();
-            if (response.data.success) {
-                setCurrentVersion(response.data.new_version);
-                setError('');
-                alert('Migration state has been hard reset successfully. The database should now be stable.');
-                await fetchMigrations();
-                await fetchBackups();
-            } else {
-                setError(response.data.message || 'Hard reset failed');
-                alert("Hard reset failed: " + (response.data.message || 'Unknown error'));
-            }
-        } catch (err) {
-            console.error('Migration hard reset error:', err);
-            setError(`Hard reset failed: ${err.response?.data?.detail || err.message}`);
-            alert(`Hard reset failed: ${err.response?.data?.detail || err.message || 'Unknown error'}`);
-        } finally {
-            setLoading(false);
-            setProcessingStatus(false);
+        return baseStyles;
+    };
+
+    // Get button text based on current state
+    const getActionButtonText = () => {
+        if (backupActionLoading) {
+            return 'Processing...';
+        } else if (backupActionResult === 'success') {
+            return 'Success!';
+        } else if (backupActionResult === 'failure') {
+            return 'Failed!';
+        } else if (backupActionConfirm) {
+            return 'Confirm?';
+        } else {
+            return backupAction === 'restore' ? 'Restore' : 'Delete';
         }
     };
 
@@ -379,11 +376,11 @@ const MigrationManager = ({ setProcessingStatus = () => {} }) => {
                         <Archive className="text-gray-500" size={20} />
                         Database Backups
                     </h3>
-                    {/* Remove this button since it's now in the footer */}
+                    {/* Remove create backup button since it's in the footer */}
                 </div>
 
                 {backupError && (
-                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
+                    <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-red-600 dark:text-red-300 text-sm">
                         {backupError}
                     </div>
                 )}
@@ -392,75 +389,36 @@ const MigrationManager = ({ setProcessingStatus = () => {} }) => {
                     {backups.map((backup) => (
                         <div
                             key={backup.filename}
-                            className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
+                            onClick={() => handleBackupItemClick(backup)}
+                            className={`p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
+                                selectedBackup?.filename === backup.filename
+                                ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700'
+                                : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                            }`}
                         >
-                            <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
-                                {/* File information */}
-                                <div className="w-full sm:w-auto flex-grow min-w-0 pr-4">
-                                    <div className="font-mono text-sm truncate">{backup.filename}</div>
-                                    <div className="text-xs text-gray-500 flex flex-wrap gap-x-2 gap-y-1">
-                                        <span>{new Date(backup.created_at).toLocaleString()}</span>
-                                        <span>•</span>
-                                        <span>{backup.size_kb.toFixed(1)} KB</span>
-                                        <span>•</span>
-                                        <span className={`${
-                                            backup.version === "unknown" 
-                                                ? 'text-gray-400'
-                                                : backup.version === currentVersion 
-                                                    ? 'text-green-500'
-                                                    : 'text-yellow-500'
-                                        }`}>
-                                            {backup.version}
-                                        </span>
-                                    </div>
-                                </div>
-                                {/* Mobile-optimized action buttons */}
-                                <div className="flex flex-shrink-0 justify-end gap-1 mt-1 sm:mt-0">
-                                    {/* Restore button */}
-                                    <button
-                                        onClick={(e) => handleRestoreBackup(e, backup.filename)}
-                                        disabled={backupLoading || confirmingDelete !== null}
-                                        className={`flex items-center gap-1 px-2 py-1 rounded text-sm ${
-                                            backup.can_restore && !confirmingDelete
-                                                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-500 hover:bg-blue-200 dark:hover:bg-blue-800/30'
-                                                : 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
-                                        }`}
-                                        title={backup.can_restore ? 'Restore this backup' : 'Schema mismatch - requires migration'}
-                                    >
-                                        <RotateCcw size={16} />
-                                        <span className="sm:inline hidden">Restore</span>
-                                    </button>
-                                    
-                                    {/* Delete button with confirmation state */}
-                                    <button
-                                        onClick={(e) => handleDeleteClick(e, backup.filename)}
-                                        disabled={backupLoading}
-                                        className={`flex items-center gap-1 px-2 py-1 rounded text-sm transition-all duration-200 ${
-                                            confirmingDelete === backup.filename
-                                                ? 'bg-red-500 text-white hover:bg-red-600'
-                                                : 'bg-red-100 dark:bg-red-900/30 text-red-500 hover:bg-red-200 dark:hover:bg-red-800/30'
-                                        }`}
-                                        title={confirmingDelete === backup.filename ? 'Click again to confirm deletion' : 'Delete this backup'}
-                                    >
-                                        {confirmingDelete === backup.filename ? (
-                                            <>
-                                                <Check size={16} />
-                                                <span className="sm:inline hidden">Confirm</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Trash2 size={16} />
-                                                <span className="sm:inline hidden">Delete</span>
-                                            </>
-                                        )}
-                                    </button>
+                            <div className="w-full">
+                                <div className="font-mono text-sm truncate">{backup.filename}</div>
+                                <div className="text-xs text-gray-500 flex flex-wrap gap-x-2 gap-y-1 mt-1">
+                                    <span>{new Date(backup.created_at).toLocaleString()}</span>
+                                    <span>•</span>
+                                    <span>{backup.size_kb.toFixed(1)} KB</span>
+                                    <span>•</span>
+                                    <span className={`${
+                                        backup.version === "unknown" 
+                                            ? 'text-gray-400 dark:text-gray-500'
+                                            : backup.version === currentVersion 
+                                                ? 'text-green-500 dark:text-green-400'
+                                                : 'text-yellow-500 dark:text-yellow-400'
+                                    }`}>
+                                        {backup.version}
+                                    </span>
                                 </div>
                             </div>
                         </div>
                     ))}
 
                     {backups.length === 0 && (
-                        <div className="text-center py-6 text-gray-500">
+                        <div className="text-center py-6 text-gray-500 dark:text-gray-400">
                             No backups available
                         </div>
                     )}
