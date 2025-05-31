@@ -1,5 +1,5 @@
 // AddItemForm.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { fetchProductDetailsFromUrl, getWishlistItems } from '../services/api';
 import { X, Link, Loader, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
@@ -30,6 +30,8 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
   const [existingItems, setExistingItems] = useState([]);
   const [isFetchingItems, setIsFetchingItems] = useState(false);
   const [isDuplicateTitle, setIsDuplicateTitle] = useState(false);
+  const formRef = useRef(null);
+  const submitButtonRef = useRef(null);
 
   // Fetch existing items to check for duplicate titles
   useEffect(() => {
@@ -67,6 +69,39 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
     setIsDuplicateTitle(isDuplicate);
   }, [formData.title, existingItems]);
 
+  // Scroll to the submit button when import is successful or when duplicates are detected
+  useEffect(() => {
+    if (importSuccess || isDuplicateTitle) {
+      // Short timeout to ensure DOM is updated
+      setTimeout(() => {
+        // Scroll to the bottom of the form to make submit button visible
+        if (formRef.current) {
+          // Get the form's bottom position
+          const formBottom = formRef.current.getBoundingClientRect().bottom;
+          const viewportHeight = window.innerHeight;
+          
+          // If the form bottom is below viewport, scroll to show the submit button
+          if (formBottom > viewportHeight) {
+            window.scrollTo({
+              top: window.scrollY + (formBottom - viewportHeight) + 100, // Add padding
+              behavior: 'smooth'
+            });
+            
+            // Highlight the button area for better visibility
+            if (submitButtonRef.current) {
+              submitButtonRef.current.classList.add('highlight-pulse');
+              setTimeout(() => {
+                if (submitButtonRef.current) {
+                  submitButtonRef.current.classList.remove('highlight-pulse');
+                }
+              }, 1500);
+            }
+          }
+        }
+      }, 300);
+    }
+  }, [importSuccess, isDuplicateTitle]);
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError('');
@@ -77,8 +112,11 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
       return;
     }
 
-    // Check for duplicate titles before submitting
-    if (isDuplicateTitle) {
+    // Modify the duplicate check for mobile URL imports
+    // Only check for exact duplicates - allow similar titles
+    const exactDuplicateOnly = importSuccess && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (isDuplicateTitle && !exactDuplicateOnly) {
       setError('An item with this title already exists in your wishlist');
       return;
     }
@@ -94,6 +132,12 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
     };
 
     try {
+      // If this is a mobile import, add a timestamp to the title to ensure uniqueness
+      if (exactDuplicateOnly) {
+        const timestampSuffix = ` (${new Date().toISOString().substring(11, 19)})`;
+        apiData.title = formData.title.trim() + timestampSuffix;
+      }
+      
       await onAddItem(apiData);
       onClose();
     } catch (err) {
@@ -139,19 +183,27 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
         setShowAdvancedFields(true);
       } else {
         // Update form with fetched data
-        setFormData({
+        const updatedFormData = {
           ...formData,
           title: productDetails.title || '',
-          description: formData.description, // Keep existing description if any
+          description: productDetails.description || formData.description,
           link: productDetails.url || urlToImport,
           image_url: productDetails.image_url || '',
           price: productDetails.price ? productDetails.price.toString() : ''
-        });
+        };
         
+        setFormData(updatedFormData);
         setImportSuccess(true);
         setIsAddMode(false);
         setUrlImportVisible(false);
         setShowAdvancedFields(true);
+        
+        // Check for duplicates explicitly after import
+        const normalizedTitle = updatedFormData.title.trim().toLowerCase();
+        const isDuplicate = existingItems.some(item => 
+          item.title.toLowerCase() === normalizedTitle
+        );
+        setIsDuplicateTitle(isDuplicate);
       }
     } catch (err) {
       console.error('URL import error:', err);
@@ -254,7 +306,7 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
             Title <span className="text-red-500">*</span>
@@ -386,8 +438,11 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
           </div>
         )}
 
-        {/* Fixed button placement */}
-        <div className="sticky bottom-0 flex justify-end space-x-3 pt-4 border-t border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 pb-2">
+        {/* Fixed button placement with ref for scrolling */}
+        <div 
+          ref={submitButtonRef}
+          className="sticky bottom-0 flex justify-end space-x-3 pt-4 border-t border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 pb-2"
+        >
           <button
             type="button"
             onClick={onClose}
@@ -397,19 +452,8 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
           </button>
           <button
             type="submit"
-            disabled={isDuplicateTitle}
+            disabled={isDuplicateTitle && !/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)}
             className={`px-4 py-2 text-sm font-medium text-white border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:focus:ring-offset-gray-800 ${
-              isDuplicateTitle 
+              isDuplicateTitle && !/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
                 ? 'bg-gray-400 cursor-not-allowed' 
-                : 'bg-primary dark:bg-primary-600 hover:bg-primary-dark dark:hover:bg-primary-700'
-            }`}
-          >
-            Add Item
-          </button>
-        </div>
-      </form>
-    </motion.div>
-  );
-}
-
-export default AddItemForm;
+                : 'bg-primary dark:bg-primary-600 hover:bg-primary-dark dark:hover:bg-primary-

@@ -400,8 +400,9 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="relative w-full max-w-2xl mx-auto my-8 max-h-[90vh] overflow-y-auto"
+              className="relative w-full max-w-2xl mx-auto my-8"
               onClick={e => e.stopPropagation()} // Prevent closing when clicking the form
+              // Remove max-height constraint that could cause scrolling issues
             >
               <AddItemForm
                 wishlistId={viewingMember.id}
