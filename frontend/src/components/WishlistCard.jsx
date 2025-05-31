@@ -166,6 +166,20 @@ function WishlistCard({
     try {
       await deleteComment(commentId);
       await onUpdateItems();
+      
+      // Re-fetch the updated item to reflect the deleted comment immediately
+      if (selectedItem) {
+        const updatedItems = await getWishlistItems(member.id);
+        const updatedItem = updatedItems.data.find(item => item.id === selectedItem.id);
+        
+        // Update the selected item with the latest data
+        if (updatedItem) {
+          // Update internal state
+          setInternalSelectedItem(updatedItem);
+          // Also update parent state if available
+          if (onItemClick) onItemClick(updatedItem);
+        }
+      }
     } catch (err) {
       console.error('Failed to delete comment:', err);
       setCommentError('Failed to delete comment');
@@ -596,18 +610,6 @@ function WishlistCard({
                   alt={selectedItem.title}
                   className="w-full h-auto max-h-72 object-contain rounded-lg mb-4"
                 />
-              )}
-
-              {selectedItem.link && (
-                <a
-                  href={selectedItem.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 text-primary hover:text-primary-dark mb-4"
-                >
-                  <ExternalLink size={16} />
-                  <span>View Item</span>
-                </a>
               )}
 
               {/* After the existing price section */}

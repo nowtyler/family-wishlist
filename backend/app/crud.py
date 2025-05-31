@@ -292,11 +292,21 @@ def create_comment(db: Session, item_id: int, text: str, author_id: int) -> mode
     return db_comment
 
 def delete_comment(db: Session, comment_id: int, author_id: int) -> bool:
+    """Delete a comment with proper authorization check"""
     db_comment = db.query(models.Comment).filter(models.Comment.id == comment_id).first()
-    if db_comment and db_comment.author_id == author_id:
+    if not db_comment:
+        return False
+        
+    # Get the requesting user to check if they're an admin
+    requesting_user = get_family_member(db, author_id)
+    is_admin = requesting_user and requesting_user.name.lower() == 'admin'
+    
+    # Allow deletion if admin or comment author
+    if is_admin or db_comment.author_id == author_id:
         db.delete(db_comment)
         db.commit()
         return True
+    
     return False
 
 # --- Gift Reminder Logic ---

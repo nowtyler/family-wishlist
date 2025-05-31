@@ -502,7 +502,8 @@ def delete_comment(
         raise HTTPException(status_code=404, detail="Comment not found")
 
     # Allow deletion if admin or comment author
-    if user.name.lower() == 'admin' or comment.author_id == current_user_id:
+    is_admin = user.name.lower() == 'admin'
+    if is_admin or comment.author_id == current_user_id:
         db.delete(comment)
         db.commit()
         return Response(status_code=status.HTTP_204_NO_CONTENT)
