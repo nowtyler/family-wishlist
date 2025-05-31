@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, Check, RotateCcw, Trash2, Loader, X } from 'lucide-react';
+import { AlertTriangle, Check, RotateCcw, Trash2, Loader, X, AlertCircle } from 'lucide-react';
 import MigrationManager from './MigrationManager';
 
 const MigrationModal = ({ isOpen, onClose }) => {
@@ -8,6 +8,7 @@ const MigrationModal = ({ isOpen, onClose }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCreatingBackup, setIsCreatingBackup] = useState(false);
   const [backupSuccess, setBackupSuccess] = useState(false);
+  const [backupError, setBackupError] = useState(false);
   const [selectedBackup, setSelectedBackup] = useState(null);
   
   // Backup action states
@@ -39,67 +40,28 @@ const MigrationModal = ({ isOpen, onClose }) => {
     e.stopPropagation();
   };
 
-  // Function to create backup
-  const handleCreateBackup = async () => {
-    if (isCreatingBackup || backupSuccess) return;
-    
-    try {
-      setIsCreatingBackup(true);
-      setProcessingStatus(true);
-      setBackupSuccess(false);
-      
-      // Import the createBackup function directly here to avoid passing it through props
-      const { createBackup } = await import('../../services/api');
-      
-      await createBackup();
-      
-      // Show success state instead of alert
-      setBackupSuccess(true);
-      
-      // Refresh the backups list in MigrationManager
-      if (window.refreshBackups) {
-        await window.refreshBackups();
-      }
-      
-      // Reset to normal state after 5 seconds
-      setTimeout(() => {
-        setBackupSuccess(false);
-      }, 5000);
-    } catch (err) {
-      console.error('Failed:', err);
-      // Show error feedback in the button itself instead of alert
-      setBackupSuccess(false);
-    } finally {
-      setIsCreatingBackup(false);
-      setProcessingStatus(false);
-    }
-  };
-
-  // Action handler for restore/delete
+  // Action handler for restore/delete - FIXED to respond to first click
   const handleActionClick = async (type) => {
     if (!selectedBackup) return;
     
-    // First click sets the action type
-    if (!actionType) {
-      setActionType(type);
-      return;
-    }
+    // If action is already in progress or showing result, do nothing
+    if (actionLoading || actionResult) return;
     
-    // If different action clicked, switch action type
-    if (actionType !== type) {
+    // If no action type is set, or a different action type is clicked
+    if (!actionType || actionType !== type) {
       setActionType(type);
       setActionConfirm(false);
       return;
     }
     
-    // Same action clicked again - toggle confirm state if not already loading/complete
-    if (!actionLoading && !actionResult) {
-      if (!actionConfirm) {
-        // First confirmation
-        setActionConfirm(true);
-      } else {
-        // Confirmed - perform action
+    // Same action clicked again after first click
+    if (actionType === type) {
+      if (actionConfirm) {
+        // If already confirmed, execute the action
         await executeAction();
+      } else {
+        // First confirmation - show confirm state
+        setActionConfirm(true);
       }
     }
   };
@@ -131,31 +93,74 @@ const MigrationModal = ({ isOpen, onClose }) => {
         await window.refreshBackups();
       }
       
-      // Reset after showing success
+      // Reset after showing success - reduced from 5 seconds to 2 seconds
       setTimeout(() => {
-        resetActionStates();
-      }, 5000);
+        if (actionResult === 'success') {
+          resetActionStates();
+        }
+      }, 2000);
     } catch (err) {
       console.error(`Failed to ${actionType}:`, err);
       setActionResult('failure');
       
-      // Reset after showing failure
-      setTimeout(() => {
-        resetActionStates();
-      }, 5000);
+      // Don't reset after failure - user must manually dismiss
     } finally {
       setActionLoading(false);
       setProcessingStatus(false);
     }
   };
   
-  // Reset all action states
-  const resetActionStates = () => {
+  // Function to create backup
+  const handleCreateBackup = async () => {
+    if (isCreatingBackup || backupSuccess) return;
+    
+    try {
+      setIsCreatingBackup(true);
+      setProcessingStatus(true);
+      setBackupSuccess(false);
+      setBackupError(false);
+      
+      // Import the createBackup function directly here to avoid passing it through props
+      const { createBackup } = await import('../../services/api');
+      
+      await createBackup();
+      
+      // Show success state instead of alert
+      setBackupSuccess(true);
+      
+      // Refresh the backups list in MigrationManager
+      if (window.refreshBackups) {
+        await window.refreshBackups();
+      }
+      
+      // Reset to normal state after 2 seconds instead of 5
+      setTimeout(() => {
+        setBackupSuccess(false);
+      }, 2000);
+    } catch (err) {
+      console.error('Failed:', err);
+      // Show error feedback in the button itself
+      setBackupSuccess(false);
+      setBackupError(true); // Add this new state for backup errors
+      
+      // Don't auto-reset on failure
+    } finally {
+      setIsCreatingBackup(false);
+      setProcessingStatus(false);
+    }
+  };
+
+  // Reset all action states - add optional parameters for selective reset
+  const resetActionStates = (keepSelection = false) => {
     setActionType(null);
     setActionConfirm(false);
     setActionLoading(false);
     setActionResult(null);
-    setSelectedBackup(null);
+    setBackupError(false);
+    
+    if (!keepSelection) {
+      setSelectedBackup(null);
+    }
   };
   
   // Handle escape key or closing when action is in progress
@@ -181,6 +186,8 @@ const MigrationModal = ({ isOpen, onClose }) => {
       return "bg-blue-500 hover:bg-blue-500";
     } else if (backupSuccess) {
       return "bg-green-500 hover:bg-green-500";
+    } else if (backupError) {
+      return "bg-orange-500 hover:bg-orange-600";
     } else {
       return "bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700";
     }
@@ -284,50 +291,76 @@ const MigrationModal = ({ isOpen, onClose }) => {
                   exit={{ opacity: 0, y: 10 }}
                   className="flex-1 flex gap-2"
                 >
-                  {/* Restore Button */}
-                  <button
-                    onClick={() => handleActionClick('restore')}
-                    disabled={actionLoading || (actionResult && actionType !== 'restore')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 
-                      ${getActionButtonStyles('restore')} 
-                      text-white rounded-lg shadow-sm transition-all duration-300`}
-                  >
-                    {actionLoading && actionType === 'restore' ? (
-                      <Loader size={18} className="animate-spin" />
-                    ) : actionResult === 'success' && actionType === 'restore' ? (
-                      <Check size={18} />
-                    ) : (
-                      <RotateCcw size={18} />
-                    )}
-                    <span>{getActionButtonText('restore')}</span>
-                  </button>
-                  
-                  {/* Delete Button */}
-                  <button
-                    onClick={() => handleActionClick('delete')}
-                    disabled={actionLoading || (actionResult && actionType !== 'delete')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 
-                      ${getActionButtonStyles('delete')} 
-                      text-white rounded-lg shadow-sm transition-all duration-300`}
-                  >
-                    {actionLoading && actionType === 'delete' ? (
-                      <Loader size={18} className="animate-spin" />
-                    ) : actionResult === 'success' && actionType === 'delete' ? (
-                      <Check size={18} />
-                    ) : (
-                      <Trash2 size={18} />
-                    )}
-                    <span>{getActionButtonText('delete')}</span>
-                  </button>
-                  
-                  {/* Cancel Selection Button */}
-                  {!actionLoading && !actionResult && (
+                  {/* Show different layouts depending on action state */}
+                  {actionResult ? (
+                    // Success or Failure state - show only the relevant button at full width
                     <button
-                      onClick={resetActionStates}
-                      className="px-4 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600"
+                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 
+                        ${actionResult === 'success' ? 'bg-green-500' : 'bg-orange-500'} 
+                        text-white rounded-lg shadow-sm transition-all duration-300`}
+                      onClick={() => actionResult === 'success' ? resetActionStates() : resetActionStates(true)}
                     >
-                      <X size={18} />
+                      {actionResult === 'success' ? (
+                        <>
+                          <Check size={18} />
+                          <span>{actionType === 'restore' ? 'Restored Successfully!' : 'Deleted Successfully!'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle size={18} />
+                          <span>Operation Failed - Click to dismiss</span>
+                        </>
+                      )}
                     </button>
+                  ) : actionLoading ? (
+                    // Loading state - show only the loading button at full width
+                    <button
+                      disabled
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 
+                        bg-blue-500 text-white rounded-lg shadow-sm"
+                    >
+                      <Loader size={18} className="animate-spin" />
+                      <span>Processing {actionType}...</span>
+                    </button>
+                  ) : (
+                    // Normal state with both buttons
+                    <>
+                      {/* Restore Button */}
+                      <button
+                        onClick={() => handleActionClick('restore')}
+                        disabled={actionLoading}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 
+                          ${actionConfirm && actionType === 'restore' 
+                            ? 'bg-blue-600 hover:bg-blue-700' 
+                            : 'bg-blue-500 hover:bg-blue-600'} 
+                          text-white rounded-lg shadow-sm transition-all duration-300`}
+                      >
+                        <RotateCcw size={18} />
+                        <span>{actionConfirm && actionType === 'restore' ? "Confirm Restore?" : "Restore"}</span>
+                      </button>
+                      
+                      {/* Delete Button */}
+                      <button
+                        onClick={() => handleActionClick('delete')}
+                        disabled={actionLoading}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 
+                          ${actionConfirm && actionType === 'delete' 
+                            ? 'bg-red-600 hover:bg-red-700' 
+                            : 'bg-red-500 hover:bg-red-600'}
+                          text-white rounded-lg shadow-sm transition-all duration-300`}
+                      >
+                        <Trash2 size={18} />
+                        <span>{actionConfirm && actionType === 'delete' ? "Confirm Delete?" : "Delete"}</span>
+                      </button>
+                      
+                      {/* Cancel Selection Button */}
+                      <button
+                        onClick={() => resetActionStates()}
+                        className="px-4 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600"
+                      >
+                        <X size={18} />
+                      </button>
+                    </>
                   )}
                 </motion.div>
               ) : (
@@ -356,6 +389,11 @@ const MigrationModal = ({ isOpen, onClose }) => {
                     <span className="flex items-center gap-2">
                       <Check size={18} className="text-white" />
                       <span className="font-medium">Backup Created!</span>
+                    </span>
+                  ) : backupError ? (
+                    <span className="flex items-center gap-2" onClick={() => setBackupError(false)}>
+                      <AlertCircle size={18} className="text-white" />
+                      <span className="font-medium">Backup Failed - Try Again</span>
                     </span>
                   ) : (
                     <>

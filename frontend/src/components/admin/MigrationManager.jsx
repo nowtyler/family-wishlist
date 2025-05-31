@@ -370,13 +370,17 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
             </div>
 
             {/* Backups Section - Improved mobile layout */}
-            <div className="border-t pt-8">
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-8">
                 <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
-                    <h3 className="text-lg font-semibold flex items-center gap-2">
-                        <Archive className="text-gray-500" size={20} />
-                        Database Backups
-                    </h3>
-                    {/* Remove create backup button since it's in the footer */}
+                    <div>
+                        <h3 className="text-lg font-semibold flex items-center gap-2">
+                            <Archive className="text-gray-500" size={20} />
+                            Database Backups
+                        </h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-1">
+                            Click on a backup to see restore/delete options
+                        </p>
+                    </div>
                 </div>
 
                 {backupError && (
