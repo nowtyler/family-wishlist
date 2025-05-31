@@ -675,8 +675,8 @@ function WishlistCard({
                               <span className="text-gray-500 dark:text-gray-400">
                                 {formatCommentTime(comment.created_at)}
                               </span>
-                              {/* Allow admin or comment author to delete */}
-                              {(member.name.toLowerCase() === 'admin' || currentUserId === comment.author_id) && (
+                              {/* FIX: Update this condition so admins can delete any comment */}
+                              {(selectedUser?.name?.toLowerCase() === 'admin' || member.name.toLowerCase() === 'admin' || currentUserId === comment.author_id) && (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
