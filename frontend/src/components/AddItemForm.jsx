@@ -136,13 +136,14 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 20 }}
-      className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl mx-auto"
+      className="p-4 sm:p-6 bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl mx-auto relative"
     >
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Add New Item</h2>
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 pr-8">Add New Item</h2>
         <button
           onClick={onClose}
-          className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
+          aria-label="Close form"
         >
           <X size={20} />
         </button>

@@ -262,9 +262,9 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
         </div>
       )}
       
-      {/* Header section */}
+      {/* Header section - Improved mobile layout */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)]">
-        <div>
+        <div className="w-full md:w-auto">
           <h1 className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white">
             {viewingMember?.id === selectedUser.id ? "Your Wishlist" : `${viewingMember?.name || ''}'s Wishlist`}
           </h1>
@@ -274,8 +274,10 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
           </p>
         </div>
         
-        {/* Make sure ExternalWishlistsButton is properly rendered */}
-        {viewingMember && <ExternalWishlistsButton member={viewingMember} />}
+        {/* External Wishlists Button - full width on mobile, auto width on larger screens */}
+        {viewingMember && <div className="w-full md:w-auto">
+          <ExternalWishlistsButton member={viewingMember} />
+        </div>}
       </div>
 
       {error && <p className="text-red-500 bg-red-100 p-3 rounded-md text-center">{error}</p>}

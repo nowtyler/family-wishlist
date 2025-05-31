@@ -453,7 +453,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-0"
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-10"
             onClick={handleCloseModal}
           >
             <motion.div
@@ -461,27 +461,32 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
               animate={{ scale: 1 }}
               exit={{ scale: 0.95 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-4 sm:p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
             >
-              <div className="flex justify-between items-start mb-4 w-full">
-                <h2 className="text-2xl font-bold text-gray-800 dark:text-white break-words max-w-[90%]">{selectedItem.title}</h2>
-                <button
-                  onClick={handleCloseModal}
-                  className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                >
-                  ×
-                </button>
+              {/* Improved close button - larger, sticky at top corner */}
+              <button
+                onClick={handleCloseModal}
+                className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 z-10"
+                aria-label="Close modal"
+              >
+                <X size={20} />
+              </button>
+              
+              <div className="pr-6 mb-4 w-full">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white break-words max-w-full pr-4">{selectedItem.title}</h2>
               </div>
 
+              {/* More spacing around description for readability */}
               {selectedItem.description && (
-                <p className="text-gray-600 dark:text-gray-300 mb-4 whitespace-pre-wrap break-words">{selectedItem.description}</p>
+                <p className="text-gray-600 dark:text-gray-300 mb-5 whitespace-pre-wrap break-words">{selectedItem.description}</p>
               )}
 
+              {/* Set max-height for image and optimize for mobile */}
               {selectedItem.image_url && (
                 <img
                   src={selectedItem.image_url}
                   alt={selectedItem.title}
-                  className="w-full max-h-96 object-contain rounded-lg mb-4"
+                  className="w-full h-auto max-h-72 object-contain rounded-lg mb-4"
                 />
               )}
 
@@ -544,7 +549,7 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                       </h3>
                       
                       {/* Comments List with scroll */}
-                      <div className="space-y-2 mb-3 max-h-[40vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
+                      <div className="space-y-2 mb-3 max-h-[30vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
                         {selectedItem.comments
                           ?.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
                           .map((comment) => (

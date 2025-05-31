@@ -150,11 +150,11 @@ const ExternalWishlistsButton = ({ member }) => {
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm transition-colors"
+        className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg shadow-sm hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 sm:w-auto w-full justify-center"
         title="External Wishlists"
       >
-        <Link2 size={18} className="text-primary dark:text-primary-400" />
-        <span className="text-gray-700 dark:text-gray-300">External Wishlists</span>
+        <Link2 size={18} className="text-white" />
+        <span className="font-medium">External Wishlists</span>
       </button>
       
       <AnimatePresence>
@@ -166,20 +166,21 @@ const ExternalWishlistsButton = ({ member }) => {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto"
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto relative"
             >
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200">
-                    {member.name}'s External Wishlists
-                  </h3>
-                  <button
-                    onClick={() => setIsOpen(false)}
-                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
+              <div className="p-4 sm:p-6">
+                {/* Improved close button - larger, more accessible */}
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
+                  aria-label="Close modal"
+                >
+                  <X size={20} />
+                </button>
+                
+                <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 pr-8 mb-4">
+                  {member.name}'s External Wishlists
+                </h3>
                 
                 {isLoading && (
                   <div className="py-8">

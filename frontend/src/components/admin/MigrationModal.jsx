@@ -19,26 +19,29 @@ const MigrationModal = ({ isOpen, onClose }) => {
         animate={{ scale: 1 }}
         exit={{ scale: 0.95 }}
         onClick={e => e.stopPropagation()}
-        className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-4 sm:p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
       >
-        <div className="flex justify-between items-start mb-6">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="text-yellow-500" size={24} />
+        {/* Improved close button - larger, more accessible */}
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 z-10"
+          aria-label="Close modal"
+        >
+          <X size={20} />
+        </button>
+        
+        <div className="pr-6 mb-6">
+          <div className="flex items-start gap-2 mb-1">
+            <AlertTriangle className="text-yellow-500 mt-1" size={20} />
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">
               Database Migration Manager
             </h2>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-          >
-            <X size={20} />
-          </button>
-        </div>
-        
-        <div className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-          <p className="mb-2">Warning: Database migrations can potentially modify your data structure.</p>
-          <p>Make sure you have a backup before proceeding with any migration.</p>
+          
+          <div className="text-sm text-gray-500 dark:text-gray-400 ml-7 mt-2">
+            <p className="mb-2">Warning: Database migrations can potentially modify your data structure.</p>
+            <p>Make sure you have a backup before proceeding with any migration.</p>
+          </div>
         </div>
 
         <MigrationManager />
