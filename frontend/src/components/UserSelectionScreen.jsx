@@ -115,6 +115,9 @@ const UserSelectionScreen = () => {
         ) : error ? (
           <div className="text-red-500 text-center py-6">
             {error}
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+              An admin will need to access the migration manager to check for issues.
+            </p>
             <button className="block mx-auto mt-4 px-4 py-2 bg-primary text-white rounded" onClick={fetchFamilyMembers}>
               Retry
             </button>
@@ -128,7 +131,7 @@ const UserSelectionScreen = () => {
                   key={member.id}
                   onClick={() => handleSelectUser(member)}
                   className={`p-4 md:p-6 ${
-                    selectedUser?.id === member.id
+                    setSelectedUser?.id === member.id
                       ? 'bg-primary text-white dark:bg-primary-600'
                       : 'bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-white'
                   } rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-opacity-75
