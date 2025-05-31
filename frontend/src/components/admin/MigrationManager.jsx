@@ -110,7 +110,14 @@ const MigrationManager = ({ setProcessingStatus = () => {} }) => {
             setProcessingStatus(false);
         };
         init();
-        // Remove schema polling
+
+        // Make fetchBackups available globally
+        window.refreshBackups = fetchBackups;
+
+        // Cleanup
+        return () => {
+            window.refreshBackups = null;
+        };
     }, []);
 
     const handleCreateBackup = async (e) => {
@@ -372,15 +379,7 @@ const MigrationManager = ({ setProcessingStatus = () => {} }) => {
                         <Archive className="text-gray-500" size={20} />
                         Database Backups
                     </h3>
-                    <button
-                        onClick={handleCreateBackup}
-                        disabled={backupLoading}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
-                    >
-                        <Plus size={16} />
-                        <span className="hidden sm:inline">Create Backup</span>
-                        <span className="sm:hidden">Backup</span>
-                    </button>
+                    {/* Remove this button since it's now in the footer */}
                 </div>
 
                 {backupError && (
