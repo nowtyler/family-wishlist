@@ -1,8 +1,8 @@
 // WishlistCard.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trash2, ExternalLink, Heart, Pencil, Check, X, ShoppingCart, ChevronDown, Flag, MessageCircle, Send } from 'lucide-react';
-import { updateWishlistItem, addComment, deleteComment } from '../services/api';
+import { updateWishlistItem, addComment, deleteComment, getWishlistItems } from '../services/api';
 
 function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, onUpdateItems, onDeleteItem, onThinkingAbout, onMarkPurchased }) {
   const [selectedItem, setSelectedItem] = useState(null);
@@ -11,6 +11,23 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
   const [activeTooltip, setActiveTooltip] = useState(null); // 'interest-{itemId}' or 'purchase-{itemId}'
   const [newComment, setNewComment] = useState('');
   const [commentError, setCommentError] = useState('');
+  const [isDuplicateTitle, setIsDuplicateTitle] = useState(false);
+
+  // Check for duplicate titles when editing
+  useEffect(() => {
+    if (!editingItemId || !editForm.title || !items || items.length === 0) {
+      setIsDuplicateTitle(false);
+      return;
+    }
+
+    const normalizedTitle = editForm.title.trim().toLowerCase();
+    const isDuplicate = items.some(item => 
+      item.id !== editingItemId && 
+      item.title.toLowerCase() === normalizedTitle
+    );
+    
+    setIsDuplicateTitle(isDuplicate);
+  }, [editForm.title, editingItemId, items]);
 
   const handleItemClick = (item) => {
     setSelectedItem(item);
@@ -40,6 +57,11 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
     try {
       if (!editForm.title?.trim()) {
         throw new Error('Title is required');
+      }
+
+      // Check for duplicate title before saving
+      if (isDuplicateTitle) {
+        throw new Error('An item with this title already exists in the wishlist');
       }
 
       // Improved price handling for edit
@@ -216,9 +238,16 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
           type="text"
           value={editForm.title}
           onChange={e => setEditForm({ ...editForm, title: e.target.value })}
-          className="w-full px-2 py-1 border rounded dark:bg-gray-600 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary"
+          className={`w-full px-2 py-1 border rounded dark:bg-gray-600 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary ${
+            isDuplicateTitle ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-500'
+          }`}
           required
         />
+        {isDuplicateTitle && (
+          <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+            An item with this title already exists
+          </p>
+        )}
       </div>
       <div className="flex flex-col">
         <label className="text-sm text-gray-600 dark:text-gray-400">Description</label>
@@ -360,8 +389,9 @@ function WishlistCard({ member, items, isLoading, isOwnWishlist, currentUserId, 
                     <div className="flex items-center gap-2">
                       <button
                         onClick={(e) => handleSaveEdit(e, item.id)}
-                        className="text-green-500 hover:text-green-700 p-1"
+                        className={`p-1 ${isDuplicateTitle ? 'text-gray-400 cursor-not-allowed' : 'text-green-500 hover:text-green-700'}`}
                         title="Save changes"
+                        disabled={isDuplicateTitle}
                       >
                         <Check size={16} />
                       </button>
