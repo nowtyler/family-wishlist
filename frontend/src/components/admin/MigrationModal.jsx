@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, AlertTriangle } from 'lucide-react';
 import MigrationManager from './MigrationManager';
@@ -13,11 +13,36 @@ const MigrationModal = ({ isOpen, onClose }) => {
   }, []);
 
   // Prevent closing while processing
-  const handleClose = () => {
+  const handleClose = (e) => {
+    // Stop event propagation to prevent multiple close events
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     if (!isProcessing) {
       onClose();
     }
   };
+
+  // Cancel background click propagation
+  const handleContentClick = (e) => {
+    e.stopPropagation();
+  };
+
+  // Add a global click handler to detect clicks outside inner modal elements
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleGlobalClick = (e) => {
+      // Only check if we're trying to close the modal with outside clicks
+      if (isProcessing || !e.target.classList.contains('modal-backdrop')) return;
+      handleClose();
+    };
+
+    document.addEventListener('click', handleGlobalClick);
+    return () => document.removeEventListener('click', handleGlobalClick);
+  }, [isOpen, isProcessing]);
 
   if (!isOpen) return null;
 
@@ -26,15 +51,14 @@ const MigrationModal = ({ isOpen, onClose }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-      onClick={isProcessing ? undefined : handleClose}
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 modal-backdrop"
     >
       <motion.div
         initial={{ scale: 0.95 }}
         animate={{ scale: 1 }}
         exit={{ scale: 0.95 }}
-        onClick={e => e.stopPropagation()}
-        className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-4 sm:p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
+        onClick={handleContentClick}
+        className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-4 sm:p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto relative modal-content"
       >
         {/* Improved close button - larger, more accessible */}
         <button

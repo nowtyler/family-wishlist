@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getMigrations, upgradeMigration, createBackup, getBackups, restoreBackup, deleteBackup, getSchemaHash, deleteMigration, resetMigrationState, hardResetMigrations } from '../../services/api';
-import { AlertCircle, Database, Archive, Download, RotateCcw, Plus, Trash2, ArrowUp, X, GitMerge, AlertTriangle } from 'lucide-react';
+import { AlertCircle, Database, Archive, Download, RotateCcw, Plus, Trash2, ArrowUp, X, GitMerge, AlertTriangle, Check, RefreshCw } from 'lucide-react';
 
 const MigrationManager = ({ setProcessingStatus = () => {} }) => {
     const [migrations, setMigrations] = useState([]);
@@ -13,6 +13,7 @@ const MigrationManager = ({ setProcessingStatus = () => {} }) => {
     const [dbVersion, setDbVersion] = useState('current');
     const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(null);
     const [deleteBackupFilename, setDeleteBackupFilename] = useState(null);
+    const [confirmingDelete, setConfirmingDelete] = useState(null);
 
     const fetchMigrations = async () => {
         try {
@@ -112,7 +113,11 @@ const MigrationManager = ({ setProcessingStatus = () => {} }) => {
         // Remove schema polling
     }, []);
 
-    const handleCreateBackup = async () => {
+    const handleCreateBackup = async (e) => {
+        // Prevent the event from bubbling up which could close modals
+        e?.preventDefault();
+        e?.stopPropagation();
+        
         try {
             setProcessingStatus(true);
             setBackupLoading(true);
@@ -129,38 +134,48 @@ const MigrationManager = ({ setProcessingStatus = () => {} }) => {
         }
     };
 
-    const handleDeleteBackupConfirm = (filename) => {
-        setDeleteBackupFilename(filename);
-        setShowDeleteConfirmation(true);
+    // Replace the old handleDeleteBackupConfirm with this new approach
+    const handleDeleteClick = (e, filename) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        // If already confirming this file, go ahead with deletion
+        if (confirmingDelete === filename) {
+            deleteBackupNow(filename);
+        } else {
+            // Set this file as the one we're confirming, which will change the icon to Check
+            setConfirmingDelete(filename);
+            
+            // Auto-reset after 3 seconds if user doesn't confirm
+            setTimeout(() => {
+                setConfirmingDelete(current => current === filename ? null : current);
+            }, 3000);
+        }
     };
 
-    const handleDeleteBackupCancel = () => {
-        setDeleteBackupFilename(null);
-        setShowDeleteConfirmation(false);
-    };
-
-    const handleDeleteBackupConfirmed = async () => {
-        if (!deleteBackupFilename) return;
-        
+    const deleteBackupNow = async (filename) => {
         try {
             setProcessingStatus(true);
             setBackupLoading(true);
             setBackupError('');
-            const result = await deleteBackup(deleteBackupFilename);
+            const result = await deleteBackup(filename);
             await fetchBackups();
+            setConfirmingDelete(null);
             alert("Backup deleted successfully!");
         } catch (err) {
             setBackupError(err.response?.data?.detail || err.message || 'Failed to delete backup');
             alert("Failed to delete backup: " + (err.response?.data?.detail || err.message || 'Unknown error'));
         } finally {
             setBackupLoading(false);
-            setDeleteBackupFilename(null);
-            setShowDeleteConfirmation(false);
+            setConfirmingDelete(null);
             setProcessingStatus(false);
         }
     };
 
-    const handleRestoreBackup = async (filename) => {
+    const handleRestoreBackup = async (e, filename) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
         if (!confirm('Are you sure you want to restore this backup? Current data will be backed up first.')) {
             return;
         }
@@ -363,7 +378,8 @@ const MigrationManager = ({ setProcessingStatus = () => {} }) => {
                         className="flex items-center gap-2 px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
                     >
                         <Plus size={16} />
-                        Create Backup
+                        <span className="hidden sm:inline">Create Backup</span>
+                        <span className="sm:hidden">Backup</span>
                     </button>
                 </div>
 
@@ -373,14 +389,15 @@ const MigrationManager = ({ setProcessingStatus = () => {} }) => {
                     </div>
                 )}
 
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-1">
                     {backups.map((backup) => (
                         <div
                             key={backup.filename}
                             className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
                         >
-                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
-                                <div className="flex-grow min-w-0">
+                            <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
+                                {/* File information */}
+                                <div className="w-full sm:w-auto flex-grow min-w-0 pr-4">
                                     <div className="font-mono text-sm truncate">{backup.filename}</div>
                                     <div className="text-xs text-gray-500 flex flex-wrap gap-x-2 gap-y-1">
                                         <span>{new Date(backup.created_at).toLocaleString()}</span>
@@ -394,32 +411,49 @@ const MigrationManager = ({ setProcessingStatus = () => {} }) => {
                                                     ? 'text-green-500'
                                                     : 'text-yellow-500'
                                         }`}>
-                                            Version: {backup.version}
+                                            {backup.version}
                                         </span>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-2 mt-1 sm:mt-0">
+                                {/* Mobile-optimized action buttons */}
+                                <div className="flex flex-shrink-0 justify-end gap-1 mt-1 sm:mt-0">
+                                    {/* Restore button */}
                                     <button
-                                        onClick={() => handleRestoreBackup(backup.filename)}
-                                        disabled={backupLoading}
+                                        onClick={(e) => handleRestoreBackup(e, backup.filename)}
+                                        disabled={backupLoading || confirmingDelete !== null}
                                         className={`flex items-center gap-1 px-2 py-1 rounded text-sm ${
-                                            backup.can_restore
+                                            backup.can_restore && !confirmingDelete
                                                 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-500 hover:bg-blue-200 dark:hover:bg-blue-800/30'
                                                 : 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
                                         }`}
                                         title={backup.can_restore ? 'Restore this backup' : 'Schema mismatch - requires migration'}
                                     >
-                                        <RotateCcw size={14} />
-                                        <span>Restore</span>
+                                        <RotateCcw size={16} />
+                                        <span className="sm:inline hidden">Restore</span>
                                     </button>
+                                    
+                                    {/* Delete button with confirmation state */}
                                     <button
-                                        onClick={() => handleDeleteBackupConfirm(backup.filename)}
+                                        onClick={(e) => handleDeleteClick(e, backup.filename)}
                                         disabled={backupLoading}
-                                        className="flex items-center gap-1 px-2 py-1 rounded text-sm bg-red-100 dark:bg-red-900/30 text-red-500 hover:bg-red-200 dark:hover:bg-red-800/30"
-                                        title="Delete this backup"
+                                        className={`flex items-center gap-1 px-2 py-1 rounded text-sm transition-all duration-200 ${
+                                            confirmingDelete === backup.filename
+                                                ? 'bg-red-500 text-white hover:bg-red-600'
+                                                : 'bg-red-100 dark:bg-red-900/30 text-red-500 hover:bg-red-200 dark:hover:bg-red-800/30'
+                                        }`}
+                                        title={confirmingDelete === backup.filename ? 'Click again to confirm deletion' : 'Delete this backup'}
                                     >
-                                        <Trash2 size={14} />
-                                        <span>Delete</span>
+                                        {confirmingDelete === backup.filename ? (
+                                            <>
+                                                <Check size={16} />
+                                                <span className="sm:inline hidden">Confirm</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Trash2 size={16} />
+                                                <span className="sm:inline hidden">Delete</span>
+                                            </>
+                                        )}
                                     </button>
                                 </div>
                             </div>
@@ -433,32 +467,6 @@ const MigrationManager = ({ setProcessingStatus = () => {} }) => {
                     )}
                 </div>
             </div>
-
-            {/* Delete confirmation modal */}
-            {showDeleteConfirmation && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl">
-                        <h4 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-3">Delete Backup</h4>
-                        <p className="text-gray-700 dark:text-gray-300 mb-4">
-                            Are you sure you want to delete this backup? This action cannot be undone.
-                        </p>
-                        <div className="flex justify-end gap-3">
-                            <button 
-                                onClick={handleDeleteBackupCancel}
-                                className="px-4 py-2 rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600"
-                            >
-                                Cancel
-                            </button>
-                            <button 
-                                onClick={handleDeleteBackupConfirmed}
-                                className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700"
-                            >
-                                Delete
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };
