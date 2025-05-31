@@ -656,10 +656,11 @@ function WishlistCard({
                         Comments ({selectedItem.comments?.length || 0})
                       </h3>
                       
-                      {/* Comments List with scroll */}
-                      <div className="space-y-2 mb-3 max-h-[30vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
+                      {/* Comments List with scroll - reduced max height for mobile and ordering changed */}
+                      <div className="space-y-2 mb-3 max-h-[25vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
                         {selectedItem.comments
-                          ?.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                          ?.slice() // Create a copy so we don't mutate the original array
+                          .sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) // Oldest first
                           .map((comment) => (
                             <div key={comment.id} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2">
                               <div className="flex justify-between items-center text-xs">
@@ -670,7 +671,7 @@ function WishlistCard({
                                   <span className="text-gray-500 dark:text-gray-400">
                                     {formatCommentTime(comment.created_at)}
                                   </span>
-                                  {member.name.toLowerCase() === 'admin' && (
+                                  {(member.name.toLowerCase() === 'admin' || currentUserId === comment.author_id) && (
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();

@@ -3,6 +3,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, Header, Request, Bo
 from fastapi.responses import Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from typing import List, Optional, Dict
 import logging
 import traceback
@@ -680,24 +681,24 @@ async def upgrade_database(
                     "message": f"Failed to merge heads: {merge_result}",
                     "new_version": new_version
                 }
-        
-        # Now proceed with normal upgrade
-        result = migration_service.upgrade(target)
-        new_version = migration_service.get_current_version()
-        
-        try:
-            new_hash = migration_service.get_schema_hash()
-            crud.update_schema_hash(db, new_hash)
-        except Exception as e:
-            logger.error(f"Failed to update schema hash: {str(e)}")
-            import traceback
-            logger.error(traceback.format_exc())
-        
-        return {
-            "success": "Failed" not in result,
-            "message": result,
-            "new_version": new_version
-        }
+        else:
+            # Proceed with normal upgrade
+            result = migration_service.upgrade(target)
+            new_version = migration_service.get_current_version()
+            
+            try:
+                new_hash = migration_service.get_schema_hash()
+                crud.update_schema_hash(db, new_hash)
+            except Exception as e:
+                logger.error(f"Failed to update schema hash: {str(e)}")
+                import traceback
+                logger.error(traceback.format_exc())
+            
+            return {
+                "success": "Failed" not in result,
+                "message": result,
+                "new_version": new_version
+            }
     except Exception as e:
         logger.error(f"Migration upgrade error: {str(e)}")
         import traceback
@@ -935,9 +936,9 @@ async def get_schema_hash(
 @app.get("/api/health")
 async def health_check():
     try:
-        # Test database connection
+        # Test database connection - fixed SQL query format
         db = SessionLocal()
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))  # Use text() to properly format SQL expression
         db.close()
         
         # Return clearer environment information
@@ -1139,14 +1140,14 @@ def delete_external_wishlist_endpoint(
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id_from_header)
 ):
-    """Delete an external wishlist link"""
-    if current_user_id is None:
+    if current_user_id is None:ist link"""
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
-    
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
     if crud.delete_external_wishlist(db, wishlist_id, current_user_id):
+        return Response(status_code=status.HTTP_204_NO_CONTENT)ser_id):
         return Response(status_code=status.HTTP_204_NO_CONTENT)
-    
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
         detail="External wishlist not found or you're not authorized to delete it"
+    )   detail="External wishlist not found or you're not authorized to delete it"
     )

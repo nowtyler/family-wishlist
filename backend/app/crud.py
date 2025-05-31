@@ -86,19 +86,15 @@ def get_wishlist_items_by_owner(db: Session, owner_id: int, current_user_id: int
 
     result_items = []
     for item in db_items:
-        # If the current user is the owner, they see everything normally
-        # If the current user is NOT the owner AND the item is purchased, they don't see it as purchased (it's hidden for owner)
-        # Actually, the prompt says: "mark that they purchased something, which will hide it from the wishlist owner but remain visible to others."
+        # Get the requesting user to check if they're an admin
+        requesting_user = get_family_member(db, current_user_id)
+        is_admin = requesting_user and requesting_user.name.lower() == 'admin'
         
         is_item_visible_to_current_user = True
         effective_is_purchased = item.is_purchased
         effective_purchased_by = item.purchased_by
 
-        # Get the requesting user to check if they're an admin
-        requesting_user = get_family_member(db, current_user_id)
-        is_admin = requesting_user and requesting_user.name.lower() == 'admin'
-
-        if owner_id == current_user_id:  # Current user IS the owner
+        if owner_id == current_user_id and not is_admin:  # Current user IS the owner (but not admin)
             # Owner can still see the item but not who purchased it
             effective_purchased_by = None
             effective_is_purchased = False  # Don't show as purchased to owner
@@ -108,7 +104,7 @@ def get_wishlist_items_by_owner(db: Session, owner_id: int, current_user_id: int
         visible_comments = []
 
         # Show comments when:
-        # 1. User is admin OR
+        # 1. User is admin (regardless of ownership) OR
         # 2. User is not viewing their own wishlist
         if is_admin or owner_id != current_user_id:
             visible_comments = [schemas.Comment(
@@ -118,7 +114,7 @@ def get_wishlist_items_by_owner(db: Session, owner_id: int, current_user_id: int
                 author_name=comment.author.name,
                 item_id=comment.item_id,
                 created_at=comment.created_at
-            ) for comment in sorted(item.comments, key=lambda x: x.created_at, reverse=True)]
+            ) for comment in item.comments]
 
         result_items.append(schemas.WishlistItem(
             id=item.id,
@@ -127,7 +123,7 @@ def get_wishlist_items_by_owner(db: Session, owner_id: int, current_user_id: int
             link=str(item.link) if item.link else None,
             image_url=str(item.image_url) if item.image_url else None,
             priority=item.priority,
-            price=item.price,  # Make sure price is included
+            price=item.price,
             owner_id=item.owner_id,
             is_purchased=effective_is_purchased,
             purchased_by=effective_purchased_by,
