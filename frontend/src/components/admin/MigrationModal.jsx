@@ -40,30 +40,22 @@ const MigrationModal = ({ isOpen, onClose }) => {
     e.stopPropagation();
   };
 
-  // Action handler for restore/delete - FIXED to respond to first click
+  // Action handler for restore/delete - Fixed to properly handle first click
   const handleActionClick = async (type) => {
     if (!selectedBackup) return;
     
     // If action is already in progress or showing result, do nothing
     if (actionLoading || actionResult) return;
     
-    // If no action type is set, or a different action type is clicked
-    if (!actionType || actionType !== type) {
-      setActionType(type);
-      setActionConfirm(false);
+    // If confirmation is already showing for this action type, execute it
+    if (actionType === type && actionConfirm) {
+      await executeAction();
       return;
     }
     
-    // Same action clicked again after first click
-    if (actionType === type) {
-      if (actionConfirm) {
-        // If already confirmed, execute the action
-        await executeAction();
-      } else {
-        // First confirmation - show confirm state
-        setActionConfirm(true);
-      }
-    }
+    // Otherwise show confirmation for this action type
+    setActionType(type);
+    setActionConfirm(true);
   };
   
   // Execute the selected action
@@ -93,12 +85,13 @@ const MigrationModal = ({ isOpen, onClose }) => {
         await window.refreshBackups();
       }
       
-      // Reset after showing success - reduced from 5 seconds to 2 seconds
-      setTimeout(() => {
-        if (actionResult === 'success') {
-          resetActionStates();
-        }
+      // Auto-dismiss success after 2 seconds
+      const timer = setTimeout(() => {
+        resetActionStates();
       }, 2000);
+      
+      // Store timer reference to clean up if component unmounts
+      return () => clearTimeout(timer);
     } catch (err) {
       console.error(`Failed to ${actionType}:`, err);
       setActionResult('failure');
@@ -336,7 +329,7 @@ const MigrationModal = ({ isOpen, onClose }) => {
                           text-white rounded-lg shadow-sm transition-all duration-300`}
                       >
                         <RotateCcw size={18} />
-                        <span>{actionConfirm && actionType === 'restore' ? "Confirm Restore?" : "Restore"}</span>
+                        <span>{actionConfirm && actionType === 'restore' ? "Confirm?" : "Restore"}</span>
                       </button>
                       
                       {/* Delete Button */}
@@ -350,7 +343,7 @@ const MigrationModal = ({ isOpen, onClose }) => {
                           text-white rounded-lg shadow-sm transition-all duration-300`}
                       >
                         <Trash2 size={18} />
-                        <span>{actionConfirm && actionType === 'delete' ? "Confirm Delete?" : "Delete"}</span>
+                        <span>{actionConfirm && actionType === 'delete' ? "Confirm?" : "Delete"}</span>
                       </button>
                       
                       {/* Cancel Selection Button */}

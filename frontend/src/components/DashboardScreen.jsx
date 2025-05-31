@@ -8,7 +8,7 @@ import AddItemForm from './AddItemForm';
 import SchemaAlertModal from './SchemaAlertModal';
 import ExternalWishlistsButton from './ExternalWishlistsButton'; // Confirm this import exists
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, ChevronDown, Gift, AlertTriangle } from 'lucide-react';
+import { Plus, ChevronDown, Gift, AlertTriangle, Home } from 'lucide-react';
 
 const DashboardScreen = ({ onViewingMemberChange }) => {
   const { selectedUser, familyMembers, setFamilyMembers } = useAppContext();
@@ -378,7 +378,7 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
 
       {/* Floating Add Button - Updated to hide when modal is open */}
       <AnimatePresence>
-        {(viewingMember?.id === selectedUser.id || isAdmin) && !isAddingItem && !selectedItem && (
+        {(viewingMember?.id === selectedUser?.id || isAdmin) && !isAddingItem && !selectedItem && (
           <motion.button
             onClick={handleOpenAddItemForm}
             initial={{ scale: 0, opacity: 0 }}
@@ -390,6 +390,22 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
             title="Add new item"
           >
             <Plus size={24} />
+          </motion.button>
+        )}
+        
+        {/* Floating Home Button - Only shows when viewing someone else's wishlist */}
+        {viewingMember?.id !== selectedUser?.id && !isAdmin && !selectedItem && (
+          <motion.button
+            onClick={() => handleSelectViewingMember(selectedUser)}
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 dark:from-emerald-400 dark:to-teal-400 text-white shadow-lg hover:from-emerald-600 hover:to-teal-600 dark:hover:from-emerald-500 dark:hover:to-teal-500 flex items-center justify-center transition-all duration-200 z-10"
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
+            title="Return to your wishlist"
+          >
+            <Home size={24} />
           </motion.button>
         )}
       </AnimatePresence>
