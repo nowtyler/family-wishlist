@@ -336,7 +336,7 @@ const UserPreferencesDropdown = ({ member, isOwner, currentUserId, onUpdateSucce
                 />
                 
                 <SizeSelector
-                  label="Hoodie/Jacket Size"
+                  label="Hoodie Size"
                   icon={<Shirt size={14} />}
                   value={preferences.hoodieSize}
                   onChange={(value) => setPreferences({...preferences, hoodieSize: value})}
