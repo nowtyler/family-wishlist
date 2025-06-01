@@ -622,4 +622,15 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
             className={`px-4 py-2 text-sm font-medium text-white border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:focus:ring-offset-gray-800 ${
               isDuplicateTitle && !/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
                 ? 'bg-gray-400 cursor-not-allowed' 
-                : 'bg-primary dark:bg-primary-600 hover:bg-primary-dark dark:hover:bg-primary-
+                : 'bg-primary dark:bg-primary-600 hover:bg-primary-dark dark:hover:bg-primary-700'
+            }`}
+          >
+            Add Item
+          </button>
+        </div>
+      </form>
+    </motion.div>
+  );
+}
+
+export default AddItemForm;
