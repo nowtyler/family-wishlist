@@ -214,12 +214,12 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
   };
 
   // Add this function to calculate days until birthday
-  const getDaysUntilBirthday = (birthdate) => {
-    if (!birthdate) return null;
+  const getDaysUntilBirthday = (birthday) => {
+    if (!birthday) return null;
     
     try {
-      // Parse the birthdate (format: YYYY-MM-DD)
-      const [year, month, day] = birthdate.split('-').map(num => parseInt(num, 10));
+      // Parse the birthday (format: YYYY-MM-DD)
+      const [year, month, day] = birthday.split('-').map(num => parseInt(num, 10));
       
       // Create date objects for today and the next birthday
       const today = new Date();
@@ -253,9 +253,9 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
   useEffect(() => {
     if (viewingMember) {
       console.log('Viewing member birthday info:', {
-        birthdate: viewingMember.birthdate,
-        hasBirthdate: !!viewingMember.birthdate,
-        birthdayCalc: viewingMember.birthdate ? getDaysUntilBirthday(viewingMember.birthdate) : null
+        birthday: viewingMember.birthday,
+        hasBirthday: !!viewingMember.birthday,
+        birthdayCalc: viewingMember.birthday ? getDaysUntilBirthday(viewingMember.birthday) : null
       });
     }
   }, [viewingMember]);
@@ -328,11 +328,11 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
             </h1>
             
             {/* Birthday information tag - Only show when viewing someone else's list - Fixed conditional logic */}
-            {viewingMember && viewingMember.id !== selectedUser?.id && viewingMember.birthdate && (
+            {viewingMember && viewingMember.id !== selectedUser?.id && viewingMember.birthday && (
               <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full text-sm whitespace-nowrap">
                 <Calendar size={14} />
                 {(() => {
-                  const birthday = getDaysUntilBirthday(viewingMember.birthdate);
+                  const birthday = getDaysUntilBirthday(viewingMember.birthday);
                   console.log('Birthday calculation result:', birthday);
                   if (!birthday) return "Birthday info";
                   
