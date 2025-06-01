@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, MessageCircleHeart, ShoppingCart, MessageCircle, Trash2, Plus, Pencil, 
   Gift, Moon, Sun, Settings, User, Database, RotateCcw, AlertTriangle,
-  RefreshCw, Archive, Home 
+  RefreshCw, Archive, Home, Ruler
 } from 'lucide-react';
 
 const HelpModal = ({ isOpen, onClose, isAdmin }) => {
@@ -170,6 +170,10 @@ const HelpModal = ({ isOpen, onClose, isAdmin }) => {
               >
                 <p>Click the "+ button" in the bottom-right corner to add a new item to your wishlist. 
                 You can also import product details by pasting a URL from popular shopping websites.</p>
+                
+                <p className="mt-1">When adding or editing an item, open the "Show additional details" section to specify item-specific sizes. 
+                This is especially useful for clothing and footwear where the exact size needed may vary between brands or items.</p>
+                
                 <div className="mt-1">
                   <ActionButton icon={<Plus size={14} />} color="indigo">
                     Add Item
@@ -183,6 +187,22 @@ const HelpModal = ({ isOpen, onClose, isAdmin }) => {
                 color="blue"
               >
                 <p>Click the pencil icon on any of your items to edit its details. You can modify the title, description, price, priority, and links.</p>
+                <p className="mt-1">You can also add or update specific size information for each item - helpful when the size varies between products.</p>
+              </Feature>
+              
+              <Feature 
+                icon={<Ruler size={18} />} 
+                title="Item-Specific Sizing" 
+                color="indigo"
+              >
+                <p>When adding or editing items, you can specify detailed size information such as:</p>
+                <ul className="list-disc ml-6 mt-1 space-y-1">
+                  <li>T-shirt/hoodie sizes (XS through XXXL)</li>
+                  <li>Pants with waist/length measurements (32x34)</li>
+                  <li>Women's dress sizes (including letter and number sizes)</li>
+                  <li>Shoe sizes with half sizes for perfect fit</li>
+                </ul>
+                <p className="mt-1">This item-specific sizing is added to the description and helps ensure family members buy the exact right size for each gift.</p>
               </Feature>
               
               <Feature 
@@ -258,6 +278,24 @@ const HelpModal = ({ isOpen, onClose, isAdmin }) => {
                   <div className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded">
                     <Moon size={14} />
                     <span>Dark Mode</span>
+                  </div>
+                </div>
+              </Feature>
+              
+              {/* Add new feature about size preferences */}
+              <Feature 
+                icon={<Ruler size={18} />} 
+                title="Size Preferences" 
+                color="blue"
+              >
+                <p>Click "Sizes & Preferences" in your wishlist header to set your general clothing and shoe sizes. 
+                These are visible to all family members and help them buy the right sizes for you.</p>
+                <p className="mt-1">You can set preferences for t-shirts, hoodies, pants, dresses, shoes, wrist size, and more. 
+                You can also add general notes about your preferences.</p>
+                <div className="mt-1">
+                  <div className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 rounded">
+                    <Ruler size={14} />
+                    <span>Sizes & Preferences</span>
                   </div>
                 </div>
               </Feature>

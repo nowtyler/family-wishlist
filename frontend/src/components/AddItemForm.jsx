@@ -448,20 +448,7 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                Item URL
-              </label>
-              <input
-                type="url"
-                value={formData.link}
-                onChange={(e) => setFormData({ ...formData, link: e.target.value })}
-                placeholder="https://"
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              />
-            </div>
-
-            {/* Size Fields - New Addition */}
+            {/* Size Fields - Moved below description */}
             <div className="border-t border-gray-200 dark:border-gray-700 mt-4 pt-4">
               <div className="flex items-center mb-3">
                 <Ruler size={18} className="mr-2 text-blue-500 dark:text-blue-400" />
@@ -570,6 +557,19 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
 
             <div>
               <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                Item URL
+              </label>
+              <input
+                type="url"
+                value={formData.link}
+                onChange={(e) => setFormData({ ...formData, link: e.target.value })}
+                placeholder="https://"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
                 Image URL
               </label>
               <input
@@ -622,15 +622,4 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
             className={`px-4 py-2 text-sm font-medium text-white border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:focus:ring-offset-gray-800 ${
               isDuplicateTitle && !/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
                 ? 'bg-gray-400 cursor-not-allowed' 
-                : 'bg-primary dark:bg-primary-600 hover:bg-primary-dark dark:hover:bg-primary-700'
-            }`}
-          >
-            Add Item
-          </button>
-        </div>
-      </form>
-    </motion.div>
-  );
-}
-
-export default AddItemForm;
+                : 'bg-primary dark:bg-primary-600 hover:bg-primary-dark dark:hover:bg-primary-
