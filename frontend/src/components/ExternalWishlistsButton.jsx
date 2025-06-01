@@ -12,7 +12,8 @@ const ExternalWishlistsButton = ({ member }) => {
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({ name: '', url: '' });
   const [error, setError] = useState('');
-  const [urlError, setUrlError] = useState(''); // Add specific URL error state
+  const [urlError, setUrlError] = useState('');
+  const [showConfirmDelete, setShowConfirmDelete] = useState(null); // Add missing state for delete confirmation
   const { selectedUser } = useAppContext();
   const modalRef = useRef(null);
   

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion'; // Add AnimatePresence import
+import { motion, AnimatePresence } from 'framer-motion';
 import { getMigrations, upgradeMigration, getBackups, restoreBackup, deleteBackup, getSchemaHash, deleteMigration, resetMigrationState, hardResetMigrations } from '../../services/api';
 import { AlertCircle, Database, Archive, Download, RotateCcw, Plus, Trash2, ArrowUp, X, GitMerge, AlertTriangle, Check, RefreshCw } from 'lucide-react';
 
@@ -20,6 +20,11 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
     const [backupActionConfirm, setBackupActionConfirm] = useState(false);
     const [backupActionLoading, setBackupActionLoading] = useState(false);
     const [backupActionResult, setBackupActionResult] = useState(null); // 'success' or 'failure'
+
+    // Retry mechanism states
+    const [backupFetchAttempts, setBackupFetchAttempts] = useState(0);
+    const [isRetryingBackups, setIsRetryingBackups] = useState(false);
+    const MAX_RETRY_ATTEMPTS = 3;
 
     const fetchMigrations = async () => {
         try {
@@ -95,11 +100,20 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
         }
     };
 
-    const fetchBackups = async () => {
+    // Updated fetchBackups to be more resilient
+    const fetchBackups = async (isRetry = false) => {
         try {
             setProcessingStatus(true);
+            setBackupLoading(true);
+            
+            if (isRetry) {
+                setIsRetryingBackups(true);
+            }
+            
             const response = await getBackups();
             setBackups(response.data.backups || []);
+            setBackupError('');
+            setBackupFetchAttempts(0); // Reset attempts on success
             
             // Clear any selected backup if it no longer exists
             if (selectedBackup) {
@@ -109,25 +123,44 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
                 }
             }
         } catch (err) {
-            setBackupError(err.response?.data?.detail || err.message || 'Failed to fetch backups');
             console.error('Backup fetch error:', err);
+            const errorMessage = err.response?.data?.detail || err.message || 'Failed to fetch backups';
+            setBackupError(`${errorMessage} (attempt ${backupFetchAttempts + 1})`);
+            
+            // Increment retry counter
+            setBackupFetchAttempts(prev => prev + 1);
+            
+            // If we haven't reached max retries, try again after a delay
+            if (backupFetchAttempts < MAX_RETRY_ATTEMPTS && !isRetry) {
+                setTimeout(() => {
+                    fetchBackups(true);
+                }, 3000); // Retry after 3 seconds
+            }
         } finally {
+            setBackupLoading(false);
             setProcessingStatus(false);
+            setIsRetryingBackups(false);
         }
     };
 
+    // Modified to separate migrations and backups initialization
     useEffect(() => {
-        const init = async () => {
+        const initMigrations = async () => {
             setProcessingStatus(true);
             await fetchMigrations();
-            await fetchBackups();
             setProcessingStatus(false);
         };
-        init();
-
+        
+        initMigrations();
+    }, []);
+    
+    // Separate effect for backups to ensure independent loading
+    useEffect(() => {
+        fetchBackups();
+        
         // Make fetchBackups available globally
         window.refreshBackups = fetchBackups;
-
+        
         // Cleanup
         return () => {
             window.refreshBackups = null;
@@ -368,7 +401,7 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
                 </div>
             </div>
 
-            {/* Backups Section - Improved mobile layout */}
+            {/* Backups Section - Improved mobile layout with resilience features */}
             <div className="border-t border-gray-200 dark:border-gray-700 pt-8">
                 <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
                     <div>
@@ -380,55 +413,62 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
                             Click on a backup to see restore/delete options
                         </p>
                     </div>
+                    
+                    {/* Add manual refresh button */}
+                    <button
+                        onClick={handleManualBackupRefresh}
+                        disabled={backupLoading}
+                        className={`px-3 py-1 rounded-md text-sm flex items-center gap-1 ${
+                            backupLoading 
+                                ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed' 
+                                : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800/40'
+                        }`}
+                        title="Refresh backup list"
+                    >
+                        {backupLoading ? (
+                            <>
+                                <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-500 rounded-full animate-spin mr-1"></div>
+                                <span>{isRetryingBackups ? 'Retrying...' : 'Loading...'}</span>
+                            </>
+                        ) : (
+                            <>
+                                <RefreshCw size={16} />
+                                <span>Refresh</span>
+                            </>
+                        )}
+                    </button>
                 </div>
 
                 {backupError && (
-                    <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-red-600 dark:text-red-300 text-sm">
-                        {backupError}
+                    <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded">
+                        <div className="flex justify-between items-center">
+                            <p className="text-red-600 dark:text-red-300 text-sm">{backupError}</p>
+                            <button
+                                onClick={handleManualBackupRefresh}
+                                disabled={backupLoading}
+                                className="text-xs px-2 py-1 bg-red-100 dark:bg-red-800/50 text-red-600 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-700/50 disabled:opacity-50"
+                            >
+                                Try Again
+                            </button>
+                        </div>
                     </div>
                 )}
 
                 <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-1">
-                    {backups.map((backup) => (
-                        <div
-                            key={backup.filename}
-                            onClick={() => handleBackupItemClick(backup)}
-                            className={`p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
-                                selectedBackup?.filename === backup.filename
-                                ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700'
-                                : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                            }`}
-                        >
-                            <div className="w-full">
-                                <div className="font-mono text-sm truncate">{backup.filename}</div>
-                                <div className="text-xs text-gray-500 flex flex-wrap gap-x-2 gap-y-1 mt-1">
-                                    <span>{new Date(backup.created_at).toLocaleString()}</span>
-                                    <span>•</span>
-                                    <span>{backup.size_kb.toFixed(1)} KB</span>
-                                    <span>•</span>
-                                    <span className={`${
-                                        backup.version === "unknown" 
-                                            ? 'text-gray-400 dark:text-gray-500'
-                                            : backup.version === currentVersion 
-                                                ? 'text-green-500 dark:text-green-400'
-                                                : 'text-yellow-500 dark:text-yellow-400'
-                                    }`}>
-                                        {backup.version}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-
-                    {backups.length === 0 && (
+                    {backupLoading && backups.length === 0 ? (
                         <div className="text-center py-6 text-gray-500 dark:text-gray-400">
-                            No backups available
+                            <div className="w-8 h-8 border-2 border-blue-300 dark:border-blue-700 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                            {isRetryingBackups ? 'Retrying backup fetch...' : 'Loading backups...'}
                         </div>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-};
-
-export default MigrationManager;
+                    ) : backups.length === 0 ? (
+                        <div className="text-center py-6 text-gray-500 dark:text-gray-400">
+                            {backupError ? 'Unable to load backups' : 'No backups available'}
+                        </div>
+                    ) : (
+                        backups.map((backup) => (
+                            <div
+                                key={backup.filename}
+                                onClick={() => handleBackupItemClick(backup)}
+                                className={`p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
+                                    selectedBackup?.filename === backup.filename
+                                    ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-
