@@ -8,7 +8,7 @@ import AddItemForm from './AddItemForm';
 import SchemaAlertModal from './SchemaAlertModal';
 import ExternalWishlistsButton from './ExternalWishlistsButton'; // Confirm this import exists
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, ChevronDown, Gift, AlertTriangle, Home } from 'lucide-react';
+import { Plus, ChevronDown, Gift, AlertTriangle, Home, Calendar } from 'lucide-react';
 
 const DashboardScreen = ({ onViewingMemberChange }) => {
   const { selectedUser, familyMembers, setFamilyMembers } = useAppContext();
@@ -213,6 +213,42 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
     setShowUpgradeAlert(false);
   };
 
+  // Add this function to calculate days until birthday
+  const getDaysUntilBirthday = (birthdate) => {
+    if (!birthdate) return null;
+    
+    try {
+      // Parse the birthdate (format: YYYY-MM-DD)
+      const [year, month, day] = birthdate.split('-').map(num => parseInt(num, 10));
+      
+      // Create date objects for today and the next birthday
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // Create this year's birthday
+      const birthdayThisYear = new Date(today.getFullYear(), month - 1, day);
+      
+      // If birthday has already passed this year, get next year's birthday
+      if (birthdayThisYear < today) {
+        birthdayThisYear.setFullYear(today.getFullYear() + 1);
+      }
+      
+      // Calculate difference in days
+      const diffTime = Math.abs(birthdayThisYear - today);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      return {
+        month,
+        day,
+        daysUntil: diffDays,
+        date: birthdayThisYear
+      };
+    } catch (err) {
+      console.error('Error calculating birthday:', err);
+      return null;
+    }
+  };
+
   // Early return for loading state
   if (isLoading) {
     return (
@@ -272,12 +308,35 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
         </div>
       )}
       
-      {/* Header section - Improved mobile layout */}
+      {/* Header section - Improved mobile layout with birthday information */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)]">
         <div className="w-full md:w-auto">
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white">
-            {viewingMember?.id === selectedUser.id ? "Your Wishlist" : `${viewingMember?.name || ''}'s Wishlist`}
-          </h1>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white">
+              {viewingMember?.id === selectedUser.id ? "Your Wishlist" : `${viewingMember?.name || ''}'s Wishlist`}
+            </h1>
+            
+            {/* Birthday information tag - Only show when viewing someone else's list */}
+            {viewingMember?.id !== selectedUser?.id && viewingMember?.birthdate && (
+              <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full text-sm whitespace-nowrap">
+                <Calendar size={14} />
+                {(() => {
+                  const birthday = getDaysUntilBirthday(viewingMember.birthdate);
+                  if (!birthday) return null;
+                  
+                  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                  return (
+                    <span>
+                      {monthNames[birthday.month - 1]} {birthday.day}
+                      <span className="ml-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-800/50 rounded-full text-xs">
+                        {birthday.daysUntil} {birthday.daysUntil === 1 ? 'day' : 'days'}
+                      </span>
+                    </span>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
           <p className="text-gray-600 dark:text-gray-300 mt-1">
             {viewingMember?.id === selectedUser.id ? "Manage your wishes or " : "Browse wishes and "}
             see what others are hoping for!

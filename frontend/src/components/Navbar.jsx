@@ -2,12 +2,13 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
-import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPlus, Trash2, AlertOctagon, Database } from 'lucide-react';
+import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPlus, Trash2, AlertOctagon, Database, HelpCircle } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems, 
          getFamilyMembers, clearAllWishlists, getAdminAccess } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import MigrationModal from './admin/MigrationModal';
+import HelpModal from './HelpModal';
 
 const Navbar = ({ onClearWishlist, viewingMember }) => {
   const { selectedUser, logout, setSelectedUser, setFamilyMembers } = useAppContext();
@@ -22,6 +23,7 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
   const [deleteMode, setDeleteMode] = useState(null); // 'all' or 'user'
   const [showMigrationModal, setShowMigrationModal] = useState(false);
   const [isDevEnvironment, setIsDevEnvironment] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
   const settingsRef = useRef(null);
   const isAdmin = selectedUser?.name?.toLowerCase() === 'admin';
 
@@ -248,6 +250,15 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
               >
                 {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </button>
+              
+              {/* Help Button */}
+              <button
+                onClick={() => setShowHelpModal(true)}
+                className="p-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white transition-colors"
+                aria-label="Help"
+              >
+                <HelpCircle className="w-5 h-5" />
+              </button>
 
               {/* Settings Menu */}
               <div className="relative" ref={settingsRef}>
@@ -371,6 +382,14 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
               </div>
             </motion.div>
           </motion.div>
+        )}
+        {/* Help Modal */}
+        {showHelpModal && (
+          <HelpModal 
+            isOpen={showHelpModal}
+            onClose={() => setShowHelpModal(false)}
+            isAdmin={isAdmin}
+          />
         )}
       </AnimatePresence>
     </>

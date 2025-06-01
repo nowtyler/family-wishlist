@@ -345,14 +345,6 @@ const MigrationModal = ({ isOpen, onClose }) => {
                         <Trash2 size={18} />
                         <span>{actionConfirm && actionType === 'delete' ? "Confirm?" : "Delete"}</span>
                       </button>
-                      
-                      {/* Cancel Selection Button */}
-                      <button
-                        onClick={() => resetActionStates()}
-                        className="px-4 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600"
-                      >
-                        <X size={18} />
-                      </button>
                     </>
                   )}
                 </motion.div>
@@ -402,18 +394,44 @@ const MigrationModal = ({ isOpen, onClose }) => {
               )}
             </AnimatePresence>
 
-            <button
-              onClick={handleClose}
-              disabled={isProcessing || isCreatingBackup || actionLoading}
-              className={`py-2.5 px-4 w-28
-                bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 
-                text-gray-800 dark:text-gray-200 
-                font-medium rounded-lg transition-colors duration-200 
-                ${(isProcessing || isCreatingBackup || actionLoading) ? 'opacity-50 cursor-not-allowed' : 'dark:hover:bg-gray-600'}`}
-              aria-label="Close modal"
-            >
-              Close
-            </button>
+            {/* Transform the Close button to a Cancel button when action is selected */}
+            <AnimatePresence mode="wait">
+              {/* When an action is being confirmed, show X button */}
+              {(actionConfirm && !actionLoading && !actionResult) ? (
+                <motion.button
+                  key="cancel-button"
+                  initial={{ opacity: 0, width: '7rem' }}
+                  animate={{ opacity: 1, width: 'auto' }}
+                  exit={{ opacity: 0, width: '7rem' }}
+                  onClick={() => resetActionStates()}
+                  className="py-2.5 px-4 w-12 h-12 flex items-center justify-center
+                    bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 
+                    text-gray-800 dark:text-gray-200 
+                    font-medium rounded-lg transition-all duration-200"
+                  aria-label="Cancel"
+                >
+                  <X size={20} />
+                </motion.button>
+              ) : (
+                /* Otherwise show normal Close button */
+                <motion.button
+                  key="close-button"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={handleClose}
+                  disabled={isProcessing || isCreatingBackup || actionLoading}
+                  className={`py-2.5 px-4 w-28
+                    bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 
+                    text-gray-800 dark:text-gray-200 
+                    font-medium rounded-lg transition-colors duration-200 
+                    ${(isProcessing || isCreatingBackup || actionLoading) ? 'opacity-50 cursor-not-allowed' : 'dark:hover:bg-gray-600'}`}
+                  aria-label="Close modal"
+                >
+                  Close
+                </motion.button>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </motion.div>
