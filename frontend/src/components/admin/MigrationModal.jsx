@@ -404,7 +404,7 @@ const MigrationModal = ({ isOpen, onClose }) => {
                   animate={{ opacity: 1, width: 'auto' }}
                   exit={{ opacity: 0, width: '7rem' }}
                   onClick={() => resetActionStates()}
-                  className="py-2.5 px-4 w-12 h-12 flex items-center justify-center
+                  className="py-2.5 px-4 w-12 h-[42px] flex items-center justify-center
                     bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 
                     text-gray-800 dark:text-gray-200 
                     font-medium rounded-lg transition-all duration-200"
@@ -421,7 +421,7 @@ const MigrationModal = ({ isOpen, onClose }) => {
                   exit={{ opacity: 0 }}
                   onClick={handleClose}
                   disabled={isProcessing || isCreatingBackup || actionLoading}
-                  className={`py-2.5 px-4 w-28
+                  className={`py-2.5 px-4 w-28 h-[42px] flex items-center justify-center
                     bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 
                     text-gray-800 dark:text-gray-200 
                     font-medium rounded-lg transition-colors duration-200 
