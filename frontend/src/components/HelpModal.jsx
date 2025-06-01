@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  X, Heart, ShoppingCart, MessageCircle, Trash2, Plus, Pencil, 
+  X, Message-Circle-Heart, ShoppingCart, MessageCircle, Trash2, Plus, Pencil, 
   Gift, Moon, Sun, Settings, User, Database, RotateCcw, AlertTriangle,
   RefreshCw, Archive, Home 
 } from 'lucide-react';
@@ -197,18 +197,18 @@ const HelpModal = ({ isOpen, onClose, isAdmin }) => {
             {/* Gift Coordination Section */}
             <HelpSection 
               title="Gift Coordination" 
-              icon={<Heart size={20} />}
+              icon={<Message-Circle-Heart size={20} />}
               color="pink"
             >
               <Feature 
-                icon={<Heart size={18} className="fill-pink-500 text-white" />} 
+                icon={<Message-Circle-Heart size={18} className="fill-pink-500 text-white" />} 
                 title="Expressing Interest" 
                 color="pink"
               >
                 <p>Click the heart icon on any item in someone else's wishlist to indicate you're interested in purchasing it. 
                 Multiple people can express interest in the same item.</p>
                 <div className="mt-1">
-                  <ActionButton icon={<Heart size={14} className="fill-white" />} color="pink">
+                  <ActionButton icon={<Message-Circle-Heart size={14} className="fill-white" />} color="pink">
                     Interested
                   </ActionButton>
                 </div>

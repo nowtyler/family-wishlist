@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, Calendar, TShirt, Ruler, Pencil, Save, X, Gift } from 'lucide-react';
+import { ChevronDown, Calendar, Shirt, Ruler, Pencil, Save, X, Gift } from 'lucide-react';
 import { updateFamilyMemberPreferences } from '../services/api';
 
 const sizeOptions = {
@@ -217,7 +217,7 @@ const UserPreferencesDropdown = ({ member, isOwner, currentUserId, onUpdateSucce
         className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-600/50 text-gray-700 dark:text-gray-300 rounded-full text-sm transition-colors"
         title="User preferences"
       >
-        <TShirt size={14} className="text-indigo-500 dark:text-indigo-400" />
+        <Shirt size={14} className="text-indigo-500 dark:text-indigo-400" />
         <span>Sizes & Preferences</span>
         <ChevronDown 
           size={14} 
@@ -329,7 +329,7 @@ const UserPreferencesDropdown = ({ member, isOwner, currentUserId, onUpdateSucce
               <div className="grid grid-cols-2 gap-x-4">
                 <SizeSelector
                   label="T-Shirt Size"
-                  icon={<TShirt size={14} />}
+                  icon={<Shirt size={14} />}
                   value={preferences.tshirtSize}
                   onChange={(value) => setPreferences({...preferences, tshirtSize: value})}
                   options={sizeOptions.tshirt}
@@ -337,7 +337,7 @@ const UserPreferencesDropdown = ({ member, isOwner, currentUserId, onUpdateSucce
                 
                 <SizeSelector
                   label="Hoodie/Jacket Size"
-                  icon={<TShirt size={14} />}
+                  icon={<Shirt size={14} />}
                   value={preferences.hoodieSize}
                   onChange={(value) => setPreferences({...preferences, hoodieSize: value})}
                   options={sizeOptions.hoodie}
