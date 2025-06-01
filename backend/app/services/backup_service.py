@@ -7,6 +7,7 @@ from sqlalchemy import create_engine, inspect, text
 from ..schemas import BackupInfo
 from pathlib import Path
 import json
+import pytz  # Add this import for timezone support
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,9 @@ class BackupService:
     def create_backup(self, manual: bool = False) -> str:
         """Creates a backup of the database"""
         try:
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            # Use EST timezone for timestamps
+            eastern = pytz.timezone('US/Eastern')
+            timestamp = datetime.now(eastern).strftime('%Y%m%d_%H%M%S')
             prefix = 'manual' if manual else 'auto'
             backup_path = os.path.join(self.backup_dir, f'{prefix}_{timestamp}.db')
             
@@ -74,11 +77,15 @@ class BackupService:
     def get_backups(self) -> List[BackupInfo]:
         """Returns list of available backups with metadata"""
         backups = []
+        eastern = pytz.timezone('US/Eastern')  # Define EST timezone
+        
         for filename in os.listdir(self.backup_dir):
             if filename.endswith('.db'):
                 path = os.path.join(self.backup_dir, filename)
                 stats = os.stat(path)
-                created = datetime.fromtimestamp(stats.st_ctime)
+                # Convert creation time to EST
+                created_utc = datetime.fromtimestamp(stats.st_ctime)
+                created = created_utc.astimezone(eastern)
                 size_kb = stats.st_size / 1024
                 can_restore = self.check_schema_compatibility(path)
                 
