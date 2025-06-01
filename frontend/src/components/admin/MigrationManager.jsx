@@ -472,34 +472,29 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
                                 className={`p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
                                     selectedBackup?.filename === backup.filename
                                     ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700'
-                                : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                            }`}
-                        >
-                            <div className="w-full">
-                                <div className="font-mono text-sm truncate">{backup.filename}</div>
-                                <div className="text-xs text-gray-500 flex flex-wrap gap-x-2 gap-y-1 mt-1">
-                                    <span>{new Date(backup.created_at).toLocaleString()}</span>
-                                    <span>•</span>
-                                    <span>{backup.size_kb.toFixed(1)} KB</span>
-                                    <span>•</span>
-                                    <span className={`${
-                                        backup.version === "unknown" 
-                                            ? 'text-gray-400 dark:text-gray-500'
-                                            : backup.version === currentVersion 
-                                                ? 'text-green-500 dark:text-green-400'
-                                                : 'text-yellow-500 dark:text-yellow-400'
-                                    }`}>
-                                        {backup.version}
-                                    </span>
+                                    : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                                }`}
+                            >
+                                <div className="w-full">
+                                    <div className="font-mono text-sm truncate">{backup.filename}</div>
+                                    <div className="text-xs text-gray-500 flex flex-wrap gap-x-2 gap-y-1 mt-1">
+                                        <span>{new Date(backup.created_at || Date.now()).toLocaleString()}</span>
+                                        <span>•</span>
+                                        <span>{(backup.size_kb || 0).toFixed(1)} KB</span>
+                                        <span>•</span>
+                                        <span className={`${
+                                            !backup.version || backup.version === "unknown" 
+                                                ? 'text-gray-400 dark:text-gray-500'
+                                                : backup.version === currentVersion 
+                                                    ? 'text-green-500 dark:text-green-400'
+                                                    : 'text-yellow-500 dark:text-yellow-400'
+                                        }`}>
+                                            {backup.version || "unknown"}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    ))}
-
-                    {backups.length === 0 && (
-                        <div className="text-center py-6 text-gray-500 dark:text-gray-400">
-                            No backups available
-                        </div>
+                        ))
                     )}
                 </div>
             </div>
