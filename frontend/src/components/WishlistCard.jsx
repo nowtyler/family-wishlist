@@ -1,7 +1,7 @@
 // WishlistCard.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, ExternalLink, Heart, Pencil, Check, X, ShoppingCart, ChevronDown, Flag, MessageCircle, Send } from 'lucide-react';
+import { Trash2, ExternalLink, MessageCircleHeart, Pencil, Check, X, ShoppingCart, ChevronDown, Flag, MessageCircle, Send } from 'lucide-react';
 import { updateWishlistItem, addComment, deleteComment, getWishlistItems } from '../services/api';
 
 // Constants
@@ -222,7 +222,7 @@ function WishlistCard({
             : 'text-pink-500 hover:bg-pink-50 dark:hover:bg-pink-900/20'
         }`}
       >
-        <Heart
+        <MessageCircleHeart
           size={16}
           className={`${isThinking ? 'fill-current' : ''} transition-all duration-300`}
         />
