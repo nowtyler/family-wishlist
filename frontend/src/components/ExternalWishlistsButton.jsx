@@ -310,7 +310,7 @@ const ExternalWishlistsButton = ({ member }) => {
                         )}
                         {formData.url.toLowerCase().includes('etsy.com') && !urlError && (
                           <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                            Etsy format tip: Use https://www.etsy.com/people/USERNAME
+                            Etsy tip: Use your "people" URL https://www.etsy.com/people/USERNAME
                           </p>
                         )}
                       </div>

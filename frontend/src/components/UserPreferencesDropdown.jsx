@@ -1,21 +1,37 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, Calendar, Shirt, Ruler, Pencil, Save, X, Gift, Footprints, Asterisk, Hand, RulerDimensionLine } from 'lucide-react';
+import { ChevronDown, Calendar, Shirt, Ruler, Pencil, Save, X, Gift, Footprints, Asterisk, Hand, RulerDimensionLine, Info } from 'lucide-react';
 import { updateFamilyMemberPreferences } from '../services/api';
 
 const sizeOptions = {
   tshirt: ["XS", "S", "M", "L", "XL", "XXL", "XXXL"],
   hoodie: ["XS", "S", "M", "L", "XL", "XXL", "XXXL"],
   pants: {
-    men: ["28", "29", "30", "31", "32", "33", "34", "35", "36", "38", "40", "42", "44", "46"],
+    men: [
+      // Add waist-length combinations for men
+      "28x30", "28x32", "30x30", "30x32", "30x34", 
+      "31x30", "31x32", "31x34", 
+      "32x30", "32x32", "32x34", "32x36", 
+      "33x30", "33x32", "33x34", "33x36",
+      "34x30", "34x32", "34x34", "34x36",
+      "36x30", "36x32", "36x34", "36x36",
+      "38x30", "38x32", "38x34", "38x36",
+      "40x30", "40x32", "40x34",
+      "42x30", "42x32", "42x34",
+      "44x30", "44x32",
+      "46x30", "46x32"
+    ],
     women: ["00", "0", "2", "4", "6", "8", "10", "12", "14", "16", "18", "20", "22"]
   },
-  dress: ["0", "2", "4", "6", "8", "10", "12", "14", "16", "18", "20", "22"],
+  dress: [
+    "XS", "S", "M", "L", "XL", "XXL",  // Add standard letter sizes
+    "0", "2", "4", "6", "8", "10", "12", "14", "16", "18", "20", "22"
+  ],
   shoes: {
-    men: ["6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "11.5", "12", "13", "14", "15"],
-    women: ["5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "12"]
+    men: ["6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "11.5", "12", "12.5", "13", "13.5", "14", "14.5", "15"],
+    women: ["5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "11.5", "12"]
   },
-  wrist: ["5.5\"", "6\"", "6.5\"", "7\"", "7.5\"", "8\"", "8.5\"", "9\""],
+  wrist: ["5.5\"", "5.75\"", "6\"", "6.25\"", "6.5\"", "6.75\"", "7\"", "7.25\"", "7.5\"", "7.75\"", "8\"", "8.25\"", "8.5\"", "8.75\"", "9\""],
   neck: ["13-13.5", "14-14.5", "15-15.5", "16-16.5", "17-17.5", "18-18.5", "19-19.5"]
 };
 
@@ -278,6 +294,14 @@ const UserPreferencesDropdown = ({ member, isOwner, currentUserId, onUpdateSucce
                   </span>
                 </div>
               )}
+            </div>
+
+            {/* Add disclaimer about item-specific sizing */}
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border-t border-blue-100 dark:border-blue-800 mt-2 text-xs text-blue-600 dark:text-blue-300 flex items-start gap-1.5">
+              <Info size={14} className="flex-shrink-0 mt-0.5" />
+              <span>
+                These are general size preferences. For item-specific sizing, you can add size details to individual wishlist items.
+              </span>
             </div>
 
             {/* Preferences Content */}

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { fetchProductDetailsFromUrl, getWishlistItems } from '../services/api';
-import { X, Link, Loader, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Link, Loader, ArrowRight, ChevronDown, ChevronUp, Ruler } from 'lucide-react';
 
 // Add priority mapping
 const PRIORITY_MAP = {
@@ -13,6 +13,36 @@ const PRIORITY_MAP = {
 
 const MAX_TITLE_LENGTH = 200;
 
+// Size options for item-specific sizing
+const sizeOptions = {
+  tshirt: ["XS", "S", "M", "L", "XL", "XXL", "XXXL"],
+  hoodie: ["XS", "S", "M", "L", "XL", "XXL", "XXXL"],
+  pants: {
+    men: [
+      "28x30", "28x32", "30x30", "30x32", "30x34", 
+      "31x30", "31x32", "31x34", 
+      "32x30", "32x32", "32x34", "32x36", 
+      "33x30", "33x32", "33x34", "33x36",
+      "34x30", "34x32", "34x34", "34x36",
+      "36x30", "36x32", "36x34", "36x36",
+      "38x30", "38x32", "38x34", "38x36",
+      "40x30", "40x32", "40x34",
+      "42x30", "42x32", "42x34",
+      "44x30", "44x32",
+      "46x30", "46x32"
+    ],
+    women: ["00", "0", "2", "4", "6", "8", "10", "12", "14", "16", "18", "20", "22"]
+  },
+  dress: [
+    "XS", "S", "M", "L", "XL", "XXL",
+    "0", "2", "4", "6", "8", "10", "12", "14", "16", "18", "20", "22"
+  ],
+  shoes: {
+    men: ["6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "11.5", "12", "12.5", "13", "13.5", "14", "14.5", "15"],
+    women: ["5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "11.5", "12"]
+  }
+};
+
 function AddItemForm({ wishlistId, onAddItem, onClose }) {
   const [formData, setFormData] = useState({
     title: '',
@@ -20,7 +50,11 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
     link: '',
     image_url: '',
     priority: 'Medium',
-    price: ''
+    price: '',
+    // Add size related fields
+    sizeType: '', // 'tshirt', 'dress', 'shoes', 'pants', etc.
+    sizeValue: '',
+    sizeGender: 'unspecified' // for gender-specific sizes
   });
   const [error, setError] = useState('');
   const [isAddMode, setIsAddMode] = useState(true);
@@ -32,6 +66,7 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
   const [existingItems, setExistingItems] = useState([]);
   const [isFetchingItems, setIsFetchingItems] = useState(false);
   const [isDuplicateTitle, setIsDuplicateTitle] = useState(false);
+  const [showSizeFields, setShowSizeFields] = useState(false);
   const formRef = useRef(null);
   const submitButtonRef = useRef(null);
 
@@ -138,7 +173,11 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
       link: formData.link || null,
       image_url: formData.image_url || null,
       description: formData.description || null,
-      price: formData.price ? parseFloat(formData.price) : null  // Pass raw dollar amount
+      price: formData.price ? parseFloat(formData.price) : null,  // Pass raw dollar amount
+      // Add size information to the description if specified
+      description: formData.sizeType && formData.sizeValue ? 
+        `${formData.description || ''}\n\nSize: ${formData.sizeType.charAt(0).toUpperCase() + formData.sizeType.slice(1)} - ${formData.sizeValue}`.trim() : 
+        (formData.description || null)
     };
 
     try {
@@ -236,6 +275,15 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
   const handleSwitchToManualEntry = () => {
     setIsAddMode(false);
     setUrlImportVisible(false);
+  };
+
+  // Function to get appropriate size options based on type and gender
+  const getSizeOptions = (sizeType, gender) => {
+    if (!sizeType) return [];
+    if (sizeType === 'pants' || sizeType === 'shoes') {
+      return gender === 'women' ? sizeOptions[sizeType].women : sizeOptions[sizeType].men;
+    }
+    return sizeOptions[sizeType] || [];
   };
 
   return (
@@ -411,6 +459,113 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
                 placeholder="https://"
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               />
+            </div>
+
+            {/* Size Fields - New Addition */}
+            <div className="border-t border-gray-200 dark:border-gray-700 mt-4 pt-4">
+              <div className="flex items-center mb-3">
+                <Ruler size={18} className="mr-2 text-blue-500 dark:text-blue-400" />
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  Item Size Information
+                </h3>
+              </div>
+              
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Size Type
+                  </label>
+                  <select
+                    value={formData.sizeType}
+                    onChange={(e) => {
+                      setFormData({ 
+                        ...formData, 
+                        sizeType: e.target.value,
+                        // Reset size value when type changes
+                        sizeValue: '' 
+                      });
+                      // Show gender selection for pants and shoes
+                      if (e.target.value === 'pants' || e.target.value === 'shoes') {
+                        setShowSizeFields(true);
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                  >
+                    <option value="">Not specified</option>
+                    <option value="tshirt">T-Shirt</option>
+                    <option value="hoodie">Hoodie/Sweatshirt</option>
+                    <option value="dress">Dress</option>
+                    <option value="pants">Pants</option>
+                    <option value="shoes">Shoes</option>
+                  </select>
+                </div>
+                
+                {(formData.sizeType === 'pants' || formData.sizeType === 'shoes') && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Gender
+                    </label>
+                    <div className="flex items-center space-x-4">
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="sizeGender"
+                          value="men"
+                          checked={formData.sizeGender === 'men'}
+                          onChange={() => setFormData({ ...formData, sizeGender: 'men', sizeValue: '' })}
+                          className="mr-1"
+                        />
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Men's</span>
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="sizeGender"
+                          value="women"
+                          checked={formData.sizeGender === 'women'}
+                          onChange={() => setFormData({ ...formData, sizeGender: 'women', sizeValue: '' })}
+                          className="mr-1"
+                        />
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Women's</span>
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="sizeGender"
+                          value="unspecified"
+                          checked={formData.sizeGender === 'unspecified'}
+                          onChange={() => setFormData({ ...formData, sizeGender: 'unspecified', sizeValue: '' })}
+                          className="mr-1"
+                        />
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Unspecified</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
+                
+                {formData.sizeType && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Size
+                    </label>
+                    <select
+                      value={formData.sizeValue}
+                      onChange={(e) => setFormData({ ...formData, sizeValue: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                    >
+                      <option value="">Select size</option>
+                      {getSizeOptions(formData.sizeType, formData.sizeGender).map((size) => (
+                        <option key={size} value={size}>
+                          {size}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      This will be added to the item description.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div>

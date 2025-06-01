@@ -8,6 +8,36 @@ import { updateWishlistItem, addComment, deleteComment, getWishlistItems } from 
 const MAX_TITLE_LENGTH = 200;
 const MAX_TITLE_DISPLAY_LENGTH = 100; // Length at which to truncate title in modal view
 
+// Add size options for item-specific sizing to the top of the file
+const sizeOptions = {
+  tshirt: ["XS", "S", "M", "L", "XL", "XXL", "XXXL"],
+  hoodie: ["XS", "S", "M", "L", "XL", "XXL", "XXXL"],
+  pants: {
+    men: [
+      "28x30", "28x32", "30x30", "30x32", "30x34", 
+      "31x30", "31x32", "31x34", 
+      "32x30", "32x32", "32x34", "32x36", 
+      "33x30", "33x32", "33x34", "33x36",
+      "34x30", "34x32", "34x34", "34x36",
+      "36x30", "36x32", "36x34", "36x36",
+      "38x30", "38x32", "38x34", "38x36",
+      "40x30", "40x32", "40x34",
+      "42x30", "42x32", "42x34",
+      "44x30", "44x32",
+      "46x30", "46x32"
+    ],
+    women: ["00", "0", "2", "4", "6", "8", "10", "12", "14", "16", "18", "20", "22"]
+  },
+  dress: [
+    "XS", "S", "M", "L", "XL", "XXL",
+    "0", "2", "4", "6", "8", "10", "12", "14", "16", "18", "20", "22"
+  ],
+  shoes: {
+    men: ["6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "11.5", "12", "12.5", "13", "13.5", "14", "14.5", "15"],
+    women: ["5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "11.5", "12"]
+  }
+};
+
 function WishlistCard({ 
   member, 
   items, 
@@ -18,9 +48,9 @@ function WishlistCard({
   onDeleteItem, 
   onThinkingAbout, 
   onMarkPurchased,
-  onItemClick, // Add these new props
+  onItemClick,
   onItemModalClose,
-  selectedItem: externalSelectedItem // Coming from parent
+  selectedItem: externalSelectedItem
 }) {
   // Change this from useState to use the passed-in value if available
   const [internalSelectedItem, setInternalSelectedItem] = useState(null);
@@ -34,6 +64,10 @@ function WishlistCard({
   const [commentError, setCommentError] = useState('');
   const [isDuplicateTitle, setIsDuplicateTitle] = useState(false);
   const [showFullTitle, setShowFullTitle] = useState(false);
+  const [sizeType, setSizeType] = useState('');
+  const [sizeValue, setSizeValue] = useState('');
+  const [sizeGender, setSizeGender] = useState('unspecified');
+  const [showSizeFields, setShowSizeFields] = useState(false);
   const modalRef = useRef(null);
 
   // Check for duplicate titles when editing
@@ -71,6 +105,12 @@ function WishlistCard({
       title: truncateTitle(item.title),
       price: item.price !== null ? (item.price / 100).toFixed(2) : ''  // Convert cents to dollars for editing and format
     });
+    
+    // Reset size fields
+    setSizeType('');
+    setSizeValue('');
+    setSizeGender('unspecified');
+    setShowSizeFields(false);
   };
 
   const handleCancelEdit = (e) => {
@@ -101,10 +141,30 @@ function WishlistCard({
         processedPrice = floatPrice;
       }
 
+      // Handle size information in description
+      let updatedDescription = editForm.description?.trim() || '';
+      
+      // Add size information if provided
+      if (sizeType && sizeValue) {
+        // Check if description already has size info
+        const hasSizeInfo = updatedDescription.includes('\n\nSize:');
+        
+        if (hasSizeInfo) {
+          // Replace existing size info
+          updatedDescription = updatedDescription.replace(
+            /\n\nSize:.*$/,
+            `\n\nSize: ${sizeType.charAt(0).toUpperCase() + sizeType.slice(1)} - ${sizeValue}`
+          );
+        } else {
+          // Add new size info
+          updatedDescription = updatedDescription + (updatedDescription ? `\n\nSize: ${sizeType.charAt(0).toUpperCase() + sizeType.slice(1)} - ${sizeValue}` : `Size: ${sizeType.charAt(0).toUpperCase() + sizeType.slice(1)} - ${sizeValue}`);
+        }
+      }
+
       const updatedData = {
         ...editForm,
         title: truncateTitle(editForm.title.trim()), // Ensure title is truncated
-        description: editForm.description?.trim() || null,
+        description: updatedDescription || null,
         link: editForm.link?.trim() || null,
         image_url: editForm.image_url?.trim() || null,
         priority: Number(editForm.priority),
@@ -115,6 +175,10 @@ function WishlistCard({
       await onUpdateItems();
       setEditingItemId(null);
       setEditForm({});
+      // Reset size fields
+      setSizeType('');
+      setSizeValue('');
+      setSizeGender('unspecified');
     } catch (error) {
       console.error('Failed to update item:', error);
       alert(error.userMessage || error.message || 'Failed to update item. Please try again.');
@@ -298,6 +362,15 @@ function WishlistCard({
       : title;
   };
 
+  // Function to get appropriate size options based on type and gender
+  const getSizeOptions = (type, gender) => {
+    if (!type) return [];
+    if (type === 'pants' || type === 'shoes') {
+      return gender === 'women' ? sizeOptions[type].women : sizeOptions[type].men;
+    }
+    return sizeOptions[type] || [];
+  };
+
   const renderEditableContent = (item) => (
     <div onClick={e => e.stopPropagation()} className="space-y-3">
       <div className="flex flex-col">
@@ -374,6 +447,100 @@ function WishlistCard({
           <option value={1}>Medium Priority</option>
           <option value={0}>Low Priority</option>
         </select>
+      </div>
+
+      {/* Size Fields - New Addition */}
+      <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex items-center mb-2">
+          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Size Information</span>
+          <button 
+            type="button"
+            onClick={() => setShowSizeFields(!showSizeFields)}
+            className="ml-auto text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+          >
+            {showSizeFields ? 'Hide' : 'Show'}
+          </button>
+        </div>
+        
+        {showSizeFields && (
+          <div className="space-y-2">
+            <div>
+              <label className="block text-xs text-gray-600 dark:text-gray-400">Size Type</label>
+              <select
+                value={sizeType}
+                onChange={(e) => {
+                  setSizeType(e.target.value);
+                  setSizeValue('');
+                }}
+                className="w-full px-2 py-1 border rounded text-sm dark:bg-gray-600 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary"
+              >
+                <option value="">Not specified</option>
+                <option value="tshirt">T-Shirt</option>
+                <option value="hoodie">Hoodie/Sweatshirt</option>
+                <option value="dress">Dress</option>
+                <option value="pants">Pants</option>
+                <option value="shoes">Shoes</option>
+              </select>
+            </div>
+            
+            {(sizeType === 'pants' || sizeType === 'shoes') && (
+              <div>
+                <label className="block text-xs text-gray-600 dark:text-gray-400">Gender</label>
+                <div className="flex items-center space-x-4">
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="sizeGender"
+                      value="men"
+                      checked={sizeGender === 'men'}
+                      onChange={() => {
+                        setSizeGender('men');
+                        setSizeValue('');
+                      }}
+                      className="mr-1"
+                    />
+                    <span className="text-xs text-gray-700 dark:text-gray-300">Men's</span>
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="sizeGender"
+                      value="women"
+                      checked={sizeGender === 'women'}
+                      onChange={() => {
+                        setSizeGender('women');
+                        setSizeValue('');
+                      }}
+                      className="mr-1"
+                    />
+                    <span className="text-xs text-gray-700 dark:text-gray-300">Women's</span>
+                  </label>
+                </div>
+              </div>
+            )}
+            
+            {sizeType && (
+              <div>
+                <label className="block text-xs text-gray-600 dark:text-gray-400">Size</label>
+                <select
+                  value={sizeValue}
+                  onChange={(e) => setSizeValue(e.target.value)}
+                  className="w-full px-2 py-1 border rounded text-sm dark:bg-gray-600 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary"
+                >
+                  <option value="">Select size</option>
+                  {getSizeOptions(sizeType, sizeGender).map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  This will be added to the item description.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
