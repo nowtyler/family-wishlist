@@ -294,6 +294,51 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
         }
     };
 
+    // Add the missing handleManualBackupRefresh function
+    const handleManualBackupRefresh = async () => {
+        if (backupLoading) return; // Prevent multiple simultaneous refreshes
+        
+        // Reset the fetch attempts counter to give a fresh start
+        setBackupFetchAttempts(0);
+        setBackupError('');
+        await fetchBackups();
+    };
+    
+    // Add the handleHardReset function that was referenced but not defined
+    const handleHardReset = async () => {
+        if (!confirm("WARNING: This will reset all migration state! This is an emergency function only. Are you absolutely sure?")) {
+            return;
+        }
+        
+        if (!confirm("This action cannot be undone. The database migrations will be reset but data will be preserved. Continue?")) {
+            return;
+        }
+        
+        try {
+            setProcessingStatus(true);
+            setLoading(true);
+            setError('');
+            
+            const response = await hardResetMigrations();
+            
+            if (response.data.success) {
+                alert("Migration state has been reset. You will need to upgrade the database again.");
+                await fetchMigrations();
+            } else {
+                setError(response.data.message || 'Hard reset failed');
+                alert("Reset failed: " + (response.data.message || 'Unknown error'));
+            }
+        } catch (err) {
+            console.error('Hard reset error:', err);
+            const errorDetail = err.response?.data?.detail || err.message || 'Failed to reset migrations';
+            setError(`Reset failed: ${errorDetail}`);
+            alert(`Reset failed: ${errorDetail}`);
+        } finally {
+            setLoading(false);
+            setProcessingStatus(false);
+        }
+    };
+
     // Determine if we're dealing with multiple heads
     const hasMultipleHeads = currentVersion?.includes(',');
     const buttonIcon = hasMultipleHeads ? <GitMerge size={20} /> : <ArrowUp size={20} />;
