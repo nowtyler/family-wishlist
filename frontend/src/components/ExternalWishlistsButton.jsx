@@ -12,7 +12,7 @@ const ExternalWishlistsButton = ({ member }) => {
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({ name: '', url: '' });
   const [error, setError] = useState('');
-  const [showConfirmDelete, setShowConfirmDelete] = useState(null);
+  const [urlError, setUrlError] = useState(''); // Add specific URL error state
   const { selectedUser } = useAppContext();
   const modalRef = useRef(null);
   
@@ -56,25 +56,103 @@ const ExternalWishlistsButton = ({ member }) => {
     }
   };
   
+  // Add a function to validate and format Etsy URLs
+  const formatEtsyUrl = (url) => {
+    if (!url) return { formattedUrl: '', isValid: false, error: null };
+    
+    try {
+      // Check if it's an Etsy URL
+      if (!url.toLowerCase().includes('etsy.com')) {
+        return { formattedUrl: url, isValid: true, error: null };
+      }
+      
+      // Add https:// if missing
+      let formattedUrl = url;
+      if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+        formattedUrl = `https://${formattedUrl}`;
+      }
+      
+      const urlObj = new URL(formattedUrl);
+      
+      // Check if it follows the expected pattern for Etsy profile URLs
+      if (urlObj.hostname.includes('etsy.com')) {
+        const pathParts = urlObj.pathname.split('/').filter(part => part);
+        
+        // Check for people/ followed by a user ID pattern
+        if (pathParts.length >= 2 && pathParts[0].toLowerCase() === 'people') {
+          // Format: https://www.etsy.com/people/USERID
+          return {
+            formattedUrl: `https://www.etsy.com/people/${pathParts[1]}`,
+            isValid: true,
+            error: null
+          };
+        } else if (pathParts.length >= 1 && pathParts[0].toLowerCase() === 'shop') {
+          // For shop URLs, provide an informational error
+          return {
+            formattedUrl: url,
+            isValid: false,
+            error: "For Etsy, please use the profile URL format: https://www.etsy.com/people/USERID"
+          };
+        } else {
+          // Any other Etsy URL format is probably incorrect
+          return {
+            formattedUrl: url,
+            isValid: false,
+            error: "Etsy URLs should follow the format: https://www.etsy.com/people/USERID"
+          };
+        }
+      }
+      
+      return { formattedUrl: url, isValid: true, error: null };
+    } catch (err) {
+      console.error("URL parsing error:", err);
+      return { 
+        formattedUrl: url, 
+        isValid: false, 
+        error: "Invalid URL format. Please enter a valid URL." 
+      };
+    }
+  };
+
+  const handleUrlChange = (e) => {
+    const url = e.target.value;
+    setFormData(prev => ({ ...prev, url }));
+    
+    // Clear any existing URL errors when the user types
+    if (urlError) setUrlError('');
+    
+    // For Etsy URLs, provide immediate feedback
+    if (url.toLowerCase().includes('etsy.com')) {
+      const { error } = formatEtsyUrl(url);
+      if (error) {
+        setUrlError(error);
+      }
+    }
+  };
+
   const handleAddNew = async () => {
     if (!formData.name.trim() || !formData.url.trim()) {
       setError('Both name and URL are required');
       return;
     }
     
-    // Add http:// if missing
-    let url = formData.url;
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      url = `https://${url}`;
+    // Process URL for Etsy and other sites
+    const { formattedUrl, isValid, error: formatError } = formatEtsyUrl(formData.url);
+    
+    // Show error if URL format is invalid
+    if (!isValid) {
+      setUrlError(formatError || "Invalid URL format");
+      return;
     }
     
     setIsLoading(true);
     setError('');
+    setUrlError('');
     
     try {
       await createExternalWishlist(member.id, { 
         name: formData.name.trim(), 
-        url 
+        url: formattedUrl // Use the formatted URL
       });
       await fetchWishlists();
       setFormData({ name: '', url: '' });
@@ -93,19 +171,23 @@ const ExternalWishlistsButton = ({ member }) => {
       return;
     }
     
-    // Add http:// if missing
-    let url = formData.url;
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      url = `https://${url}`;
+    // Process URL for Etsy and other sites
+    const { formattedUrl, isValid, error: formatError } = formatEtsyUrl(formData.url);
+    
+    // Show error if URL format is invalid
+    if (!isValid) {
+      setUrlError(formatError || "Invalid URL format");
+      return;
     }
     
     setIsLoading(true);
     setError('');
+    setUrlError('');
     
     try {
       await updateExternalWishlist(id, { 
         name: formData.name.trim(), 
-        url 
+        url: formattedUrl // Use the formatted URL
       });
       await fetchWishlists();
       setEditingId(null);
@@ -137,6 +219,7 @@ const ExternalWishlistsButton = ({ member }) => {
     setFormData({ name: wishlist.name, url: wishlist.url });
     setEditingId(wishlist.id);
     setError('');
+    setUrlError('');
   };
   
   const cancelEdit = () => {
@@ -144,6 +227,7 @@ const ExternalWishlistsButton = ({ member }) => {
     setIsAddingNew(false);
     setFormData({ name: '', url: '' });
     setError('');
+    setUrlError('');
   };
   
   return (
@@ -212,13 +296,23 @@ const ExternalWishlistsButton = ({ member }) => {
                         placeholder="Name (e.g., Amazon, Etsy)"
                         className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       />
-                      <input
-                        type="url"
-                        value={formData.url}
-                        onChange={(e) => setFormData(prev => ({ ...prev, url: e.target.value }))}
-                        placeholder="URL (e.g., https://amazon.com/...)"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      />
+                      <div>
+                        <input
+                          type="url"
+                          value={formData.url}
+                          onChange={handleUrlChange}
+                          placeholder="URL (e.g., https://amazon.com/...)"
+                          className={`w-full px-3 py-2 text-sm border ${urlError ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'} rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
+                        />
+                        {urlError && (
+                          <p className="text-red-500 text-xs mt-1">{urlError}</p>
+                        )}
+                        {formData.url.toLowerCase().includes('etsy.com') && !urlError && (
+                          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                            Etsy format tip: Use https://www.etsy.com/people/USERNAME
+                          </p>
+                        )}
+                      </div>
                     </div>
                     <div className="flex justify-end gap-2">
                       <button
@@ -229,8 +323,8 @@ const ExternalWishlistsButton = ({ member }) => {
                       </button>
                       <button
                         onClick={handleAddNew}
-                        disabled={isLoading}
-                        className="px-3 py-1 text-sm text-white bg-primary hover:bg-primary-dark rounded-md"
+                        disabled={isLoading || urlError}
+                        className={`px-3 py-1 text-sm text-white rounded-md ${urlError || isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-primary hover:bg-primary-dark'}`}
                       >
                         Add Wishlist
                       </button>
@@ -258,12 +352,17 @@ const ExternalWishlistsButton = ({ member }) => {
                               onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                               className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"
                             />
-                            <input
-                              type="url"
-                              value={formData.url}
-                              onChange={(e) => setFormData(prev => ({ ...prev, url: e.target.value }))}
-                              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"
-                            />
+                            <div>
+                              <input
+                                type="url"
+                                value={formData.url}
+                                onChange={handleUrlChange}
+                                className={`w-full px-3 py-2 text-sm border ${urlError ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'} rounded-md bg-white dark:bg-gray-700`}
+                              />
+                              {urlError && (
+                                <p className="text-red-500 text-xs mt-1">{urlError}</p>
+                              )}
+                            </div>
                             <div className="flex justify-end gap-2">
                               <button
                                 onClick={cancelEdit}
@@ -274,8 +373,9 @@ const ExternalWishlistsButton = ({ member }) => {
                               </button>
                               <button
                                 onClick={() => handleUpdate(wishlist.id)}
-                                className="p-1 text-green-500 hover:text-green-700"
+                                className={`p-1 ${urlError ? 'text-gray-400 cursor-not-allowed' : 'text-green-500 hover:text-green-700'}`}
                                 title="Save"
+                                disabled={urlError}
                               >
                                 <Check size={16} />
                               </button>

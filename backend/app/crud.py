@@ -498,3 +498,14 @@ def delete_external_wishlist(db: Session, wishlist_id: int, current_user_id: int
     db.delete(db_wishlist)
     db.commit()
     return True
+
+def update_member_preferences(db: Session, member_id: int, preferences: dict):
+    """Update a family member's preferences"""
+    member = db.query(models.FamilyMember).filter(models.FamilyMember.id == member_id).first()
+    if not member:
+        return None
+        
+    member.preferences = preferences
+    db.commit()
+    db.refresh(member)
+    return member

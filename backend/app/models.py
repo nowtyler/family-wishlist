@@ -4,14 +4,33 @@ from sqlalchemy.orm import relationship
 from datetime import date, datetime
 from .database import Base
 from pydantic import BaseModel, HttpUrl
+import json
 
 class FamilyMember(Base):
     __tablename__ = "family_members"
-
+    
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, index=True)
-    birthday = Column(Date, nullable=True)
-    is_admin = Column(Boolean, default=False)  # Ensure this is a Boolean with default False
+    name = Column(String, index=True)
+    birthday = Column(String, nullable=True) # Format: YYYY-MM-DD
+    is_admin = Column(Boolean, default=False)
+    _preferences = Column("preferences", Text, nullable=True)
+    
+    # Add JSON serialization/deserialization for preferences
+    @property
+    def preferences(self):
+        if self._preferences is None:
+            return None
+        try:
+            return json.loads(self._preferences)
+        except:
+            return None
+            
+    @preferences.setter
+    def preferences(self, value):
+        if value is None:
+            self._preferences = None
+        else:
+            self._preferences = json.dumps(value)
     
     # Add relationship if they don't exist
     wishlist_items = relationship("WishlistItem", back_populates="owner", cascade="all, delete-orphan")

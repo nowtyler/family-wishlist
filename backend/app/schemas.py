@@ -1,6 +1,6 @@
 # backend/app/schemas.py
 from pydantic import BaseModel, Field, HttpUrl, validator, EmailStr
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict, Any
 from datetime import date, datetime
 from enum import Enum
 
@@ -31,12 +31,16 @@ class FamilyMemberBase(BaseModel):
 class FamilyMemberCreate(FamilyMemberBase):
     pass
 
+class FamilyMemberPreferencesUpdate(BaseModel):
+    preferences: Dict[str, Any]
+
 class FamilyMember(BaseModel):
     id: int
     name: str
-    birthday: Optional[date] = None
-    is_admin: bool = False
-    wishlist_item_count: int = 0  # Added field that's populated in API handler
+    birthday: Optional[str] = None
+    wishlist_item_count: Optional[int] = 0
+    is_admin: Optional[bool] = False
+    preferences: Optional[Dict[str, Any]] = None
 
     class Config:
         orm_mode = True

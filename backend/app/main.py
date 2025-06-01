@@ -1164,3 +1164,42 @@ def delete_external_wishlist_endpoint(
         status_code=status.HTTP_404_NOT_FOUND,
         detail="External wishlist not found or you're not authorized to delete it"
     )
+
+@app.put("/api/members/{member_id}/preferences", response_model=schemas.FamilyMember)
+def update_member_preferences(
+    member_id: int,
+    preferences_update: schemas.FamilyMemberPreferencesUpdate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Update a family member's preferences"""
+    if current_user_id is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # Admin can edit anyone's preferences
+    user = crud.get_family_member(db, current_user_id)
+    is_admin = user and user.name.lower() == 'admin'
+    
+    # Check authorization - only allow self-update or admin
+    if current_user_id != member_id and not is_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only update your own preferences"
+        )
+    
+    # Update preferences
+    member = crud.update_member_preferences(
+        db=db,
+        member_id=member_id,
+        preferences=preferences_update.preferences
+    )
+    
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+    
+    # Get current wishlist count for response
+    count = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == member.id).count()
+    member_schema = schemas.FamilyMember.from_orm(member)
+    member_schema.wishlist_item_count = count
+    
+    return member_schema

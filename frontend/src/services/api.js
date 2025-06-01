@@ -102,6 +102,10 @@ export const getFamilyMembers = () => {
   return apiClient.get('/family-members');
 };
 
+export const updateFamilyMemberPreferences = (memberId, preferences) => {
+  return apiClient.put(`/members/${memberId}/preferences`, { preferences });
+};
+
 // --- Wishlist Items ---
 /**
  * Get wishlist items for a specific user

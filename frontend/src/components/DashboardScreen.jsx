@@ -7,6 +7,7 @@ import GiftReminder from './GiftReminder';
 import AddItemForm from './AddItemForm';
 import SchemaAlertModal from './SchemaAlertModal';
 import ExternalWishlistsButton from './ExternalWishlistsButton'; // Confirm this import exists
+import UserPreferencesDropdown from './UserPreferencesDropdown';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, ChevronDown, Gift, AlertTriangle, Home, Calendar } from 'lucide-react';
 
@@ -289,6 +290,24 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
     setSelectedItem(null);
   };
 
+  // Add function to refresh member data when preferences are updated
+  const handlePreferencesUpdate = async () => {
+    try {
+      const membersResponse = await getFamilyMembers();
+      setFamilyMembers(membersResponse.data);
+      
+      // Update viewingMember with the new data
+      if (viewingMember) {
+        const updatedMember = membersResponse.data.find(m => m.id === viewingMember.id);
+        if (updatedMember) {
+          setViewingMember(updatedMember);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to refresh member data:', err);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -319,7 +338,7 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
         </div>
       )}
       
-      {/* Header section - Improved mobile layout with birthday information */}
+      {/* Header section - with user preferences dropdown */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)]">
         <div className="w-full md:w-auto">
           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
@@ -327,26 +346,14 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
               {viewingMember?.id === selectedUser.id ? "Your Wishlist" : `${viewingMember?.name || ''}'s Wishlist`}
             </h1>
             
-            {/* Birthday information tag - Only show when viewing someone else's list - Fixed conditional logic */}
-            {viewingMember && viewingMember.id !== selectedUser?.id && viewingMember.birthday && (
-              <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full text-sm whitespace-nowrap">
-                <Calendar size={14} />
-                {(() => {
-                  const birthday = getDaysUntilBirthday(viewingMember.birthday);
-                  console.log('Birthday calculation result:', birthday);
-                  if (!birthday) return "Birthday info";
-                  
-                  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                  return (
-                    <span>
-                      {monthNames[birthday.month - 1]} {birthday.day}
-                      <span className="ml-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-800/50 rounded-full text-xs">
-                        {birthday.daysUntil} {birthday.daysUntil === 1 ? 'day' : 'days'}
-                      </span>
-                    </span>
-                  );
-                })()}
-              </div>
+            {/* Replace birthday badge with preferences dropdown */}
+            {viewingMember && (
+              <UserPreferencesDropdown 
+                member={viewingMember}
+                isOwner={viewingMember.id === selectedUser.id || isAdmin}
+                currentUserId={selectedUser.id}
+                onUpdateSuccess={handlePreferencesUpdate}
+              />
             )}
           </div>
           <p className="text-gray-600 dark:text-gray-300 mt-1">
