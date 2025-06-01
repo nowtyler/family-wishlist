@@ -219,8 +219,8 @@ const HelpModal = ({ isOpen, onClose, isAdmin }) => {
                 title="Marking as Purchased" 
                 color="green"
               >
-                <p>Click the shopping cart icon to mark an item as purchased. This hides the item from the wishlist owner 
-                while showing other family members that it has been purchased. Only one person can mark an item as purchased.</p>
+                <p>Click the shopping cart icon to mark an item as purchased. This doesn't hide the item from the wishlist owner 
+                but shows other family members that it has been purchased. Only one person can mark an item as purchased.</p>
                 <div className="mt-1">
                   <ActionButton icon={<ShoppingCart size={14} className="fill-white" />} color="green">
                     Purchased
@@ -267,7 +267,8 @@ const HelpModal = ({ isOpen, onClose, isAdmin }) => {
                 title="Change User" 
                 color="gray"
               >
-                <p>Click the settings gear icon, then select "Change User" to switch to a different family member.</p>
+                <p>Click the settings gear icon, then select "Change User" to switch to a different family member.
+                    You really shouldn't need to do this unless you made a mistake when logging in.</p>
               </Feature>
               
               <Feature 

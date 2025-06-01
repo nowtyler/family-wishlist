@@ -249,6 +249,17 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
     }
   };
 
+  // Add console.log to debug birthday info
+  useEffect(() => {
+    if (viewingMember) {
+      console.log('Viewing member birthday info:', {
+        birthdate: viewingMember.birthdate,
+        hasBirthdate: !!viewingMember.birthdate,
+        birthdayCalc: viewingMember.birthdate ? getDaysUntilBirthday(viewingMember.birthdate) : null
+      });
+    }
+  }, [viewingMember]);
+
   // Early return for loading state
   if (isLoading) {
     return (
@@ -312,17 +323,18 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)]">
         <div className="w-full md:w-auto">
           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white">
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-white">
               {viewingMember?.id === selectedUser.id ? "Your Wishlist" : `${viewingMember?.name || ''}'s Wishlist`}
             </h1>
             
-            {/* Birthday information tag - Only show when viewing someone else's list */}
-            {viewingMember?.id !== selectedUser?.id && viewingMember?.birthdate && (
+            {/* Birthday information tag - Only show when viewing someone else's list - Fixed conditional logic */}
+            {viewingMember && viewingMember.id !== selectedUser?.id && viewingMember.birthdate && (
               <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full text-sm whitespace-nowrap">
                 <Calendar size={14} />
                 {(() => {
                   const birthday = getDaysUntilBirthday(viewingMember.birthdate);
-                  if (!birthday) return null;
+                  console.log('Birthday calculation result:', birthday);
+                  if (!birthday) return "Birthday info";
                   
                   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
                   return (
