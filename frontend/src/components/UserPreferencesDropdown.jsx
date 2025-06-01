@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, Calendar, Shirt, Ruler, Pencil, Save, X, Gift } from 'lucide-react';
+import { ChevronDown, Calendar, Shirt, Ruler, Pencil, Save, X, Gift, Footprints, Asterisk, Hand, RulerDimensionLine } from 'lucide-react';
 import { updateFamilyMemberPreferences } from '../services/api';
 
 const sizeOptions = {
@@ -363,7 +363,7 @@ const UserPreferencesDropdown = ({ member, isOwner, currentUserId, onUpdateSucce
                 
                 <SizeSelector
                   label="Shoe Size"
-                  icon={<Gift size={14} />}
+                  icon={<Footprints size={14} />}
                   value={preferences.shoeSize}
                   onChange={(value) => setPreferences({...preferences, shoeSize: value})}
                   options={gender === 'women' ? sizeOptions.shoes.women : sizeOptions.shoes.men}
@@ -371,7 +371,7 @@ const UserPreferencesDropdown = ({ member, isOwner, currentUserId, onUpdateSucce
                 
                 <SizeSelector
                   label="Wrist Size"
-                  icon={<Ruler size={14} />}
+                  icon={<Hand size={14} />}
                   value={preferences.wristSize}
                   onChange={(value) => setPreferences({...preferences, wristSize: value})}
                   options={sizeOptions.wrist}
@@ -379,7 +379,7 @@ const UserPreferencesDropdown = ({ member, isOwner, currentUserId, onUpdateSucce
                 
                 <SizeSelector
                   label="Neck Size"
-                  icon={<Ruler size={14} />}
+                  icon={<RulerDimensionLine size={14} />}
                   value={preferences.neckSize}
                   onChange={(value) => setPreferences({...preferences, neckSize: value})}
                   options={sizeOptions.neck}
@@ -389,7 +389,7 @@ const UserPreferencesDropdown = ({ member, isOwner, currentUserId, onUpdateSucce
               {/* Additional preferences text area */}
               <div className="mt-3">
                 <label className="text-sm font-medium flex items-center gap-1.5 text-gray-700 dark:text-gray-300 mb-1">
-                  <Gift size={14} />
+                  <Asterisk size={14} />
                   <span>Additional Preferences</span>
                 </label>
                 {isEditing ? (
