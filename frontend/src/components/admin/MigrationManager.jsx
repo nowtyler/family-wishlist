@@ -128,10 +128,11 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
             setBackupError(`${errorMessage} (attempt ${backupFetchAttempts + 1})`);
             
             // Increment retry counter
-            setBackupFetchAttempts(prev => prev + 1);
+            const newAttempts = backupFetchAttempts + 1;
+            setBackupFetchAttempts(newAttempts);
             
             // If we haven't reached max retries, try again after a delay
-            if (backupFetchAttempts < MAX_RETRY_ATTEMPTS && !isRetry) {
+            if (newAttempts < MAX_RETRY_ATTEMPTS && !isRetry) {
                 setTimeout(() => {
                     fetchBackups(true);
                 }, 3000); // Retry after 3 seconds

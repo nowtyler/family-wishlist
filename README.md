@@ -34,6 +34,7 @@ A full-stack web application that helps families manage gift wishlists and coord
 - Dynamic countdown for upcoming events
 - Dark/Light theme support
 - Responsive design for all devices
+- Family member size preferences tracking for easier gift buying
 
 ## Technical Details
 

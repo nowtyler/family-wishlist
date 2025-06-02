@@ -378,16 +378,22 @@ def toggle_thinking_about_item(
     if current_user_id is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required.")
     
-    updated_item_model = crud.toggle_thinking_about(db, item_id, current_user_id)
-    if not updated_item_model:
-        raise HTTPException(status_code=404, detail="Item not found or operation not allowed (e.g., owner trying to mark own item).")
+    try:
+        updated_item_model = crud.toggle_thinking_about(db, item_id, current_user_id)
+        if not updated_item_model:
+            raise HTTPException(status_code=404, detail="Item not found or operation not allowed (e.g., owner trying to mark own item).")
 
-    # Similar to update, reconstruct the view
-    reloaded_items = crud.get_wishlist_items_by_owner(db, owner_id=updated_item_model.owner_id, current_user_id=current_user_id)
-    updated_item_schema = next((i for i in reloaded_items if i.id == item_id), None)
-    if not updated_item_schema:
-         raise HTTPException(status_code=500, detail="Failed to reconstruct item view after toggling 'thinking about'.")
-    return updated_item_schema
+        # Similar to update, reconstruct the view
+        reloaded_items = crud.get_wishlist_items_by_owner(db, owner_id=updated_item_model.owner_id, current_user_id=current_user_id)
+        updated_item_schema = next((i for i in reloaded_items if i.id == item_id), None)
+        if not updated_item_schema:
+            raise HTTPException(status_code=500, detail="Failed to reconstruct item view after toggling 'thinking about'.")
+        return updated_item_schema
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error toggling thinking about: {str(e)}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
 
 @app.patch("/api/items/{item_id}/toggle-purchased", response_model=schemas.WishlistItem)
 def toggle_item_purchased(
