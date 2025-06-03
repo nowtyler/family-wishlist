@@ -4,6 +4,9 @@ import re
 import logging
 from typing import Dict, Any
 from urllib.parse import urlparse
+import json
+import random
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -54,13 +57,18 @@ class ProductScraper:
         """Extract product details from Etsy."""
         result = {"url": url}
         
+        # Get listing ID from URL for better tracking
+        listing_id = None
+        listing_id_match = re.search(r'etsy\.com/(?:[a-z]{2}/)?listing/(\d+)', url)
+        if listing_id_match:
+            listing_id = listing_id_match.group(1)
+            result["listing_id"] = listing_id
+        
         try:
-            # Etsy blocks most web scrapers, so we need to be more clever
-            # Try to get data from JSON-LD first (most reliable)
+            # Use JSON-LD data first (most reliable method)
             json_ld = None
             for script in soup.find_all('script', type='application/ld+json'):
                 try:
-                    import json
                     data = json.loads(script.string)
                     if isinstance(data, dict) and data.get('@type') in ['Product', 'IndividualProduct']:
                         json_ld = data
@@ -69,10 +77,11 @@ class ProductScraper:
                     continue
                 
             if json_ld:
-                # Parse JSON-LD data
-                result["title"] = json_ld.get('name')
+                # Extract title
+                if 'name' in json_ld:
+                    result["title"] = json_ld['name']
                 
-                # Handle offers data structure
+                # Extract price
                 if 'offers' in json_ld:
                     offers = json_ld['offers']
                     if isinstance(offers, dict):
@@ -82,74 +91,126 @@ class ProductScraper:
                                 result["price"] = float(price_str)
                             except ValueError:
                                 pass
-                    
-                # Get image from JSON-LD
+                
+                # Extract image
                 if 'image' in json_ld:
                     img_data = json_ld['image']
                     if isinstance(img_data, list) and len(img_data) > 0:
                         result["image_url"] = img_data[0]
                     else:
                         result["image_url"] = img_data
-                        
-                return result
+                
+                # Extract description
+                if 'description' in json_ld:
+                    result["description"] = json_ld['description']
+                
+                if len(result) > 2:  # If we got at least title and one more attribute
+                    return result
         except Exception as e:
             logger.error(f"Error in JSON-LD extraction for Etsy: {e}")
-            # Continue to fallback methods
         
+        # Fallback to traditional scraping methods if JSON-LD failed
         try:
-            # Traditional scraping as fallback
-            # Get product title
-            title_element = soup.select_one('h1.wt-text-body-01') or soup.select_one('.listing-page-title-component')
-            if title_element:
-                result["title"] = title_element.get_text().strip()
+            # Get product title using more specific Etsy selectors
+            title_selectors = [
+                'h1.wt-text-body-01',
+                '.listing-page-title-component',
+                'h1[data-buy-box-listing-title]'
+            ]
             
-            # Get product image - try multiple selector patterns
-            img_element = (
-                soup.select_one('img.wt-max-width-full') or
-                soup.select_one('img[data-src-zoom-image]') or
-                soup.select_one('img.carousel-image')
-            )
-            if img_element:
-                if 'src' in img_element.attrs:
-                    result["image_url"] = img_element['src']
-                elif 'data-src-zoom-image' in img_element.attrs:
-                    result["image_url"] = img_element['data-src-zoom-image']
-                
-            # Try to get metadata from meta tags as another fallback
-            og_image = soup.find('meta', property='og:image')
-            if og_image and 'content' in og_image.attrs and not result.get("image_url"):
-                result["image_url"] = og_image['content']
-                
-            og_title = soup.find('meta', property='og:title')
-            if og_title and 'content' in og_title.attrs and not result.get("title"):
-                result["title"] = og_title['content']
-                
-            # Get product price - try multiple approaches
-            price_element = (
-                soup.select_one('p.wt-text-title-medium span.money') or
-                soup.select_one('p.wt-text-title-01 span.money') or
-                soup.select_one('.listing-page-price')
-            )
-            if price_element:
-                price_text = price_element.get_text().strip()
-                try:
-                    # Remove any currency symbols and commas
-                    price_text = re.sub(r'[^\d.]', '', price_text)
-                    price = float(price_text)
-                    result["price"] = price
-                except ValueError:
-                    pass
+            for selector in title_selectors:
+                title_element = soup.select_one(selector)
+                if title_element:
+                    result["title"] = title_element.get_text().strip()
+                    break
             
-            # If we still don't have a price, try to find it in any text containing price patterns
-            if "price" not in result:
-                price_pattern = r'(?:Price:|US\$|EUR|£|€)\s*(\d+(?:,\d+)*(?:\.\d+)?)'
-                price_matches = re.search(price_pattern, soup.get_text())
-                if price_matches:
+            # Handle multiple image selector patterns
+            image_selectors = [
+                'img.wt-max-width-full',
+                'img[data-src-zoom-image]',
+                'img.carousel-image',
+                'img.wt-rounded'
+            ]
+            
+            for selector in image_selectors:
+                img_element = soup.select_one(selector)
+                if img_element:
+                    if 'src' in img_element.attrs:
+                        result["image_url"] = img_element['src']
+                        break
+                    elif 'data-src-zoom-image' in img_element.attrs:
+                        result["image_url"] = img_element['data-src-zoom-image']
+                        break
+            
+            # Try multiple price selectors
+            price_selectors = [
+                'p.wt-text-title-medium span.money',
+                'p.wt-text-title-01 span.money',
+                '.listing-page-price',
+                'p[data-buy-box-region="price"] span.currency-value',
+                'div[data-selector="price-only"]'
+            ]
+            
+            for selector in price_selectors:
+                price_element = soup.select_one(selector)
+                if price_element:
+                    price_text = price_element.get_text().strip()
                     try:
-                        price_str = price_matches.group(1).replace(',', '')
-                        result["price"] = float(price_str)
+                        # Remove any currency symbols and commas
+                        price_text = re.sub(r'[^\d.]', '', price_text)
+                        result["price"] = float(price_text)
+                        break
                     except ValueError:
                         pass
+            
+            # Get shop name
+            shop_element = soup.select_one('p.wt-text-body-01 span.wt-screen-reader-only')
+            if shop_element:
+                shop_text = shop_element.get_text().strip()
+                # Handle the format "Shop: ShopName" or similar
+                shop_parts = shop_text.split(":")
+                if len(shop_parts) > 1:
+                    result["shop_name"] = shop_parts[1].strip()
+                else:
+                    result["shop_name"] = shop_text.strip()
+            
+            # Get star rating
+            rating_element = soup.select_one('input.wt-rating-input')
+            if rating_element and 'value' in rating_element.attrs:
+                try:
+                    result["rating"] = float(rating_element['value'])
+                except ValueError:
+                    pass
+                
+            # Get number of reviews
+            reviews_element = soup.select_one('span.wt-text-body-01 a span')
+            if reviews_element:
+                reviews_text = reviews_element.get_text().strip().replace(',', '')
+                reviews_match = re.search(r'\d+', reviews_text)
+                if reviews_match:
+                    try:
+                        result["review_count"] = int(reviews_match.group(0))
+                    except ValueError:
+                        pass
+                    
+            # Try to extract description
+            description_element = soup.select_one('div[data-id="description-text"]')
+            if description_element:
+                result["description"] = description_element.get_text().strip()
+            
+            # Try to extract shipping info
+            shipping_element = soup.select_one('p.wt-text-body-01 span.currency-value')
+            if shipping_element:
+                shipping_text = shipping_element.get_text().strip()
+                if shipping_text.lower() == 'free':
+                    result["shipping"] = 0.0
+                else:
+                    try:
+                        shipping_text = re.sub(r'[^\d.]', '', shipping_text)
+                        result["shipping"] = float(shipping_text)
+                    except ValueError:
+                        pass
+                        
         except Exception as e:
             logger.error(f"Traditional scraping for Etsy failed: {e}")
         
@@ -336,6 +397,12 @@ class ProductScraper:
                 'DNT': '1',
                 'Upgrade-Insecure-Requests': '1',
             }
+            
+            # For Etsy, implement rate limiting to avoid IP blocks
+            if 'etsy' in domain:
+                # Random sleep between requests to avoid detection
+                sleep_time = random.uniform(1, 3)
+                time.sleep(sleep_time)
             
             # Attempt to get the page content with longer timeout
             response = requests.get(url, headers=headers, timeout=15)
