@@ -305,7 +305,7 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
             Import from URL
           </h3>
           <p className="text-sm text-blue-600 dark:text-blue-400 mb-3">
-            Paste a product URL to automatically import details
+            Paste a product URL to automatically import details. Some websites may not support this feature.
           </p>
           
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
