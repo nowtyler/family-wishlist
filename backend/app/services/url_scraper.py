@@ -55,166 +55,11 @@ class ProductScraper:
 
     def _extract_etsy(self, soup: BeautifulSoup, url: str) -> Dict[str, Any]:
         """Extract product details from Etsy."""
-        result = {"url": url}
-        
-        # Get listing ID from URL for better tracking
-        listing_id = None
-        listing_id_match = re.search(r'etsy\.com/(?:[a-z]{2}/)?listing/(\d+)', url)
-        if listing_id_match:
-            listing_id = listing_id_match.group(1)
-            result["listing_id"] = listing_id
-        
-        try:
-            # Use JSON-LD data first (most reliable method)
-            json_ld = None
-            for script in soup.find_all('script', type='application/ld+json'):
-                try:
-                    data = json.loads(script.string)
-                    if isinstance(data, dict) and data.get('@type') in ['Product', 'IndividualProduct']:
-                        json_ld = data
-                        break
-                except:
-                    continue
-                
-            if json_ld:
-                # Extract title
-                if 'name' in json_ld:
-                    result["title"] = json_ld['name']
-                
-                # Extract price
-                if 'offers' in json_ld:
-                    offers = json_ld['offers']
-                    if isinstance(offers, dict):
-                        price_str = offers.get('price')
-                        if price_str:
-                            try:
-                                result["price"] = float(price_str)
-                            except ValueError:
-                                pass
-                
-                # Extract image
-                if 'image' in json_ld:
-                    img_data = json_ld['image']
-                    if isinstance(img_data, list) and len(img_data) > 0:
-                        result["image_url"] = img_data[0]
-                    else:
-                        result["image_url"] = img_data
-                
-                # Extract description
-                if 'description' in json_ld:
-                    result["description"] = json_ld['description']
-                
-                if len(result) > 2:  # If we got at least title and one more attribute
-                    return result
-        except Exception as e:
-            logger.error(f"Error in JSON-LD extraction for Etsy: {e}")
-        
-        # Fallback to traditional scraping methods if JSON-LD failed
-        try:
-            # Get product title using more specific Etsy selectors
-            title_selectors = [
-                'h1.wt-text-body-01',
-                '.listing-page-title-component',
-                'h1[data-buy-box-listing-title]'
-            ]
-            
-            for selector in title_selectors:
-                title_element = soup.select_one(selector)
-                if title_element:
-                    result["title"] = title_element.get_text().strip()
-                    break
-            
-            # Handle multiple image selector patterns
-            image_selectors = [
-                'img.wt-max-width-full',
-                'img[data-src-zoom-image]',
-                'img.carousel-image',
-                'img.wt-rounded'
-            ]
-            
-            for selector in image_selectors:
-                img_element = soup.select_one(selector)
-                if img_element:
-                    if 'src' in img_element.attrs:
-                        result["image_url"] = img_element['src']
-                        break
-                    elif 'data-src-zoom-image' in img_element.attrs:
-                        result["image_url"] = img_element['data-src-zoom-image']
-                        break
-            
-            # Try multiple price selectors
-            price_selectors = [
-                'p.wt-text-title-medium span.money',
-                'p.wt-text-title-01 span.money',
-                '.listing-page-price',
-                'p[data-buy-box-region="price"] span.currency-value',
-                'div[data-selector="price-only"]'
-            ]
-            
-            for selector in price_selectors:
-                price_element = soup.select_one(selector)
-                if price_element:
-                    price_text = price_element.get_text().strip()
-                    try:
-                        # Remove any currency symbols and commas
-                        price_text = re.sub(r'[^\d.]', '', price_text)
-                        result["price"] = float(price_text)
-                        break
-                    except ValueError:
-                        pass
-            
-            # Get shop name
-            shop_element = soup.select_one('p.wt-text-body-01 span.wt-screen-reader-only')
-            if shop_element:
-                shop_text = shop_element.get_text().strip()
-                # Handle the format "Shop: ShopName" or similar
-                shop_parts = shop_text.split(":")
-                if len(shop_parts) > 1:
-                    result["shop_name"] = shop_parts[1].strip()
-                else:
-                    result["shop_name"] = shop_text.strip()
-            
-            # Get star rating
-            rating_element = soup.select_one('input.wt-rating-input')
-            if rating_element and 'value' in rating_element.attrs:
-                try:
-                    result["rating"] = float(rating_element['value'])
-                except ValueError:
-                    pass
-                
-            # Get number of reviews
-            reviews_element = soup.select_one('span.wt-text-body-01 a span')
-            if reviews_element:
-                reviews_text = reviews_element.get_text().strip().replace(',', '')
-                reviews_match = re.search(r'\d+', reviews_text)
-                if reviews_match:
-                    try:
-                        result["review_count"] = int(reviews_match.group(0))
-                    except ValueError:
-                        pass
-                    
-            # Try to extract description
-            description_element = soup.select_one('div[data-id="description-text"]')
-            if description_element:
-                result["description"] = description_element.get_text().strip()
-            
-            # Try to extract shipping info
-            shipping_element = soup.select_one('p.wt-text-body-01 span.currency-value')
-            if shipping_element:
-                shipping_text = shipping_element.get_text().strip()
-                if shipping_text.lower() == 'free':
-                    result["shipping"] = 0.0
-                else:
-                    try:
-                        shipping_text = re.sub(r'[^\d.]', '', shipping_text)
-                        result["shipping"] = float(shipping_text)
-                    except ValueError:
-                        pass
-                        
-        except Exception as e:
-            logger.error(f"Traditional scraping for Etsy failed: {e}")
-        
-        return result
+        # We're now blocking all Etsy URLs
+        return {
+            "error": "Etsy URLs cannot be automatically imported due to site limitations. Please add the item details manually.",
+            "url": url
+        }
 
     def _extract_walmart(self, soup: BeautifulSoup, url: str) -> Dict[str, Any]:
         """Extract product details from Walmart."""
@@ -362,22 +207,6 @@ class ProductScraper:
         
         return result
 
-    async def fetch_product_details_async(self, url: str) -> Dict[str, Any]:
-        """Fetch product details asynchronously, without browser scraping."""
-        try:
-            # Parse the URL to determine the website
-            parsed_url = urlparse(url)
-            domain = parsed_url.netloc.lower()
-            
-            # Direct call to regular scraping for all sites
-            logger.info(f"Fetching product details for {domain} using regular scraper")
-            result = self.fetch_product_details(url)
-            return result
-                
-        except Exception as e:
-            logger.error(f"Error in fetch_product_details_async: {e}")
-            return {"error": f"Failed to fetch product details: {str(e)}"}
-
     # Keep the existing non-async method for compatibility
     def fetch_product_details(self, url: str) -> Dict[str, Any]:
         """Fetch product details from a URL."""
@@ -386,6 +215,13 @@ class ProductScraper:
             # Parse the URL to determine the website
             parsed_url = urlparse(url)
             domain = parsed_url.netloc.lower()
+
+            # Block Etsy URLs early to avoid unnecessary processing
+            if 'etsy' in domain:
+                return {
+                    "error": "Etsy URLs cannot be automatically imported due to site limitations. Please add the item details manually.",
+                    "url": original_url
+                }
 
             # Use more robust headers that look more like a real browser
             headers = {
@@ -398,12 +234,6 @@ class ProductScraper:
                 'Upgrade-Insecure-Requests': '1',
             }
             
-            # For Etsy, implement rate limiting to avoid IP blocks
-            if 'etsy' in domain:
-                # Random sleep between requests to avoid detection
-                sleep_time = random.uniform(1, 3)
-                time.sleep(sleep_time)
-            
             # Attempt to get the page content with longer timeout
             response = requests.get(url, headers=headers, timeout=15)
             response.raise_for_status()
@@ -415,7 +245,7 @@ class ProductScraper:
             if 'amazon' in domain:
                 return self._extract_amazon(soup, url)
             elif 'etsy' in domain:
-                return self._extract_etsy(soup, url)
+                return self._extract_etsy(soup, url)  # This will return our blocking message
             elif 'walmart' in domain:
                 return self._extract_walmart(soup, url)
             elif 'target' in domain:
@@ -440,4 +270,27 @@ class ProductScraper:
             return {"error": f"Failed to fetch product details: {str(e)}"}
         except Exception as e:
             logger.error(f"Error fetching product details: {str(e)}")
+            return {"error": f"Failed to fetch product details: {str(e)}"}
+
+    async def fetch_product_details_async(self, url: str) -> Dict[str, Any]:
+        """Fetch product details asynchronously, without browser scraping."""
+        try:
+            # Parse the URL to determine the website
+            parsed_url = urlparse(url)
+            domain = parsed_url.netloc.lower()
+            
+            # Block Etsy URLs in the async method as well
+            if 'etsy' in domain:
+                return {
+                    "error": "Etsy URLs cannot be automatically imported due to site limitations. Please add the item details manually.",
+                    "url": url
+                }
+                
+            # Direct call to regular scraping for all sites
+            logger.info(f"Fetching product details for {domain} using regular scraper")
+            result = self.fetch_product_details(url)
+            return result
+                
+        except Exception as e:
+            logger.error(f"Error in fetch_product_details_async: {e}")
             return {"error": f"Failed to fetch product details: {str(e)}"}
