@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Calendar, Shirt, Ruler, Pencil, Save, X, Gift, Footprints, Asterisk, Hand, RulerDimensionLine, Info } from 'lucide-react';
 import { updateFamilyMemberPreferences } from '../services/api';
