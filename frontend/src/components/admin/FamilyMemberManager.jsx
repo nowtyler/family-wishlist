@@ -564,4 +564,25 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
               >
                 <button
                   onClick={handleAddClick}
-                  className="flex-1 flex items-center justify-center py-2.5 px-4 bg-primary hover:bg-primary-dark dark:bg-primary-600 dark:hover:bg-primary-
+                  className="flex-1 flex items-center justify-center py-2.5 px-4 bg-primary hover:bg-primary-dark dark:bg-primary-600 dark:hover:bg-primary-700 text-white rounded-lg"
+                  disabled={addMode || editMemberId}
+                >
+                  <Plus size={16} className="mr-2" />
+                  Add New Member
+                </button>
+                <button
+                  onClick={handleClose}
+                  className="py-2.5 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg"
+                >
+                  Close
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+export default FamilyMemberManager;
