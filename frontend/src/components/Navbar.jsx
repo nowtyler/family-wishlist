@@ -289,7 +289,7 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
                         className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
                       >
                         <UserRound className="w-4 h-4 mr-2" />
-                        <span>Manage Family Members</span>
+                        <span>Manage Users</span>
                       </button>
                     )}
 
@@ -333,13 +333,6 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
                         >
                           <AlertOctagon className="w-4 h-4 mr-2" />
                           Clear All Wishlists
-                        </button>
-                        <button
-                          onClick={handleOpenFamilyManager}
-                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
-                        >
-                          <UserRound className="w-4 h-4 mr-2" />
-                          Manage Family Members
                         </button>
                       </>
                     )}
