@@ -1,7 +1,7 @@
 // WishlistCard.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, ExternalLink, MessageCircleHeart, Pencil, Check, X, ShoppingCart, ChevronDown, Flag, MessageCircle, Send } from 'lucide-react';
+import { Trash2, ExternalLink, MessageCircleHeart, Pencil, Check, X, ShoppingCart, Flag, MessageCircle, Send } from 'lucide-react';
 import { updateWishlistItem, addComment, deleteComment, getWishlistItems } from '../services/api';
 
 // Constants
@@ -59,7 +59,6 @@ function WishlistCard({
   
   const [editingItemId, setEditingItemId] = useState(null);
   const [editForm, setEditForm] = useState({});
-  const [activeTooltip, setActiveTooltip] = useState(null); // 'interest-{itemId}' or 'purchase-{itemId}'
   const [newComment, setNewComment] = useState('');
   const [commentError, setCommentError] = useState('');
   const [isDuplicateTitle, setIsDuplicateTitle] = useState(false);
@@ -630,18 +629,18 @@ function WishlistCard({
                     <div className="flex items-center gap-2">
                       <button
                         onClick={(e) => handleSaveEdit(e, item.id)}
-                        className={`p-1 ${isDuplicateTitle ? 'text-gray-400 cursor-not-allowed' : 'text-green-500 hover:text-green-700'}`}
+                        className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 ${isDuplicateTitle ? 'text-gray-400 cursor-not-allowed' : 'text-green-500 hover:text-green-700'}`}
                         title="Save changes"
                         disabled={isDuplicateTitle}
                       >
-                        <Check size={16} />
+                        <Check size={20} />
                       </button>
                       <button
                         onClick={handleCancelEdit}
-                        className="text-gray-500 hover:text-gray-700 p-1"
+                        className="text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
                         title="Cancel edit"
                       >
-                        <X size={16} />
+                        <X size={20} />
                       </button>
                     </div>
                   ) : (
@@ -657,23 +656,23 @@ function WishlistCard({
                             </span>
                           )}
                           {isOwnWishlist && (
-                            <div className="flex gap-1">
+                            <div className="flex gap-2">
                               <button
                                 onClick={(e) => handleEditClick(e, item)}
-                                className="text-blue-500 hover:text-blue-700 p-1"
+                                className="text-blue-500 hover:text-blue-700 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
                                 title="Edit item"
                               >
-                                <Pencil size={16} />
+                                <Pencil size={20} />
                               </button>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   onDeleteItem(item.id);
                                 }}
-                                className="text-red-500 hover:text-red-700 p-1"
+                                className="text-red-500 hover:text-red-700 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
                                 title="Delete item"
                               >
-                                <Trash2 size={16} />
+                                <Trash2 size={20} />
                               </button>
                             </div>
                           )}

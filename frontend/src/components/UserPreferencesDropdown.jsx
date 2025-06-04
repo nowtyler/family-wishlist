@@ -1,4 +1,3 @@
-import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Calendar, Shirt, Ruler, Pencil, Save, X, Gift, Footprints, Asterisk, Hand, RulerDimensionLine, Info } from 'lucide-react';
 import { updateFamilyMemberPreferences } from '../services/api';
@@ -259,27 +258,30 @@ const UserPreferencesDropdown = ({ member, isOwner, currentUserId, onUpdateSucce
                 {isOwner && (
                   <div>
                     {isEditing ? (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
                         <button 
                           onClick={handleCancel} 
-                          className="p-1 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                          className="p-2 rounded-full text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                          aria-label="Cancel editing"
                         >
-                          <X size={16} />
+                          <X size={20} />
                         </button>
                         <button 
                           onClick={handleEditSave} 
-                          className="p-1 text-emerald-500 hover:text-emerald-700"
+                          className="p-2 rounded-full text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
                           disabled={isLoading}
+                          aria-label="Save preferences"
                         >
-                          <Save size={16} />
+                          <Save size={20} />
                         </button>
                       </div>
                     ) : (
                       <button 
                         onClick={handleEditSave} 
-                        className="p-1 text-blue-500 hover:text-blue-700"
+                        className="p-2 rounded-full text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                        aria-label="Edit preferences"
                       >
-                        <Pencil size={16} />
+                        <Pencil size={20} />
                       </button>
                     )}
                   </div>

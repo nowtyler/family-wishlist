@@ -57,6 +57,7 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
     sizeGender: 'unspecified' // for gender-specific sizes
   });
   const [error, setError] = useState('');
+  const [urlError, setUrlError] = useState(''); // Add state for URL-specific errors
   const [isAddMode, setIsAddMode] = useState(true);
   const [urlImportVisible, setUrlImportVisible] = useState(true);
   const [urlToImport, setUrlToImport] = useState('');
@@ -149,6 +150,7 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError('');
+    setUrlError(''); // Clear URL errors too
 
     // Basic validation
     if (!formData.title?.trim()) {
@@ -156,11 +158,8 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
       return;
     }
 
-    // Modify the duplicate check for mobile URL imports
-    // Only check for exact duplicates - allow similar titles
-    const exactDuplicateOnly = importSuccess && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    if (isDuplicateTitle && !exactDuplicateOnly) {
+    // Check for duplicates without the mobile-specific exception
+    if (isDuplicateTitle) {
       setError('An item with this title already exists in your wishlist');
       return;
     }
@@ -181,12 +180,7 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
     };
 
     try {
-      // If this is a mobile import, add a timestamp to the title to ensure uniqueness
-      if (exactDuplicateOnly) {
-        const timestampSuffix = ` (${new Date().toISOString().substring(11, 19)})`;
-        apiData.title = formData.title.trim() + timestampSuffix;
-      }
-      
+      // Removed the timestamp logic for mobile
       await onAddItem(apiData);
       onClose();
     } catch (err) {
@@ -205,11 +199,26 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
 
   const handleImportUrl = async () => {
     if (!urlToImport.trim()) {
-      setError('Please enter a URL to import');
+      setUrlError('Please enter a URL to import');
+      return;
+    }
+
+    // Check if it's an Etsy URL before making the request
+    if (urlToImport.toLowerCase().includes('etsy.com')) {
+      setUrlError('Etsy URLs are not supported for automatic import. Please enter the details manually.');
+      // Still populate the link field with the URL
+      setFormData({
+        ...formData,
+        link: urlToImport
+      });
+      // Show manual entry form
+      setIsAddMode(false);
+      setShowAdvancedFields(true);
       return;
     }
 
     setError('');
+    setUrlError(''); // Clear previous URL errors
     setIsImporting(true);
     
     try {
@@ -217,7 +226,11 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
       
       // Check if we got an error response
       if (productDetails.error) {
-        setError(productDetails.message || productDetails.error);
+        // Set a more helpful error message
+        setUrlError(
+          productDetails.message || 
+          'Failed to import product details. Make sure this is a product URL, not a category or homepage URL.'
+        );
         
         // Still let the user continue with manual entry
         if (productDetails.url) {
@@ -256,7 +269,7 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
       }
     } catch (err) {
       console.error('URL import error:', err);
-      setError('Failed to import product details. Please try entering them manually.');
+      setUrlError('Failed to import product details. Please check the URL and make sure it leads directly to a product page.');
       // Still let the user continue with manual entry
       setFormData({
         ...formData,
@@ -305,7 +318,7 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
             Import from URL
           </h3>
           <p className="text-sm text-blue-600 dark:text-blue-400 mb-3">
-            Paste a product URL to automatically import details. Some websites may not support this feature.
+            Paste a product URL to automatically import details.
           </p>
           
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
@@ -331,6 +344,16 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
               <span className="ml-2 sm:hidden">Import</span>
             </button>
           </div>
+          
+          {/* URL-specific error message displayed right under the input */}
+          {urlError && (
+            <div className="mt-2 p-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/30 rounded">
+              <div className="flex items-start">
+                <span className="font-medium mr-1">Error:</span> 
+                <span>{urlError}</span>
+              </div>
+            </div>
+          )}
           
           {!isImporting && (
             <div className="flex justify-end mt-2">
@@ -598,6 +621,7 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
           </>
         )}
 
+        {/* Keep general form errors at the bottom */}
         {error && (
           <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md dark:bg-red-900/30 dark:border-red-800 dark:text-red-400">
             {error}
