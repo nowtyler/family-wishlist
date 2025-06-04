@@ -62,7 +62,8 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
     setError('');
     
     try {
-      // Use imported function from api.js
+      // Import the function directly to avoid reference errors
+      const { getFamilyMembers } = await import('../../services/api');
       const response = await getFamilyMembers();
       setMembers(response.data);
     } catch (err) {
@@ -115,12 +116,9 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
       setEditMemberId(selectedMember.id);
       setActionType('edit');
     } else if (action === 'delete') {
-      if (actionType === 'delete' && !actionConfirm) {
-        setActionConfirm(true);
-      } else {
-        setActionType('delete');
-        setActionConfirm(false);
-      }
+      // Immediately set confirmation mode for delete
+      setActionType('delete');
+      setActionConfirm(true);
     }
   };
   
@@ -165,6 +163,9 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
     setSaveLoading(true);
     
     try {
+      // Import functions dynamically to avoid reference errors
+      const { createFamilyMember, updateFamilyMember } = await import('../../services/api');
+      
       // If editing existing member
       if (editMemberId) {
         await updateFamilyMember(editMemberId, memberData);
@@ -177,14 +178,13 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
       // Refresh the list
       await fetchMembers();
       
-      // If global refresh function exists, call it
-      if (typeof refreshFamilyMembers === 'function') {
-        try {
+      // Try to update the global state but don't fail if it's not available
+      try {
+        if (typeof refreshFamilyMembers === 'function') {
           await refreshFamilyMembers();
-        } catch (refreshErr) {
-          console.error("Failed to refresh family members globally:", refreshErr);
-          // Continue since we already fetched members locally
         }
+      } catch (refreshErr) {
+        console.error("Note: Global family member refresh failed, but local data is updated");
       }
       
       // Reset form state
@@ -209,19 +209,21 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
     setDeleteLoading(true);
     
     try {
+      // Import function dynamically to avoid reference errors
+      const { deleteFamilyMember } = await import('../../services/api');
+      
       await deleteFamilyMember(selectedMember.id);
       
       // Refresh the list
       await fetchMembers();
       
-      // If global refresh function exists, call it
-      if (typeof refreshFamilyMembers === 'function') {
-        try {
+      // Try to update the global state but don't fail if it's not available
+      try {
+        if (typeof refreshFamilyMembers === 'function') {
           await refreshFamilyMembers();
-        } catch (refreshErr) {
-          console.error("Failed to refresh family members globally:", refreshErr);
-          // Continue since we already fetched members locally
         }
+      } catch (refreshErr) {
+        console.error("Note: Global family member refresh failed, but local data is updated");
       }
       
       // Reset states
@@ -291,74 +293,6 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
             </div>
           ) : (
             <>
-              {/* Edit Form */}
-              {(editMemberId || addMode) && (
-                <div className="mb-6 p-4 border border-blue-100 dark:border-blue-900/50 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-                  <h3 className="text-lg font-medium text-gray-800 dark:text-white mb-3">
-                    {addMode ? 'Add New Family Member' : 'Edit Family Member'}
-                  </h3>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="name"
-                        value={formData.name}
-                        onChange={handleInputChange}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        placeholder="Enter family member name"
-                        required
-                        autoFocus
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Birthday (optional)
-                      </label>
-                      <input
-                        type="date"
-                        name="birthday"
-                        value={formData.birthday}
-                        onChange={handleInputChange}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      />
-                    </div>
-                    
-                    <div className="flex justify-end space-x-2 pt-2">
-                      <button
-                        type="button"
-                        onClick={handleCancelAction}
-                        className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                      >
-                        Cancel
-                      </button>
-                      
-                      <button
-                        type="button"
-                        onClick={handleSave}
-                        disabled={saveLoading}
-                        className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded-md flex items-center"
-                      >
-                        {saveLoading ? (
-                          <>
-                            <Loader size={16} className="animate-spin mr-2" />
-                            Saving...
-                          </>
-                        ) : (
-                          <>
-                            <Save size={16} className="mr-2" />
-                            Save
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
               {/* Family Members List */}
               <div className="space-y-2">
                 {members.length === 0 ? (
@@ -370,11 +304,21 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
                   members.map(member => (
                     <div
                       key={member.id}
-                      onClick={() => handleMemberClick(member)}
-                      className={`p-3 border rounded-lg transition-all duration-200 cursor-pointer ${
+                      onClick={() => {
+                        // Don't allow selection changes during edit mode
+                        if (editMemberId || addMode) return;
+                        handleMemberClick(member);
+                      }}
+                      className={`p-3 border rounded-lg transition-all duration-200 ${
+                        editMemberId || addMode ? 'cursor-default' : 'cursor-pointer'
+                      } ${
                         selectedMember?.id === member.id
                         ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700'
                         : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                      } ${
+                        editMemberId === member.id 
+                        ? 'ring-2 ring-blue-500 dark:ring-blue-400' 
+                        : ''
                       }`}
                     >
                       <div className="flex items-center justify-between">
@@ -394,22 +338,163 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
                             <span>{member.wishlist_item_count || 0} items</span>
                           </div>
                         </div>
-                        {selectedMember?.id === member.id && (
+                        {selectedMember?.id === member.id && !editMemberId && (
                           <ChevronRight size={18} className="text-blue-500" />
                         )}
                       </div>
+
+                      {/* Inline edit form when editing this member */}
+                      {editMemberId === member.id && (
+                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                          <div className="space-y-3">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Name <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                name="name"
+                                value={formData.name}
+                                onChange={handleInputChange}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                placeholder="Enter family member name"
+                                required
+                                autoFocus
+                              />
+                            </div>
+                            
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Birthday (optional)
+                              </label>
+                              <input
+                                type="date"
+                                name="birthday"
+                                value={formData.birthday}
+                                onChange={handleInputChange}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))
                 )}
               </div>
             </>
           )}
+          
+          {/* New Family Member Form (Only when in add mode) */}
+          {addMode && (
+            <div className="mt-4 p-4 border border-green-100 dark:border-green-900/50 rounded-lg bg-green-50 dark:bg-green-900/20">
+              <h3 className="text-lg font-medium text-gray-800 dark:text-white mb-3">
+                Add New Family Member
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="Enter family member name"
+                    required
+                    autoFocus
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Birthday (optional)
+                  </label>
+                  <input
+                    type="date"
+                    name="birthday"
+                    value={formData.birthday}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         
         {/* Footer Actions - Sticky */}
         <div className="sticky bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
           <AnimatePresence mode="wait">
-            {selectedMember ? (
+            {editMemberId ? (
+              <motion.div
+                key="edit-actions"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                className="flex gap-2"
+              >
+                <button
+                  onClick={handleSave}
+                  disabled={saveLoading}
+                  className="flex-1 flex items-center justify-center py-2.5 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded-lg"
+                >
+                  {saveLoading ? (
+                    <>
+                      <Loader size={16} className="animate-spin mr-2" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={16} className="mr-2" />
+                      Save Changes
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={handleCancelAction}
+                  className="flex-1 py-2.5 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg flex items-center justify-center"
+                >
+                  <X size={16} className="mr-2" />
+                  Cancel
+                </button>
+              </motion.div>
+            ) : addMode ? (
+              <motion.div
+                key="add-actions"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                className="flex gap-2"
+              >
+                <button
+                  onClick={handleSave}
+                  disabled={saveLoading}
+                  className="flex-1 flex items-center justify-center py-2.5 px-4 bg-green-500 hover:bg-green-600 text-white rounded-lg"
+                >
+                  {saveLoading ? (
+                    <>
+                      <Loader size={16} className="animate-spin mr-2" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Plus size={16} className="mr-2" />
+                      Add Member
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={handleCancelAction}
+                  className="flex-1 py-2.5 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg flex items-center justify-center"
+                >
+                  <X size={16} className="mr-2" />
+                  Cancel
+                </button>
+              </motion.div>
+            ) : selectedMember ? (
               <motion.div
                 key="member-actions"
                 initial={{ opacity: 0, y: 10 }}
@@ -439,8 +524,9 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
                     </button>
                     <button
                       onClick={handleCancelAction}
-                      className="py-2.5 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg"
+                      className="flex-1 py-2.5 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg flex items-center justify-center"
                     >
+                      <X size={16} className="mr-2" />
                       Cancel
                     </button>
                   </>
@@ -478,25 +564,4 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
               >
                 <button
                   onClick={handleAddClick}
-                  className="flex-1 flex items-center justify-center py-2.5 px-4 bg-primary hover:bg-primary-dark dark:bg-primary-600 dark:hover:bg-primary-700 text-white rounded-lg"
-                  disabled={addMode || editMemberId}
-                >
-                  <Plus size={16} className="mr-2" />
-                  Add New Member
-                </button>
-                <button
-                  onClick={handleClose}
-                  className="py-2.5 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg"
-                >
-                  Close
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-};
-
-export default FamilyMemberManager;
+                  className="flex-1 flex items-center justify-center py-2.5 px-4 bg-primary hover:bg-primary-dark dark:bg-primary-600 dark:hover:bg-primary-
