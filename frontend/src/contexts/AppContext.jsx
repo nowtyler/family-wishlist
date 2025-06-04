@@ -1,6 +1,6 @@
 // frontend/src/contexts/AppContext.jsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { setCurrentUserHeader, getAdminAccess } from '../services/api';
+import { setCurrentUserHeader, getAdminAccess, getFamilyMembers } from '../services/api';
 
 const AppContext = createContext();
 

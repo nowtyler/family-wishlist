@@ -282,7 +282,15 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
                 {/* Settings Dropdown */}
                 {showSettings && (
                   <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-700 rounded-md shadow-lg py-1 z-50">
-                    {/* Add the family member management option for admin users */}
+                    <button
+                      onClick={handleChangeUser}
+                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                    >
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      Change User
+                    </button>
+                    
+                    {/* Moved the Manage Users option here */}
                     {isAdmin && (
                       <button
                         onClick={handleOpenFamilyManager}
@@ -292,14 +300,7 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
                         <span>Manage Users</span>
                       </button>
                     )}
-
-                    <button
-                      onClick={handleChangeUser}
-                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
-                    >
-                      <UserPlus className="w-4 h-4 mr-2" />
-                      Change User
-                    </button>
+                    
                     <button
                       onClick={() => {
                         setShowSettings(false);
@@ -311,6 +312,7 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
                       <Trash2 className="w-4 h-4 mr-2" />
                       Clear Wishlist
                     </button>
+                    
                     {isAdmin && (
                       <>
                         <button
