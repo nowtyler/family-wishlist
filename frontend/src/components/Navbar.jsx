@@ -2,7 +2,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
-import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPlus, Trash2, AlertOctagon, Database, HelpCircle } from 'lucide-react';
+import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPlus, 
+         Trash2, AlertOctagon, Database, HelpCircle, UserRound } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems, 
          getFamilyMembers, clearAllWishlists, getAdminAccess } from '../services/api';
@@ -281,6 +282,17 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
                 {/* Settings Dropdown */}
                 {showSettings && (
                   <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-700 rounded-md shadow-lg py-1 z-50">
+                    {/* Add the family member management option for admin users */}
+                    {isAdmin && (
+                      <button
+                        onClick={handleOpenFamilyManager}
+                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                      >
+                        <UserRound className="w-4 h-4 mr-2" />
+                        <span>Manage Family Members</span>
+                      </button>
+                    )}
+
                     <button
                       onClick={handleChangeUser}
                       className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
@@ -326,7 +338,7 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
                           onClick={handleOpenFamilyManager}
                           className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
                         >
-                          <User className="w-4 h-4 mr-2" />
+                          <UserRound className="w-4 h-4 mr-2" />
                           Manage Family Members
                         </button>
                       </>
