@@ -9,6 +9,7 @@ import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems,
 import { motion, AnimatePresence } from 'framer-motion';
 import MigrationModal from './admin/MigrationModal';
 import HelpModal from './HelpModal';
+import FamilyMemberManager from './admin/FamilyMemberManager';
 
 const Navbar = ({ onClearWishlist, viewingMember }) => {
   const { selectedUser, logout, setSelectedUser, setFamilyMembers } = useAppContext();
@@ -24,6 +25,7 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
   const [showMigrationModal, setShowMigrationModal] = useState(false);
   const [isDevEnvironment, setIsDevEnvironment] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showFamilyManager, setShowFamilyManager] = useState(false);
   const settingsRef = useRef(null);
   const isAdmin = selectedUser?.name?.toLowerCase() === 'admin';
 
@@ -171,6 +173,12 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
     return () => document.removeEventListener('mousedown', handleClickOutsideModal);
   }, [showMigrationModal]);
 
+  // Add this function to handle opening the family member manager
+  const handleOpenFamilyManager = () => {
+    setShowSettings(false); // Close settings menu
+    setShowFamilyManager(true);
+  };
+
   return (
     <>
       <nav className="bg-white dark:bg-gray-800 shadow-md sticky top-0 z-50">
@@ -314,6 +322,13 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
                           <AlertOctagon className="w-4 h-4 mr-2" />
                           Clear All Wishlists
                         </button>
+                        <button
+                          onClick={handleOpenFamilyManager}
+                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                        >
+                          <User className="w-4 h-4 mr-2" />
+                          Manage Family Members
+                        </button>
                       </>
                     )}
                     <button
@@ -389,6 +404,13 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
             isOpen={showHelpModal}
             onClose={() => setShowHelpModal(false)}
             isAdmin={isAdmin}
+          />
+        )}
+        {/* Family Member Manager Modal */}
+        {showFamilyManager && (
+          <FamilyMemberManager
+            isOpen={showFamilyManager}
+            onClose={() => setShowFamilyManager(false)}
           />
         )}
       </AnimatePresence>

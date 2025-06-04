@@ -106,6 +106,19 @@ export const updateFamilyMemberPreferences = (memberId, preferences) => {
   return apiClient.put(`/members/${memberId}/preferences`, { preferences });
 };
 
+// New API functions for family member management
+export const createFamilyMember = (memberData) => {
+  return apiClient.post('/family-members', memberData);
+};
+
+export const updateFamilyMember = (memberId, memberData) => {
+  return apiClient.put(`/family-members/${memberId}`, memberData);
+};
+
+export const deleteFamilyMember = (memberId) => {
+  return apiClient.delete(`/family-members/${memberId}`);
+};
+
 // --- Wishlist Items ---
 /**
  * Get wishlist items for a specific user

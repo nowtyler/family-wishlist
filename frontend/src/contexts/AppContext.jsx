@@ -66,7 +66,17 @@ export const AppProvider = ({ children }) => {
     // setCurrentUserHeader(null); // Done by useEffect for selectedUser
   };
 
+  // Add a function to refresh family members data
+  const refreshFamilyMembers = async () => {
+    try {
+      const response = await getFamilyMembers();
+      setFamilyMembers(response.data || []);
+    } catch (err) {
+      console.error('Failed to refresh family members:', err);
+    }
+  };
 
+  // Add refreshFamilyMembers to the context value
   const value = {
     isAuthenticated,
     login,
@@ -75,6 +85,7 @@ export const AppProvider = ({ children }) => {
     setFamilyMembers,
     selectedUser,
     setSelectedUser,
+    refreshFamilyMembers,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

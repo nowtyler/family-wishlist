@@ -46,6 +46,15 @@ class FamilyMember(BaseModel):
         orm_mode = True
         from_attributes = True  # For newer versions of Pydantic
 
+# Family member update schema
+class FamilyMemberUpdate(BaseModel):
+    name: str = None
+    birthday: str = None
+    is_admin: bool = None
+    
+    class Config:
+        orm_mode = True
+
 # --- Comment ---
 class CommentBase(BaseModel):
     text: str

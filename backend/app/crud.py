@@ -509,3 +509,29 @@ def update_member_preferences(db: Session, member_id: int, preferences: dict):
     db.commit()
     db.refresh(member)
     return member
+
+def update_family_member(db: Session, member_id: int, member_update: schemas.FamilyMemberUpdate) -> Optional[models.FamilyMember]:
+    """Update a family member"""
+    db_member = get_family_member(db, member_id)
+    if not db_member:
+        return None
+    
+    # Update fields
+    update_data = member_update.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_member, key, value)
+    
+    db.commit()
+    db.refresh(db_member)
+    return db_member
+
+def delete_family_member(db: Session, member_id: int) -> bool:
+    """Delete a family member and all their wishlist items"""
+    db_member = get_family_member(db, member_id)
+    if not db_member:
+        return False
+    
+    # Delete the member (cascade will handle related items)
+    db.delete(db_member)
+    db.commit()
+    return True

@@ -246,6 +246,96 @@ def read_family_member(member_id: int, db: Session = Depends(get_db)):
     return member_schema
 
 
+@app.post("/api/family-members", response_model=schemas.FamilyMember)
+def create_family_member(
+    member: schemas.FamilyMemberCreate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Create a new family member (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or user.name.lower() != 'admin':
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    # Create the family member
+    try:
+        db_member = crud.create_family_member(db, member)
+        count = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == db_member.id).count()
+        member_schema = schemas.FamilyMember.from_orm(db_member)
+        member_schema.wishlist_item_count = count
+        return member_schema
+    except Exception as e:
+        logger.error(f"Failed to create family member: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to create family member: {str(e)}")
+
+@app.put("/api/family-members/{member_id}", response_model=schemas.FamilyMember)
+def update_family_member(
+    member_id: int,
+    member_update: schemas.FamilyMemberUpdate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Update a family member (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or user.name.lower() != 'admin':
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    # Update the family member
+    try:
+        db_member = crud.update_family_member(db, member_id, member_update)
+        if not db_member:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Family member not found")
+        
+        count = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == db_member.id).count()
+        member_schema = schemas.FamilyMember.from_orm(db_member)
+        member_schema.wishlist_item_count = count
+        return member_schema
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update family member: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to update family member: {str(e)}")
+
+@app.delete("/api/family-members/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_family_member(
+    member_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Delete a family member and all their wishlist items (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or user.name.lower() != 'admin':
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    # Prevent deleting the admin user
+    target_member = crud.get_family_member(db, member_id)
+    if not target_member:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Family member not found")
+        
+    if target_member.name.lower() == 'admin':
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete the admin user")
+    
+    # Delete the family member
+    try:
+        if crud.delete_family_member(db, member_id):
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Family member not found")
+    except Exception as e:
+        logger.error(f"Failed to delete family member: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to delete family member: {str(e)}")
+
 # --- Wishlist Items ---
 def check_admin_or_owner(db: Session, user_id: int, owner_id: int) -> bool:
     user = crud.get_family_member(db, user_id)
