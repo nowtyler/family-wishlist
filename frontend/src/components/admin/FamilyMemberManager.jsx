@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Pencil, Save, Trash2, X, AlertTriangle, User, Calendar, Check, Loader } from 'lucide-react';
+import { Plus, Pencil, Save, Trash2, X, AlertTriangle, Calendar, Check, Loader, UserRound } from 'lucide-react';
 import { 
   getFamilyMembers, 
   createFamilyMember, 
