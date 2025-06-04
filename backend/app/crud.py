@@ -526,12 +526,35 @@ def update_family_member(db: Session, member_id: int, member_update: schemas.Fam
     return db_member
 
 def delete_family_member(db: Session, member_id: int) -> bool:
-    """Delete a family member and all their wishlist items"""
+    """Delete a family member and all their associated data"""
     db_member = get_family_member(db, member_id)
     if not db_member:
         return False
     
-    # Delete the member (cascade will handle related items)
-    db.delete(db_member)
-    db.commit()
-    return True
+    try:
+        # First, delete all comments created by the user
+        db.query(models.Comment).filter(models.Comment.author_id == member_id).delete()
+        
+        # Find all wishlist items owned by the user
+        item_ids = [item.id for item in db.query(models.WishlistItem.id).filter(
+            models.WishlistItem.owner_id == member_id
+        ).all()]
+        
+        # Delete comments on the user's wishlist items
+        if item_ids:
+            db.query(models.Comment).filter(models.Comment.item_id.in_(item_ids)).delete(synchronize_session=False)
+        
+        # Delete the user's wishlist items
+        db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == member_id).delete()
+        
+        # Delete external wishlists
+        db.query(models.ExternalWishlist).filter(models.ExternalWishlist.owner_id == member_id).delete()
+        
+        # Finally, delete the family member (which will also delete preferences since they're stored in the same record)
+        db.delete(db_member)
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        print(f"Error deleting family member: {e}")
+        return False
