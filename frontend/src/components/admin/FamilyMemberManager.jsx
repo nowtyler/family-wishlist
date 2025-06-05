@@ -246,7 +246,7 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
       // Fix the one-day-off issue by correctly handling the timezone
       const [year, month, day] = dateString.split('-').map(num => parseInt(num, 10));
       // Create date using UTC to avoid timezone issues
-      const date = new Date(Date.UTC(year, month - 1, day));
+      const date = new Date(Date.UTC(year, month - 1, day + 1));
       return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
     } catch (err) {
       return dateString;
