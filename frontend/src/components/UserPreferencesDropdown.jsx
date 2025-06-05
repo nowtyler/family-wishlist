@@ -124,8 +124,9 @@ const UserPreferencesDropdown = ({ member, isOwner, currentUserId, onUpdateSucce
     const birthdayInfo = getDaysUntilBirthday(birthday);
     if (!birthdayInfo) return null;
 
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                        'July', 'August', 'September', 'October', 'November', 'December'];
+    // Use abbreviated month names
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     
     return {
       formatted: `${monthNames[birthdayInfo.month - 1]} ${birthdayInfo.day}`,

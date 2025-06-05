@@ -243,7 +243,10 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
     if (!dateString) return "No birthday set";
     
     try {
-      const date = new Date(dateString);
+      // Fix the one-day-off issue by correctly handling the timezone
+      const [year, month, day] = dateString.split('-').map(num => parseInt(num, 10));
+      // Create date using UTC to avoid timezone issues
+      const date = new Date(Date.UTC(year, month - 1, day));
       return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
     } catch (err) {
       return dateString;
