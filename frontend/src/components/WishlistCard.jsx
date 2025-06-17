@@ -67,6 +67,7 @@ function WishlistCard({
   const [sizeValue, setSizeValue] = useState('');
   const [sizeGender, setSizeGender] = useState('unspecified');
   const [showSizeFields, setShowSizeFields] = useState(false);
+  const [pendingDeleteItemId, setPendingDeleteItemId] = useState(null); // Track item pending deletion
   const modalRef = useRef(null);
 
   // Check for duplicate titles when editing
@@ -667,7 +668,7 @@ function WishlistCard({
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  onDeleteItem(item.id);
+                                  setPendingDeleteItemId(item.id);
                                 }}
                                 className="text-red-500 hover:text-red-700 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
                                 title="Delete item"
@@ -937,6 +938,58 @@ function WishlistCard({
                     Close
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        </AnimatePresence>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {pendingDeleteItemId && (
+        <AnimatePresence>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            onClick={() => setPendingDeleteItemId(null)}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 50,
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-sm w-full"
+            >
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Confirm Deletion</h3>
+              <p className="text-gray-600 dark:text-gray-300 mb-6">
+                Are you sure you want to delete this item? This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setPendingDeleteItemId(null)}
+                  className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    const itemId = pendingDeleteItemId;
+                    setPendingDeleteItemId(null);
+                    onDeleteItem(itemId);
+                  }}
+                  className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                >
+                  Delete
+                </button>
               </div>
             </motion.div>
           </motion.div>
