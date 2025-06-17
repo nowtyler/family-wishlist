@@ -64,23 +64,24 @@ const UpcomingEventsDisplay = ({ familyMembers }) => {
                       ? 'bg-gradient-to-r from-red-50 to-red-50/50 dark:from-red-900/10 dark:to-red-900/5 hover:from-red-100/70 dark:hover:from-red-900/20'
                       : 'hover:bg-gray-50/80 dark:hover:bg-gray-700/30'}`}
               >
-                <div className="flex-1 flex justify-between items-center">
-                  <div>
-                    <p className="font-medium text-gray-800 dark:text-gray-100 text-sm">
-                      {isChristmas ? (
-                        <span className="flex items-center">
-                          <Gift size={14} className="mr-1.5 text-red-500 dark:text-red-400" />
-                          {event.name}
-                        </span>
-                      ) : (
-                        event.name
-                      )}
+                <div className="flex-1 flex justify-between items-center gap-2">
+                  <div className="flex items-center flex-wrap pr-1">
+                    {isChristmas && <Gift size={14} className="mr-1.5 flex-shrink-0 text-red-500 dark:text-red-400" />}
+                    
+                    <div>
+                      <span className="font-medium text-gray-800 dark:text-gray-100 text-sm">
+                        {event.name}
+                      </span>
+                      {' '}
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        ({isChristmas ? 'Dec 25' : event.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
+                      </span>
                       {index === 0 && (
-                        <span className="ml-1.5 text-xs px-1.5 py-0.5 bg-pink-500/20 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 rounded-full font-medium inline-block">
+                        <span className="ml-1 text-xs px-1 py-0.5 bg-pink-500/20 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 rounded-full font-medium inline-block">
                           Next
                         </span>
                       )}
-                    </p>
+                    </div>
                   </div>
                   
                   <div className={`text-sm font-medium whitespace-nowrap px-2 py-1 rounded ${
