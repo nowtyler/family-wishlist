@@ -145,7 +145,9 @@ const UserSelectionScreen = () => {
           
           {/* Add the upcoming events display below the user selection */}
           {!isLoading && familyMembers.length > 0 && (
-            <UpcomingEventsDisplay familyMembers={familyMembers} />
+            <div className="w-full max-w-2xl mt-4">
+              <UpcomingEventsDisplay familyMembers={familyMembers} />
+            </div>
           )}
         </div>
       </motion.div>
