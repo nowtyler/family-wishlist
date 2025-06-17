@@ -107,9 +107,6 @@ const UserSelectionScreen = () => {
         className="min-h-screen flex flex-col items-center py-8 px-4 bg-gradient-to-br from-slate-100 to-sky-100 dark:from-gray-900 dark:to-gray-800"
       >
         <div className="w-full max-w-4xl flex flex-col items-center justify-center">
-          {/* Add the upcoming events display above the user selection */}
-          {!isLoading && <UpcomingEventsDisplay familyMembers={familyMembers} />}
-          
           <div className="w-full max-w-2xl p-8 bg-white dark:bg-gray-800 rounded-xl shadow-2xl text-center">
             <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-8">Who are you?</h2>
             {error && (
@@ -145,6 +142,11 @@ const UserSelectionScreen = () => {
               ))}
             </div>
           </div>
+          
+          {/* Add the upcoming events display below the user selection */}
+          {!isLoading && familyMembers.length > 0 && (
+            <UpcomingEventsDisplay familyMembers={familyMembers} />
+          )}
         </div>
       </motion.div>
     </div>
