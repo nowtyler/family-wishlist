@@ -78,3 +78,78 @@ export const getCountdownDisplay = (daysUntil, eventDate) => {
     return `is in ${daysUntil} days (${eventDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`;
   }
 };
+
+/**
+ * Calculate information about the next Christmas date
+ * @returns {object} Christmas information including days until next Christmas
+ */
+export const getChristmasInfo = () => {
+  // Get the current date
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  // Christmas is on December 25
+  const christmasMonth = 12;
+  const christmasDay = 25;
+  
+  // Create this year's Christmas date
+  const christmasThisYear = new Date(today.getFullYear(), christmasMonth - 1, christmasDay);
+  
+  // If Christmas has already passed this year, get next year's Christmas
+  if (christmasThisYear < today) {
+    christmasThisYear.setFullYear(today.getFullYear() + 1);
+  }
+  
+  // Calculate difference in days
+  const diffTime = Math.abs(christmasThisYear - today);
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  return {
+    name: "Christmas",
+    month: christmasMonth,
+    day: christmasDay,
+    daysUntil: diffDays,
+    date: christmasThisYear,
+    formattedDate: formatDate(christmasThisYear)
+  };
+};
+
+/**
+ * Get all upcoming events (birthdays and Christmas) ordered by date
+ * @param {Array} familyMembers - Array of family members
+ * @returns {Array} Sorted array of upcoming events
+ */
+export const getUpcomingEvents = (familyMembers) => {
+  const events = [];
+  
+  // Add Christmas to events
+  const christmasInfo = getChristmasInfo();
+  if (christmasInfo) {
+    events.push({
+      name: "Christmas",
+      daysUntil: christmasInfo.daysUntil,
+      date: christmasInfo.date
+    });
+  }
+  
+  // Add all family member birthdays
+  if (Array.isArray(familyMembers)) {
+    familyMembers.forEach(member => {
+      if (member.birthday && !member.name.toLowerCase().includes('admin')) {
+        const birthdayInfo = getDaysUntilBirthday(member.birthday);
+        if (birthdayInfo) {
+          events.push({
+            name: `${member.name}'s Birthday`,
+            daysUntil: birthdayInfo.daysUntil,
+            date: birthdayInfo.date
+          });
+        }
+      }
+    });
+  }
+  
+  // Sort events by days until (closest first)
+  events.sort((a, b) => a.daysUntil - b.daysUntil);
+  
+  return events;
+};
