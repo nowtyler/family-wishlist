@@ -392,7 +392,7 @@ export const hardResetMigrations = async () => {
 // Add a new function to reset schema hash
 export const resetSchemaHash = async () => {
   try {
-    const response = await apiClient.post('/admin/schema/reset-hash');
+    const response = await apiClient.post('/admin/migrations/reset-schema-hash');
     return response;
   } catch (error) {
     console.error('Failed to reset schema hash:', {

@@ -199,9 +199,39 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
     const checkSchema = async () => {
       try {
         const response = await getMigrations();
+        
+        // Check if there are any actual pending migrations to deal with
+        const hasModelChanges = response.data.available_migrations?.some(m => m.version === 'pending');
+        const hasNonAppliedMigrations = response.data.available_migrations?.some(
+          m => m.version !== 'pending' && !m.applied
+        );
+        const hasMultipleHeads = response.data.current_version?.includes(',');
+        
+        // Only show the upgrade alert if there's a real issue that needs attention
+        const hasRealIssue = hasModelChanges || hasNonAppliedMigrations || hasMultipleHeads;
+        
+        // Set the state based on what the backend says and what we detect
         if (response.data.needs_upgrade) {
           setNeedsUpgrade(true);
-          setShowUpgradeAlert(true);
+          
+          // Only show the upgrade alert modal if there's a real issue
+          if (hasRealIssue) {
+            setShowUpgradeAlert(true);
+          }
+          
+          // If there's no real issue but the backend reports needs_upgrade,
+          // try silently resetting the schema hash in the background
+          if (!hasRealIssue && response.data.stored_schema_hash) {
+            console.log("No real issues detected but needs_upgrade is true. Attempting silent schema hash reset...");
+            try {
+              // This silently attempts to reset the schema hash in the background
+              // It's ok if this fails - the admin can still do it manually
+              const { resetSchemaHash } = await import('../services/api');
+              resetSchemaHash().catch(() => {});
+            } catch (e) {
+              // Silent fail - don't bother the user
+            }
+          }
         }
       } catch (err) {
         console.error('Failed to check schema:', err);

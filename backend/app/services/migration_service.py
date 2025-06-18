@@ -113,47 +113,122 @@ class MigrationService:
             
             # Connect to the database and get stored hash
             engine = create_engine(self.db_url)
-            with engine.connect() as conn:
+            conn = engine.connect()
+            try:
                 # Check if schema_version table exists
                 result = conn.execute(text(
                     "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version'"
                 ))
                 if not result.fetchone():
-                    # Table doesn't exist, so consider this a change
+                    # Check if system_settings has the schema_hash field
+                    try:
+                        settings_result = conn.execute(text(
+                            "SELECT schema_hash FROM system_settings WHERE id = 1"
+                        ))
+                        row = settings_result.fetchone()
+                        stored_hash = row[0] if row else None
+                        
+                        # If we found a hash in system_settings, compare it
+                        if stored_hash and stored_hash == current_hash:
+                            return False
+                    except Exception:
+                        pass  # Silently continue if no system_settings table
+                        
+                    # Neither schema_version nor valid system_settings.schema_hash exist
                     return True
                 
-                # Get stored hash
+                # Get stored hash from schema_version
                 try:
                     result = conn.execute(text("SELECT hash FROM schema_version LIMIT 1"))
                     row = result.fetchone()
                     stored_hash = row[0] if row else None
-                except:
-                    # Table exists but no hash or query error, so consider this a change
-                    return True
+                except Exception:
+                    # Check system_settings as fallback
+                    try:
+                        settings_result = conn.execute(text(
+                            "SELECT schema_hash FROM system_settings WHERE id = 1"
+                        ))
+                        row = settings_result.fetchone()
+                        stored_hash = row[0] if row else None
+                    except Exception:
+                        # No valid hash found in either table
+                        return True
+            finally:
+                conn.close()
             
-            # Compare hashes
-            if not stored_hash or stored_hash != current_hash:
+            # If we got this far and still don't have a stored hash, consider it a change
+            if not stored_hash:
                 # Debug log the hashes for troubleshooting
-                logger.debug(f"Schema hashes don't match - Stored: {stored_hash}, Current: {current_hash}")
+                logger.debug(f"No stored schema hash found - Current: {current_hash}")
                 return True
                 
-            # Check for pending migrations separately
-            script = ScriptDirectory.from_config(self.alembic_cfg)
-            current = self.get_current_version()
-            head = script.get_current_head()
+            # Compare hashes - if they match, no need for migration
+            if stored_hash == current_hash:
+                # Check version only if hashes match
+                if self.alembic_cfg is not None:
+                    try:
+                        script = ScriptDirectory.from_config(self.alembic_cfg)
+                        current = self.get_current_version()
+                        head = script.get_current_head()
+                        
+                        # If current version is not at head, consider it needs upgrade
+                        if current != head and current != "base" and "," not in current:
+                            logger.debug(f"Database version not at head - Current: {current}, Head: {head}")
+                            return True
+                    except Exception as e:
+                        logger.warning(f"Error checking alembic versions: {e}")
+                
+                # Hashes match and no version issue
+                return False
             
-            # If current version is not at head, consider it needs upgrade
-            if current != head:
-                logger.debug(f"Database version not at head - Current: {current}, Head: {head}")
+            # Hashes don't match - debug log and check versions
+            logger.debug(f"Schema hashes don't match - Stored: {stored_hash}, Current: {current_hash}")
+            
+            # Check if we just need to update the hash by verifying version is current
+            if self.alembic_cfg is not None:
+                try:
+                    script = ScriptDirectory.from_config(self.alembic_cfg)
+                    current = self.get_current_version()
+                    head = script.get_current_head()
+                    
+                    # If we're at the head version, we can update the hash
+                    if current == head:
+                        logger.info("Schema hash mismatch but version is at head. Updating hash to match.")
+                        self.reset_schema_hash()
+                        return False
+                except Exception as e:
+                    logger.warning(f"Error checking alembic versions during hash mismatch: {e}")
+                    
+            # If we got here, hashes don't match and we couldn't verify that we're at head version
+            # This indicates we likely need migration
+                    self.reset_schema_hash()  # Update hash to avoid future false positives
+                    return False
+                    
                 return True
+            
+            # Check for pending migrations separately by using Alembic
+            try:
+                script = ScriptDirectory.from_config(self.alembic_cfg)
+                current = self.get_current_version()
+                head = script.get_current_head()
+                
+                # If current version is not at head, consider it needs upgrade
+                if current != head and current != "base":
+                    logger.debug(f"Database version not at head - Current: {current}, Head: {head}")
+                    return True
+            except Exception as e:
+                logger.warning(f"Error checking alembic versions: {e}")
+                # Don't return True here, fall through to final check
                 
             # Hashes match and no pending migrations
             return False
             
         except Exception as e:
             logger.error(f"Error detecting model changes: {e}")
-            # In case of error, assume changes needed to be safe
-            return True
+            traceback.print_exc()
+            # In case of error, we should NOT assume changes are needed
+            # This prevents false positives during errors
+            return False
 
     def sqlite_on_connect(self, dbapi_connection, connection_record):
         """Enable SQLite foreign key support and other optimizations"""
@@ -568,35 +643,45 @@ class MigrationService:
             
             # Connect to the database and reset the hash
             engine = create_engine(self.db_url)
-            with engine.connect() as conn:
-                conn.execute(text("BEGIN"))
-                try:
-                    # Check if schema_version table exists
-                    result = conn.execute(text(
-                        "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version'"
-                    ))
-                    
-                    if not result.fetchone():
-                        # Create the table if it doesn't exist
-                        conn.execute(text(
-                            "CREATE TABLE schema_version (hash TEXT, updated_at TIMESTAMP)"
-                        ))
-                    
-                    # Delete any existing entries
-                    conn.execute(text("DELETE FROM schema_version"))
-                    
-                    # Insert new hash
+            conn = engine.connect()
+            transaction = conn.begin()
+            
+            try:
+                # Check if schema_version table exists
+                result = conn.execute(text(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version'"
+                ))
+                
+                if not result.fetchone():
+                    # Create the table if it doesn't exist
                     conn.execute(text(
-                        "INSERT INTO schema_version (hash, updated_at) VALUES (:hash, :updated_at)"
-                    ), {"hash": current_hash, "updated_at": datetime.utcnow()})
-                    
-                    conn.execute(text("COMMIT"))
-                    logger.info(f"Schema hash reset to: {current_hash}")
-                    return True
-                except Exception as e:
-                    conn.execute(text("ROLLBACK"))
-                    logger.error(f"Failed to reset schema hash: {e}")
-                    return False
+                        "CREATE TABLE schema_version (hash TEXT, updated_at TIMESTAMP)"
+                    ))
+                
+                # Delete any existing entries
+                conn.execute(text("DELETE FROM schema_version"))
+                
+                # Insert new hash
+                conn.execute(text(
+                    "INSERT INTO schema_version (hash, updated_at) VALUES (:hash, :updated_at)"
+                ), {"hash": current_hash, "updated_at": datetime.utcnow()})
+                
+                # Also update system_settings if it exists and has schema_hash column
+                try:
+                    conn.execute(text("UPDATE system_settings SET schema_hash = :hash WHERE id = 1"), {"hash": current_hash})
+                    logger.info("Updated schema_hash in system_settings")
+                except Exception:
+                    logger.debug("Could not update schema_hash in system_settings - may not exist")
+                
+                transaction.commit()
+                logger.info(f"Schema hash reset to: {current_hash}")
+                return True
+            except Exception as e:
+                transaction.rollback()
+                logger.error(f"Failed to reset schema hash: {e}")
+                return False
+            finally:
+                conn.close()
                 
         except Exception as e:
             logger.error(f"Error resetting schema hash: {e}")

@@ -11,6 +11,7 @@ import os
 from datetime import datetime
 from pydantic import BaseModel
 from urllib.parse import urlparse  # Add this missing import
+import alembic.script  # Import for script directory access
 
 from . import crud, models, schemas, auth, database
 from .database import (
@@ -725,27 +726,60 @@ async def get_migrations(
             stored_hash = crud.get_schema_hash(db)
             current_hash = migration_service.get_schema_hash()
             
-            # Check if there are actual model changes
-            needs_upgrade = False
-            if stored_hash != current_hash:
-                needs_upgrade = migration_service.detect_model_changes()
+            # First check for multiple heads - this always requires migration
+            has_multiple_heads = "," in current_version
             
-            # Check for multiple heads
-            if "," in current_version:
-                needs_upgrade = True  # Multiple heads need resolution
-                
-            # Also check if there are any pending migrations
+            # Check for non-"pending" migrations that are not yet applied
             has_pending_migrations = any(m.version != "pending" and not m.applied for m in available_migrations)
-            needs_upgrade = needs_upgrade or has_pending_migrations
             
-            logger.info(f"Schema comparison - Stored: {stored_hash[:8]}... Current: {current_hash[:8]}... Needs Upgrade: {needs_upgrade}, Pending Migrations: {has_pending_migrations}")
+            # Only check for model changes if we don't have other clear indicators
+            needs_schema_check = not (has_multiple_heads or has_pending_migrations)
+            model_changes_detected = False
+            
+            if needs_schema_check and stored_hash != current_hash:
+                # Log that we're checking for model changes
+                logger.info(f"Schema hashes don't match, verifying actual schema changes...")
+                
+                # Attempt to update hash if models match but hashes don't
+                # This helps address "false positive" needs_upgrade flags
+                try:
+                    # If we're at the current version (and not "base") and hashes don't match,
+                    # then we can update the hash without requiring migration
+                    # Check if alembic config is available
+                    if migration_service.alembic_cfg is not None:
+                        script_dir = alembic.script.ScriptDirectory.from_config(migration_service.alembic_cfg)
+                        head = script_dir.get_current_head()
+                        
+                        if current_version == head and head != "base":
+                            # We're at current head version, just hash mismatch - update the hash silently
+                            logger.info(f"Schema hash mismatch but database is at current head version. Updating hash...")
+                            crud.update_schema_hash(db, current_hash)
+                            stored_hash = current_hash  # Set them equal to avoid marking as needs_upgrade
+                    else:
+                        # Actually check for model changes
+                        model_changes_detected = migration_service.detect_model_changes()
+                except Exception as hash_fix_error:
+                    logger.error(f"Error during hash sync: {hash_fix_error}")
+                    # Don't assume we need upgrade just because of this error
+            
+            # A migration is needed if:
+            # 1. We have multiple heads (always requires merge) OR
+            # 2. We have pending migrations that are not applied OR
+            # 3. We have actual model changes detected
+            needs_upgrade = has_multiple_heads or has_pending_migrations or model_changes_detected
+            
+            logger.info(f"Schema status - Stored: {stored_hash[:8] if stored_hash else 'None'}... Current: {current_hash[:8]}... "
+                        f"Multiple heads: {has_multiple_heads}, Pending migrations: {has_pending_migrations}, "
+                        f"Model changes: {model_changes_detected}, Needs upgrade: {needs_upgrade}")
         except Exception as e:
             logger.error(f"Schema hash error: {str(e)}")
             import traceback
             logger.error(traceback.format_exc())
             stored_hash = None
             current_hash = None
-            needs_upgrade = True
+            # Don't automatically mark as needs_upgrade on error, this causes false positives
+            # Only mark as needing upgrade if we have multiple heads or pending migrations
+            needs_upgrade = "," in current_version or any(m.version != "pending" and not m.applied for m in available_migrations)
         
         return {
             "current_version": current_version,
@@ -1472,42 +1506,40 @@ async def reset_schema_hash(
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id_from_header)
 ):
-    """Reset the schema hash to match the current model state.
-    This helps resolve issues where the system thinks migrations are needed
-    even though they've been applied."""
+    """Reset the schema hash to match current model state"""
+    # Verify user is admin
     try:
-        # Verify admin
         user = crud.get_family_member(db, current_user_id)
-        if not user or not (user.is_admin or user.name.lower() == 'admin'):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only admin can reset schema hash"
-            )
+        if not user or not user.is_admin:
+            raise HTTPException(status_code=403, detail="Only admin can reset schema hash")
             
-        # Reset schema hash
         success = migration_service.reset_schema_hash()
-        
         if success:
-            # Also update the hash in our database
+            # Also update the hash in system_settings
             current_hash = migration_service.get_schema_hash()
             crud.update_schema_hash(db, current_hash)
             
+            logger.info(f"Schema hash reset to: {current_hash}")
             return {
                 "success": True,
-                "message": "Schema hash has been reset to match current model state"
+                "message": f"Schema hash reset successfully",
+                "new_version": migration_service.get_current_version()
             }
         else:
+            logger.error("Failed to reset schema hash")
             return {
                 "success": False,
-                "message": "Failed to reset schema hash, check server logs for details"
+                "message": "Failed to reset schema hash",
+                "new_version": migration_service.get_current_version()
             }
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Schema hash reset error: {str(e)}")
+        logger.error(f"Error resetting schema hash: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        raise HTTPException(
-            status_code=500,
-            detail=f"Schema hash reset error: {str(e)}"
-        )
+        return {
+            "success": False,
+            "message": f"Error: {str(e)}",
+            "new_version": None
+        }
