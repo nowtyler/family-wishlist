@@ -24,6 +24,7 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
   const [showUpgradeAlert, setShowUpgradeAlert] = useState(false);
   const [isBrowserExpanded, setBrowserExpanded] = useState(false);
   const [isDragging, setIsDragging] = useState(false); // Track drag operations
+  const [isAddingItem, setIsAddingItem] = useState(false); // State to control AddItemForm visibility
 
   console.log('Dashboard State:', { selectedUser, familyMembers, viewingMember }); // Debug log
 
