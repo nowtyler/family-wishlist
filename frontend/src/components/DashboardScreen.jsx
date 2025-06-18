@@ -1,5 +1,5 @@
 // frontend/src/components/DashboardScreen.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { useAppContext } from '../contexts/AppContext';
 import { getFamilyMembers, getWishlistItems, getUpcomingEvent, createWishlistItem, deleteWishlistItem, toggleThinkingAbout, markPurchased, getMigrations } from '../services/api'; 
 import WishlistCard from './WishlistCard';
@@ -14,16 +14,16 @@ import { Plus, ChevronDown, Gift, AlertTriangle, Home, Calendar } from 'lucide-r
 const DashboardScreen = ({ onViewingMemberChange }) => {
   const { selectedUser, familyMembers, setFamilyMembers } = useAppContext();
   const isAdmin = selectedUser?.name?.toLowerCase() === 'admin';
-  const [viewingMember, setViewingMember] = useState(selectedUser); // Initialize with selectedUser
+  const [viewingMember, setViewingMember] = useState(null);
   const [wishlistItems, setWishlistItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [upcomingEvent, setUpcomingEvent] = useState(null);
-  const [isAddingItem, setIsAddingItem] = useState(false); // State to control AddItemForm visibility
-  const [isBrowserExpanded, setBrowserExpanded] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
   const [needsUpgrade, setNeedsUpgrade] = useState(false);
   const [showUpgradeAlert, setShowUpgradeAlert] = useState(false);
-  const [selectedItem, setSelectedItem] = useState(null); // Add this state to track open modal
+  const [isBrowserExpanded, setBrowserExpanded] = useState(false);
+  const [isDragging, setIsDragging] = useState(false); // Track drag operations
 
   console.log('Dashboard State:', { selectedUser, familyMembers, viewingMember }); // Debug log
 
@@ -260,6 +260,21 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
       });
     }
   }, [viewingMember]);
+
+  // Add a global mouseup handler when the modal is open to reset drag state
+  useEffect(() => {
+    if (isAddingItem) {
+      const handleGlobalMouseUp = () => {
+        setIsDragging(false);
+      };
+      
+      document.addEventListener('mouseup', handleGlobalMouseUp);
+      
+      return () => {
+        document.removeEventListener('mouseup', handleGlobalMouseUp);
+      };
+    }
+  }, [isAddingItem]);
 
   // Early return for loading state
   if (isLoading) {
@@ -504,13 +519,39 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
               bottom: 0,
               zIndex: 50,
             }}
-            onClick={handleCloseAddItemForm} // Close on backdrop click
+            onMouseDown={(e) => {
+              // Only track mousedown on the backdrop itself, not the modal content
+              if (e.target === e.currentTarget) {
+                setIsDragging(false);
+              }
+            }}
+            onMouseUp={(e) => {
+              // Only close if this was a click directly on the backdrop
+              // and not following a text selection drag
+              if (e.target === e.currentTarget && !isDragging && !window.getSelection().toString()) {
+                handleCloseAddItemForm();
+              }
+              setIsDragging(false);
+            }}
+            onClick={(e) => {
+              // Prevent the click event from closing the dialog if triggered
+              // as part of selecting text or following a drag
+              e.stopPropagation();
+            }}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               className="relative w-full max-w-2xl mx-auto my-8 max-h-[90vh] overflow-y-auto"
+              onMouseDown={() => {
+                // Track when mouse is pressed down inside the modal
+                setIsDragging(false);
+              }}
+              onMouseMove={() => {
+                // Flag as dragging if mouse moves after mousedown
+                setIsDragging(true);
+              }}
               onClick={e => e.stopPropagation()} // Prevent closing when clicking the form
             >
               <AddItemForm
