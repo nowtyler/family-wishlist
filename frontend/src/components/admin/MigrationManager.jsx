@@ -340,6 +340,38 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
         }
     };
 
+    // Add a function to manually reset the schema hash
+    const handleResetSchemaHash = async () => {
+        if (!confirm("This will reset the schema hash to match the current model state. Continue?")) {
+            return;
+        }
+        
+        try {
+            setProcessingStatus(true);
+            setLoading(true);
+            
+            // Import the resetSchemaHash function
+            const { resetSchemaHash } = await import('../../services/api');
+            
+            const response = await resetSchemaHash();
+            if (response.data.success) {
+                alert("Schema hash has been reset. The system will now correctly detect when migrations are needed.");
+                await fetchMigrations();
+            } else {
+                setError(response.data.message || "Failed to reset schema hash");
+                alert("Reset failed: " + (response.data.message || "Unknown error"));
+            }
+        } catch (err) {
+            console.error('Schema hash reset error:', err);
+            const errorDetail = err.response?.data?.detail || err.message || 'Failed to reset schema hash';
+            setError(`Reset failed: ${errorDetail}`);
+            alert(`Reset failed: ${errorDetail}`);
+        } finally {
+            setLoading(false);
+            setProcessingStatus(false);
+        }
+    };
+
     // Determine if we're dealing with multiple heads
     const hasMultipleHeads = currentVersion?.includes(',');
     const buttonIcon = hasMultipleHeads ? <GitMerge size={20} /> : <ArrowUp size={20} />;
@@ -543,6 +575,25 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
                         ))
                     )}
                 </div>
+            </div>
+
+            {/* Add the Reset Schema Hash button */}
+            <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <h3 className="flex items-center gap-2 text-blue-800 dark:text-blue-200 font-medium mb-2">
+                    <Database size={18} />
+                    Schema Hash Management
+                </h3>
+                <p className="text-sm text-blue-600 dark:text-blue-300 mb-3">
+                    If the system keeps showing "updates available" after migrations, you may need to reset the schema hash.
+                </p>
+                <button
+                    onClick={handleResetSchemaHash}
+                    className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium flex items-center gap-2"
+                    disabled={loading}
+                >
+                    <RefreshCw size={14} />
+                    Reset Schema Hash
+                </button>
             </div>
         </div>
     );

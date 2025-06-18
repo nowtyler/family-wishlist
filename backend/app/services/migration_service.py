@@ -103,34 +103,57 @@ class MigrationService:
             return "unknown"
 
     def detect_model_changes(self) -> bool:
-        """Check if there are any model changes that need migration"""
+        """
+        Detect if there are pending model changes that should be migrated.
+        Returns True if changes detected, False otherwise.
+        """
         try:
-            script = ScriptDirectory.from_config(self.alembic_cfg)
+            # Get the current hash from the metadata
+            current_hash = self.get_schema_hash()
             
-            with self.engine.connect() as connection:
-                context = MigrationContext.configure(
-                    connection,
-                    opts={
-                        'compare_type': True,
-                        'compare_server_default': True,
-                        'target_metadata': Base.metadata,
-                        'include_schemas': True,
-                        'render_as_batch': True,
-                        'sqlite_on_connect': self.sqlite_on_connect,
-                    }
-                )
-                
-                # Use the correct autogenerate method
-                diff = autogenerate.compare_metadata(context, Base.metadata)
-                
-                # Only return True if there are actual changes
-                if diff:
-                    logger.info(f"Detected schema changes: {diff}")
+            # Connect to the database and get stored hash
+            engine = create_engine(self.db_url)
+            with engine.connect() as conn:
+                # Check if schema_version table exists
+                result = conn.execute(text(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version'"
+                ))
+                if not result.fetchone():
+                    # Table doesn't exist, so consider this a change
                     return True
-                return False
+                
+                # Get stored hash
+                try:
+                    result = conn.execute(text("SELECT hash FROM schema_version LIMIT 1"))
+                    row = result.fetchone()
+                    stored_hash = row[0] if row else None
+                except:
+                    # Table exists but no hash or query error, so consider this a change
+                    return True
+            
+            # Compare hashes
+            if not stored_hash or stored_hash != current_hash:
+                # Debug log the hashes for troubleshooting
+                logger.debug(f"Schema hashes don't match - Stored: {stored_hash}, Current: {current_hash}")
+                return True
+                
+            # Check for pending migrations separately
+            script = ScriptDirectory.from_config(self.alembic_cfg)
+            current = self.get_current_version()
+            head = script.get_current_head()
+            
+            # If current version is not at head, consider it needs upgrade
+            if current != head:
+                logger.debug(f"Database version not at head - Current: {current}, Head: {head}")
+                return True
+                
+            # Hashes match and no pending migrations
+            return False
+            
         except Exception as e:
             logger.error(f"Error detecting model changes: {e}")
-            return False  # Changed to return False on error
+            # In case of error, assume changes needed to be safe
+            return True
 
     def sqlite_on_connect(self, dbapi_connection, connection_record):
         """Enable SQLite foreign key support and other optimizations"""
@@ -532,3 +555,49 @@ class MigrationService:
             logger.error(error_msg)
             traceback.print_exc()
             return error_msg
+
+    def reset_schema_hash(self) -> bool:
+        """
+        Reset the schema hash in the database to match the current model state.
+        This helps resolve situations where the system incorrectly thinks migrations are needed.
+        
+        Returns True if reset was successful, False otherwise
+        """
+        try:
+            current_hash = self.get_schema_hash()
+            
+            # Connect to the database and reset the hash
+            engine = create_engine(self.db_url)
+            with engine.connect() as conn:
+                conn.execute(text("BEGIN"))
+                try:
+                    # Check if schema_version table exists
+                    result = conn.execute(text(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version'"
+                    ))
+                    
+                    if not result.fetchone():
+                        # Create the table if it doesn't exist
+                        conn.execute(text(
+                            "CREATE TABLE schema_version (hash TEXT, updated_at TIMESTAMP)"
+                        ))
+                    
+                    # Delete any existing entries
+                    conn.execute(text("DELETE FROM schema_version"))
+                    
+                    # Insert new hash
+                    conn.execute(text(
+                        "INSERT INTO schema_version (hash, updated_at) VALUES (:hash, :updated_at)"
+                    ), {"hash": current_hash, "updated_at": datetime.utcnow()})
+                    
+                    conn.execute(text("COMMIT"))
+                    logger.info(f"Schema hash reset to: {current_hash}")
+                    return True
+                except Exception as e:
+                    conn.execute(text("ROLLBACK"))
+                    logger.error(f"Failed to reset schema hash: {e}")
+                    return False
+                
+        except Exception as e:
+            logger.error(f"Error resetting schema hash: {e}")
+            return False

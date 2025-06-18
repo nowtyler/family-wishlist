@@ -1466,3 +1466,48 @@ async def confirm_password_reset(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred during password reset confirmation"
         )
+
+@app.post("/api/admin/schema/reset-hash", response_model=schemas.MigrationResponse)
+async def reset_schema_hash(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Reset the schema hash to match the current model state.
+    This helps resolve issues where the system thinks migrations are needed
+    even though they've been applied."""
+    try:
+        # Verify admin
+        user = crud.get_family_member(db, current_user_id)
+        if not user or not (user.is_admin or user.name.lower() == 'admin'):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admin can reset schema hash"
+            )
+            
+        # Reset schema hash
+        success = migration_service.reset_schema_hash()
+        
+        if success:
+            # Also update the hash in our database
+            current_hash = migration_service.get_schema_hash()
+            crud.update_schema_hash(db, current_hash)
+            
+            return {
+                "success": True,
+                "message": "Schema hash has been reset to match current model state"
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Failed to reset schema hash, check server logs for details"
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Schema hash reset error: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=500,
+            detail=f"Schema hash reset error: {str(e)}"
+        )
