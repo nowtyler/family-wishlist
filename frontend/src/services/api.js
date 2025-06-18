@@ -389,6 +389,21 @@ export const hardResetMigrations = async () => {
   }
 };
 
+// Add a new function to reset schema hash
+export const resetSchemaHash = async () => {
+  try {
+    const response = await apiClient.post('/admin/schema/reset-hash');
+    return response;
+  } catch (error) {
+    console.error('Failed to reset schema hash:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    });
+    throw error;
+  }
+};
+
 // --- Database Backups ---
 export const createBackup = () => {
   return apiClient.post('/admin/backups/create');

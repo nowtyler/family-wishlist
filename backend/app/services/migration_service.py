@@ -158,6 +158,10 @@ class MigrationService:
 
             # Add existing migrations
             for sc in script.walk_revisions():
+                # Skip already applied migrations for cleaner display
+                if current and sc.revision <= current:
+                    continue
+                    
                 migrations.append(MigrationInfo(
                     version=sc.revision,
                     description=sc.doc,

@@ -733,8 +733,12 @@ async def get_migrations(
             # Check for multiple heads
             if "," in current_version:
                 needs_upgrade = True  # Multiple heads need resolution
+                
+            # Also check if there are any pending migrations
+            has_pending_migrations = any(m.version != "pending" and not m.applied for m in available_migrations)
+            needs_upgrade = needs_upgrade or has_pending_migrations
             
-            logger.info(f"Schema comparison - Stored: {stored_hash}, Current: {current_hash}, Needs Upgrade: {needs_upgrade}")
+            logger.info(f"Schema comparison - Stored: {stored_hash[:8]}... Current: {current_hash[:8]}... Needs Upgrade: {needs_upgrade}, Pending Migrations: {has_pending_migrations}")
         except Exception as e:
             logger.error(f"Schema hash error: {str(e)}")
             import traceback

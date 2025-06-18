@@ -29,9 +29,10 @@ const SchemaAlertModal = ({ isOpen, onClose }) => {
         
         <div className="text-gray-600 dark:text-gray-300 space-y-4">
           <p>
-            The database requires an upgrade. Please contact an administrator to perform the necessary updates.
+            The database schema has pending changes. Please contact an administrator to run the database migrations.
           </p>
           <p className="text-sm text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-lg">
+            This may happen after a system update. The database needs to be upgraded to match the latest code changes.
             To prevent data loss, please avoid adding or modifying items until the upgrade is complete.
           </p>
         </div>
