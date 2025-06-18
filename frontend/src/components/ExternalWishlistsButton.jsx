@@ -57,25 +57,21 @@ const ExternalWishlistsButton = ({ member }) => {
     }
   };
   
-  // Add a function to validate and format Etsy URLs
+  // Format and validate URLs with automatic https:// prefix
   const formatEtsyUrl = (url) => {
     if (!url) return { formattedUrl: '', isValid: false, error: null };
     
     try {
-      // Check if it's an Etsy URL
-      if (!url.toLowerCase().includes('etsy.com')) {
-        return { formattedUrl: url, isValid: true, error: null };
-      }
-      
-      // Add https:// if missing
+      // Add https:// if no protocol is specified
       let formattedUrl = url;
       if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
         formattedUrl = `https://${formattedUrl}`;
       }
       
+      // Try parsing the URL to check if it's valid
       const urlObj = new URL(formattedUrl);
       
-      // Check if it follows the expected pattern for Etsy profile URLs
+      // Special handling for Etsy URLs
       if (urlObj.hostname.includes('etsy.com')) {
         const pathParts = urlObj.pathname.split('/').filter(part => part);
         
@@ -90,23 +86,45 @@ const ExternalWishlistsButton = ({ member }) => {
         } else if (pathParts.length >= 1 && pathParts[0].toLowerCase() === 'shop') {
           // For shop URLs, provide an informational error
           return {
-            formattedUrl: url,
+            formattedUrl: formattedUrl,
             isValid: false,
             error: "For Etsy, please use the profile URL format: https://www.etsy.com/people/USERID"
           };
         } else {
           // Any other Etsy URL format is probably incorrect
           return {
-            formattedUrl: url,
+            formattedUrl: formattedUrl,
             isValid: false,
             error: "Etsy URLs should follow the format: https://www.etsy.com/people/USERID"
           };
         }
       }
       
-      return { formattedUrl: url, isValid: true, error: null };
+      // For all other URLs, return the formatted URL with https:// added if it was missing
+      return { formattedUrl: formattedUrl, isValid: true, error: null };
     } catch (err) {
       console.error("URL parsing error:", err);
+      // Check if the error is due to a URL without a protocol
+      if (err.code === "ERR_INVALID_URL" || err.message?.includes("Invalid URL")) {
+        // Try one more time with explicit https:// prefix
+        try {
+          const fixedUrl = `https://${url}`;
+          new URL(fixedUrl); // Try to parse with https://
+          return {
+            formattedUrl: fixedUrl,
+            isValid: true,
+            error: null
+          };
+        } catch (secondErr) {
+          // If it still fails, it's truly invalid
+          return {
+            formattedUrl: url,
+            isValid: false,
+            error: "Invalid URL format. Please enter a valid URL."
+          };
+        }
+      }
+      
       return { 
         formattedUrl: url, 
         isValid: false, 
@@ -122,11 +140,20 @@ const ExternalWishlistsButton = ({ member }) => {
     // Clear any existing URL errors when the user types
     if (urlError) setUrlError('');
     
-    // For Etsy URLs, provide immediate feedback
-    if (url.toLowerCase().includes('etsy.com')) {
-      const { error } = formatEtsyUrl(url);
-      if (error) {
-        setUrlError(error);
+    // Only process non-empty URLs
+    if (url.trim()) {
+      // For Etsy URLs, provide immediate feedback
+      if (url.toLowerCase().includes('etsy.com')) {
+        const { error } = formatEtsyUrl(url);
+        if (error) {
+          setUrlError(error);
+        }
+      }
+      // Check if URL is missing protocol
+      else if (!url.startsWith('http://') && !url.startsWith('https://') && url.includes('.')) {
+        // Set a special "info" message rather than an error
+        // We'll handle this differently in the UI
+        setUrlError('__info__: URL will be automatically prefixed with https:// when saved');
       }
     }
   };
@@ -302,11 +329,13 @@ const ExternalWishlistsButton = ({ member }) => {
                           type="url"
                           value={formData.url}
                           onChange={handleUrlChange}
-                          placeholder="URL (e.g., https://amazon.com/...)"
+                          placeholder="URL (e.g., amazon.com or https://amazon.com/...)"
                           className={`w-full px-3 py-2 text-sm border ${urlError ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'} rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
                         />
                         {urlError && (
-                          <p className="text-red-500 text-xs mt-1">{urlError}</p>
+                          <p className={`text-xs mt-1 ${urlError.startsWith('__info__:') ? 'text-blue-500 dark:text-blue-400' : 'text-red-500'}`}>
+                            {urlError.startsWith('__info__:') ? urlError.substring(9) : urlError}
+                          </p>
                         )}
                         {formData.url.toLowerCase().includes('etsy.com') && !urlError && (
                           <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
@@ -324,8 +353,8 @@ const ExternalWishlistsButton = ({ member }) => {
                       </button>
                       <button
                         onClick={handleAddNew}
-                        disabled={isLoading || urlError}
-                        className={`px-3 py-1 text-sm text-white rounded-md ${urlError || isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-primary hover:bg-primary-dark'}`}
+                        disabled={isLoading || (urlError && !urlError.startsWith('__info__:'))}
+                        className={`px-3 py-1 text-sm text-white rounded-md ${(urlError && !urlError.startsWith('__info__:')) || isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-primary hover:bg-primary-dark'}`}
                       >
                         Add Wishlist
                       </button>
@@ -361,7 +390,9 @@ const ExternalWishlistsButton = ({ member }) => {
                                 className={`w-full px-3 py-2 text-sm border ${urlError ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'} rounded-md bg-white dark:bg-gray-700`}
                               />
                               {urlError && (
-                                <p className="text-red-500 text-xs mt-1">{urlError}</p>
+                                <p className={`text-xs mt-1 ${urlError.startsWith('__info__:') ? 'text-blue-500 dark:text-blue-400' : 'text-red-500'}`}>
+                                  {urlError.startsWith('__info__:') ? urlError.substring(9) : urlError}
+                                </p>
                               )}
                             </div>
                             <div className="flex justify-end gap-2">
@@ -374,9 +405,9 @@ const ExternalWishlistsButton = ({ member }) => {
                               </button>
                               <button
                                 onClick={() => handleUpdate(wishlist.id)}
-                                className={`p-1 ${urlError ? 'text-gray-400 cursor-not-allowed' : 'text-green-500 hover:text-green-700'}`}
+                                className={`p-1 ${urlError && !urlError.startsWith('__info__:') ? 'text-gray-400 cursor-not-allowed' : 'text-green-500 hover:text-green-700'}`}
                                 title="Save"
-                                disabled={urlError}
+                                disabled={urlError && !urlError.startsWith('__info__:')}
                               >
                                 <Check size={16} />
                               </button>
