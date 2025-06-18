@@ -5,8 +5,10 @@ A full-stack web application that helps families manage gift wishlists and coord
 ## Features
 
 ### Authentication & User Management
-- Single shared family password for access
-- Individual user selection after authentication
+- Individual user accounts with username/password authentication
+- Legacy family password option for backward compatibility
+- Password reset functionality via email
+- Direct login to user's own wishlist
 - Admin user with special privileges
 - Rate limiting and brute force protection
 

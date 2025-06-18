@@ -15,6 +15,13 @@ class FamilyMember(Base):
     is_admin = Column(Boolean, default=False)
     _preferences = Column("preferences", Text, nullable=True)
     
+    # Authentication fields
+    username = Column(String, index=True, unique=True, nullable=True)
+    password_hash = Column(String, nullable=True)
+    email = Column(String, nullable=True)
+    reset_token = Column(String, nullable=True)
+    reset_token_expires = Column(DateTime, nullable=True)
+    
     # Add JSON serialization/deserialization for preferences
     @property
     def preferences(self):

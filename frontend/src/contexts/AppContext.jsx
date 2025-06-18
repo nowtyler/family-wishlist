@@ -16,6 +16,11 @@ export const AppProvider = ({ children }) => {
     return savedUser ? JSON.parse(savedUser) : null;
   });
 
+  // New state to track direct login vs legacy login
+  const [directLogin, setDirectLogin] = useState(
+    sessionStorage.getItem('wishlistDirectLogin') === 'true'
+  );
+
   useEffect(() => {
     if (isAuthenticated && selectedUser) {
       setCurrentUserHeader(selectedUser.id);
@@ -29,10 +34,20 @@ export const AppProvider = ({ children }) => {
       sessionStorage.setItem('wishlistAuthenticated', 'true');
     } else {
       sessionStorage.removeItem('wishlistAuthenticated');
-      sessionStorage.removeItem('wishlistSelectedUser'); // Also clear user on logout
-      setSelectedUser(null); // Clear selected user state
+      sessionStorage.removeItem('wishlistSelectedUser');
+      sessionStorage.removeItem('wishlistDirectLogin');
+      setSelectedUser(null);
+      setDirectLogin(false);
     }
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (directLogin) {
+      sessionStorage.setItem('wishlistDirectLogin', 'true');
+    } else {
+      sessionStorage.removeItem('wishlistDirectLogin');
+    }
+  }, [directLogin]);
 
   useEffect(() => {
     if (selectedUser) {
@@ -59,7 +74,11 @@ export const AppProvider = ({ children }) => {
   }, [selectedUser]);
 
 
-  const login = () => setIsAuthenticated(true);
+  const login = (direct = false) => {
+    setIsAuthenticated(true);
+    setDirectLogin(direct);
+  };
+
   const logout = () => {
     setIsAuthenticated(false);
     // setSelectedUser(null); // Done by useEffect for isAuthenticated
@@ -86,6 +105,8 @@ export const AppProvider = ({ children }) => {
     selectedUser,
     setSelectedUser,
     refreshFamilyMembers,
+    directLogin,
+    setDirectLogin,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

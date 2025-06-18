@@ -24,7 +24,9 @@ from .services.auth_service import AuthenticationService
 from .services.migration_service import MigrationService
 from .services.backup_service import BackupService
 from .services.url_scraper import ProductScraper
+from .services.user_auth_service import UserAuthService
 from .middleware.rate_limiter import RateLimiter
+from .deps import validate_password_strength
 
 # Initialize the product scraper service
 product_scraper = ProductScraper()
@@ -1299,3 +1301,164 @@ def update_member_preferences(
     member_schema.wishlist_item_count = count
     
     return member_schema
+
+# --- User Authentication ---
+@app.post("/api/auth/login", 
+    response_model=schemas.AuthResponse,
+    tags=["Authentication"],
+    summary="Login with username and password",
+    responses={
+        200: {"description": "Login successful"},
+        401: {"description": "Login failed"}
+    }
+)
+async def login(
+    request: schemas.UserLoginRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Authenticate a user with username and password.
+    """
+    try:
+        success, message, user = UserAuthService.authenticate_user(db, request.username, request.password)
+        
+        if success and user:
+            return {
+                "success": True,
+                "message": "Login successful",
+                "user_id": user.id,
+                "is_admin": user.is_admin
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=message
+            )
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred during login"
+        )
+
+@app.post("/api/auth/register", 
+    response_model=schemas.AuthResponse,
+    tags=["Authentication"],
+    summary="Register a new user",
+    responses={
+        200: {"description": "Registration successful"},
+        400: {"description": "Registration failed"}
+    }
+)
+async def register(
+    user_data: schemas.UserRegisterRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Register a new user with username, password, etc.
+    """
+    try:
+        # Validate password strength
+        if not validate_password_strength(user_data.password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must be at least 8 characters and include uppercase, lowercase, and numbers"
+            )
+        
+        success, message, user = UserAuthService.register_new_user(db, user_data)
+        
+        if success and user:
+            return {
+                "success": True,
+                "message": "Registration successful",
+                "user_id": user.id,
+                "is_admin": user.is_admin
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=message
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Registration error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred during registration"
+        )
+        
+@app.post("/api/auth/reset-password/request", 
+    response_model=schemas.AuthResponse,
+    tags=["Authentication"],
+    summary="Request a password reset",
+    responses={
+        200: {"description": "Reset request processed"},
+        400: {"description": "Reset request failed"}
+    }
+)
+async def request_password_reset(
+    request: schemas.PasswordResetRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Request a password reset by username or email.
+    """
+    try:
+        success, message = UserAuthService.create_reset_token(db, request.username_or_email)
+        
+        return {
+            "success": success,
+            "message": message
+        }
+    except Exception as e:
+        logger.error(f"Password reset request error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred during password reset request"
+        )
+
+@app.post("/api/auth/reset-password/confirm", 
+    response_model=schemas.AuthResponse,
+    tags=["Authentication"],
+    summary="Confirm password reset with token",
+    responses={
+        200: {"description": "Password reset successful"},
+        400: {"description": "Password reset failed"}
+    }
+)
+async def confirm_password_reset(
+    request: schemas.PasswordResetConfirmRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Complete the password reset with token and new password.
+    """
+    try:
+        # Validate password strength
+        if not validate_password_strength(request.new_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must be at least 8 characters and include uppercase, lowercase, and numbers"
+            )
+        
+        success, message = UserAuthService.reset_password(db, request.token, request.new_password)
+        
+        if success:
+            return {
+                "success": True,
+                "message": message
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=message
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Password reset confirmation error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred during password reset confirmation"
+        )

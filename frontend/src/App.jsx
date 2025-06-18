@@ -6,20 +6,27 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import AuthScreen from './components/AuthScreen';
 import UserSelectionScreen from './components/UserSelectionScreen';
 import DashboardScreen from './components/DashboardScreen';
+import PasswordResetScreen from './components/PasswordResetScreen';
 import Navbar from './components/Navbar';
 import { logEnvironmentVariables } from './debug-env';
 
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, selectedUser } = useAppContext();
+  const { isAuthenticated, selectedUser, directLogin } = useAppContext();
   const location = useLocation();
   
   if (!isAuthenticated) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
   
-  // Special case for the dashboard
+  // Special case for the dashboard - if using direct login, go to dashboard with selected user
+  // If using legacy auth, go to user selection screen
   if (location.pathname === '/' && !selectedUser) {
     return <Navigate to="/select-user" replace />;
+  }
+  
+  // For user selection screen - if direct login is true, skip to dashboard
+  if (location.pathname === '/select-user' && directLogin && selectedUser) {
+    return <Navigate to="/" replace />;
   }
   
   return children;
@@ -44,6 +51,7 @@ const AppContent = () => {
             <Route path="/auth" element={
               isAuthenticated ? <Navigate to="/select-user" replace /> : <AuthScreen />
             } />
+            <Route path="/reset-password/:token" element={<PasswordResetScreen />} />
             <Route path="/select-user" element={
               <ProtectedRoute>
                 <UserSelectionScreen />

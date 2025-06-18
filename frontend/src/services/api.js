@@ -97,6 +97,58 @@ export const verifyPassword = async (password) => {
     }
 };
 
+export const loginUser = async (username, password) => {
+    try {
+        const response = await apiClient.post('/auth/login', { username, password });
+        return response;
+    } catch (error) {
+        console.error('Login error:', {
+            message: error.message,
+            response: error.response
+        });
+        throw error;
+    }
+};
+
+export const registerUser = async (userData) => {
+    try {
+        const response = await apiClient.post('/auth/register', userData);
+        return response;
+    } catch (error) {
+        console.error('Registration error:', {
+            message: error.message,
+            response: error.response
+        });
+        throw error;
+    }
+};
+
+export const requestPasswordReset = async (usernameOrEmail) => {
+    try {
+        const response = await apiClient.post('/auth/reset-password/request', { username_or_email: usernameOrEmail });
+        return response;
+    } catch (error) {
+        console.error('Password reset request error:', {
+            message: error.message,
+            response: error.response
+        });
+        throw error;
+    }
+};
+
+export const confirmPasswordReset = async (token, newPassword) => {
+    try {
+        const response = await apiClient.post('/auth/reset-password/confirm', { token, new_password: newPassword });
+        return response;
+    } catch (error) {
+        console.error('Password reset confirmation error:', {
+            message: error.message,
+            response: error.response
+        });
+        throw error;
+    }
+};
+
 // --- Family Members ---
 export const getFamilyMembers = () => {
   return apiClient.get('/family-members');

@@ -22,14 +22,41 @@ class PasswordVerificationResponse(BaseModel):
     authenticated: bool
     message: str
 
+# --- User Authentication ---
+class UserLoginRequest(BaseModel):
+    username: str
+    password: str
+
+class UserRegisterRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=20)
+    password: str = Field(..., min_length=8, max_length=50)
+    name: str
+    email: Optional[EmailStr] = None
+    birthday: Optional[date] = None
+
+class PasswordResetRequest(BaseModel):
+    username_or_email: str
+
+class PasswordResetConfirmRequest(BaseModel):
+    token: str
+    new_password: str = Field(..., min_length=8, max_length=50)
+
+class AuthResponse(BaseModel):
+    success: bool
+    message: str
+    user_id: Optional[int] = None
+    is_admin: Optional[bool] = None
+
 # --- Family Member ---
 class FamilyMemberBase(BaseModel):
     name: str
     birthday: Optional[date] = None
     is_admin: bool = False
+    email: Optional[EmailStr] = None
+    username: Optional[str] = None
 
 class FamilyMemberCreate(FamilyMemberBase):
-    pass
+    password: Optional[str] = None
 
 class FamilyMemberPreferencesUpdate(BaseModel):
     preferences: Dict[str, Any]
@@ -41,6 +68,8 @@ class FamilyMember(BaseModel):
     wishlist_item_count: Optional[int] = 0
     is_admin: Optional[bool] = False
     preferences: Optional[Dict[str, Any]] = None
+    username: Optional[str] = None
+    email: Optional[str] = None
 
     class Config:
         orm_mode = True
