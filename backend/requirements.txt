@@ -8,3 +8,4 @@ alembic==1.16.1
 beautifulsoup4>=4.12.2
 requests>=2.31.0
 pytz>=2023.3
+email-validator>=2.1.0
