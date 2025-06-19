@@ -511,4 +511,88 @@ export const deleteExternalWishlist = (wishlistId) => {
   return apiClient.delete(`/external-wishlists/${wishlistId}`);
 };
 
+// Create axios instance with base URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+});
+
+// Add request interceptor to include the current user ID in requests
+api.interceptors.request.use(
+  (config) => {
+    const currentUser = JSON.parse(localStorage.getItem('selectedUser'));
+    if (currentUser && currentUser.id) {
+      config.headers['X-Current-User-Id'] = currentUser.id;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Add response interceptor to handle rate limiting with exponential backoff
+let rateLimitRetries = {};
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    // Only handle rate limit errors (status code 429)
+    if (error.response && error.response.status === 429) {
+      const requestId = `${error.config.method}-${error.config.url}-${Date.now()}`;
+      
+      // Track retries for this request
+      rateLimitRetries[requestId] = (rateLimitRetries[requestId] || 0) + 1;
+      
+      // Max 3 retries with exponential backoff
+      if (rateLimitRetries[requestId] <= 3) {
+        const retryDelay = Math.pow(2, rateLimitRetries[requestId]) * 1000; // Exponential backoff
+        console.log(`Rate limited. Retrying in ${retryDelay/1000} seconds...`);
+        
+        // Wait for the delay time
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+        
+        // Retry the request
+        return api(error.config);
+      }
+      
+      // Clean up after max retries
+      delete rateLimitRetries[requestId];
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
+// Helper function to make API requests with automatic retries for non-429 errors
+const makeRequest = async (method, url, data = null, retries = 1, delay = 1000) => {
+  try {
+    const config = { method, url };
+    if (data && (method === 'post' || method === 'put' || method === 'patch')) {
+      config.data = data;
+    } else if (data) {
+      config.params = data;
+    }
+    
+    return await api(config);
+  } catch (error) {
+    // If not a rate limit error and we have retries left, try again
+    if (error.response?.status !== 429 && retries > 0) {
+      console.log(`Request failed, retrying in ${delay/1000}s... (${retries} retries left)`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return makeRequest(method, url, data, retries - 1, delay * 1.5);
+    }
+    throw error;
+  }
+};
+
+// Export functions with the enhanced request helper
+export const getFamilyMembers = () => makeRequest('get', '/api/family-members');
+export const getWishlistItems = (ownerId) => makeRequest('get', `/api/members/${ownerId}/items`);
+export const getUpcomingEvent = () => makeRequest('get', '/api/upcoming-event');
+
+// Use these enhanced versions for frequently called functions
+// For other functions, you can continue using api directly if preferred
+
+// ...rest of existing API functions...
+
 export default apiClient;

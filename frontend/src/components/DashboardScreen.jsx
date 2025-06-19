@@ -25,6 +25,9 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
   const [isBrowserExpanded, setBrowserExpanded] = useState(false);
   const [isDragging, setIsDragging] = useState(false); // Track drag operations
   const [isAddingItem, setIsAddingItem] = useState(false); // State to control AddItemForm visibility
+  const [lastRefreshTimestamp, setLastRefreshTimestamp] = useState(0); // Add refresh timestamp to prevent too frequent refreshes
+  const [isFetchingInProgress, setIsFetchingInProgress] = useState(false); // Track ongoing fetches
+  const minRefreshInterval = 2000; // Minimum 2 seconds between refreshes
 
   console.log('Dashboard State:', { selectedUser, familyMembers, viewingMember }); // Debug log
 
@@ -39,7 +42,7 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
       setError(null);
 
       try {
-        // Load family members first if needed
+        // Load family members first if needed - with improved pattern to avoid multiple calls
         if (familyMembers.length === 0) {
           const membersResponse = await getFamilyMembers();
           if (!mounted) return;
@@ -52,21 +55,33 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
           setViewingMember(selectedUser);
         }
 
-        // Load items only if we have a valid viewingMember
+        // Load items only if we have a valid viewingMember - batch requests
         if (viewingMember?.id) {
-          const [itemsResponse, eventResponse] = await Promise.all([
-            getWishlistItems(viewingMember.id),
-            getUpcomingEvent()
-          ]);
-          
-          if (!mounted) return;
-          setWishlistItems(itemsResponse.data || []);
-          setUpcomingEvent(eventResponse.data || null);
+          // Only fetch if not currently fetching (prevent duplicate requests)
+          if (!isFetchingInProgress) {
+            setIsFetchingInProgress(true);
+            const [itemsResponse, eventResponse] = await Promise.all([
+              getWishlistItems(viewingMember.id),
+              getUpcomingEvent()
+            ]);
+            
+            if (!mounted) return;
+            setWishlistItems(itemsResponse.data || []);
+            setUpcomingEvent(eventResponse.data || null);
+            setIsFetchingInProgress(false);
+          }
         }
       } catch (err) {
         if (!mounted) return;
         console.error('Dashboard initialization error:', err);
-        setError('Failed to load dashboard data. Please refresh the page.');
+        
+        // Check for rate limit error
+        if (err.response?.status === 429) {
+          setError('Rate limit exceeded. Please wait a moment before refreshing the page.');
+        } else {
+          setError('Failed to load dashboard data. Please refresh the page.');
+        }
+        setIsFetchingInProgress(false);
       } finally {
         if (mounted) {
           setIsLoading(false);
@@ -126,20 +141,41 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
     }
   }, [viewingMember?.id]);
 
-  // Pass this function to parent components
-  const refreshWishlistItems = async () => {
+  // Add this function to refresh wishlist items with rate limiting
+  const refreshWishlistItems = async (force = false) => {
     if (!viewingMember?.id) return;
     
+    // Prevent too frequent refreshes unless forced
+    const now = Date.now();
+    if (!force && now - lastRefreshTimestamp < minRefreshInterval) {
+      console.log('Refresh throttled. Try again in a moment.');
+      return;
+    }
+    
+    // Prevent concurrent fetches
+    if (isFetchingInProgress) {
+      console.log('Fetch already in progress. Skipping redundant refresh.');
+      return;
+    }
+    
     try {
-      setIsLoading(true);
+      setIsFetchingInProgress(true);
+      setLastRefreshTimestamp(now);
+      
       const response = await getWishlistItems(viewingMember.id);
       setWishlistItems(Array.isArray(response.data) ? response.data : []);
       setError(null);
     } catch (err) {
       console.error("Error refreshing wishlist items:", err);
-      setError("Failed to refresh items.");
+      
+      if (err.response?.status === 429) {
+        setError("Rate limit exceeded. Please wait a moment before trying again.");
+      } else {
+        setError("Failed to refresh items.");
+      }
       setWishlistItems([]); // Ensure empty array on error
     } finally {
+      setIsFetchingInProgress(false);
       setIsLoading(false);
     }
   };
@@ -149,7 +185,7 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
     if (window.refreshWishlistItems !== refreshWishlistItems) {
       window.refreshWishlistItems = refreshWishlistItems;
     }
-  }, []);
+  }, [viewingMember]);
 
   const handleOpenAddItemForm = () => {
     setIsAddingItem(true);

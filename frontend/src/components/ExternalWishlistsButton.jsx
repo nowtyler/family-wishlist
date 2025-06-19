@@ -8,12 +8,10 @@ const ExternalWishlistsButton = ({ member }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [wishlists, setWishlists] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isAddingNew, setIsAddingNew] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState({ name: '', url: '' });
   const [error, setError] = useState('');
-  const [urlError, setUrlError] = useState('');
-  const [showConfirmDelete, setShowConfirmDelete] = useState(null); // Add missing state for delete confirmation
+  const [lastFetchTimestamp, setLastFetchTimestamp] = useState(0);
+  const minFetchInterval = 2000; // Minimum 2 seconds between fetches
+  
   const { selectedUser } = useAppContext();
   const modalRef = useRef(null);
   
@@ -39,11 +37,19 @@ const ExternalWishlistsButton = ({ member }) => {
     }
   }, [isOpen, member?.id]);
   
-  const fetchWishlists = async () => {
+  const fetchWishlists = async (force = false) => {
     if (!member?.id) return;
+    
+    // Prevent too frequent refreshes unless forced
+    const now = Date.now();
+    if (!force && now - lastFetchTimestamp < minFetchInterval) {
+      console.log('External wishlist fetch throttled. Try again in a moment.');
+      return;
+    }
     
     setIsLoading(true);
     setError('');
+    setLastFetchTimestamp(now);
     
     try {
       const response = await getExternalWishlists(member.id);
@@ -51,7 +57,12 @@ const ExternalWishlistsButton = ({ member }) => {
       setWishlists(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
       console.error('Failed to fetch external wishlists:', err);
-      setError('Failed to load external wishlists');
+      
+      if (err.response?.status === 429) {
+        setError('Rate limit exceeded. Please wait a moment before trying again.');
+      } else {
+        setError('Failed to load external wishlists');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -182,12 +193,21 @@ const ExternalWishlistsButton = ({ member }) => {
         name: formData.name.trim(), 
         url: formattedUrl // Use the formatted URL
       });
-      await fetchWishlists();
-      setFormData({ name: '', url: '' });
-      setIsAddingNew(false);
+      
+      // Add a small delay before fetching to avoid rate limits
+      setTimeout(async () => {
+        await fetchWishlists(true);
+        setFormData({ name: '', url: '' });
+        setIsAddingNew(false);
+      }, 300);
     } catch (err) {
       console.error('Failed to add external wishlist:', err);
-      setError(err.response?.data?.detail || 'Failed to add wishlist');
+      
+      if (err.response?.status === 429) {
+        setError('Rate limit exceeded. Please wait a moment before trying again.');
+      } else {
+        setError(err.response?.data?.detail || 'Failed to add wishlist');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -217,11 +237,20 @@ const ExternalWishlistsButton = ({ member }) => {
         name: formData.name.trim(), 
         url: formattedUrl // Use the formatted URL
       });
-      await fetchWishlists();
-      setEditingId(null);
+      
+      // Add a small delay before fetching to avoid rate limits
+      setTimeout(async () => {
+        await fetchWishlists(true);
+        setEditingId(null);
+      }, 300);
     } catch (err) {
       console.error('Failed to update external wishlist:', err);
-      setError(err.response?.data?.detail || 'Failed to update wishlist');
+      
+      if (err.response?.status === 429) {
+        setError('Rate limit exceeded. Please wait a moment before trying again.');
+      } else {
+        setError(err.response?.data?.detail || 'Failed to update wishlist');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -233,11 +262,20 @@ const ExternalWishlistsButton = ({ member }) => {
     
     try {
       await deleteExternalWishlist(id);
-      await fetchWishlists();
-      setShowConfirmDelete(null);
+      
+      // Add a small delay before fetching to avoid rate limits
+      setTimeout(async () => {
+        await fetchWishlists(true);
+        setShowConfirmDelete(null);
+      }, 300);
     } catch (err) {
       console.error('Failed to delete external wishlist:', err);
-      setError(err.response?.data?.detail || 'Failed to delete wishlist');
+      
+      if (err.response?.status === 429) {
+        setError('Rate limit exceeded. Please wait a moment before trying again.');
+      } else {
+        setError(err.response?.data?.detail || 'Failed to delete wishlist');
+      }
     } finally {
       setIsLoading(false);
     }

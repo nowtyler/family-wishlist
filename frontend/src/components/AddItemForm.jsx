@@ -180,19 +180,24 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
     };
 
     try {
-      // Removed the timestamp logic for mobile
       await onAddItem(apiData);
       onClose();
     } catch (err) {
       console.error('Add item error:', err);
-      const errorDetail = err.response?.data?.detail;
-      if (errorDetail) {
-        const errorMessage = Array.isArray(errorDetail) 
-          ? errorDetail.map(d => d.msg || d).join(', ')
-          : errorDetail;
-        setError(errorMessage);
+      
+      // Handle rate limit errors specially
+      if (err.response?.status === 429) {
+        setError('Rate limit exceeded. Please wait a moment before trying again.');
       } else {
-        setError('Failed to add item. Please try again.');
+        const errorDetail = err.response?.data?.detail;
+        if (errorDetail) {
+          const errorMessage = Array.isArray(errorDetail) 
+            ? errorDetail.map(d => d.msg || d).join(', ')
+            : errorDetail;
+          setError(errorMessage);
+        } else {
+          setError('Failed to add item. Please try again.');
+        }
       }
     }
   };
@@ -269,7 +274,14 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
       }
     } catch (err) {
       console.error('URL import error:', err);
-      setUrlError('Failed to import product details. Please check the URL and make sure it leads directly to a product page.');
+      
+      // Check if this is a rate limit error
+      if (err.response?.status === 429) {
+        setUrlError('Rate limit exceeded. Please wait a moment before trying again.');
+      } else {
+        setUrlError('Failed to import product details. Please check the URL and make sure it leads directly to a product page.');
+      }
+      
       // Still let the user continue with manual entry
       setFormData({
         ...formData,
