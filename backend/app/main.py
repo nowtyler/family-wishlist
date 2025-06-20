@@ -4,11 +4,11 @@ from fastapi.responses import Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 import logging
 import traceback
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from pydantic import BaseModel
 from urllib.parse import urlparse  # Add this missing import
 import alembic.script  # Import for script directory access
@@ -1808,3 +1808,247 @@ async def reset_schema_hash(
             "message": f"Error: {str(e)}",
             "new_version": None
         }
+
+@app.get("/api/admin/households", response_model=List[schemas.Household])
+def get_all_households(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get all households (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    try:
+        # Get households with member count
+        households = []
+        for h in db.query(models.Household).all():
+            member_count = db.query(models.user_household_association).filter(
+                models.user_household_association.c.household_id == h.id
+            ).count()
+            household_dict = {
+                "id": h.id,
+                "name": h.name,
+                "description": h.description,
+                "created_at": h.created_at,
+                "created_by": h.created_by,
+                "member_count": member_count
+            }
+            households.append(schemas.Household(**household_dict))
+        return households
+    except Exception as e:
+        logger.error(f"Failed to get households: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get households: {str(e)}"
+        )
+
+@app.get("/api/admin/stats")
+def get_admin_stats(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get admin dashboard statistics"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    try:
+        # Get various statistics
+        total_users = db.query(models.FamilyMember).count()
+        total_households = db.query(models.Household).count()
+        total_wishlists = db.query(models.WishlistItem).count()
+        total_emails_sent = db.query(models.EmailLog).filter(models.EmailLog.status == 'sent').count()
+        
+        # Get active users in last 30 days (if you have login tracking)
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        active_users = db.query(models.FamilyMember).filter(
+            models.FamilyMember.last_login >= thirty_days_ago
+        ).count() if hasattr(models.FamilyMember, 'last_login') else None
+        
+        return {
+            "total_users": total_users,
+            "total_households": total_households,
+            "total_wishlists": total_wishlists,
+            "total_emails_sent": total_emails_sent,
+            "active_users_30d": active_users
+        }
+    except Exception as e:
+        logger.error(f"Failed to get admin stats: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get admin stats: {str(e)}"
+        )
+
+@app.get("/api/admin/email/settings", response_model=schemas.EmailSettings)
+def get_email_settings(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get email settings (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    try:
+        settings = db.query(models.EmailSettings).filter(models.EmailSettings.is_active == True).first()
+        if not settings:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Email settings not found")
+        return schemas.EmailSettings.from_orm(settings)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get email settings: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get email settings: {str(e)}"
+        )
+
+@app.put("/api/admin/email/settings", response_model=schemas.EmailSettings)
+def update_email_settings(
+    settings_update: schemas.EmailSettingsUpdate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Update email settings (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    try:
+        settings = db.query(models.EmailSettings).filter(models.EmailSettings.is_active == True).first()
+        if not settings:
+            # Create new settings if none exist
+            settings = models.EmailSettings(**settings_update.dict(exclude_unset=True))
+            settings.is_active = True
+            db.add(settings)
+        else:
+            # Update existing settings
+            for key, value in settings_update.dict(exclude_unset=True).items():
+                setattr(settings, key, value)
+        
+        db.commit()
+        db.refresh(settings)
+        return schemas.EmailSettings.from_orm(settings)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to update email settings: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update email settings: {str(e)}"
+        )
+
+@app.get("/api/admin/email/templates", response_model=List[schemas.EmailTemplate])
+def get_email_templates(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get all email templates (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    try:
+        templates = db.query(models.EmailTemplate).all()
+        return [schemas.EmailTemplate.from_orm(t) for t in templates]
+    except Exception as e:
+        logger.error(f"Failed to get email templates: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get email templates: {str(e)}"
+        )
+
+@app.put("/api/admin/email/templates/{template_id}", response_model=schemas.EmailTemplate)
+def update_email_template(
+    template_id: int,
+    template_update: schemas.EmailTemplateUpdate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Update an email template (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    try:
+        template = db.query(models.EmailTemplate).filter(models.EmailTemplate.id == template_id).first()
+        if not template:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+        
+        # Update template fields
+        for key, value in template_update.dict(exclude_unset=True).items():
+            setattr(template, key, value)
+        
+        db.commit()
+        db.refresh(template)
+        return schemas.EmailTemplate.from_orm(template)
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to update email template: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update email template: {str(e)}"
+        )
+
+@app.post("/api/admin/email/test", response_model=schemas.EmailLog)
+def test_email_settings(
+    test_request: schemas.EmailTestRequest,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Test email settings by sending a test email (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    try:
+        email_service = EmailService(db)
+        if test_request.template_name:
+            # Test with specific template
+            log_entry = email_service.send_template_email(
+                test_request.template_name,
+                test_request.recipient_email,
+                "Test User",
+                {"test_var": "test_value"}
+            )
+        else:
+            # Test with generic test email
+            log_entry = email_service.test_email_settings(test_request.recipient_email)
+        
+        return schemas.EmailLog.from_orm(log_entry)
+    except Exception as e:
+        logger.error(f"Failed to send test email: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to send test email: {str(e)}"
+        )

@@ -14,6 +14,104 @@ class HouseholdStatus(str, Enum):
     PENDING = "pending"
     DECLINED = "declined"
 
+# Base models first
+class FamilyMemberBase(BaseModel):
+    name: str
+    birthday: Optional[str] = None
+    is_admin: Optional[bool] = False
+    preferences: Optional[Dict[str, Any]] = None
+    username: Optional[str] = None
+    email: Optional[str] = None
+    force_password_change: Optional[bool] = False
+
+class HouseholdBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+class FamilyMember(FamilyMemberBase):
+    id: int
+    wishlist_item_count: Optional[int] = 0
+
+    class Config:
+        from_attributes = True
+
+class Household(HouseholdBase):
+    id: int
+    created_at: datetime
+    created_by: int
+    member_count: Optional[int] = 0
+
+    class Config:
+        from_attributes = True
+
+class EmailSettingsBase(BaseModel):
+    smtp_server: str
+    smtp_port: int = Field(..., ge=1, le=65535)
+    smtp_username: str
+    smtp_password: str
+    from_email: EmailStr
+    from_name: str
+    use_tls: bool = True
+    use_ssl: bool = False
+
+class EmailSettingsUpdate(BaseModel):
+    smtp_server: Optional[str] = None
+    smtp_port: Optional[int] = Field(None, ge=1, le=65535)
+    smtp_username: Optional[str] = None
+    smtp_password: Optional[str] = None
+    from_email: Optional[EmailStr] = None
+    from_name: Optional[str] = None
+    use_tls: Optional[bool] = None
+    use_ssl: Optional[bool] = None
+    is_active: Optional[bool] = None
+
+class EmailSettings(EmailSettingsBase):
+    id: int
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class EmailTemplateBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    subject: str = Field(..., min_length=1, max_length=200)
+    body: str = Field(..., min_length=1)
+
+class EmailTemplateUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    subject: Optional[str] = Field(None, min_length=1, max_length=200)
+    body: Optional[str] = Field(None, min_length=1)
+    is_active: Optional[bool] = None
+
+class EmailTemplate(EmailTemplateBase):
+    id: int
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class EmailLog(BaseModel):
+    id: int
+    recipient_email: str
+    recipient_name: Optional[str] = None
+    subject: str
+    body: str
+    template_name: Optional[str] = None
+    status: str
+    error_message: Optional[str] = None
+    sent_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class EmailTestRequest(BaseModel):
+    recipient_email: EmailStr
+    template_name: Optional[str] = None
+
 # --- Password ---
 class PasswordRequest(BaseModel):
     password: str = Field(
@@ -75,13 +173,9 @@ class AdminUserUpdateRequest(BaseModel):
 class AdminUserResponse(BaseModel):
     success: bool
     message: str
-    user: Optional['FamilyMember'] = None
+    user: Optional[FamilyMember] = None
 
 # --- Household Management ---
-class HouseholdBase(BaseModel):
-    name: str = Field(..., min_length=1, max_length=100)
-    description: Optional[str] = None
-
 class HouseholdCreate(HouseholdBase):
     pass
 
@@ -96,15 +190,6 @@ class HouseholdMember(BaseModel):
     joined_at: Optional[datetime] = None
     requested_at: Optional[datetime] = None
 
-class Household(HouseholdBase):
-    id: int
-    created_at: datetime
-    created_by: int
-    members: List[HouseholdMember] = []
-
-    class Config:
-        from_attributes = True
-
 class HouseholdRequest(BaseModel):
     household_id: int
     user_id: int
@@ -115,79 +200,11 @@ class HouseholdResponse(BaseModel):
     household: Optional[Household] = None
 
 # --- Email Management ---
-class EmailSettingsBase(BaseModel):
-    smtp_server: str
-    smtp_port: int = Field(..., ge=1, le=65535)
-    smtp_username: str
-    smtp_password: str
-    from_email: EmailStr
-    from_name: str
-    use_tls: bool = True
-    use_ssl: bool = False
-
 class EmailSettingsCreate(EmailSettingsBase):
     pass
 
-class EmailSettingsUpdate(BaseModel):
-    smtp_server: Optional[str] = None
-    smtp_port: Optional[int] = Field(None, ge=1, le=65535)
-    smtp_username: Optional[str] = None
-    smtp_password: Optional[str] = None
-    from_email: Optional[EmailStr] = None
-    from_name: Optional[str] = None
-    use_tls: Optional[bool] = None
-    use_ssl: Optional[bool] = None
-    is_active: Optional[bool] = None
-
-class EmailSettings(EmailSettingsBase):
-    id: int
-    is_active: bool
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
-class EmailTemplateBase(BaseModel):
-    name: str = Field(..., min_length=1, max_length=100)
-    subject: str = Field(..., min_length=1, max_length=200)
-    body: str = Field(..., min_length=1)
-
 class EmailTemplateCreate(EmailTemplateBase):
     pass
-
-class EmailTemplateUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=100)
-    subject: Optional[str] = Field(None, min_length=1, max_length=200)
-    body: Optional[str] = Field(None, min_length=1)
-    is_active: Optional[bool] = None
-
-class EmailTemplate(EmailTemplateBase):
-    id: int
-    is_active: bool
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
-class EmailLog(BaseModel):
-    id: int
-    recipient_email: str
-    recipient_name: Optional[str] = None
-    subject: str
-    body: str
-    template_name: Optional[str] = None
-    status: str
-    error_message: Optional[str] = None
-    sent_at: datetime
-
-    class Config:
-        from_attributes = True
-
-class EmailTestRequest(BaseModel):
-    recipient_email: EmailStr
-    template_name: Optional[str] = None
 
 class EmailResponse(BaseModel):
     success: bool
@@ -195,34 +212,11 @@ class EmailResponse(BaseModel):
     email_log: Optional[EmailLog] = None
 
 # --- Family Member ---
-class FamilyMemberBase(BaseModel):
-    name: str
-    birthday: Optional[date] = None
-    is_admin: bool = False
-    email: Optional[EmailStr] = None
-    username: Optional[str] = None
-
 class FamilyMemberCreate(FamilyMemberBase):
     password: Optional[str] = None
 
 class FamilyMemberPreferencesUpdate(BaseModel):
     preferences: Dict[str, Any]
-
-class FamilyMember(BaseModel):
-    id: int
-    name: str
-    birthday: Optional[str] = None
-    wishlist_item_count: Optional[int] = 0
-    is_admin: Optional[bool] = False
-    preferences: Optional[Dict[str, Any]] = None
-    username: Optional[str] = None
-    email: Optional[str] = None
-    force_password_change: Optional[bool] = False
-    households: List[Household] = []
-
-    class Config:
-        orm_mode = True
-        from_attributes = True  # For newer versions of Pydantic
 
 # Family member update schema
 class FamilyMemberUpdate(BaseModel):
