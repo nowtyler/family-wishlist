@@ -38,7 +38,7 @@ import {
   setMaintenanceMode,
   clearSystemCache
 } from '../services/api';
-import { FamilyMemberManager } from './admin/FamilyMemberManager';
+import FamilyMemberManager from './admin/FamilyMemberManager';
 
 const AdminPage = () => {
   const { selectedUser, logout } = useAppContext();
