@@ -457,6 +457,12 @@ export const deleteBackup = (filename) => {
   return apiClient.delete(`/admin/backups/${filename}`);
 };
 
+export const downloadBackup = (filename) => {
+  return apiClient.get(`/admin/backups/download/${filename}`, {
+    responseType: 'blob' // Important for handling file downloads
+  });
+};
+
 // --- Schema Management ---
 export const getSchemaHash = () => {
   return apiClient.get('/admin/schema/hash');
