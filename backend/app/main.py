@@ -189,49 +189,6 @@ async def http_exception_handler(request, exc):
 # --- Authentication ---
 logger = logging.getLogger(__name__)
 
-@app.post("/api/auth/verify-password", 
-    response_model=schemas.PasswordVerificationResponse,
-    tags=["Authentication"],
-    summary="Verify family password",
-    responses={
-        200: {"description": "Password verification result"},
-        429: {"description": "Too many failed attempts"}
-    }
-)
-async def verify_family_password(
-    request: schemas.PasswordRequest = Body(
-        ...,
-        examples={
-            "normal": {
-                "summary": "Valid password",
-                "value": {"password": "your-family-password"}
-            }
-        }
-    )
-):
-    """
-    Verify the family password for access to the application.
-    
-    Rate limited to prevent brute force attacks.
-    """
-    try:
-        logger.debug(f"Received password verification request")
-        if auth.verify_password(request.password):
-            return {"authenticated": True, "message": "Password verified successfully."}
-        return {"authenticated": False, "message": "Incorrect family password."}
-    except ValueError as e:
-        # Handle lockout error
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=str(e)
-        )
-    except Exception as e:
-        logger.error(f"Password verification error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred during password verification.",
-        )
-
 # --- Family Members ---
 # The "current_user_id" will be passed from the frontend after user selection.
 # It's not a secure "logged-in" session user ID but rather context for display.
@@ -1610,17 +1567,9 @@ def update_member_preferences(
     return member_schema
 
 # --- User Authentication ---
-@app.post("/api/auth/login", 
-    response_model=schemas.AuthResponse,
-    tags=["Authentication"],
-    summary="Login with username and password",
-    responses={
-        200: {"description": "Login successful"},
-        401: {"description": "Login failed"}
-    }
-)
+@app.post("/api/auth/login", response_model=schemas.LoginResponse)
 async def login(
-    request: schemas.UserLoginRequest,
+    request: schemas.LoginRequest,
     db: Session = Depends(get_db)
 ):
     """
@@ -1629,23 +1578,31 @@ async def login(
     try:
         success, message, user = UserAuthService.authenticate_user(db, request.username, request.password)
         
-        if success and user:
-            return {
-                "success": True,
-                "message": "Login successful",
-                "user_id": user.id,
-                "is_admin": user.is_admin
-            }
-        else:
+        if not success:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=message
             )
+        
+        return schemas.LoginResponse(
+            success=True,
+            message=message,
+            user=schemas.FamilyMember(
+                id=user.id,
+                name=user.name,
+                username=user.username,
+                email=user.email,
+                is_admin=user.is_admin,
+                wishlist_item_count=0
+            )
+        )
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Login error: {str(e)}")
+        logger.error(f"Login error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred during login"
+            detail=str(e)
         )
 
 @app.post("/api/auth/register", 

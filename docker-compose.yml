@@ -38,12 +38,10 @@ services:
      environment:
       - ENVIRONMENT=prod
       - WISHLIST_DATABASE_URL=sqlite:///./data/wishlist.db # Fixed path inside container
-      - FAMILY_PASSWORD_HASH=${FAMILY_PASSWORD_HASH} # Password hash for family access
       - DOMAIN_NAME=${ROOT_DOMAIN} # Domain name for the service
       - PUID=${PUID} # User ID for file permissions
       - PGID=${PGID} # Group ID for file permissions
       - TZ=${TZ} # Timezone
-      - FAMILY_MEMBERS_CONFIG=${FAMILY_MEMBERS_CONFIG}
       - CHRISTMAS_MONTH=${CHRISTMAS_MONTH}
       - CHRISTMAS_DAY=${CHRISTMAS_DAY}
      volumes:
@@ -112,12 +110,10 @@ services:
      environment:
       - ENVIRONMENT=dev # Ensure this is explicitly set
       - WISHLIST_DATABASE_URL=sqlite:///./data/wishlist.db # Fixed path inside container
-      - FAMILY_PASSWORD_HASH=${FAMILY_PASSWORD_HASH}
       - DOMAIN_NAME=${ROOT_DOMAIN}
       - PUID=${PUID} # User ID for file permissions
       - PGID=${PGID} # Group ID for file permissions
       - TZ=${TZ} # Timezone
-      - FAMILY_MEMBERS_CONFIG=${FAMILY_MEMBERS_CONFIG}
       - CHRISTMAS_MONTH=${CHRISTMAS_MONTH}
       - CHRISTMAS_DAY=${CHRISTMAS_DAY}
      volumes:

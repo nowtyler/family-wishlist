@@ -112,45 +112,25 @@ class EmailTestRequest(BaseModel):
     recipient_email: EmailStr
     template_name: Optional[str] = None
 
-# --- Password ---
-class PasswordRequest(BaseModel):
-    password: str = Field(
-        ...,
-        min_length=8,
-        max_length=50,
-        description="Family password for authentication"
-    )
-
-class PasswordVerificationResponse(BaseModel):
-    authenticated: bool
+# --- Base Models ---
+class BaseResponse(BaseModel):
+    success: bool
     message: str
 
-# --- User Authentication ---
-class UserLoginRequest(BaseModel):
+# --- Authentication ---
+class LoginRequest(BaseModel):
     username: str
     password: str
 
+class LoginResponse(BaseResponse):
+    user: 'FamilyMember'
+
 class UserRegisterRequest(BaseModel):
-    username: str = Field(..., min_length=3, max_length=20)
-    password: str = Field(..., min_length=8, max_length=50)
+    username: str
+    password: str
     name: str
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None
     birthday: Optional[date] = None
-
-class PasswordResetRequest(BaseModel):
-    username_or_email: str
-
-class PasswordResetConfirmRequest(BaseModel):
-    token: str
-    new_password: str = Field(..., min_length=8, max_length=50)
-
-class AuthResponse(BaseModel):
-    success: bool
-    message: str
-    user_id: Optional[int] = None
-    is_admin: Optional[bool] = None
-    force_password_change: Optional[bool] = None
-    pending_households: Optional[List[str]] = None
 
 # Admin user management schemas
 class AdminUserCreateRequest(BaseModel):

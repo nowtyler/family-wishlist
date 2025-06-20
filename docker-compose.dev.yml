@@ -7,8 +7,6 @@ services:
       - ENVIRONMENT=dev
       - DEV_DATABASE_URL=sqlite:///./data/dev-wishlist.db
       - PROD_DATABASE_URL=sqlite:///./data/wishlist.db
-      - FAMILY_PASSWORD_HASH=${FAMILY_PASSWORD_HASH}
-      - FAMILY_MEMBERS_CONFIG=${FAMILY_MEMBERS_CONFIG}
     volumes:
       - ./data:/app/data
     ports:

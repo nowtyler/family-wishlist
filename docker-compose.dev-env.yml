@@ -8,8 +8,6 @@ services:
       - ./data-dev:/app/data
     environment:
       - DATABASE_URL=sqlite:///./data/wishlist.db
-      - FAMILY_PASSWORD_HASH=${FAMILY_PASSWORD_HASH}
-      - FAMILY_MEMBERS_CONFIG=${FAMILY_MEMBERS_CONFIG}
       - CHRISTMAS_MONTH=${CHRISTMAS_MONTH:-12}
       - CHRISTMAS_DAY=${CHRISTMAS_DAY:-25}
     ports:
