@@ -32,6 +32,75 @@ def create_family_member(db: Session, member: schemas.FamilyMemberCreate) -> mod
     db.refresh(db_member)
     return db_member
 
+def create_family_member_with_auth(db: Session, member: schemas.AdminUserCreateRequest) -> models.FamilyMember:
+    """Create a family member with authentication details (admin only)"""
+    from .services.user_auth_service import UserAuthService
+    
+    # Check if username already exists
+    existing_user = db.query(models.FamilyMember).filter(models.FamilyMember.username == member.username).first()
+    if existing_user:
+        raise ValueError("Username already exists")
+    
+    # Check if email already exists (if provided)
+    if member.email:
+        existing_email = db.query(models.FamilyMember).filter(models.FamilyMember.email == member.email).first()
+        if existing_email:
+            raise ValueError("Email already in use")
+    
+    # Create new user with authentication details
+    db_member = models.FamilyMember(
+        name=member.name,
+        username=member.username,
+        password_hash=UserAuthService.get_password_hash(member.password),
+        email=member.email,
+        birthday=member.birthday.isoformat() if member.birthday else None,
+        is_admin=member.is_admin
+    )
+    
+    db.add(db_member)
+    db.commit()
+    db.refresh(db_member)
+    return db_member
+
+def update_family_member_with_auth(db: Session, member_id: int, member_update: schemas.AdminUserUpdateRequest) -> Optional[models.FamilyMember]:
+    """Update a family member with authentication details (admin only)"""
+    from .services.user_auth_service import UserAuthService
+    
+    db_member = get_family_member(db, member_id)
+    if not db_member:
+        return None
+    
+    # Check if username already exists (if being updated)
+    if member_update.username and member_update.username != db_member.username:
+        existing_user = db.query(models.FamilyMember).filter(models.FamilyMember.username == member_update.username).first()
+        if existing_user:
+            raise ValueError("Username already exists")
+    
+    # Check if email already exists (if being updated)
+    if member_update.email and member_update.email != db_member.email:
+        existing_email = db.query(models.FamilyMember).filter(models.FamilyMember.email == member_update.email).first()
+        if existing_email:
+            raise ValueError("Email already in use")
+    
+    # Update fields
+    update_data = member_update.dict(exclude_unset=True)
+    
+    # Handle password update
+    if 'password' in update_data and update_data['password']:
+        update_data['password_hash'] = UserAuthService.get_password_hash(update_data['password'])
+        del update_data['password']
+    
+    # Handle birthday conversion
+    if 'birthday' in update_data and update_data['birthday']:
+        update_data['birthday'] = update_data['birthday'].isoformat()
+    
+    for key, value in update_data.items():
+        setattr(db_member, key, value)
+    
+    db.commit()
+    db.refresh(db_member)
+    return db_member
+
 def initialize_family_members(db: Session):
     """Initializes family members from .env if they don't exist."""
     env_config = os.getenv("FAMILY_MEMBERS_CONFIG")

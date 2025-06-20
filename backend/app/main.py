@@ -275,6 +275,94 @@ def create_family_member(
         logger.error(f"Failed to create family member: {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to create family member: {str(e)}")
 
+@app.post("/api/admin/users", response_model=schemas.AdminUserResponse)
+def create_user_with_auth(
+    user_data: schemas.AdminUserCreateRequest,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Create a new user with authentication details (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or user.name.lower() != 'admin':
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    # Validate password strength
+    if not validate_password_strength(user_data.password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters and include uppercase, lowercase, and numbers"
+        )
+    
+    # Create the user with authentication details
+    try:
+        db_member = crud.create_family_member_with_auth(db, user_data)
+        count = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == db_member.id).count()
+        member_schema = schemas.FamilyMember.from_orm(db_member)
+        member_schema.wishlist_item_count = count
+        
+        return {
+            "success": True,
+            "message": "User created successfully",
+            "user": member_schema
+        }
+    except ValueError as e:
+        logger.error(f"Failed to create user: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to create user: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to create user: {str(e)}")
+
+@app.put("/api/admin/users/{member_id}", response_model=schemas.AdminUserResponse)
+def update_user_with_auth(
+    member_id: int,
+    user_update: schemas.AdminUserUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Update a user with authentication details (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or user.name.lower() != 'admin':
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    # Validate password strength if password is being updated
+    if user_update.password and not validate_password_strength(user_update.password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters and include uppercase, lowercase, and numbers"
+        )
+    
+    # Update the user with authentication details
+    try:
+        db_member = crud.update_family_member_with_auth(db, member_id, user_update)
+        if not db_member:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        
+        count = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == db_member.id).count()
+        member_schema = schemas.FamilyMember.from_orm(db_member)
+        member_schema.wishlist_item_count = count
+        
+        return {
+            "success": True,
+            "message": "User updated successfully",
+            "user": member_schema
+        }
+    except ValueError as e:
+        logger.error(f"Failed to update user: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update user: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to update user: {str(e)}")
+
 @app.put("/api/family-members/{member_id}", response_model=schemas.FamilyMember)
 def update_family_member(
     member_id: int,

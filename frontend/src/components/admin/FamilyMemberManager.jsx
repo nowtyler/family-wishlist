@@ -8,7 +8,9 @@ import {
   getFamilyMembers, 
   createFamilyMember, 
   updateFamilyMember, 
-  deleteFamilyMember 
+  deleteFamilyMember,
+  createUserWithAuth,
+  updateUserWithAuth
 } from '../../services/api';
 import { useAppContext } from '../../contexts/AppContext';
 
@@ -22,7 +24,11 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
   // Store form data for new and edited members
   const [formData, setFormData] = useState({
     name: '',
-    birthday: ''
+    birthday: '',
+    username: '',
+    email: '',
+    password: '',
+    confirmPassword: ''
   });
   
   // User selection and actions
@@ -86,7 +92,7 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
   const resetStates = () => {
     setAddMode(false);
     setEditMemberId(null);
-    setFormData({ name: '', birthday: '' });
+    setFormData({ name: '', birthday: '', username: '', email: '', password: '', confirmPassword: '' });
     setSelectedMember(null);
     setActionType(null);
     setActionConfirm(false);
@@ -111,7 +117,11 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
     if (action === 'edit') {
       setFormData({
         name: selectedMember.name,
-        birthday: selectedMember.birthday || ''
+        birthday: selectedMember.birthday || '',
+        username: selectedMember.username || '',
+        email: selectedMember.email || '',
+        password: '',
+        confirmPassword: ''
       });
       setEditMemberId(selectedMember.id);
       setActionType('edit');
@@ -127,7 +137,7 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
     setSelectedMember(null);
     setEditMemberId(null);
     setActionType(null);
-    setFormData({ name: '', birthday: '' });
+    setFormData({ name: '', birthday: '', username: '', email: '', password: '', confirmPassword: '' });
   };
   
   const handleCancelAction = () => {
@@ -136,7 +146,7 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
     } else if (editMemberId) {
       setEditMemberId(null);
     }
-    setFormData({ name: '', birthday: '' });
+    setFormData({ name: '', birthday: '', username: '', email: '', password: '', confirmPassword: '' });
     setActionType(null);
     setActionConfirm(false);
   };
@@ -154,25 +164,40 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
       setError('Name is required');
       return;
     }
+    if (!formData.username.trim()) {
+      setError('Username is required');
+      return;
+    }
+    if (addMode || formData.password) {
+      if (!formData.password || formData.password.length < 8) {
+        setError('Password must be at least 8 characters');
+        return;
+      }
+      if (formData.password !== formData.confirmPassword) {
+        setError('Passwords do not match');
+        return;
+      }
+    }
     
     const memberData = {
       name: formData.name.trim(),
-      birthday: formData.birthday || null
+      birthday: formData.birthday || null,
+      username: formData.username.trim(),
+      email: formData.email || null,
+      password: formData.password || undefined,
     };
     
     setSaveLoading(true);
     
     try {
-      // Import functions dynamically to avoid reference errors
-      const { createFamilyMember, updateFamilyMember } = await import('../../services/api');
-      
-      // If editing existing member
+      let response;
       if (editMemberId) {
-        await updateFamilyMember(editMemberId, memberData);
-      } 
-      // If adding new member
-      else if (addMode) {
-        await createFamilyMember(memberData);
+        // Only send password if filled
+        const updateData = { ...memberData };
+        if (!formData.password) delete updateData.password;
+        response = await updateUserWithAuth(editMemberId, updateData);
+      } else if (addMode) {
+        response = await createUserWithAuth(memberData);
       }
       
       // Refresh the list
@@ -188,7 +213,7 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
       }
       
       // Reset form state
-      setFormData({ name: '', birthday: '' });
+      setFormData({ name: '', birthday: '', username: '', email: '', password: '', confirmPassword: '' });
       setEditMemberId(null);
       setAddMode(false);
       setActionType(null);
@@ -378,6 +403,67 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
                                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                               />
                             </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Username <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                name="username"
+                                value={formData.username}
+                                onChange={handleInputChange}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                placeholder="Enter username"
+                                required
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Email (optional)
+                              </label>
+                              <input
+                                type="email"
+                                name="email"
+                                value={formData.email}
+                                onChange={handleInputChange}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                placeholder="user@email.com"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                {addMode ? 'Password' : 'New Password'} {addMode ? <span className="text-red-500">*</span> : <span className="text-gray-400">(leave blank to keep current)</span>}
+                              </label>
+                              <input
+                                type="password"
+                                name="password"
+                                value={formData.password}
+                                onChange={handleInputChange}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                placeholder={addMode ? "Set password" : "Change password (optional)"}
+                                required={addMode}
+                                autoComplete="new-password"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Confirm Password {addMode ? <span className="text-red-500">*</span> : <span className="text-gray-400">(leave blank to keep current)</span>}
+                              </label>
+                              <input
+                                type="password"
+                                name="confirmPassword"
+                                value={formData.confirmPassword}
+                                onChange={handleInputChange}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                placeholder={addMode ? "Confirm password" : "Confirm new password (optional)"}
+                                required={addMode}
+                                autoComplete="new-password"
+                              />
+                            </div>
                           </div>
                         </div>
                       )}
@@ -421,6 +507,67 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
                     value={formData.birthday}
                     onChange={handleInputChange}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Username <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="username"
+                    value={formData.username}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="Enter username"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Email (optional)
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="user@email.com"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {addMode ? 'Password' : 'New Password'} {addMode ? <span className="text-red-500">*</span> : <span className="text-gray-400">(leave blank to keep current)</span>}
+                  </label>
+                  <input
+                    type="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder={addMode ? "Set password" : "Change password (optional)"}
+                    required={addMode}
+                    autoComplete="new-password"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Confirm Password {addMode ? <span className="text-red-500">*</span> : <span className="text-gray-400">(leave blank to keep current)</span>}
+                  </label>
+                  <input
+                    type="password"
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder={addMode ? "Confirm password" : "Confirm new password (optional)"}
+                    required={addMode}
+                    autoComplete="new-password"
                   />
                 </div>
               </div>

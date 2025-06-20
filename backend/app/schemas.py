@@ -47,6 +47,28 @@ class AuthResponse(BaseModel):
     user_id: Optional[int] = None
     is_admin: Optional[bool] = None
 
+# Admin user management schemas
+class AdminUserCreateRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=20)
+    password: str = Field(..., min_length=8, max_length=50)
+    name: str
+    email: Optional[EmailStr] = None
+    birthday: Optional[date] = None
+    is_admin: bool = False
+
+class AdminUserUpdateRequest(BaseModel):
+    username: Optional[str] = Field(None, min_length=3, max_length=20)
+    password: Optional[str] = Field(None, min_length=8, max_length=50)
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    birthday: Optional[date] = None
+    is_admin: Optional[bool] = None
+
+class AdminUserResponse(BaseModel):
+    success: bool
+    message: str
+    user: Optional['FamilyMember'] = None
+
 # --- Family Member ---
 class FamilyMemberBase(BaseModel):
     name: str
@@ -77,9 +99,9 @@ class FamilyMember(BaseModel):
 
 # Family member update schema
 class FamilyMemberUpdate(BaseModel):
-    name: str = None
-    birthday: str = None
-    is_admin: bool = None
+    name: Optional[str] = None
+    birthday: Optional[str] = None
+    is_admin: Optional[bool] = None
     
     class Config:
         orm_mode = True
