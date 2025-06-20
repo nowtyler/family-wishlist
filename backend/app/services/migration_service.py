@@ -9,7 +9,7 @@ import subprocess
 import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Tuple, Any, Union
+from typing import List, Dict, Tuple, Any, Union, Optional
 from ..schemas import MigrationInfo
 import logging
 from .backup_service import BackupService
@@ -246,8 +246,19 @@ class MigrationService:
             
             migrations = []
             
-            # Only add pending changes if actual changes are detected
+            # If changes are detected, try to auto-generate a migration
             if has_changes:
+                try:
+                    logger.info("Schema changes detected, attempting to auto-generate migration...")
+                    auto_migration_result = self.auto_generate_migration()
+                    if auto_migration_result:
+                        logger.info(f"Auto-generated migration: {auto_migration_result}")
+                        # Refresh the script directory to include the new migration
+                        script = ScriptDirectory.from_config(self.alembic_cfg)
+                except Exception as e:
+                    logger.warning(f"Failed to auto-generate migration: {e}")
+                
+                # Add pending changes indicator
                 migrations.append(MigrationInfo(
                     version="pending",
                     description="Pending model changes detected - Click upgrade to apply",
@@ -270,6 +281,33 @@ class MigrationService:
         except Exception as e:
             logger.error(f"Error getting migrations: {e}")
             return []
+
+    def auto_generate_migration(self) -> Optional[str]:
+        """Automatically generate a migration file when schema changes are detected"""
+        try:
+            from alembic.command import revision
+            
+            # Generate a timestamp-based message
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            message = f"Auto-generated migration for schema changes at {timestamp}"
+            
+            # Call the alembic revision command with autogenerate
+            revision(
+                self.alembic_cfg,
+                message=message,
+                autogenerate=True
+            )
+            
+            # Get the latest revision after creation
+            script_directory = ScriptDirectory.from_config(self.alembic_cfg)
+            current_head = script_directory.get_current_head()
+            
+            logger.info(f"Auto-generated migration: {current_head}")
+            return current_head
+        except Exception as e:
+            logger.error(f"Failed to auto-generate migration: {e}")
+            traceback.print_exc()
+            return None
 
     def is_foundation_database(self) -> bool:
         """Check if this is the foundation database"""

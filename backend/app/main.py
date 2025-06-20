@@ -12,7 +12,6 @@ from datetime import datetime
 from pydantic import BaseModel
 from urllib.parse import urlparse  # Add this missing import
 import alembic.script  # Import for script directory access
-
 from . import crud, models, schemas, auth, database
 from .database import (
     engine, 
@@ -139,6 +138,26 @@ async def startup_event():
             # Don't block app startup - we'll handle admin access separately
         finally:
             db.close()
+        
+        # Check for schema changes and auto-generate migrations if needed
+        try:
+            from .services.migration_service import MigrationService
+            migration_service = MigrationService(DATABASE_PATH)
+            
+            # Check if there are pending changes that need migration
+            if migration_service.detect_model_changes():
+                logger.info("Schema changes detected during startup, attempting to auto-generate migration...")
+                try:
+                    auto_migration = migration_service.auto_generate_migration()
+                    if auto_migration:
+                        logger.info(f"Auto-generated migration during startup: {auto_migration}")
+                    else:
+                        logger.warning("Failed to auto-generate migration during startup")
+                except Exception as e:
+                    logger.error(f"Error auto-generating migration during startup: {e}")
+        except Exception as e:
+            logger.warning(f"Migration service not available during startup: {e}")
+        
         logger.info("Family Wishlist API startup complete. Database and tables checked/created.")
     except Exception as e:
         logger.error(f"Database initialization error: {e}")

@@ -361,6 +361,8 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
         }
     };
 
+
+
     // Add a method to silently reset the schema hash if needed
     const silentlyResetSchemaHash = async () => {
         try {
@@ -581,6 +583,8 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
                     )}
                 </div>
             </div>
+
+
         </div>
     );
 };
