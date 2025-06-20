@@ -273,9 +273,18 @@ This major update implements a comprehensive admin system with improved user man
 - **Secure Emergency Endpoint**: New `/api/emergency/admin-access` endpoint with token-based authentication
 - **IP-Based Access Control**: Emergency access restricted to localhost and configurable IP addresses
 - **Emergency Access Script**: `emergency-admin-access.sh` for command-line emergency access
-- **Frontend Emergency Modal**: `EmergencyAccessModal.jsx` component for web-based emergency access
+- **Enhanced Emergency Modal**: `EmergencyAccessModal.jsx` now includes full migration manager functionality
+- **Migration Manager Integration**: Emergency access modal provides database upgrade and backup management
 - **Environment Variables**: `EMERGENCY_ACCESS_TOKEN` and `EMERGENCY_ALLOWED_HOSTS` configuration
 - **Fallback Support**: Legacy emergency access endpoint maintained for compatibility
+- **Database Fix Script**: `fix-database-simple.py` for manual database schema fixes
+
+### 🔧 Database & Migration Improvements
+- **SQLAlchemy Relationship Fix**: Fixed `ExternalWishlist` model relationship conflict
+- **Missing Column Detection**: Emergency access now detects and reports missing database columns
+- **Migration Manager in Emergency Access**: Full migration functionality available in emergency modal
+- **Backup Management**: Emergency access includes backup restore and deletion capabilities
+- **Step-by-Step Workflow**: Emergency access guides users through database fixes
 
 ### 📚 Documentation
 - **Security Guide**: Comprehensive `SECURITY_GUIDE.md` with security explanations and procedures
@@ -291,6 +300,7 @@ This major update implements a comprehensive admin system with improved user man
 - **Access Logging**: All emergency access attempts are logged
 - **IP Validation**: Real IP detection behind proxies
 - **Multiple Fallbacks**: Multiple emergency access methods for reliability
+- **Migration Manager Security**: Migration functions only available after emergency token validation
 
 ## [Previous Changes...]
 
