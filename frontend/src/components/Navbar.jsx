@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
 import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPlus, 
-         Trash2, AlertOctagon, Database, HelpCircle, UserRound } from 'lucide-react';
+         Trash2, AlertOctagon, Database, HelpCircle, UserRound, User } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems, 
          getFamilyMembers, clearAllWishlists, getAdminAccess } from '../services/api';
@@ -28,7 +28,7 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showFamilyManager, setShowFamilyManager] = useState(false);
   const settingsRef = useRef(null);
-  const isAdmin = selectedUser?.name?.toLowerCase() === 'admin';
+  const isAdmin = selectedUser?.is_admin;
 
   useEffect(() => {
     const loadVersion = async () => {
@@ -84,12 +84,6 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
     navigate('/auth');
   };
 
-  const handleChangeUser = () => {
-    setSelectedUser(null);
-    setIsMenuOpen(false);
-    navigate('/select-user');
-  };
-
   const handleUpdateVersion = async () => {
     try {
       setIsEditingVersion(false); // Hide form immediately for better UX
@@ -97,8 +91,7 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
       console.log('Current user:', selectedUser);
       
       // If user is admin by name but ID might be invalid, try getting proper admin access
-      if (selectedUser?.name?.toLowerCase() === 'admin' && 
-          (!selectedUser.id || selectedUser.id < 1)) {
+      if (selectedUser?.is_admin && (!selectedUser.id || selectedUser.id < 1)) {
         try {
           console.log('Getting proper admin access first');
           const adminData = await getAdminAccess();
@@ -297,15 +290,21 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
                       </div>
                     )}
                     
-                    <button
-                      onClick={handleChangeUser}
-                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
-                    >
-                      <UserPlus className="w-4 h-4 mr-2" />
-                      Change User
-                    </button>
+                    {/* User Profile Management for non-admin users */}
+                    {!isAdmin && (
+                      <button
+                        onClick={() => {
+                          setShowSettings(false);
+                          // TODO: Open user profile management modal
+                        }}
+                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                      >
+                        <User className="w-4 h-4 mr-2" />
+                        Edit Profile
+                      </button>
+                    )}
                     
-                    {/* Moved the Manage Users option here */}
+                    {/* Admin Management for admin users */}
                     {isAdmin && (
                       <button
                         onClick={handleOpenFamilyManager}

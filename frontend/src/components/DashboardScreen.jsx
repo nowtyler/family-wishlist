@@ -3,7 +3,7 @@ import React, { useState, useEffect, useContext, useCallback, useRef } from 'rea
 import { useAppContext } from '../contexts/AppContext';
 import { getFamilyMembers, getWishlistItems, getUpcomingEvent, createWishlistItem, deleteWishlistItem, toggleThinkingAbout, markPurchased, getMigrations } from '../services/api'; 
 import WishlistCard from './WishlistCard';
-import GiftReminder from './GiftReminder';
+import EnhancedUpcomingEventsBanner from './EnhancedUpcomingEventsBanner';
 import AddItemForm from './AddItemForm';
 import SchemaAlertModal from './SchemaAlertModal';
 import ExternalWishlistsButton from './ExternalWishlistsButton'; // Confirm this import exists
@@ -13,7 +13,7 @@ import { Plus, ChevronDown, Gift, AlertTriangle, Home, Calendar } from 'lucide-r
 
 const DashboardScreen = ({ onViewingMemberChange }) => {
   const { selectedUser, familyMembers, setFamilyMembers } = useAppContext();
-  const isAdmin = selectedUser?.name?.toLowerCase() === 'admin';
+  const isAdmin = selectedUser?.is_admin;
   const [viewingMember, setViewingMember] = useState(null);
   const [wishlistItems, setWishlistItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -198,13 +198,15 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
       try {
         await deleteWishlistItem(itemId);
         refreshWishlistItems();
-        // Also refresh family members to update count
+        // Refresh family members to update count
         const membersResponse = await getFamilyMembers();
         setFamilyMembers(membersResponse.data);
-      } catch (err) {
-        console.error("Error deleting item:", err);
+      } catch (error) {
+        console.error("Error deleting item:", error);
         setError("Failed to delete item.");
       }
+    } else {
+      setError("Cannot delete items from another user's wishlist.");
     }
   };
 
@@ -212,8 +214,8 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
     try {
       await toggleThinkingAbout(itemId);
       refreshWishlistItems();
-    } catch (err) {
-      console.error("Error toggling thinking about:", err);
+    } catch (error) {
+      console.error("Error toggling thinking about:", error);
       setError("Failed to update thinking about status.");
     }
   };
@@ -222,146 +224,78 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
     try {
       await markPurchased(itemId);
       refreshWishlistItems();
-    } catch (err) {
-      console.error("Error marking item as purchased:", err);
+      // Refresh family members to update count
+      const membersResponse = await getFamilyMembers();
+      setFamilyMembers(membersResponse.data);
+    } catch (error) {
+      console.error("Error marking as purchased:", error);
       setError("Failed to mark item as purchased.");
     }
   };
 
-  // Check schema on mount
+  // Check for schema upgrades
   useEffect(() => {
     const checkSchema = async () => {
       try {
-        const response = await getMigrations();
-        
-        // Check if there are any actual pending migrations to deal with
-        const hasModelChanges = response.data.available_migrations?.some(m => m.version === 'pending');
-        const hasNonAppliedMigrations = response.data.available_migrations?.some(
-          m => m.version !== 'pending' && !m.applied
-        );
-        const hasMultipleHeads = response.data.current_version?.includes(',');
-        
-        // Only show the upgrade alert if there's a real issue that needs attention
-        const hasRealIssue = hasModelChanges || hasNonAppliedMigrations || hasMultipleHeads;
-        
-        // Set the state based on what the backend says and what we detect
-        if (response.data.needs_upgrade) {
+        const migrationsResponse = await getMigrations();
+        if (migrationsResponse.data.needs_upgrade) {
           setNeedsUpgrade(true);
-          
-          // Only show the upgrade alert modal if there's a real issue
-          if (hasRealIssue) {
+          if (isAdmin) {
             setShowUpgradeAlert(true);
-          }
-          
-          // If there's no real issue but the backend reports needs_upgrade,
-          // try silently resetting the schema hash in the background
-          if (!hasRealIssue && response.data.stored_schema_hash) {
-            console.log("No real issues detected but needs_upgrade is true. Attempting silent schema hash reset...");
-            try {
-              // This silently attempts to reset the schema hash in the background
-              // It's ok if this fails - the admin can still do it manually
-              const { resetSchemaHash } = await import('../services/api');
-              resetSchemaHash().catch(() => {});
-            } catch (e) {
-              // Silent fail - don't bother the user
-            }
           }
         }
       } catch (err) {
-        console.error('Failed to check schema:', err);
+        console.error('Failed to check migrations:', err);
       }
     };
-
+    
     checkSchema();
-  }, []);
+  }, [isAdmin]);
 
   const handleCloseUpgradeAlert = () => {
     setShowUpgradeAlert(false);
   };
 
-  // Add this function to calculate days until birthday
   const getDaysUntilBirthday = (birthday) => {
     if (!birthday) return null;
     
     try {
-      // Parse the birthday (format: YYYY-MM-DD)
-      const [year, month, day] = birthday.split('-').map(num => parseInt(num, 10));
-      
-      // Create date objects for today and the next birthday
       const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const birthdayDate = new Date(birthday);
       
-      // Create this year's birthday
-      const birthdayThisYear = new Date(today.getFullYear(), month - 1, day);
+      // Set this year's birthday
+      const thisYearBirthday = new Date(today.getFullYear(), birthdayDate.getMonth(), birthdayDate.getDate());
       
-      // If birthday has already passed this year, get next year's birthday
-      if (birthdayThisYear < today) {
-        birthdayThisYear.setFullYear(today.getFullYear() + 1);
+      // If this year's birthday has passed, calculate next year's
+      if (thisYearBirthday < today) {
+        thisYearBirthday.setFullYear(today.getFullYear() + 1);
       }
       
-      // Calculate difference in days
-      const diffTime = Math.abs(birthdayThisYear - today);
+      const diffTime = thisYearBirthday - today;
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       
-      return {
-        month,
-        day,
-        daysUntil: diffDays,
-        date: birthdayThisYear
-      };
-    } catch (err) {
-      console.error('Error calculating birthday:', err);
+      return diffDays;
+    } catch (error) {
+      console.error('Error calculating birthday:', error);
       return null;
     }
   };
 
-  // Add console.log to debug birthday info
+  // Global mouse event handlers for drag detection
   useEffect(() => {
-    if (viewingMember) {
-      console.log('Viewing member birthday info:', {
-        birthday: viewingMember.birthday,
-        hasBirthday: !!viewingMember.birthday,
-        birthdayCalc: viewingMember.birthday ? getDaysUntilBirthday(viewingMember.birthday) : null
-      });
-    }
-  }, [viewingMember]);
-
-  // Add a global mouseup handler when the modal is open to reset drag state
-  useEffect(() => {
-    if (isAddingItem) {
-      const handleGlobalMouseUp = () => {
+    const handleGlobalMouseUp = () => {
+      // Small delay to ensure text selection is complete
+      setTimeout(() => {
         setIsDragging(false);
-      };
-      
-      document.addEventListener('mouseup', handleGlobalMouseUp);
-      
-      return () => {
-        document.removeEventListener('mouseup', handleGlobalMouseUp);
-      };
-    }
-  }, [isAddingItem]);
+      }, 100);
+    };
 
-  // Early return for loading state
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center p-10">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading your wishlist...</p>
-        </div>
-      </div>
-    );
-  }
+    document.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => {
+      document.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, []);
 
-  if (!selectedUser) {
-    return <div className="text-center p-10">No user selected. Please select a user.</div>;
-  }
-
-  if (error) {
-    return <div className="text-center p-10 text-red-500">{error}</div>;
-  }
-
-  // Add these handler functions for the WishlistCard component
   const handleItemClick = (item) => {
     setSelectedItem(item);
   };
@@ -370,30 +304,22 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
     setSelectedItem(null);
   };
 
-  // Add function to refresh member data when preferences are updated
   const handlePreferencesUpdate = async () => {
+    // Refresh family members to get updated preferences
     try {
       const membersResponse = await getFamilyMembers();
       setFamilyMembers(membersResponse.data);
-      
-      // Update viewingMember with the new data
-      if (viewingMember) {
-        const updatedMember = membersResponse.data.find(m => m.id === viewingMember.id);
-        if (updatedMember) {
-          setViewingMember(updatedMember);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to refresh member data:', err);
+    } catch (error) {
+      console.error("Error refreshing family members:", error);
     }
   };
 
   return (
-    <motion.div
+    <motion.div 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
-      className="space-y-8"
+      transition={{ duration: 0.5 }}
+      className="space-y-6"
     >
       <AnimatePresence>
         {showUpgradeAlert && (
@@ -404,7 +330,10 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
         )}
       </AnimatePresence>
 
-      {upcomingEvent && <GiftReminder eventName={upcomingEvent.event_name} displayText={upcomingEvent.display_text} />}
+      {/* Enhanced Upcoming Events Banner */}
+      {familyMembers.length > 0 && (
+        <EnhancedUpcomingEventsBanner familyMembers={familyMembers} />
+      )}
 
       {/* Schema Warning Banner */}
       {needsUpgrade && !isAdmin && (
@@ -463,7 +392,7 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
             </span>
             {Array.isArray(familyMembers) && (
               <span className="text-sm text-gray-500 dark:text-gray-400">
-                ({familyMembers.filter(m => !m.name.toLowerCase().includes('admin')).length})
+                ({familyMembers.filter(m => !m.is_admin).length})
               </span>
             )}
             <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full">
@@ -488,7 +417,7 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
         >
           <div className="p-4 grid gap-2">
             {Array.isArray(familyMembers) && familyMembers
-              .filter(member => !member.name.toLowerCase().includes('admin'))
+              .filter(member => !member.is_admin)
               .map(member => (
                 <motion.button
                   key={member.id}

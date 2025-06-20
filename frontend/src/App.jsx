@@ -4,28 +4,32 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import { AppProvider, useAppContext } from './contexts/AppContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import AuthScreen from './components/AuthScreen';
-import UserSelectionScreen from './components/UserSelectionScreen';
 import DashboardScreen from './components/DashboardScreen';
 import PasswordResetScreen from './components/PasswordResetScreen';
+import AdminPage from './components/AdminPage';
 import Navbar from './components/Navbar';
 import { logEnvironmentVariables } from './debug-env';
 
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, selectedUser, directLogin } = useAppContext();
+  const { isAuthenticated, selectedUser } = useAppContext();
   const location = useLocation();
   
   if (!isAuthenticated) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
   
-  // Special case for the dashboard - if using direct login, go to dashboard with selected user
-  // If using legacy auth, go to user selection screen
-  if (location.pathname === '/' && !selectedUser) {
-    return <Navigate to="/select-user" replace />;
+  return children;
+};
+
+const AdminRoute = ({ children }) => {
+  const { isAuthenticated, selectedUser } = useAppContext();
+  const location = useLocation();
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/auth" state={{ from: location }} replace />;
   }
   
-  // For user selection screen - if direct login is true, skip to dashboard
-  if (location.pathname === '/select-user' && directLogin && selectedUser) {
+  if (!selectedUser || !selectedUser.is_admin) {
     return <Navigate to="/" replace />;
   }
   
@@ -44,29 +48,29 @@ const AppContent = () => {
   return (
     <Router>
       <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-100 to-sky-100 dark:from-gray-900 dark:to-gray-800">
-        {/* Make sure viewingMember is not passed to Navbar */}
-        {isAuthenticated && selectedUser && <Navbar onClearWishlist={handleClearWishlist} />}
+        {/* Show navbar for authenticated users on main dashboard, not admin page */}
+        {isAuthenticated && selectedUser && !selectedUser.is_admin && (
+          <Navbar onClearWishlist={handleClearWishlist} />
+        )}
         <main className="flex-grow container mx-auto p-4 md:p-6 lg:p-8">
           <Routes>
             <Route path="/auth" element={
-              isAuthenticated ? <Navigate to="/select-user" replace /> : <AuthScreen />
+              isAuthenticated ? <Navigate to="/" replace /> : <AuthScreen />
             } />
             <Route path="/reset-password/:token" element={<PasswordResetScreen />} />
-            <Route path="/select-user" element={
-              <ProtectedRoute>
-                <UserSelectionScreen />
-              </ProtectedRoute>
+            <Route path="/admin" element={
+              <AdminRoute>
+                <AdminPage />
+              </AdminRoute>
             } />
             <Route path="/" element={
               <ProtectedRoute>
-                {selectedUser ? <DashboardScreen /> : <Navigate to="/select-user" replace />}
+                {selectedUser ? <DashboardScreen /> : <Navigate to="/auth" replace />}
               </ProtectedRoute>
             } />
             <Route path="*" element={
               <Navigate to={
-                !isAuthenticated ? "/auth" : 
-                !selectedUser ? "/select-user" : 
-                "/"
+                !isAuthenticated ? "/auth" : "/"
               } replace />
             } />
           </Routes>

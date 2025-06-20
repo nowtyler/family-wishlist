@@ -1,5 +1,5 @@
 # backend/app/models.py
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text, Date, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text, Date, DateTime, Table
 from sqlalchemy.orm import relationship
 from datetime import date, datetime
 from .database import Base
@@ -8,6 +8,17 @@ import json
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Association table for many-to-many relationship between users and households
+user_household_association = Table(
+    'user_household_association',
+    Base.metadata,
+    Column('user_id', Integer, ForeignKey('family_members.id'), primary_key=True),
+    Column('household_id', Integer, ForeignKey('households.id'), primary_key=True),
+    Column('status', String, default='active'),  # 'active', 'pending', 'declined'
+    Column('joined_at', DateTime, default=datetime.utcnow),
+    Column('requested_at', DateTime, default=datetime.utcnow)
+)
 
 class FamilyMember(Base):
     __tablename__ = "family_members"
@@ -24,6 +35,11 @@ class FamilyMember(Base):
     email = Column(String, index=True, nullable=True)
     reset_token = Column(String, nullable=True)
     reset_token_expires = Column(DateTime, nullable=True)
+    
+    # New fields for password management
+    password_expires_at = Column(DateTime, nullable=True)
+    temp_password_hash = Column(String, nullable=True)
+    force_password_change = Column(Boolean, default=False)
     
     # Add JSON serialization/deserialization for preferences
     @property
@@ -49,9 +65,78 @@ class FamilyMember(Base):
     # Add relationship if they don't exist
     wishlist_items = relationship("WishlistItem", back_populates="owner", cascade="all, delete-orphan")
     comments = relationship("Comment", back_populates="author", cascade="all, delete-orphan")
+    external_wishlists = relationship("ExternalWishlist", back_populates="owner", cascade="all, delete-orphan")
+    
+    # New relationships for households
+    households = relationship("Household", secondary=user_household_association, back_populates="members")
 
     def __repr__(self):
         return f"<FamilyMember(id={self.id}, name='{self.name}', is_admin={self.is_admin})>"
+
+class Household(Base):
+    __tablename__ = "households"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False, unique=True)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by = Column(Integer, ForeignKey("family_members.id"))
+    
+    # Relationships
+    members = relationship("FamilyMember", secondary=user_household_association, back_populates="households")
+    creator = relationship("FamilyMember")
+
+    def __repr__(self):
+        return f"<Household(id={self.id}, name='{self.name}')>"
+
+class EmailSettings(Base):
+    __tablename__ = "email_settings"
+    
+    id = Column(Integer, primary_key=True)
+    smtp_server = Column(String, nullable=False)
+    smtp_port = Column(Integer, nullable=False)
+    smtp_username = Column(String, nullable=False)
+    smtp_password = Column(String, nullable=False)
+    from_email = Column(String, nullable=False)
+    from_name = Column(String, nullable=False)
+    use_tls = Column(Boolean, default=True)
+    use_ssl = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<EmailSettings(id={self.id}, smtp_server='{self.smtp_server}')>"
+
+class EmailTemplate(Base):
+    __tablename__ = "email_templates"
+    
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False, unique=True)
+    subject = Column(String, nullable=False)
+    body = Column(Text, nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<EmailTemplate(id={self.id}, name='{self.name}')>"
+
+class EmailLog(Base):
+    __tablename__ = "email_logs"
+    
+    id = Column(Integer, primary_key=True)
+    recipient_email = Column(String, nullable=False)
+    recipient_name = Column(String, nullable=True)
+    subject = Column(String, nullable=False)
+    body = Column(Text, nullable=False)
+    template_name = Column(String, nullable=True)
+    status = Column(String, nullable=False)  # 'sent', 'failed', 'pending'
+    error_message = Column(Text, nullable=True)
+    sent_at = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<EmailLog(id={self.id}, recipient='{self.recipient_email}', status='{self.status}')>"
 
 class WishlistItem(Base):
     __tablename__ = "wishlist_items"

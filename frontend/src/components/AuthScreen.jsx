@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 
 const AuthScreen = () => {
   // Authentication states
-  const [authMode, setAuthMode] = useState('login'); // login, register, reset, legacy
+  const [authMode, setAuthMode] = useState('login'); // login, register, reset
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -15,9 +15,6 @@ const AuthScreen = () => {
   const [email, setEmail] = useState('');
   const [birthday, setBirthday] = useState('');
   const [resetEmail, setResetEmail] = useState('');
-  
-  // Legacy password (keeping for compatibility during transition)
-  const [legacyPassword, setLegacyPassword] = useState('');
 
   // UI states
   const [error, setError] = useState('');
@@ -40,13 +37,20 @@ const AuthScreen = () => {
         
         // Fetch the full user info based on the ID returned from login
         if (response.data.user_id) {
-          setSelectedUser({
+          const userData = {
             id: response.data.user_id,
             is_admin: response.data.is_admin || false
-          });
-          navigate('/');
+          };
+          setSelectedUser(userData);
+          
+          // Redirect admin users to admin page, others to main dashboard
+          if (response.data.is_admin) {
+            navigate('/admin');
+          } else {
+            navigate('/');
+          }
         } else {
-          navigate('/select-user'); // Fallback if no user_id returned
+          navigate('/'); // Fallback if no user_id returned
         }
       } else {
         setError(response.data.message || 'Login failed');
@@ -122,27 +126,6 @@ const AuthScreen = () => {
     }
   };
 
-  const handleLegacyLogin = async (e) => {
-    e.preventDefault();
-    setError('');
-    setIsLoading(true);
-    
-    try {
-      const response = await verifyPassword(legacyPassword);
-      if (response.data.authenticated) {
-        login();
-        navigate('/select-user');
-      } else {
-        setError(response.data.message || 'Incorrect password');
-      }
-    } catch (err) {
-      console.error('Authentication error:', err);
-      setError(err.response?.data?.detail || err.userMessage || 'Failed to authenticate. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
@@ -159,7 +142,6 @@ const AuthScreen = () => {
             {authMode === 'login' && "Sign in to your account"}
             {authMode === 'register' && "Create your account"}
             {authMode === 'reset' && "Reset your password"}
-            {authMode === 'legacy' && "Please enter the family password to continue"}
           </p>
         </div>
         
@@ -227,15 +209,6 @@ const AuthScreen = () => {
                 className="text-sm font-medium text-primary hover:text-primary-dark dark:text-primary-light dark:hover:text-primary"
               >
                 Forgot password?
-              </button>
-            </div>
-            <div className="text-center pt-4 border-t border-gray-200 dark:border-gray-700">
-              <button
-                type="button"
-                onClick={() => { setAuthMode('legacy'); setError(''); setSuccess(''); }}
-                className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-              >
-                Use legacy family password
               </button>
             </div>
           </form>
@@ -379,47 +352,6 @@ const AuthScreen = () => {
                 className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? 'Sending...' : 'Send Reset Link'}
-              </button>
-            </div>
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={() => { setAuthMode('login'); setError(''); setSuccess(''); }}
-                className="text-sm font-medium text-primary hover:text-primary-dark dark:text-primary-light dark:hover:text-primary"
-              >
-                Back to login
-              </button>
-            </div>
-          </form>
-        )}
-        
-        {/* Legacy Password Form */}
-        {authMode === 'legacy' && (
-          <form className="space-y-6" onSubmit={handleLegacyLogin}>
-            <div>
-              <label htmlFor="legacy-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Family Password
-              </label>
-              <input
-                id="legacy-password"
-                type="password"
-                required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm dark:bg-gray-700"
-                placeholder="Family Password"
-                value={legacyPassword}
-                onChange={(e) => setLegacyPassword(e.target.value)}
-              />
-            </div>
-            {error && (
-              <div className="text-red-500 dark:text-red-400 text-sm text-center">{error}</div>
-            )}
-            <div>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? 'Checking...' : 'Continue'}
               </button>
             </div>
             <div className="text-center">
