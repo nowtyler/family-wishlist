@@ -1219,34 +1219,32 @@ async def emergency_admin_access_secure(
     client_host: str = Header(None, alias="X-Forwarded-For"),
     db: Session = Depends(get_db)
 ):
-    """
-    Secure emergency endpoint for admin access during database issues.
-    Requires emergency token and can only be accessed from localhost or with specific environment variables.
-    """
+    """Secure emergency endpoint to get or create admin access with token validation and IP restrictions"""
     try:
-        # Check emergency token from environment
+        # Validate emergency token
         emergency_token = os.getenv("EMERGENCY_ACCESS_TOKEN")
         if not emergency_token:
-            logger.warning("Emergency access token not configured")
+            logger.error("Emergency access token not configured")
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Emergency access not configured"
             )
         
-        # Verify provided token
         if request.emergency_token != emergency_token:
-            logger.warning(f"Invalid emergency token attempt from {client_host}")
+            logger.warning("Emergency access attempt with invalid token")
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Invalid emergency token"
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid emergency access token"
             )
         
-        # Check if access is allowed (localhost only or specific IPs)
-        allowed_hosts = os.getenv("EMERGENCY_ALLOWED_HOSTS", "127.0.0.1,localhost,::1")
-        allowed_hosts_list = [h.strip() for h in allowed_hosts.split(",")]
+        # Get real IP address
+        real_ip = client_host
+        if not real_ip:
+            real_ip = "unknown"
         
-        # Extract real IP if behind proxy
-        real_ip = client_host.split(",")[0].strip() if client_host else "unknown"
+        # Check IP restrictions
+        allowed_hosts = os.getenv("EMERGENCY_ACCESS_ALLOWED_HOSTS", "127.0.0.1,localhost,unknown")
+        allowed_hosts_list = [host.strip() for host in allowed_hosts.split(",")]
         
         if real_ip not in allowed_hosts_list and "unknown" not in allowed_hosts_list:
             logger.warning(f"Emergency access attempt from unauthorized host: {real_ip}")
@@ -1255,42 +1253,101 @@ async def emergency_admin_access_secure(
                 detail="Emergency access not allowed from this host"
             )
         
-        # Try to find existing admin user
-        admin = db.query(models.FamilyMember).filter(
-            models.FamilyMember.name.ilike('admin')
-        ).first()
-        
-        if not admin:
-            # Create admin user if doesn't exist
-            admin = models.FamilyMember(
-                name="Admin",
-                is_admin=True,
-                username="admin",
-                email="admin@emergency.local"
-            )
-            db.add(admin)
-            db.commit()
-            db.refresh(admin)
-            logger.info("Emergency admin user created")
-        elif not admin.is_admin:
-            # Ensure admin flag is set
-            admin.is_admin = True
-            db.commit()
-            db.refresh(admin)
-            logger.info("Existing user promoted to admin via emergency access")
+        # Check database connectivity and schema using raw SQL instead of SQLAlchemy models
+        try:
+            # First, check if the database is accessible
+            result = db.execute(text("SELECT 1"))
+            result.fetchone()
             
-        return schemas.EmergencyAccessResponse(
-            success=True,
-            message="Emergency admin access granted",
-            admin_user=schemas.FamilyMember(
-                id=admin.id,
-                name=admin.name,
-                is_admin=admin.is_admin,
-                username=admin.username,
-                email=admin.email,
-                wishlist_item_count=0
+            # Check if family_members table exists
+            result = db.execute(text("""
+                SELECT name FROM sqlite_master 
+                WHERE type='table' AND name='family_members'
+            """))
+            table_exists = result.fetchone() is not None
+            
+            if not table_exists:
+                # Create basic table structure if it doesn't exist
+                db.execute(text("""
+                    CREATE TABLE IF NOT EXISTS family_members (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL,
+                        birthday TEXT,
+                        is_admin BOOLEAN DEFAULT FALSE,
+                        preferences TEXT,
+                        username TEXT,
+                        password_hash TEXT,
+                        email TEXT,
+                        reset_token TEXT,
+                        reset_token_expires TEXT
+                    )
+                """))
+                db.commit()
+                logger.info("Created basic family_members table")
+            
+            # Check if admin user exists using raw SQL
+            result = db.execute(text("""
+                SELECT id, name, is_admin, username, email 
+                FROM family_members 
+                WHERE LOWER(name) LIKE 'admin'
+                LIMIT 1
+            """))
+            admin_row = result.fetchone()
+            
+            if not admin_row:
+                # Create admin user if doesn't exist
+                db.execute(text("""
+                    INSERT INTO family_members (name, is_admin, username, email)
+                    VALUES ('Admin', 1, 'admin', 'admin@emergency.local')
+                """))
+                db.commit()
+                
+                # Get the created admin
+                result = db.execute(text("""
+                    SELECT id, name, is_admin, username, email 
+                    FROM family_members 
+                    WHERE LOWER(name) LIKE 'admin'
+                    LIMIT 1
+                """))
+                admin_row = result.fetchone()
+                logger.info("Emergency admin user created")
+            elif not admin_row[2]:  # is_admin column
+                # Ensure admin flag is set
+                db.execute(text("""
+                    UPDATE family_members 
+                    SET is_admin = 1 
+                    WHERE id = ?
+                """), (admin_row[0],))
+                db.commit()
+                logger.info("Existing user promoted to admin via emergency access")
+                
+                # Refresh admin data
+                result = db.execute(text("""
+                    SELECT id, name, is_admin, username, email 
+                    FROM family_members 
+                    WHERE id = ?
+                """), (admin_row[0],))
+                admin_row = result.fetchone()
+            
+            return schemas.EmergencyAccessResponse(
+                success=True,
+                message="Emergency admin access granted",
+                admin_user=schemas.FamilyMember(
+                    id=admin_row[0],
+                    name=admin_row[1],
+                    is_admin=bool(admin_row[2]),
+                    username=admin_row[3],
+                    email=admin_row[4],
+                    wishlist_item_count=0
+                )
             )
-        )
+            
+        except Exception as db_error:
+            logger.error(f"Database error during emergency access: {db_error}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database error: {str(db_error)}"
+            )
         
     except HTTPException:
         raise
@@ -1320,7 +1377,9 @@ async def emergency_admin_access(
             # Create admin user if doesn't exist
             admin = models.FamilyMember(
                 name="Admin",
-                is_admin=True
+                is_admin=True,
+                username="admin",
+                email="admin@emergency.local"
             )
             db.add(admin)
             db.commit()
