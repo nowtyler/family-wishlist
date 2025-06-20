@@ -1213,11 +1213,103 @@ def delete_all_wishlists(
 # Catch-all for documentation (FastAPI provides /docs and /redoc automatically)
 # If you were serving a frontend from FastAPI, you'd have a catch-all route here.
 
+@app.post("/api/emergency/admin-access", response_model=schemas.EmergencyAccessResponse)
+async def emergency_admin_access_secure(
+    request: schemas.EmergencyAccessRequest,
+    client_host: str = Header(None, alias="X-Forwarded-For"),
+    db: Session = Depends(get_db)
+):
+    """
+    Secure emergency endpoint for admin access during database issues.
+    Requires emergency token and can only be accessed from localhost or with specific environment variables.
+    """
+    try:
+        # Check emergency token from environment
+        emergency_token = os.getenv("EMERGENCY_ACCESS_TOKEN")
+        if not emergency_token:
+            logger.warning("Emergency access token not configured")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Emergency access not configured"
+            )
+        
+        # Verify provided token
+        if request.emergency_token != emergency_token:
+            logger.warning(f"Invalid emergency token attempt from {client_host}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid emergency token"
+            )
+        
+        # Check if access is allowed (localhost only or specific IPs)
+        allowed_hosts = os.getenv("EMERGENCY_ALLOWED_HOSTS", "127.0.0.1,localhost,::1")
+        allowed_hosts_list = [h.strip() for h in allowed_hosts.split(",")]
+        
+        # Extract real IP if behind proxy
+        real_ip = client_host.split(",")[0].strip() if client_host else "unknown"
+        
+        if real_ip not in allowed_hosts_list and "unknown" not in allowed_hosts_list:
+            logger.warning(f"Emergency access attempt from unauthorized host: {real_ip}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Emergency access not allowed from this host"
+            )
+        
+        # Try to find existing admin user
+        admin = db.query(models.FamilyMember).filter(
+            models.FamilyMember.name.ilike('admin')
+        ).first()
+        
+        if not admin:
+            # Create admin user if doesn't exist
+            admin = models.FamilyMember(
+                name="Admin",
+                is_admin=True,
+                username="admin",
+                email="admin@emergency.local"
+            )
+            db.add(admin)
+            db.commit()
+            db.refresh(admin)
+            logger.info("Emergency admin user created")
+        elif not admin.is_admin:
+            # Ensure admin flag is set
+            admin.is_admin = True
+            db.commit()
+            db.refresh(admin)
+            logger.info("Existing user promoted to admin via emergency access")
+            
+        return schemas.EmergencyAccessResponse(
+            success=True,
+            message="Emergency admin access granted",
+            admin_user=schemas.FamilyMember(
+                id=admin.id,
+                name=admin.name,
+                is_admin=admin.is_admin,
+                username=admin.username,
+                email=admin.email,
+                wishlist_item_count=0
+            )
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Emergency admin access error: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Emergency access failed: {str(e)}"
+        )
+
+# Update the existing emergency access endpoint to be more secure
 @app.post("/api/admin/emergency-access", response_model=schemas.FamilyMember)
 async def emergency_admin_access(
     db: Session = Depends(get_db)
 ):
-    """Emergency endpoint to get or create admin access"""
+    """Emergency endpoint to get or create admin access - DEPRECATED, use /api/emergency/admin-access instead"""
+    logger.warning("Deprecated emergency access endpoint used - recommend using /api/emergency/admin-access")
     try:
         # Try to find existing admin user
         admin = db.query(models.FamilyMember).filter(

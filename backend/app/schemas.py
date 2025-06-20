@@ -460,3 +460,13 @@ class ExternalWishlist(ExternalWishlistBase):
     
     class Config:
         from_attributes = True
+
+# Add these new schemas after the existing schemas
+
+class EmergencyAccessRequest(BaseModel):
+    emergency_token: str
+
+class EmergencyAccessResponse(BaseModel):
+    success: bool
+    message: str
+    admin_user: FamilyMember

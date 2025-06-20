@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
 import { verifyPassword, loginUser, registerUser, requestPasswordReset } from '../services/api';
 import { motion } from 'framer-motion';
+import EmergencyAccessModal from './EmergencyAccessModal';
 
 const AuthScreen = () => {
   // Authentication states
@@ -20,9 +21,17 @@ const AuthScreen = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showEmergencyAccess, setShowEmergencyAccess] = useState(false);
   
   const { login, setSelectedUser } = useAppContext();
   const navigate = useNavigate();
+
+  const handleEmergencyAccessSuccess = (user) => {
+    login(true);
+    setSelectedUser(user);
+    navigate('/admin');
+    setShowEmergencyAccess(false);
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -365,7 +374,28 @@ const AuthScreen = () => {
             </div>
           </form>
         )}
+        
+        {/* Emergency Access Button */}
+        <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <button
+            type="button"
+            onClick={() => setShowEmergencyAccess(true)}
+            className="w-full text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium"
+          >
+            🚨 Emergency Admin Access
+          </button>
+          <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
+            For database issues only
+          </p>
+        </div>
       </div>
+      
+      {/* Emergency Access Modal */}
+      <EmergencyAccessModal
+        isOpen={showEmergencyAccess}
+        onClose={() => setShowEmergencyAccess(false)}
+        onSuccess={handleEmergencyAccessSuccess}
+      />
     </motion.div>
   );
 };

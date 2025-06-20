@@ -44,6 +44,8 @@ services:
       - FAMILY_MEMBERS_CONFIG=${FAMILY_MEMBERS_CONFIG}
       - CHRISTMAS_MONTH=${CHRISTMAS_MONTH}
       - CHRISTMAS_DAY=${CHRISTMAS_DAY}
+      - EMERGENCY_ACCESS_TOKEN=${EMERGENCY_ACCESS_TOKEN} # Emergency admin access token
+      - EMERGENCY_ALLOWED_HOSTS=${EMERGENCY_ALLOWED_HOSTS:-127.0.0.1,localhost,::1} # Allowed hosts for emergency access
      volumes:
       - ${LOCAL_APPS_PATH}family-wishlist/data:/app/data  # Production data path
       - ${LOCAL_APPS_PATH}family-wishlist/data/backups:/app/data/backups
@@ -118,6 +120,8 @@ services:
       - FAMILY_MEMBERS_CONFIG=${FAMILY_MEMBERS_CONFIG}
       - CHRISTMAS_MONTH=${CHRISTMAS_MONTH}
       - CHRISTMAS_DAY=${CHRISTMAS_DAY}
+      - EMERGENCY_ACCESS_TOKEN=${EMERGENCY_ACCESS_TOKEN} # Emergency admin access token
+      - EMERGENCY_ALLOWED_HOSTS=${EMERGENCY_ALLOWED_HOSTS:-127.0.0.1,localhost,::1} # Allowed hosts for emergency access
      volumes:
       - ${LOCAL_APPS_PATH}dev-family-wishlist/data:/app/data  # Development data path
       - ${LOCAL_APPS_PATH}dev-family-wishlist/data/backups:/app/data/backups
