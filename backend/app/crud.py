@@ -5,6 +5,9 @@ from . import models, schemas
 from typing import List, Optional, Tuple
 from datetime import date, datetime, timedelta
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 # --- Family Member CRUD ---
 def get_family_member(db: Session, member_id: int) -> Optional[models.FamilyMember]:
@@ -12,7 +15,7 @@ def get_family_member(db: Session, member_id: int) -> Optional[models.FamilyMemb
     try:
         return db.query(models.FamilyMember).filter(models.FamilyMember.id == member_id).first()
     except Exception as e:
-        print(f"Database error in get_family_member: {e}")
+        logger.error(f"Database error in get_family_member: {e}")
         return None
 
 def get_family_member_by_name(db: Session, name: str) -> Optional[models.FamilyMember]:
@@ -105,13 +108,13 @@ def initialize_family_members(db: Session):
     """Initializes family members from .env if they don't exist."""
     env_config = os.getenv("FAMILY_MEMBERS_CONFIG")
     if not env_config:
-        print("FAMILY_MEMBERS_CONFIG not set. Skipping auto-initialization.")
+        logger.info("FAMILY_MEMBERS_CONFIG not set. Skipping auto-initialization.")
         return
 
     # First, check if we have any members at all
     existing_count = db.query(models.FamilyMember).count()
     if existing_count > 0:
-        print(f"Found {existing_count} existing family members, skipping initialization")
+        logger.info(f"Found {existing_count} existing family members, skipping initialization")
         return
 
     # Only proceed with initialization if no members exist
@@ -128,19 +131,19 @@ def initialize_family_members(db: Session):
 
             if birthday_str == "admin":
                 is_admin = True
-                print(f"Creating admin user: {name}")
+                logger.info(f"Creating admin user: {name}")
             elif birthday_str:
                 try:
                     birthday = datetime.strptime(birthday_str, "%Y-%m-%d").date()
                 except ValueError:
-                    print(f"Warning: Could not parse birthday for {name}: {birthday_str}")
+                    logger.warning(f"Warning: Could not parse birthday for {name}: {birthday_str}")
             
             create_family_member(db, schemas.FamilyMemberCreate(
                 name=name,
                 birthday=birthday,
                 is_admin=is_admin
             ))
-            print(f"Created {'admin' if is_admin else 'family'} member: {name}")
+            logger.info(f"Created {'admin' if is_admin else 'family'} member: {name}")
 
 
 # --- Wishlist Item CRUD ---
@@ -343,7 +346,7 @@ def delete_all_wishlists(db: Session, requesting_user_id: int) -> bool:
         return True
     except Exception as e:
         db.rollback()
-        print(f"Error deleting all wishlists: {e}")
+        logger.error(f"Error deleting all wishlists: {e}")
         return False
 
 # --- Comment CRUD ---
@@ -413,7 +416,7 @@ def get_next_gift_event() -> Optional[schemas.GiftEvent]:
                 else:  # Birthday next year
                     events.append({"name": f"{name}'s Birthday", "date": date(current_year + 1, birth_month, birth_day)})
             except ValueError:
-                print(f"Could not parse birthday for reminder: {name} - {birthday_str}")
+                logger.warning(f"Could not parse birthday for reminder: {name} - {birthday_str}")
                 continue
 
     # Find the soonest event
@@ -438,24 +441,24 @@ def get_system_version(db: Session) -> str:
             db.commit()
         return settings.version
     except Exception as e:
-        print(f"Error getting system version: {e}")
+        logger.error(f"Error getting system version: {e}")
         return "1.0.0"  # Fallback version
 
 def update_system_version(db: Session, new_version: str, user_id: int) -> Optional[str]:
     try:
         user = get_family_member(db, user_id)
         if not user:
-            print(f"User not found: ID {user_id}")
+            logger.warning(f"User not found: ID {user_id}")
             return None
             
         # More comprehensive admin check
         is_admin = user.is_admin or user.name.lower() == 'admin'
         
         # Debug log with comprehensive information
-        print(f"Update version attempt - User: {user.name}, ID: {user.id}, is_admin flag: {user.is_admin}, name check: {user.name.lower() == 'admin'}, Final result: {is_admin}")
+        logger.debug(f"Update version attempt - User: {user.name}, ID: {user.id}, is_admin flag: {user.is_admin}, name check: {user.name.lower() == 'admin'}, Final result: {is_admin}")
     
         if not is_admin:
-            print(f"User {user.name} (ID: {user_id}) is not admin. Permission denied.")
+            logger.warning(f"User {user.name} (ID: {user_id}) is not admin. Permission denied.")
             return None
 
         settings = db.query(models.SystemSettings).first()
@@ -466,10 +469,10 @@ def update_system_version(db: Session, new_version: str, user_id: int) -> Option
             settings.version = new_version
             settings.last_updated = datetime.now().date()
         db.commit()
-        print(f"Version updated successfully to {new_version} by {user.name}")
+        logger.info(f"Version updated successfully to {new_version} by {user.name}")
         return settings.version
     except Exception as e:
-        print(f"Error updating system version: {e}")
+        logger.error(f"Error updating system version: {e}")
         db.rollback()
         return None
 
@@ -484,7 +487,7 @@ def get_schema_hash(db: Session) -> Optional[str]:
             
         return settings.schema_hash
     except Exception as e:
-        print(f"Error getting schema hash: {e}")
+        logger.error(f"Error getting schema hash: {e}")
         return None
 
 def update_schema_hash(db: Session, new_hash: str) -> bool:
@@ -499,7 +502,7 @@ def update_schema_hash(db: Session, new_hash: str) -> bool:
         db.commit()
         return True
     except Exception as e:
-        print(f"Error updating schema hash: {e}")
+        logger.error(f"Error updating schema hash: {e}")
         db.rollback()
         return False
 
@@ -510,7 +513,7 @@ def get_external_wishlists(db: Session, owner_id: int) -> List[models.ExternalWi
         wishlists = db.query(models.ExternalWishlist).filter(models.ExternalWishlist.owner_id == owner_id).all()
         return wishlists if wishlists else []
     except Exception as e:
-        print(f"Error fetching external wishlists: {str(e)}")
+        logger.error(f"Error fetching external wishlists: {str(e)}")
         return []  # Always return a list even on error
 
 def create_external_wishlist(db: Session, wishlist: schemas.ExternalWishlistCreate, owner_id: int) -> models.ExternalWishlist:
@@ -625,5 +628,5 @@ def delete_family_member(db: Session, member_id: int) -> bool:
         return True
     except Exception as e:
         db.rollback()
-        print(f"Error deleting family member: {e}")
+        logger.error(f"Error deleting family member: {e}")
         return False

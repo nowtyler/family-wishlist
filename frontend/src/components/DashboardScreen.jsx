@@ -29,8 +29,6 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
   const [isFetchingInProgress, setIsFetchingInProgress] = useState(false); // Track ongoing fetches
   const minRefreshInterval = 2000; // Minimum 2 seconds between refreshes
 
-  console.log('Dashboard State:', { selectedUser, familyMembers, viewingMember }); // Debug log
-
   // Replace the initialization effect with a more robust version
   useEffect(() => {
     let mounted = true;

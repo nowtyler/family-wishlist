@@ -15,11 +15,8 @@ const UserSelectionScreen = () => {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  console.log('UserSelection State:', { familyMembers, selectedUser }); // Debug log
-
   useEffect(() => {
     if (selectedUser) {
-      console.log('Redirecting to dashboard, user:', selectedUser);
       navigate('/');
       return;
     }
@@ -28,10 +25,8 @@ const UserSelectionScreen = () => {
       try {
         setIsLoading(true);
         const response = await getFamilyMembers();
-        console.log('Fetched family members:', response.data);
         setFamilyMembers(response.data);
       } catch (err) {
-        console.error('Failed to fetch family members:', err);
         setError('Failed to load family members.');
       } finally {
         setIsLoading(false);
@@ -42,19 +37,16 @@ const UserSelectionScreen = () => {
 
   // Don't hardcode admin ID to -1, we'll find/create it properly
   const handleSelectUser = async (member) => {
-    console.log('Selected member:', member);
     try {
       // If selecting admin but it's not a database object yet
       if (member.name?.toLowerCase() === 'admin' && !member.id) {
         // Find admin in current family members list first
         const adminUser = familyMembers.find(m => m.name.toLowerCase() === 'admin');
         if (adminUser) {
-          console.log('Using existing admin user from list:', adminUser);
           setSelectedUser(adminUser);
           setCurrentUserHeader(adminUser.id);
         } else {
           // Emergency fallback - try to get admin via an API call
-          console.log('Admin not found in current list, creating session-only admin');
           const tempAdmin = {
             id: 1, // Use a reasonable ID that likely exists
             name: 'Admin',
@@ -69,10 +61,8 @@ const UserSelectionScreen = () => {
         setCurrentUserHeader(member.id);
       }
       
-      console.log('User set, navigating to dashboard');
       navigate('/');
     } catch (err) {
-      console.error('Error selecting user:', err);
       setError('Failed to select user.');
     }
   };

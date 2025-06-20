@@ -113,6 +113,13 @@ app.add_middleware(
     allow_headers=["*"], # Allows all headers
 )
 
+# TODO: Security improvements for production:
+# 1. Add CSRF protection for state-changing operations
+# 2. Implement input sanitization middleware
+# 3. Add request/response validation
+# 4. Consider API key authentication for admin endpoints
+# 5. Add security headers (HSTS, CSP, etc.)
+
 # Initialize rate limiter
 rate_limiter = RateLimiter(requests_per_minute=60)
 
@@ -132,10 +139,10 @@ async def startup_event():
             # Don't block app startup - we'll handle admin access separately
         finally:
             db.close()
-        print("Family Wishlist API startup complete. Database and tables checked/created.")
+        logger.info("Family Wishlist API startup complete. Database and tables checked/created.")
     except Exception as e:
         logger.error(f"Database initialization error: {e}")
-        print(f"WARNING: Database initialization error: {e}")
+        logger.info(f"WARNING: Database initialization error: {e}")
         # Continue startup despite errors - we'll provide emergency access
     
     await rate_limiter.start_cleanup()

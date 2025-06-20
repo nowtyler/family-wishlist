@@ -21,6 +21,10 @@ export const AppProvider = ({ children }) => {
     sessionStorage.getItem('wishlistDirectLogin') === 'true'
   );
 
+  // TODO: Security improvement - Consider using HTTP-only cookies for sensitive authentication data
+  // instead of sessionStorage, which can be manipulated by client-side JavaScript
+  // This would provide better security against XSS attacks
+
   useEffect(() => {
     if (isAuthenticated && selectedUser) {
       setCurrentUserHeader(selectedUser.id);
@@ -57,10 +61,8 @@ export const AppProvider = ({ children }) => {
         const getProperAdminAccess = async () => {
           try {
             const adminData = await getAdminAccess();
-            console.log('Got proper admin data:', adminData);
             setSelectedUser(adminData);
           } catch (err) {
-            console.error('Failed to get admin data:', err);
             // Keep the current selectedUser
           }
         };

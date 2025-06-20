@@ -43,7 +43,6 @@ const ExternalWishlistsButton = ({ member }) => {
     // Prevent too frequent refreshes unless forced
     const now = Date.now();
     if (!force && now - lastFetchTimestamp < minFetchInterval) {
-      console.log('External wishlist fetch throttled. Try again in a moment.');
       return;
     }
     
@@ -56,8 +55,6 @@ const ExternalWishlistsButton = ({ member }) => {
       // Ensure we have an array even if the API returns null or undefined
       setWishlists(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
-      console.error('Failed to fetch external wishlists:', err);
-      
       if (err.response?.status === 429) {
         setError('Rate limit exceeded. Please wait a moment before trying again.');
       } else {
@@ -114,7 +111,6 @@ const ExternalWishlistsButton = ({ member }) => {
       // For all other URLs, return the formatted URL with https:// added if it was missing
       return { formattedUrl: formattedUrl, isValid: true, error: null };
     } catch (err) {
-      console.error("URL parsing error:", err);
       // Check if the error is due to a URL without a protocol
       if (err.code === "ERR_INVALID_URL" || err.message?.includes("Invalid URL")) {
         // Try one more time with explicit https:// prefix
@@ -136,11 +132,6 @@ const ExternalWishlistsButton = ({ member }) => {
         }
       }
       
-      return { 
-        formattedUrl: url, 
-        isValid: false, 
-        error: "Invalid URL format. Please enter a valid URL." 
-      };
     }
   };
 
@@ -201,8 +192,6 @@ const ExternalWishlistsButton = ({ member }) => {
         setIsAddingNew(false);
       }, 300);
     } catch (err) {
-      console.error('Failed to add external wishlist:', err);
-      
       if (err.response?.status === 429) {
         setError('Rate limit exceeded. Please wait a moment before trying again.');
       } else {
@@ -244,8 +233,6 @@ const ExternalWishlistsButton = ({ member }) => {
         setEditingId(null);
       }, 300);
     } catch (err) {
-      console.error('Failed to update external wishlist:', err);
-      
       if (err.response?.status === 429) {
         setError('Rate limit exceeded. Please wait a moment before trying again.');
       } else {
@@ -269,8 +256,6 @@ const ExternalWishlistsButton = ({ member }) => {
         setShowConfirmDelete(null);
       }, 300);
     } catch (err) {
-      console.error('Failed to delete external wishlist:', err);
-      
       if (err.response?.status === 429) {
         setError('Rate limit exceeded. Please wait a moment before trying again.');
       } else {

@@ -16,6 +16,8 @@ class RateLimiter:
         self.blocked_ips: Dict[str, float] = {}
         # Keep track of API endpoints for smarter rate limiting
         self.endpoint_counts: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        # TODO: For production, consider using Redis or database-backed rate limiting
+        # to support multiple server instances and persist rate limits across restarts
 
     async def start_cleanup(self):
         if not self._cleanup_task:
@@ -41,7 +43,7 @@ class RateLimiter:
             await asyncio.sleep(60)
 
     async def check_rate_limit(self, request: Request):
-        client_ip = request.client.host
+        client_ip = request.client.host if request.client else "unknown"
         current_time = time.time()
         
         # Check if IP is in cooldown period

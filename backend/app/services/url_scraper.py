@@ -65,7 +65,8 @@ class ProductScraper:
                     if isinstance(data, dict) and data.get('@type') in ['Product', 'IndividualProduct']:
                         json_ld = data
                         break
-                except:
+                except Exception as e:
+                    logger.debug(f"Failed to parse JSON-LD script: {e}")
                     continue
                 
             if json_ld:

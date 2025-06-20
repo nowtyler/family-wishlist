@@ -5,6 +5,9 @@ from datetime import date, datetime
 from .database import Base
 from pydantic import BaseModel, HttpUrl
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 class FamilyMember(Base):
     __tablename__ = "family_members"
@@ -18,7 +21,7 @@ class FamilyMember(Base):
     # Authentication fields
     username = Column(String, index=True, unique=True, nullable=True)
     password_hash = Column(String, nullable=True)
-    email = Column(String, nullable=True)
+    email = Column(String, index=True, nullable=True)
     reset_token = Column(String, nullable=True)
     reset_token_expires = Column(DateTime, nullable=True)
     
@@ -27,9 +30,13 @@ class FamilyMember(Base):
     def preferences(self):
         if self._preferences is None:
             return None
+        if not isinstance(self._preferences, str):
+            logger.warning(f"Preferences field is not a string: {type(self._preferences)}")
+            return None
         try:
             return json.loads(self._preferences)
-        except:
+        except Exception as e:
+            logger.error(f"Error deserializing preferences: {e}")
             return None
             
     @preferences.setter

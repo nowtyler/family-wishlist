@@ -52,9 +52,7 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
                     !hasMultipleHeads && 
                     !hasModelChanges && 
                     !hasNonAppliedMigrations) {
-                    console.log("Possible hash mismatch detected. Attempting silent fix...");
-                    // This will run in the background without blocking the UI
-                    silentlyResetSchemaHash().catch(console.error);
+                    silentlyResetSchemaHash().catch(() => {});
                 }
                 
                 // Show warning if needs_upgrade is true or we have multiple heads

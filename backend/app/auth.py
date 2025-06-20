@@ -198,8 +198,8 @@ if __name__ == "__main__":
         hashed_password = get_password_hash(password_to_hash)
         # Don't log the full hash
         logger.info(f"Generated hash: {sanitize_hash(hashed_password)}")
-        print(f"Hashed password for '{password_to_hash}':")
-        print(hashed_password)
+        logger.info(f"Hashed password for '{password_to_hash}':")
+        logger.info(f"Full hash: {hashed_password}")
     else:
-        print("Usage: python app/auth.py <your_desired_password>")
-        print("Example: python app/auth.py S3cur3F@m!lyP@sswOrd")
+        logger.info("Usage: python app/auth.py <your_desired_password>")
+        logger.info("Example: python app/auth.py S3cur3F@m!lyP@sswOrd")

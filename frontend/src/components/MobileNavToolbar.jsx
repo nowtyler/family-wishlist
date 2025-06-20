@@ -75,13 +75,17 @@ const MobileNavToolbar = ({ onViewOwnWishlist, onBrowseWishlists }) => {
             <div className="p-4 space-y-4">
               {/* User Info */}
               <div className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <User className="text-gray-500 dark:text-gray-400" />
-                <div>
-                  <div className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                <div className="w-8 h-8 bg-gradient-to-r from-sky-500 to-indigo-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-sm font-medium">
+                    {selectedUser?.name?.charAt(0).toUpperCase() || 'U'}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">
                     {selectedUser?.name || 'User'}
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
-                    Logged in
+                  <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    @{selectedUser?.username || 'legacy'}
                   </div>
                 </div>
               </div>

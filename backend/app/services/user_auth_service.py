@@ -88,7 +88,7 @@ class UserAuthService:
             
             # In a real app, we'd send an email here
             # For now, just log the token for demonstration
-            logger.info(f"Reset token for {user.username}: {token}")
+            logger.info(f"Reset token generated for user {user.username} (not shown for security)")
             
             return True, "If an account with that username or email exists, a reset link has been sent"
                 

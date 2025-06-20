@@ -577,16 +577,6 @@ function WishlistCard({
       const diffHours = Math.floor(diffMinutes / 60);
       const diffDays = Math.floor(diffHours / 24);
 
-      // Debug log to check timestamps
-      console.log('Comment time:', {
-        timestamp,
-        commentDate,
-        now,
-        diffMinutes,
-        diffHours,
-        diffDays
-      });
-
       if (diffMinutes < 1) return 'just now';
       if (diffMinutes < 60) return `${diffMinutes}m ago`;
       if (diffHours < 24) return `${diffHours}h ago`;
@@ -598,7 +588,6 @@ function WishlistCard({
         year: commentDate.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
       });
     } catch (err) {
-      console.error('Error formatting timestamp:', err);
       return 'invalid date';
     }
   };
