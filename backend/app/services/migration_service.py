@@ -240,27 +240,30 @@ class MigrationService:
 
     def get_available_migrations(self) -> List[MigrationInfo]:
         try:
-            # Always attempt to autogenerate a migration if the DB and models are out of sync
             script = ScriptDirectory.from_config(self.alembic_cfg)
             current = self.get_current_version()
+            head = script.get_current_head()
             migrations = []
 
-            # Try to autogenerate a migration every time this is called
-            try:
-                logger.info("Aggressively checking for model changes and attempting to autogenerate migration...")
-                auto_migration_result = self.auto_generate_migration()
-                if auto_migration_result:
-                    logger.info(f"Auto-generated migration: {auto_migration_result}")
-                    # Refresh the script directory to include the new migration
-                    script = ScriptDirectory.from_config(self.alembic_cfg)
-                    # Add pending changes indicator
-                    migrations.append(MigrationInfo(
-                        version="pending",
-                        description="Pending model changes detected - Click upgrade to apply",
-                        applied=False
-                    ))
-            except Exception as e:
-                logger.warning(f"Failed to auto-generate migration: {e}")
+            # Only autogenerate if DB is at head
+            if current == head:
+                try:
+                    logger.info("Checking for model changes and attempting to autogenerate migration (only if at head)...")
+                    auto_migration_result = self.auto_generate_migration()
+                    if auto_migration_result:
+                        logger.info(f"Auto-generated migration: {auto_migration_result}")
+                        # Refresh the script directory to include the new migration
+                        script = ScriptDirectory.from_config(self.alembic_cfg)
+                        # Add pending changes indicator
+                        migrations.append(MigrationInfo(
+                            version="pending",
+                            description="Pending model changes detected - Click upgrade to apply",
+                            applied=False
+                        ))
+                except Exception as e:
+                    logger.warning(f"Failed to auto-generate migration: {e}")
+            else:
+                logger.info(f"Not at head (current: {current}, head: {head}), skipping autogenerate.")
 
             # Add existing migrations
             for sc in script.walk_revisions():
