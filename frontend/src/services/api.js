@@ -465,12 +465,23 @@ export const getSchemaHash = () => {
 // --- Admin Access ---
 export const getAdminAccess = async (emergencyToken) => {
   try {
-    const response = await apiClient.post('/admin/emergency-access', { emergency_token: emergencyToken });
+    // Try the new secure emergency access endpoint first
+    const response = await apiClient.post('/emergency/admin-access', { emergency_token: emergencyToken });
     console.log('Admin access response:', response.data);
     return response.data;
   } catch (error) {
     console.error('Failed to get admin access:', error);
-    throw error;
+    
+    // If the new endpoint fails, try the legacy endpoint as fallback
+    try {
+      console.log('Trying legacy emergency access endpoint...');
+      const legacyResponse = await apiClient.post('/admin/emergency-access');
+      console.log('Legacy admin access response:', legacyResponse.data);
+      return legacyResponse.data;
+    } catch (legacyError) {
+      console.error('Legacy emergency access also failed:', legacyError);
+      throw error; // Throw the original error
+    }
   }
 };
 
