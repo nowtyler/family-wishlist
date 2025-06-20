@@ -463,10 +463,13 @@ export const getSchemaHash = () => {
 };
 
 // --- Admin Access ---
-export const getAdminAccess = async (emergencyToken) => {
+export const getAdminAccess = async (params) => {
   try {
+    // Extract the emergency token from the params object
+    const { emergency_token } = params;
+    
     // Try the new secure emergency access endpoint first
-    const response = await apiClient.post('/emergency/admin-access', { emergency_token: emergencyToken });
+    const response = await apiClient.post('/emergency/admin-access', { emergency_token });
     console.log('Admin access response:', response.data);
     return response.data;
   } catch (error) {
