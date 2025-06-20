@@ -132,6 +132,17 @@ class UserRegisterRequest(BaseModel):
     email: Optional[str] = None
     birthday: Optional[date] = None
 
+class AuthResponse(BaseResponse):
+    user_id: Optional[int] = None
+    is_admin: Optional[bool] = None
+
+class PasswordResetRequest(BaseModel):
+    username_or_email: str
+
+class PasswordResetConfirmRequest(BaseModel):
+    token: str
+    new_password: str
+
 # Admin user management schemas
 class AdminUserCreateRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=20)

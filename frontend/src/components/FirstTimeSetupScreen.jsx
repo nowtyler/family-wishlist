@@ -52,22 +52,22 @@ const FirstTimeSetupScreen = () => {
   };
   
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
           First Time Setup
         </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
+        <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
           Create your admin account to get started
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+        <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
           {!emergencyKey ? (
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label htmlFor="admin_username" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="admin_username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Username
                 </label>
                 <div className="mt-1">
@@ -78,13 +78,13 @@ const FirstTimeSetupScreen = () => {
                     required
                     value={formData.admin_username}
                     onChange={handleChange}
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                   />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="admin_password" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="admin_password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Password
                 </label>
                 <div className="mt-1">
@@ -95,13 +95,13 @@ const FirstTimeSetupScreen = () => {
                     required
                     value={formData.admin_password}
                     onChange={handleChange}
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                   />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="admin_email" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="admin_email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Email
                 </label>
                 <div className="mt-1">
@@ -112,13 +112,13 @@ const FirstTimeSetupScreen = () => {
                     required
                     value={formData.admin_email}
                     onChange={handleChange}
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                   />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="admin_name" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="admin_name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Display Name
                 </label>
                 <div className="mt-1">
@@ -128,14 +128,14 @@ const FirstTimeSetupScreen = () => {
                     type="text"
                     value={formData.admin_name}
                     onChange={handleChange}
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                   />
                 </div>
               </div>
 
               {error && (
-                <div className="rounded-md bg-red-50 p-4">
-                  <div className="text-sm text-red-700">{error}</div>
+                <div className="rounded-md bg-red-50 dark:bg-red-900/50 p-4">
+                  <div className="text-sm text-red-700 dark:text-red-200">{error}</div>
                 </div>
               )}
 
@@ -143,7 +143,7 @@ const FirstTimeSetupScreen = () => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 dark:focus:ring-offset-gray-900"
                 >
                   {isLoading ? 'Setting up...' : 'Complete Setup'}
                 </button>
@@ -151,12 +151,12 @@ const FirstTimeSetupScreen = () => {
             </form>
           ) : (
             <div className="space-y-6">
-              <div className="rounded-md bg-green-50 p-4">
-                <div className="text-sm text-green-700">{success}</div>
+              <div className="rounded-md bg-green-50 dark:bg-green-900/50 p-4">
+                <div className="text-sm text-green-700 dark:text-green-200">{success}</div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Emergency Access Key
                 </label>
                 <div className="relative">
@@ -164,17 +164,17 @@ const FirstTimeSetupScreen = () => {
                     type={showKey ? "text" : "password"}
                     value={emergencyKey}
                     readOnly
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 sm:text-sm"
+                    className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 sm:text-sm"
                   />
                   <button
                     type="button"
                     onClick={() => setShowKey(!showKey)}
-                    className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-600 hover:text-gray-900"
+                    className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
                   >
                     {showKey ? 'Hide' : 'Show'}
                   </button>
                 </div>
-                <p className="mt-2 text-sm text-gray-500">
+                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                   Please save this key in a secure location. You will need it for emergency access if you get locked out.
                 </p>
               </div>
@@ -183,7 +183,7 @@ const FirstTimeSetupScreen = () => {
                 <button
                   type="button"
                   onClick={handleContinue}
-                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-900"
                 >
                   Continue to Admin Dashboard
                 </button>
