@@ -198,6 +198,7 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
     let memberData;
     if (selectedMember && selectedMember.name.toLowerCase() === 'admin') {
       memberData = {
+        username: formData.username,
         email: formData.email || null,
         password: formData.password || undefined,
       };
@@ -399,9 +400,23 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
                       {editMemberId === member.id && (
                         <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
                           <div className="space-y-3">
-                            {/* For admin, only show email and password fields */}
+                            {/* For admin, show username (read-only), email and password fields */}
                             {member.name.toLowerCase() === 'admin' ? (
                               <>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Username <span className="text-gray-400">(cannot be changed)</span>
+                                  </label>
+                                  <input
+                                    type="text"
+                                    name="username"
+                                    value={formData.username}
+                                    onChange={handleInputChange}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
+                                    placeholder="admin"
+                                    disabled
+                                  />
+                                </div>
                                 <div>
                                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                     Email (optional)
