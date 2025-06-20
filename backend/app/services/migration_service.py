@@ -240,43 +240,38 @@ class MigrationService:
 
     def get_available_migrations(self) -> List[MigrationInfo]:
         try:
-            has_changes = self.detect_model_changes()
+            # Always attempt to autogenerate a migration if the DB and models are out of sync
             script = ScriptDirectory.from_config(self.alembic_cfg)
             current = self.get_current_version()
-            
             migrations = []
-            
-            # If changes are detected, try to auto-generate a migration
-            if has_changes:
-                try:
-                    logger.info("Schema changes detected, attempting to auto-generate migration...")
-                    auto_migration_result = self.auto_generate_migration()
-                    if auto_migration_result:
-                        logger.info(f"Auto-generated migration: {auto_migration_result}")
-                        # Refresh the script directory to include the new migration
-                        script = ScriptDirectory.from_config(self.alembic_cfg)
-                except Exception as e:
-                    logger.warning(f"Failed to auto-generate migration: {e}")
-                
-                # Add pending changes indicator
-                migrations.append(MigrationInfo(
-                    version="pending",
-                    description="Pending model changes detected - Click upgrade to apply",
-                    applied=False
-                ))
+
+            # Try to autogenerate a migration every time this is called
+            try:
+                logger.info("Aggressively checking for model changes and attempting to autogenerate migration...")
+                auto_migration_result = self.auto_generate_migration()
+                if auto_migration_result:
+                    logger.info(f"Auto-generated migration: {auto_migration_result}")
+                    # Refresh the script directory to include the new migration
+                    script = ScriptDirectory.from_config(self.alembic_cfg)
+                    # Add pending changes indicator
+                    migrations.append(MigrationInfo(
+                        version="pending",
+                        description="Pending model changes detected - Click upgrade to apply",
+                        applied=False
+                    ))
+            except Exception as e:
+                logger.warning(f"Failed to auto-generate migration: {e}")
 
             # Add existing migrations
             for sc in script.walk_revisions():
                 # Skip already applied migrations for cleaner display
                 if current and sc.revision <= current:
                     continue
-                    
                 migrations.append(MigrationInfo(
                     version=sc.revision,
                     description=sc.doc,
                     applied=sc.revision <= current if current else False
                 ))
-            
             return sorted(migrations, key=lambda x: x.version if x.version != "pending" else "zzz")
         except Exception as e:
             logger.error(f"Error getting migrations: {e}")
