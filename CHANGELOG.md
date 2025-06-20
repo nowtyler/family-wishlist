@@ -261,46 +261,24 @@ This major update implements a comprehensive admin system with improved user man
 - Household membership
 - Wishlist management
 
-## [Unreleased] - Security & Emergency Access Improvements
+## [Unreleased] - 2025-01-27
 
-### 🔒 Security Enhancements
-- **Password Transmission Security**: Documented that HTTPS encryption makes password visibility in dev tools normal and secure
-- **Emergency Access System**: Implemented secure emergency access for database issues
-- **Rate Limiting**: Enhanced rate limiting for all authentication endpoints
-- **Security Headers**: Added comprehensive security headers via Traefik configuration
+### Fixed
+- **Emergency Access Modal**: Fixed emergency access endpoint to use raw SQL instead of SQLAlchemy models, preventing "no such column" errors when database schema is out of sync
+- **Emergency Access UI**: Replaced simplified migration manager in emergency access modal with the full MigrationManager component for identical functionality and UI
+- **Migration Generation**: Created manual migration file `add_new_fields.py` to add missing columns and tables that were causing emergency access failures
+- **Database Schema**: Added missing fields to family_members table: `password_expires_at`, `temp_password_hash`, `force_password_change`
+- **Database Tables**: Added new tables for household functionality: `households`, `household_members`, `email_settings`, `email_templates`, `email_logs`
 
-### 🚨 Emergency Access System
-- **Secure Emergency Endpoint**: New `/api/emergency/admin-access` endpoint with token-based authentication
-- **IP-Based Access Control**: Emergency access restricted to localhost and configurable IP addresses
-- **Emergency Access Script**: `emergency-admin-access.sh` for command-line emergency access
-- **Enhanced Emergency Modal**: `EmergencyAccessModal.jsx` now includes full migration manager functionality
-- **Migration Manager Integration**: Emergency access modal provides database upgrade and backup management
-- **Environment Variables**: `EMERGENCY_ACCESS_TOKEN` and `EMERGENCY_ALLOWED_HOSTS` configuration
-- **Fallback Support**: Legacy emergency access endpoint maintained for compatibility
-- **Database Fix Script**: `fix-database-simple.py` for manual database schema fixes
+### Technical Improvements
+- Emergency access now works even when database schema is missing columns or tables
+- Migration manager in emergency access modal now has full backup restore/delete functionality with proper UI
+- Emergency access endpoint uses raw SQL queries to avoid SQLAlchemy model dependency issues
+- Added comprehensive error handling and logging for emergency access operations
 
-### 🔧 Database & Migration Improvements
-- **SQLAlchemy Relationship Fix**: Fixed `ExternalWishlist` model relationship conflict
-- **Missing Column Detection**: Emergency access now detects and reports missing database columns
-- **Migration Manager in Emergency Access**: Full migration functionality available in emergency modal
-- **Backup Management**: Emergency access includes backup restore and deletion capabilities
-- **Step-by-Step Workflow**: Emergency access guides users through database fixes
-
-### 📚 Documentation
-- **Security Guide**: Comprehensive `SECURITY_GUIDE.md` with security explanations and procedures
-- **Emergency Procedures**: Step-by-step emergency access procedures documented
-- **Troubleshooting**: Security troubleshooting guide included
-
-### 🔧 Configuration
-- **Docker Compose**: Added emergency access environment variables to both production and development services
-- **Environment Setup**: Clear instructions for setting up emergency access tokens
-
-### 🛡️ Security Features
-- **Token Generation**: Instructions for generating secure emergency tokens
-- **Access Logging**: All emergency access attempts are logged
-- **IP Validation**: Real IP detection behind proxies
-- **Multiple Fallbacks**: Multiple emergency access methods for reliability
-- **Migration Manager Security**: Migration functions only available after emergency token validation
+### Security
+- Emergency access maintains token validation and IP restrictions while being more resilient to database issues
+- Emergency access modal provides secure admin access for database recovery scenarios
 
 ## [Previous Changes...]
 
