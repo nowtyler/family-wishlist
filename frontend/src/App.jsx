@@ -48,14 +48,17 @@ const AppContent = () => {
   return (
     <Router>
       <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-100 to-sky-100 dark:from-gray-900 dark:to-gray-800">
-        {/* Show navbar for authenticated users on main dashboard, not admin page */}
-        {isAuthenticated && selectedUser && !selectedUser.is_admin && (
-          <Navbar onClearWishlist={handleClearWishlist} />
+        {/* Show navbar for authenticated users, except when on admin page */}
+        {isAuthenticated && selectedUser && (
+          <Routes>
+            <Route path="/admin" element={null} />
+            <Route path="*" element={<Navbar onClearWishlist={handleClearWishlist} />} />
+          </Routes>
         )}
         <main className="flex-grow container mx-auto p-4 md:p-6 lg:p-8">
           <Routes>
             <Route path="/auth" element={
-              isAuthenticated ? <Navigate to="/" replace /> : <AuthScreen />
+              isAuthenticated ? <Navigate to={selectedUser?.is_admin ? "/admin" : "/"} replace /> : <AuthScreen />
             } />
             <Route path="/reset-password/:token" element={<PasswordResetScreen />} />
             <Route path="/admin" element={
@@ -65,12 +68,18 @@ const AppContent = () => {
             } />
             <Route path="/" element={
               <ProtectedRoute>
-                {selectedUser ? <DashboardScreen /> : <Navigate to="/auth" replace />}
+                {selectedUser ? (
+                  selectedUser.is_admin ? 
+                  <Navigate to="/admin" replace /> : 
+                  <DashboardScreen />
+                ) : (
+                  <Navigate to="/auth" replace />
+                )}
               </ProtectedRoute>
             } />
             <Route path="*" element={
               <Navigate to={
-                !isAuthenticated ? "/auth" : "/"
+                !isAuthenticated ? "/auth" : selectedUser?.is_admin ? "/admin" : "/"
               } replace />
             } />
           </Routes>
