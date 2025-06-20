@@ -464,3 +464,24 @@ class EmergencyAccessResponse(BaseModel):
     success: bool
     message: str
     admin_user: FamilyMember
+
+class SystemConfig(BaseModel):
+    key: str
+    value: str
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+class FirstTimeSetupRequest(BaseModel):
+    admin_username: str
+    admin_password: str
+    admin_email: str
+    admin_name: str = "Admin"
+
+class FirstTimeSetupResponse(BaseModel):
+    success: bool
+    message: str
+    emergency_access_key: str
+    admin_user: FamilyMember

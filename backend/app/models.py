@@ -1,5 +1,5 @@
 # backend/app/models.py
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text, Date, DateTime, Table
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text, Date, DateTime, Table, Float
 from sqlalchemy.orm import relationship
 from datetime import date, datetime
 from .database import Base
@@ -208,3 +208,12 @@ class ExternalWishlist(Base):
     
     def __repr__(self):
         return f"<ExternalWishlist(id={self.id}, name='{self.name}', owner_id={self.owner_id})>"
+
+class SystemConfig(Base):
+    __tablename__ = "system_config"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String, unique=True, index=True)
+    value = Column(String)
+    created_at = Column(DateTime)
+    updated_at = Column(DateTime)

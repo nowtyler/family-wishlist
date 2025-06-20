@@ -23,12 +23,22 @@ services:
     environment:
       - ENVIRONMENT=prod
       - WISHLIST_DATABASE_URL=sqlite:///./data/wishlist.db
-      - FAMILY_PASSWORD_HASH=${FAMILY_PASSWORD_HASH:-'$2b$12$sjqGfxMxVrY6VOrrblg54OsTq.HkhGMwPOQqeF5Tq6Wn2/QA3c5Oa'}
-      - FAMILY_MEMBERS_CONFIG=${FAMILY_MEMBERS_CONFIG:-"Admin:admin"}
+      - FAMILY_PASSWORD_HASH=your_family_password_hash
+      - DOMAIN_NAME=your_domain.com
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+      - FAMILY_MEMBERS_CONFIG=[]
+      - CHRISTMAS_MONTH=12
+      - CHRISTMAS_DAY=25
     volumes:
-      - ./prod-data:/app/data  # Store production data in ./prod-data
+      - ./data:/app/data
+      - ./data/backups:/app/data/backups
+      - ./data/migrations:/app/app/migrations/versions
     networks:
       - wishlist-network
+    expose:
+      - 8000
 
 ####### Development Environment #######
   dev-wishlist-frontend:

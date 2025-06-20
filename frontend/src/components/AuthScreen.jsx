@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
-import { verifyPassword, loginUser, registerUser, requestPasswordReset } from '../services/api';
+import { verifyPassword, loginUser, registerUser, requestPasswordReset, getAdminAccess } from '../services/api';
 import { motion } from 'framer-motion';
 import EmergencyAccessModal from './EmergencyAccessModal';
 
@@ -16,6 +16,7 @@ const AuthScreen = () => {
   const [email, setEmail] = useState('');
   const [birthday, setBirthday] = useState('');
   const [resetEmail, setResetEmail] = useState('');
+  const [emergencyToken, setEmergencyToken] = useState('');
 
   // UI states
   const [error, setError] = useState('');
@@ -26,11 +27,27 @@ const AuthScreen = () => {
   const { login, setSelectedUser } = useAppContext();
   const navigate = useNavigate();
 
-  const handleEmergencyAccessSuccess = (user) => {
-    login(true);
-    setSelectedUser(user);
-    navigate('/admin');
-    setShowEmergencyAccess(false);
+  const handleEmergencyAccess = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setIsLoading(true);
+    
+    try {
+      const response = await getAdminAccess({ emergency_token: emergencyToken });
+      if (response.success) {
+        login(true);
+        setSelectedUser(response.admin_user);
+        navigate('/admin');
+      } else {
+        setError(response.message || 'Emergency access failed');
+      }
+    } catch (err) {
+      console.error('Emergency access error:', err);
+      setError(err.response?.data?.detail || err.message || 'Emergency access failed');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleLogin = async (e) => {
@@ -149,10 +166,10 @@ const AuthScreen = () => {
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-100 to-sky-100 dark:from-gray-900 dark:to-slate-800 px-4 py-12 sm:px-6 lg:px-8"
+      exit={{ opacity: 0, y: -20 }}
+      className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gray-50"
     >
-      <div className="w-full max-w-md bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl shadow-2xl p-8 space-y-8">
+      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-lg shadow">
         <div>
           <h2 className="text-center text-3xl font-extrabold text-gray-900 dark:text-white">
             Welcome to Family Wishlist
@@ -385,27 +402,73 @@ const AuthScreen = () => {
           </form>
         )}
         
-        {/* Emergency Access Button */}
-        <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <button
-            type="button"
-            onClick={() => setShowEmergencyAccess(true)}
-            className="w-full text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium"
-          >
-            🚨 Emergency Admin Access
-          </button>
-          <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
-            For database issues only
-          </p>
-        </div>
+        {/* Emergency Access Form */}
+        {showEmergencyAccess ? (
+          <div className="mt-8 space-y-6">
+            <div>
+              <h3 className="text-lg font-medium text-gray-900">Emergency Access</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Enter your emergency access key to access the admin dashboard.
+              </p>
+            </div>
+
+            <form onSubmit={handleEmergencyAccess} className="space-y-6">
+              <div>
+                <label htmlFor="emergencyToken" className="block text-sm font-medium text-gray-700">
+                  Emergency Access Key
+                </label>
+                <div className="mt-1">
+                  <input
+                    id="emergencyToken"
+                    name="emergencyToken"
+                    type="password"
+                    required
+                    value={emergencyToken}
+                    onChange={(e) => setEmergencyToken(e.target.value)}
+                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <div className="rounded-md bg-red-50 p-4">
+                  <div className="text-sm text-red-700">{error}</div>
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowEmergencyAccess(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isLoading || !emergencyToken}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50"
+                >
+                  {isLoading ? 'Accessing...' : 'Emergency Access'}
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : (
+          <div className="mt-6 pt-4 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={() => setShowEmergencyAccess(true)}
+              className="w-full text-xs text-red-600 hover:text-red-700 font-medium"
+            >
+              🚨 Emergency Admin Access
+            </button>
+            <p className="text-xs text-gray-500 text-center mt-1">
+              Use your emergency access key
+            </p>
+          </div>
+        )}
       </div>
-      
-      {/* Emergency Access Modal */}
-      <EmergencyAccessModal
-        isOpen={showEmergencyAccess}
-        onClose={() => setShowEmergencyAccess(false)}
-        onSuccess={handleEmergencyAccessSuccess}
-      />
     </motion.div>
   );
 };

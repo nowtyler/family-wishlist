@@ -646,4 +646,24 @@ export const clearSystemCache = () => {
   return apiClient.post('/admin/system/cache/clear');
 };
 
+export const checkSetupStatus = async () => {
+  try {
+    const response = await apiClient.get('/system/setup-status');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to check setup status:', error);
+    throw error;
+  }
+};
+
+export const firstTimeSetup = async (setupData) => {
+  try {
+    const response = await apiClient.post('/system/first-time-setup', setupData);
+    return response.data;
+  } catch (error) {
+    console.error('First-time setup failed:', error);
+    throw error;
+  }
+};
+
 export default apiClient;
