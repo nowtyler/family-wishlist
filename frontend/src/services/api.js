@@ -626,4 +626,24 @@ export const emergencyReset = () => {
   return apiClient.post('/admin/system/emergency-reset');
 };
 
+export const getSystemStatus = () => {
+  return apiClient.get('/admin/system/status');
+};
+
+export const getSystemSettings = () => {
+  return apiClient.get('/admin/system/settings');
+};
+
+export const updateSystemSettings = (settings) => {
+  return apiClient.put('/admin/system/settings', settings);
+};
+
+export const setMaintenanceMode = (enabled) => {
+  return apiClient.post('/admin/system/maintenance', { enabled });
+};
+
+export const clearSystemCache = () => {
+  return apiClient.post('/admin/system/cache/clear');
+};
+
 export default apiClient;
