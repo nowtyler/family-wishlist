@@ -38,6 +38,7 @@ import {
   setMaintenanceMode,
   clearSystemCache
 } from '../services/api';
+import { ManageFamilyMembers } from './admin/ManageFamilyMembers';
 
 const AdminPage = () => {
   const { selectedUser, logout } = useAppContext();
@@ -73,21 +74,29 @@ const AdminPage = () => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        const [statsRes, usersRes, householdsRes] = await Promise.all([
-          getSystemStats(),
+        // Get all data in parallel
+        const [familyMembersRes, householdsRes, systemStatsRes] = await Promise.all([
           getFamilyMembers(),
-          getHouseholds()
+          getHouseholds(),
+          getSystemStats()
         ]);
 
-        setStats({
-          totalUsers: statsRes.data.total_users || 0,
-          activeHouseholds: statsRes.data.active_households || 0,
-          totalItems: statsRes.data.total_items || 0,
-          systemStatus: statsRes.data.system_status || 'Healthy'
-        });
-        setUsers(usersRes.data || []);
+        // Set users and households for other tabs
+        setUsers(familyMembersRes.data || []);
         setHouseholds(householdsRes.data || []);
-        setRecentActivity(statsRes.data.recent_activity || []);
+
+        // Set dashboard stats
+        setStats({
+          totalUsers: familyMembersRes.data?.length || 0,
+          activeHouseholds: householdsRes.data?.length || 0,
+          totalItems: systemStatsRes.data?.total_items || 0,
+          systemStatus: systemStatsRes.data?.status || 'Unknown'
+        });
+
+        // Set recent activity if available
+        if (systemStatsRes.data?.recent_activity) {
+          setRecentActivity(systemStatsRes.data.recent_activity);
+        }
       } catch (err) {
         console.error('Failed to fetch admin data:', err);
         setError('Failed to load admin dashboard data');
@@ -275,21 +284,9 @@ const AdminPage = () => {
   const UsersTab = () => {
     const [selectedUser, setSelectedUser] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
-    const [editForm, setEditForm] = useState({
-      name: '',
-      username: '',
-      email: '',
-      households: []
-    });
 
     const handleEditUser = (user) => {
       setSelectedUser(user);
-      setEditForm({
-        name: user.name,
-        username: user.username || '',
-        email: user.email || '',
-        households: user.households || []
-      });
       setIsEditing(true);
     };
 
@@ -309,20 +306,13 @@ const AdminPage = () => {
       }
     };
 
-    const handleSaveUser = async () => {
-      setIsLoading(true);
-      try {
-        const response = await updateUserWithAuth(selectedUser.id, editForm);
-        const updatedUser = response.data;
-        setUsers(users.map(u => u.id === updatedUser.id ? updatedUser : u));
-        setSuccess('User updated successfully');
-        setIsEditing(false);
-      } catch (err) {
-        console.error('Failed to update user:', err);
-        setError(err.response?.data?.detail || 'Failed to update user');
-      } finally {
-        setIsLoading(false);
-      }
+    const handleCloseEdit = () => {
+      setIsEditing(false);
+      setSelectedUser(null);
+      // Refresh the users list
+      getFamilyMembers().then(response => {
+        setUsers(response.data || []);
+      });
     };
 
     return (
@@ -332,7 +322,7 @@ const AdminPage = () => {
             <div className="flex justify-between items-center">
               <h4 className="text-lg font-medium text-gray-900 dark:text-white">Family Members</h4>
               <button 
-                onClick={() => navigate('/admin?tab=users&action=add')}
+                onClick={() => setIsEditing(true)}
                 className="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
               >
                 <Plus className="w-4 h-4 mr-2" />
@@ -390,54 +380,15 @@ const AdminPage = () => {
           </div>
         </AdminCard>
 
-        {/* Edit User Modal */}
+        {/* Use ManageFamilyMembers for editing */}
         {isEditing && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Edit User</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
-                  <input
-                    type="text"
-                    value={editForm.name}
-                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
-                  <input
-                    type="text"
-                    value={editForm.username}
-                    onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
-                  <input
-                    type="email"
-                    value={editForm.email}
-                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
-                  />
-                </div>
-                <div className="flex justify-end space-x-3 mt-6">
-                  <button
-                    onClick={() => setIsEditing(false)}
-                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSaveUser}
-                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md"
-                  >
-                    Save Changes
-                  </button>
-                </div>
-              </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <ManageFamilyMembers
+                user={selectedUser}
+                onClose={handleCloseEdit}
+                isAdmin={true}
+              />
             </div>
           </div>
         )}
@@ -452,6 +403,23 @@ const AdminPage = () => {
       name: '',
       description: ''
     });
+
+    useEffect(() => {
+      const fetchHouseholds = async () => {
+        setIsLoading(true);
+        try {
+          const response = await getHouseholds();
+          setHouseholds(response.data || []);
+        } catch (err) {
+          console.error('Failed to fetch households:', err);
+          setError(err.response?.data?.detail || 'Failed to load households');
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      fetchHouseholds();
+    }, []);
 
     const handleCreateHousehold = async () => {
       setIsLoading(true);
@@ -561,12 +529,12 @@ const AdminPage = () => {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {households.map(household => (
+              {Array.isArray(households) && households.map(household => (
                 <div key={household.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
                     <h5 className="font-medium text-gray-900 dark:text-white">{household.name}</h5>
                     <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">
-                      {household.members?.length || 0} members
+                      {Array.isArray(household.members) ? household.members.length : 0} members
                     </span>
                   </div>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
@@ -588,6 +556,11 @@ const AdminPage = () => {
                   </div>
                 </div>
               ))}
+              {(!Array.isArray(households) || households.length === 0) && !isLoading && (
+                <div className="col-span-3 text-center py-8 text-gray-500 dark:text-gray-400">
+                  No households available
+                </div>
+              )}
             </div>
           </div>
         </AdminCard>
@@ -684,22 +657,31 @@ const AdminPage = () => {
       subject: '',
       body: ''
     });
+    const [isLoadingSettings, setIsLoadingSettings] = useState(false);
+    const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
 
     useEffect(() => {
       const fetchEmailData = async () => {
-        setIsLoading(true);
+        setIsLoadingSettings(true);
+        setIsLoadingTemplates(true);
         try {
-          const [settingsRes, templatesRes] = await Promise.all([
-            getEmailSettings(),
-            getEmailTemplates()
-          ]);
-          setEmailSettings(settingsRes.data);
-          setEmailTemplates(templatesRes.data);
+          const settingsRes = await getEmailSettings();
+          setEmailSettings(settingsRes.data || {});
         } catch (err) {
-          console.error('Failed to fetch email data:', err);
-          setError(err.response?.data?.detail || 'Failed to load email settings');
+          console.error('Failed to fetch email settings:', err);
+          setError('Failed to load email settings');
         } finally {
-          setIsLoading(false);
+          setIsLoadingSettings(false);
+        }
+
+        try {
+          const templatesRes = await getEmailTemplates();
+          setEmailTemplates(templatesRes.data || []);
+        } catch (err) {
+          console.error('Failed to fetch email templates:', err);
+          setError('Failed to load email templates');
+        } finally {
+          setIsLoadingTemplates(false);
         }
       };
 
@@ -768,118 +750,142 @@ const AdminPage = () => {
       <div className="space-y-6">
         <AdminCard title="Email Configuration" icon={Mail}>
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  SMTP Server
-                </label>
-                <input
-                  type="text"
-                  value={emailSettings.smtp_server}
-                  onChange={(e) => setEmailSettings({ ...emailSettings, smtp_server: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="smtp.gmail.com"
-                />
+            {isLoadingSettings ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-2 text-gray-600 dark:text-gray-400">Loading email settings...</p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  SMTP Port
-                </label>
-                <input
-                  type="number"
-                  value={emailSettings.smtp_port}
-                  onChange={(e) => setEmailSettings({ ...emailSettings, smtp_port: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="587"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Username
-                </label>
-                <input
-                  type="text"
-                  value={emailSettings.smtp_username}
-                  onChange={(e) => setEmailSettings({ ...emailSettings, smtp_username: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="your-email@gmail.com"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  value={emailSettings.smtp_password}
-                  onChange={(e) => setEmailSettings({ ...emailSettings, smtp_password: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="App password"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  From Email
-                </label>
-                <input
-                  type="email"
-                  value={emailSettings.from_email}
-                  onChange={(e) => setEmailSettings({ ...emailSettings, from_email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="noreply@yourapp.com"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  From Name
-                </label>
-                <input
-                  type="text"
-                  value={emailSettings.from_name}
-                  onChange={(e) => setEmailSettings({ ...emailSettings, from_name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="Family Wishlist"
-                />
-              </div>
-            </div>
-            
-            <div className="flex space-x-3">
-              <button 
-                onClick={handleSaveSettings}
-                className="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
-                disabled={isLoading}
-              >
-                <Save className="w-4 h-4 mr-2" />
-                Save Settings
-              </button>
-              <button 
-                onClick={handleTestEmail}
-                className="flex items-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
-                disabled={isLoading}
-              >
-                <TestTube className="w-4 h-4 mr-2" />
-                Test Email
-              </button>
-            </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      SMTP Server
+                    </label>
+                    <input
+                      type="text"
+                      value={emailSettings.smtp_server}
+                      onChange={(e) => setEmailSettings({ ...emailSettings, smtp_server: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                      placeholder="smtp.gmail.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      SMTP Port
+                    </label>
+                    <input
+                      type="number"
+                      value={emailSettings.smtp_port}
+                      onChange={(e) => setEmailSettings({ ...emailSettings, smtp_port: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                      placeholder="587"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Username
+                    </label>
+                    <input
+                      type="text"
+                      value={emailSettings.smtp_username}
+                      onChange={(e) => setEmailSettings({ ...emailSettings, smtp_username: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                      placeholder="your-email@gmail.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      value={emailSettings.smtp_password}
+                      onChange={(e) => setEmailSettings({ ...emailSettings, smtp_password: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                      placeholder="App password"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      From Email
+                    </label>
+                    <input
+                      type="email"
+                      value={emailSettings.from_email}
+                      onChange={(e) => setEmailSettings({ ...emailSettings, from_email: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                      placeholder="noreply@yourapp.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      From Name
+                    </label>
+                    <input
+                      type="text"
+                      value={emailSettings.from_name}
+                      onChange={(e) => setEmailSettings({ ...emailSettings, from_name: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                      placeholder="Family Wishlist"
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex space-x-3">
+                  <button 
+                    onClick={handleSaveSettings}
+                    className="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                    disabled={isLoading}
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Settings
+                  </button>
+                  <button 
+                    onClick={handleTestEmail}
+                    className="flex items-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+                    disabled={isLoading}
+                  >
+                    <TestTube className="w-4 h-4 mr-2" />
+                    Test Email
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </AdminCard>
 
         <AdminCard title="Email Templates" icon={FileText}>
           <div className="space-y-3">
-            {emailTemplates.map(template => (
-              <div key={template.name} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <div>
-                  <h5 className="font-medium text-gray-900 dark:text-white">{template.name}</h5>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{template.description}</p>
-                </div>
-                <button 
-                  onClick={() => handleEditTemplate(template)}
-                  className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                >
-                  <Edit className="w-4 h-4" />
-                </button>
+            {isLoadingTemplates ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-2 text-gray-600 dark:text-gray-400">Loading email templates...</p>
               </div>
-            ))}
+            ) : (
+              <>
+                {Array.isArray(emailTemplates) && emailTemplates.length > 0 ? (
+                  emailTemplates.map(template => (
+                    <div key={template.name} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div>
+                        <h5 className="font-medium text-gray-900 dark:text-white">{template.name}</h5>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">{template.description}</p>
+                      </div>
+                      <button 
+                        onClick={() => handleEditTemplate(template)}
+                        className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    No email templates available
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </AdminCard>
 
@@ -1322,40 +1328,40 @@ const AdminPage = () => {
     });
     const [isEditingSettings, setIsEditingSettings] = useState(false);
     const [editForm, setEditForm] = useState({});
+    const [isLoadingStatus, setIsLoadingStatus] = useState(false);
+    const [isLoadingSettings, setIsLoadingSettings] = useState(false);
+
+    const fetchSystemInfo = async () => {
+      setIsLoadingStatus(true);
+      setIsLoadingSettings(true);
+      try {
+        const statusRes = await getSystemStatus();
+        setSystemStatus(statusRes.data || {});
+      } catch (err) {
+        console.error('Failed to fetch system status:', err);
+        setError('Failed to load system status');
+      } finally {
+        setIsLoadingStatus(false);
+      }
+
+      try {
+        const settingsRes = await getSystemSettings();
+        setSystemSettings(settingsRes.data || {});
+      } catch (err) {
+        console.error('Failed to fetch system settings:', err);
+        setError('Failed to load system settings');
+      } finally {
+        setIsLoadingSettings(false);
+      }
+    };
 
     useEffect(() => {
-      const fetchSystemInfo = async () => {
-        setIsLoading(true);
-        try {
-          const [statusRes, settingsRes] = await Promise.all([
-            getSystemStatus(),
-            getSystemSettings()
-          ]);
-          setSystemStatus(statusRes.data);
-          setSystemSettings(settingsRes.data);
-        } catch (err) {
-          console.error('Failed to fetch system info:', err);
-          setError(err.response?.data?.detail || 'Failed to load system information');
-        } finally {
-          setIsLoading(false);
-        }
-      };
-
       fetchSystemInfo();
     }, []);
 
     const handleRefreshStatus = async () => {
-      setIsLoading(true);
-      try {
-        const response = await getSystemStatus();
-        setSystemStatus(response.data);
-        setSuccess('System status refreshed');
-      } catch (err) {
-        console.error('Failed to refresh status:', err);
-        setError(err.response?.data?.detail || 'Failed to refresh system status');
-      } finally {
-        setIsLoading(false);
-      }
+      await fetchSystemInfo();
+      setSuccess('System status refreshed');
     };
 
     const handleEditSettings = () => {
@@ -1418,96 +1424,77 @@ const AdminPage = () => {
               <button 
                 onClick={handleRefreshStatus}
                 className="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
-                disabled={isLoading}
+                disabled={isLoadingStatus}
               >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Refresh Status
+                <RefreshCw className={`w-4 h-4 mr-2 ${isLoadingStatus ? 'animate-spin' : ''}`} />
+                {isLoadingStatus ? 'Refreshing...' : 'Refresh Status'}
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <h5 className="font-medium text-gray-900 dark:text-white mb-2">Version</h5>
-                <p className="text-gray-600 dark:text-gray-400">{systemStatus.version}</p>
+            {isLoadingStatus ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-2 text-gray-600 dark:text-gray-400">Loading system status...</p>
               </div>
-              <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <h5 className="font-medium text-gray-900 dark:text-white mb-2">Uptime</h5>
-                <p className="text-gray-600 dark:text-gray-400">{systemStatus.uptime}</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.entries(systemStatus).map(([key, value]) => (
+                  <div key={key} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <h5 className="font-medium text-gray-900 dark:text-white mb-2">
+                      {key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                    </h5>
+                    <p className="text-gray-600 dark:text-gray-400">
+                      {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value.toString()}
+                    </p>
+                  </div>
+                ))}
               </div>
-              <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <h5 className="font-medium text-gray-900 dark:text-white mb-2">Memory Usage</h5>
-                <p className="text-gray-600 dark:text-gray-400">{systemStatus.memory_usage}</p>
-              </div>
-              <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <h5 className="font-medium text-gray-900 dark:text-white mb-2">Disk Usage</h5>
-                <p className="text-gray-600 dark:text-gray-400">{systemStatus.disk_usage}</p>
-              </div>
-              <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <h5 className="font-medium text-gray-900 dark:text-white mb-2">Active Users</h5>
-                <p className="text-gray-600 dark:text-gray-400">{systemStatus.active_users}</p>
-              </div>
-              <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <h5 className="font-medium text-gray-900 dark:text-white mb-2">Last Backup</h5>
-                <p className="text-gray-600 dark:text-gray-400">{systemStatus.last_backup}</p>
-              </div>
-            </div>
+            )}
           </div>
         </AdminCard>
 
         <AdminCard title="System Settings" icon={Settings}>
           <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h4 className="text-lg font-medium text-gray-900 dark:text-white">Configuration</h4>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Manage system-wide settings and configurations
-                </p>
+            {isLoadingSettings ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-2 text-gray-600 dark:text-gray-400">Loading system settings...</p>
               </div>
-              <button 
-                onClick={handleEditSettings}
-                className="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
-                disabled={isLoading}
-              >
-                <Edit className="w-4 h-4 mr-2" />
-                Edit Settings
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <div>
-                  <h5 className="font-medium text-gray-900 dark:text-white">Maintenance Mode</h5>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {systemSettings.maintenance_mode ? 'System is in maintenance mode' : 'System is operating normally'}
-                  </p>
+            ) : (
+              <>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h4 className="text-lg font-medium text-gray-900 dark:text-white">Configuration</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Manage system-wide settings and configurations
+                    </p>
+                  </div>
+                  <button 
+                    onClick={handleEditSettings}
+                    className="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                    disabled={isLoading}
+                  >
+                    <Edit className="w-4 h-4 mr-2" />
+                    Edit Settings
+                  </button>
                 </div>
-                <button 
-                  onClick={() => handleMaintenanceMode(!systemSettings.maintenance_mode)}
-                  className={`px-4 py-2 rounded-lg text-white ${
-                    systemSettings.maintenance_mode 
-                      ? 'bg-yellow-500 hover:bg-yellow-600' 
-                      : 'bg-green-500 hover:bg-green-600'
-                  }`}
-                >
-                  {systemSettings.maintenance_mode ? 'Disable' : 'Enable'}
-                </button>
-              </div>
 
-              <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <div>
-                  <h5 className="font-medium text-gray-900 dark:text-white">System Cache</h5>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Clear system cache to free up memory
-                  </p>
+                <div className="space-y-4">
+                  {Object.entries(systemSettings).map(([key, value]) => (
+                    <div key={key} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div>
+                        <h5 className="font-medium text-gray-900 dark:text-white">
+                          {key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                        </h5>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {typeof value === 'boolean' ? (value ? 'Enabled' : 'Disabled') : value.toString()}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <button 
-                  onClick={handleClearCache}
-                  className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg"
-                >
-                  Clear Cache
-                </button>
-              </div>
-            </div>
+              </>
+            )}
           </div>
         </AdminCard>
 
