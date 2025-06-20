@@ -56,13 +56,19 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     if (selectedUser) {
       // If the selected user is Admin but has an invalid ID, try to get proper admin data
-      if (selectedUser.name?.toLowerCase() === 'admin' && 
-          (!selectedUser.id || selectedUser.id < 0)) {
+      if (selectedUser.is_admin && (!selectedUser.id || selectedUser.id < 0)) {
         const getProperAdminAccess = async () => {
           try {
-            const adminData = await getAdminAccess();
-            setSelectedUser(adminData);
+            const adminData = await getAdminAccess({});
+            if (adminData && adminData.id) {
+              setSelectedUser({
+                ...selectedUser,
+                id: adminData.id,
+                name: adminData.name || selectedUser.name
+              });
+            }
           } catch (err) {
+            console.error('Failed to get proper admin access:', err);
             // Keep the current selectedUser
           }
         };

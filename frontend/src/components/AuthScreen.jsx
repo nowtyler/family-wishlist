@@ -48,17 +48,27 @@ const AuthScreen = () => {
         if (response.data.user_id) {
           const userData = {
             id: response.data.user_id,
-            is_admin: response.data.is_admin || false
+            name: response.data.username || username,  // Include the username
+            is_admin: response.data.is_admin || false  // Make sure is_admin is explicitly set
           };
+          
+          // Set the user data first
           setSelectedUser(userData);
           
+          // Log the navigation attempt
+          console.log('Login successful, redirecting user:', {
+            is_admin: userData.is_admin,
+            target: userData.is_admin ? '/admin' : '/'
+          });
+          
           // Redirect admin users to admin page, others to main dashboard
-          if (response.data.is_admin) {
+          if (userData.is_admin) {
             navigate('/admin');
           } else {
             navigate('/');
           }
         } else {
+          console.error('No user_id in login response:', response.data);
           navigate('/'); // Fallback if no user_id returned
         }
       } else {
