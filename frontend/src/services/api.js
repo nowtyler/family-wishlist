@@ -561,4 +561,63 @@ export const deleteExternalWishlist = (wishlistId) => {
   return apiClient.delete(`/external-wishlists/${wishlistId}`);
 };
 
+// --- Admin Household Management ---
+export const getHouseholds = () => {
+  return apiClient.get('/admin/households');
+};
+
+export const createHousehold = (householdData) => {
+  return apiClient.post('/admin/households', householdData);
+};
+
+export const updateHousehold = (householdId, householdData) => {
+  return apiClient.put(`/admin/households/${householdId}`, householdData);
+};
+
+export const deleteHousehold = (householdId) => {
+  return apiClient.delete(`/admin/households/${householdId}`);
+};
+
+export const addUserToHousehold = (householdId, userId) => {
+  return apiClient.post(`/admin/households/${householdId}/members`, { user_id: userId });
+};
+
+export const removeUserFromHousehold = (householdId, userId) => {
+  return apiClient.delete(`/admin/households/${householdId}/members/${userId}`);
+};
+
+// --- Admin Email Management ---
+export const getEmailSettings = () => {
+  return apiClient.get('/admin/email/settings');
+};
+
+export const updateEmailSettings = (settings) => {
+  return apiClient.put('/admin/email/settings', settings);
+};
+
+export const getEmailTemplates = () => {
+  return apiClient.get('/admin/email/templates');
+};
+
+export const updateEmailTemplate = (templateName, templateData) => {
+  return apiClient.put(`/admin/email/templates/${templateName}`, templateData);
+};
+
+export const testEmailSettings = () => {
+  return apiClient.post('/admin/email/test');
+};
+
+// --- Admin System Management ---
+export const getSystemStats = () => {
+  return apiClient.get('/admin/stats');
+};
+
+export const clearAllData = () => {
+  return apiClient.post('/admin/system/clear-all');
+};
+
+export const emergencyReset = () => {
+  return apiClient.post('/admin/system/emergency-reset');
+};
+
 export default apiClient;
