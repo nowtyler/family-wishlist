@@ -38,7 +38,7 @@ import {
   setMaintenanceMode,
   clearSystemCache
 } from '../services/api';
-import { ManageFamilyMembers } from './admin/ManageFamilyMembers';
+import { FamilyMemberManager } from './admin/FamilyMemberManager';
 
 const AdminPage = () => {
   const { selectedUser, logout } = useAppContext();
@@ -380,11 +380,11 @@ const AdminPage = () => {
           </div>
         </AdminCard>
 
-        {/* Use ManageFamilyMembers for editing */}
+        {/* Use FamilyMemberManager for editing */}
         {isEditing && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-              <ManageFamilyMembers
+              <FamilyMemberManager
                 user={selectedUser}
                 onClose={handleCloseEdit}
                 isAdmin={true}
