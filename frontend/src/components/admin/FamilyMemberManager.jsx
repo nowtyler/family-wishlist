@@ -171,14 +171,19 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
   };
   
   const handleSave = async () => {
-    if (!formData.name.trim()) {
+    if (!formData.name.trim() && !(selectedMember && selectedMember.name.toLowerCase() === 'admin')) {
       setError('Name is required');
       return;
     }
-    if (!formData.username.trim()) {
+    // Only require username for non-admin
+    if (
+      (!selectedMember || selectedMember.name.toLowerCase() !== 'admin') &&
+      !formData.username.trim()
+    ) {
       setError('Username is required');
       return;
     }
+    // Password validation for both admin and non-admin
     if (addMode || formData.password) {
       if (!formData.password || formData.password.length < 8) {
         setError('Password must be at least 8 characters');
