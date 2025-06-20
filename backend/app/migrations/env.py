@@ -9,6 +9,8 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from app.database import SQLALCHEMY_DATABASE_URL, Base
+# Import all models so Alembic can detect changes
+from app import models
 
 # this is the Alembic Config object
 config = context.config
