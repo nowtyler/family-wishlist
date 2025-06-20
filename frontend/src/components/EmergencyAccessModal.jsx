@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, AlertTriangle, Check, Home } from 'lucide-react';
-import { emergencyAdminAccess } from '../services/api';
+import { getAdminAccess } from '../services/api';
 import MigrationManager from './admin/MigrationManager';
 
 const EmergencyAccessModal = ({ isOpen, onClose, onSuccess }) => {
@@ -19,7 +19,7 @@ const EmergencyAccessModal = ({ isOpen, onClose, onSuccess }) => {
         setSuccess('');
 
         try {
-            const response = await emergencyAdminAccess({ emergency_token: emergencyToken });
+            const response = await getAdminAccess({ emergency_token: emergencyToken });
             
             if (response.success) {
                 setAdminUser(response.admin_user);
