@@ -1810,6 +1810,53 @@ def get_all_households(
             detail=f"Failed to get households: {str(e)}"
         )
 
+@app.post("/api/admin/households", response_model=schemas.Household)
+def create_household(
+    household: schemas.HouseholdCreate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Create a new household (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    try:
+        # Create new household
+        new_household = models.Household(
+            name=household.name,
+            description=household.description,
+            created_by=current_user_id
+        )
+        db.add(new_household)
+        db.commit()
+        db.refresh(new_household)
+        
+        # Get member count (will be 0 for new household)
+        member_count = db.query(models.user_household_association).filter(
+            models.user_household_association.c.household_id == new_household.id
+        ).count()
+        
+        return schemas.Household(
+            id=new_household.id,
+            name=new_household.name,
+            description=new_household.description,
+            created_at=new_household.created_at,
+            created_by=new_household.created_by,
+            member_count=member_count
+        )
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to create household: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create household: {str(e)}"
+        )
+
 @app.get("/api/admin/stats")
 def get_admin_stats(
     db: Session = Depends(get_db),
@@ -2037,7 +2084,6 @@ def get_system_status(
         
         # Get system stats
         total_users = db.query(models.FamilyMember).count()
-        active_users = db.query(models.FamilyMember).filter(models.FamilyMember.is_active == True).count()
         
         # Get process info using psutil
         process = psutil.Process()
@@ -2045,9 +2091,6 @@ def get_system_status(
         
         # Get disk usage
         disk = psutil.disk_usage('/')
-        
-        # Get last backup info
-        last_backup = db.query(models.Backup).order_by(models.Backup.created_at.desc()).first()
         
         # Get environment info
         environment = os.getenv("ENVIRONMENT", "production")
@@ -2061,9 +2104,7 @@ def get_system_status(
             "uptime": str(uptime),
             "memory_usage": f"{memory_info.rss / 1024 / 1024:.1f}MB",
             "disk_usage": f"{disk.percent}%",
-            "active_users": active_users,
             "total_users": total_users,
-            "last_backup": last_backup.created_at.isoformat() if last_backup else "Never",
             "environment": environment,
             "debug_mode": debug_mode
         }

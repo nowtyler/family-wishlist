@@ -384,6 +384,11 @@ const AdminPage = () => {
     };
 
     const handleSaveHousehold = async () => {
+      if (!selectedHousehold?.id) {
+        toast.error('No household selected for editing');
+        return;
+      }
+      
       setIsLoading(true);
       try {
         const response = await updateHousehold(selectedHousehold.id, editForm);
@@ -392,6 +397,11 @@ const AdminPage = () => {
         );
         toast.success('Household updated successfully');
         setIsEditing(false);
+        setSelectedHousehold(null);
+        setEditForm({
+          name: '',
+          description: ''
+        });
       } catch (err) {
         console.error('Failed to update household:', err);
         toast.error(err.response?.data?.detail || 'Failed to update household');
