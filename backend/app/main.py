@@ -31,6 +31,7 @@ from .deps import validate_password_strength
 import secrets
 import psutil
 import json
+import time
 
 # Initialize the product scraper service
 product_scraper = ProductScraper()
@@ -2226,7 +2227,7 @@ def get_system_status(
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id_from_header)
 ):
-    """Get system status information (admin only)"""
+    """Get system status (admin only)"""
     if current_user_id is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
     
@@ -2236,71 +2237,69 @@ def get_system_status(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
     
     try:
-        # Get system settings with safer error handling
-        try:
-            settings = db.query(models.SystemConfig).filter(models.SystemConfig.key == 'version').first()
-            version = settings.value if settings else "1.0.0"
-        except Exception as e:
-            logger.warning(f"Could not get version from SystemConfig: {e}")
-            version = "1.0.0"
+        import os
+        import psutil
+        from datetime import datetime, timedelta
         
-        # Get system stats
-        try:
-            total_users = db.query(models.FamilyMember).count()
-        except Exception as e:
-            logger.warning(f"Could not get user count: {e}")
-            total_users = 0
+        # Get system information
+        cpu_percent = psutil.cpu_percent(interval=1)
+        memory = psutil.virtual_memory()
+        disk = psutil.disk_usage('/')
         
-        # Get process info using psutil with error handling
+        # Get database size
+        db_size_kb = 0
         try:
-            import psutil
-            process = psutil.Process()
-            memory_info = process.memory_info()
-            memory_usage = f"{memory_info.rss / 1024 / 1024:.1f}MB"
-            uptime = datetime.now() - datetime.fromtimestamp(process.create_time())
-            uptime_str = str(uptime)
+            # Get the database file path from the engine
+            db_url = str(db.bind.url)
+            if db_url.startswith('sqlite:///'):
+                db_path = db_url.replace('sqlite:///', '')
+                if os.path.exists(db_path):
+                    db_size_kb = os.path.getsize(db_path) / 1024
         except Exception as e:
-            logger.warning(f"Could not get process info: {e}")
-            memory_usage = "N/A"
-            uptime_str = "N/A"
+            logger.error(f"Failed to get database size: {e}")
         
-        # Get disk usage with error handling
-        try:
-            import psutil
-            disk = psutil.disk_usage('/')
-            disk_usage = f"{disk.percent}%"
-        except Exception as e:
-            logger.warning(f"Could not get disk usage: {e}")
-            disk_usage = "N/A"
+        # Get uptime
+        uptime_seconds = time.time() - psutil.boot_time()
+        uptime_hours = int(uptime_seconds // 3600)
+        uptime_minutes = int((uptime_seconds % 3600) // 60)
         
-        # Get environment info
-        environment = os.getenv("ENVIRONMENT", "production")
-        debug_mode = os.getenv("DEBUG", "false").lower() == "true"
+        # Get active users (users who have logged in recently)
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        active_users = db.query(models.FamilyMember).count()  # For now, just count all users
+        
+        # Get last backup time
+        backup_dir = "data/backups"
+        last_backup = "Never"
+        if os.path.exists(backup_dir):
+            try:
+                backup_files = [f for f in os.listdir(backup_dir) if f.endswith('.db')]
+                if backup_files:
+                    latest_backup = max(backup_files, key=lambda f: os.path.getctime(os.path.join(backup_dir, f)))
+                    backup_time = os.path.getctime(os.path.join(backup_dir, latest_backup))
+                    last_backup = datetime.fromtimestamp(backup_time).strftime('%Y-%m-%d %H:%M:%S')
+            except Exception as e:
+                logger.error(f"Failed to get last backup time: {e}")
         
         return {
-            "version": version,
-            "uptime": uptime_str,
-            "memory_usage": memory_usage,
-            "disk_usage": disk_usage,
-            "total_users": total_users,
-            "environment": environment,
-            "debug_mode": debug_mode,
-            "status": "healthy"
+            "status": "healthy",
+            "version": "1.0.0",
+            "uptime": f"{uptime_hours}h {uptime_minutes}m",
+            "memory_usage": f"{memory.percent}%",
+            "disk_usage": f"{disk.percent}%",
+            "active_users": active_users,
+            "last_backup": last_backup,
+            "environment": os.getenv("ENVIRONMENT", "development"),
+            "debug_mode": os.getenv("DEBUG", "false").lower() == "true",
+            "database_status": "connected",
+            "cache_status": "available",
+            "database_size_kb": round(db_size_kb, 2)
         }
     except Exception as e:
         logger.error(f"Failed to get system status: {e}")
-        # Return a basic status even if detailed info fails
-        return {
-            "version": "1.0.0",
-            "uptime": "N/A",
-            "memory_usage": "N/A", 
-            "disk_usage": "N/A",
-            "total_users": 0,
-            "environment": os.getenv("ENVIRONMENT", "production"),
-            "debug_mode": os.getenv("DEBUG", "false").lower() == "true",
-            "status": "error",
-            "error": str(e)
-        }
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get system status: {str(e)}"
+        )
 
 @app.get("/api/admin/system/settings")
 def get_system_settings(
@@ -2803,3 +2802,26 @@ def set_maintenance_mode(
         return {"success": True, "message": f"Maintenance mode {'enabled' if enabled else 'disabled'}", "enabled": enabled}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/admin/system/database-version")
+def get_database_version(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get current database version from migrations (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    try:
+        # Get migrations to find current version
+        from .services.migration_service import get_current_version
+        current_version = get_current_version(db)
+        return {"current_version": current_version}
+    except Exception as e:
+        logger.error(f"Failed to get database version: {e}")
+        return {"current_version": "unknown"}

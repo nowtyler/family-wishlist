@@ -37,6 +37,7 @@ import {
   deleteBackup,
   downloadBackup,
   getSystemStatus,
+  getDatabaseVersion,
   getSystemSettings,
   updateSystemSettings,
   setMaintenanceMode,
@@ -75,8 +76,10 @@ const AdminPage = () => {
     environment: '',
     debug_mode: false,
     database_status: '',
-    cache_status: ''
+    cache_status: '',
+    database_size_kb: 0
   });
+  const [databaseVersion, setDatabaseVersion] = useState('unknown');
   const [systemSettings, setSystemSettings] = useState({
     maintenance_mode: false,
     debug_mode: false,
@@ -105,13 +108,15 @@ const AdminPage = () => {
           statusResponse,
           familyMembersResponse,
           householdsResponse,
-          systemSettingsResponse
+          systemSettingsResponse,
+          databaseVersionResponse
         ] = await Promise.all([
           getSystemStats(),
           getSystemStatus(),
           getFamilyMembers(),
           getHouseholdsWithMembers(),
-          getSystemSettings()
+          getSystemSettings(),
+          getDatabaseVersion()
         ]);
 
         // Set the state with the responses
@@ -120,6 +125,7 @@ const AdminPage = () => {
         setUsers(familyMembersResponse.data || []);
         setHouseholds(householdsResponse.data || []);
         setSystemSettings(systemSettingsResponse.data || {});
+        setDatabaseVersion(databaseVersionResponse.data?.current_version || 'unknown');
 
         // Set recent activity if available
         if (statsResponse.data?.recent_activity) {
@@ -221,16 +227,16 @@ const AdminPage = () => {
         color={systemStatus?.status === "healthy" ? "green" : "red"}
       />
       <StatCard
-        title="Database Status"
-        value={systemStatus?.database_status || "Unknown"}
-        icon={systemStatus?.database_status === "connected" ? Database : CircleAlert}
-        color={systemStatus?.database_status === "connected" ? "blue" : "yellow"}
+        title="Database Version"
+        value={databaseVersion || "Unknown"}
+        icon={Database}
+        color="blue"
       />
       <StatCard
-        title="Cache Status"
-        value={systemStatus?.cache_status || "Unknown"}
-        icon={systemStatus?.cache_status === "available" ? Box : CircleAlert}
-        color={systemStatus?.cache_status === "available" ? "purple" : "yellow"}
+        title="Database Size"
+        value={`${systemStatus?.database_size_kb || 0} KB`}
+        icon={Archive}
+        color="purple"
       />
       {/* Add more stat cards as needed */}
     </div>
@@ -238,6 +244,24 @@ const AdminPage = () => {
 
   const UsersTab = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
+
+    // Refresh data when tab becomes active
+    useEffect(() => {
+      const refreshData = async () => {
+        try {
+          const [usersResponse, householdsResponse] = await Promise.all([
+            getFamilyMembers(),
+            getHouseholdsWithMembers()
+          ]);
+          setUsers(usersResponse.data || []);
+          setHouseholds(householdsResponse.data || []);
+        } catch (err) {
+          console.error('Failed to fetch data:', err);
+          toast.error('Failed to load data');
+        }
+      };
+      refreshData();
+    }, []);
 
     const handleAddUser = () => {
       setIsModalOpen(true);
@@ -248,11 +272,15 @@ const AdminPage = () => {
       // Refresh the users list after modal closes
       const fetchData = async () => {
         try {
-          const response = await getFamilyMembers();
-          setUsers(response.data || []);
+          const [usersResponse, householdsResponse] = await Promise.all([
+            getFamilyMembers(),
+            getHouseholdsWithMembers()
+          ]);
+          setUsers(usersResponse.data || []);
+          setHouseholds(householdsResponse.data || []);
         } catch (err) {
-          console.error('Failed to fetch users:', err);
-          toast.error('Failed to load users');
+          console.error('Failed to fetch data:', err);
+          toast.error('Failed to load data');
         }
       };
       fetchData();
@@ -345,6 +373,11 @@ const AdminPage = () => {
     const [selectedUsersToAdd, setSelectedUsersToAdd] = useState([]);
     const [selectedUsersToRemove, setSelectedUsersToRemove] = useState([]);
 
+    // Refresh data when tab becomes active
+    useEffect(() => {
+      fetchHouseholds();
+    }, []);
+
     const fetchHouseholds = async () => {
       setIsLoading(true);
       try {
@@ -435,6 +468,14 @@ const AdminPage = () => {
         
         // Refresh the households list
         await fetchHouseholds();
+        
+        // Also refresh the users list to update household counts
+        try {
+          const usersResponse = await getFamilyMembers();
+          setUsers(usersResponse.data || []);
+        } catch (err) {
+          console.error('Failed to refresh users:', err);
+        }
         
         // Only close modal if all operations succeeded or if there were no user changes
         if (failedOperations.length === 0) {
@@ -1425,12 +1466,14 @@ const AdminPage = () => {
     const handleRefreshStatus = async () => {
       setIsLoadingStatus(true);
       try {
-        const [statusRes, settingsRes] = await Promise.all([
+        const [statusRes, settingsRes, versionRes] = await Promise.all([
           getSystemStatus(),
-          getSystemSettings()
+          getSystemSettings(),
+          getDatabaseVersion()
         ]);
         setSystemStatus(statusRes.data || {});
         setSystemSettings(settingsRes.data || {});
+        setDatabaseVersion(versionRes.data?.current_version || 'unknown');
         toast.success('System status refreshed');
       } catch (err) {
         console.error('Failed to fetch system info:', err);
@@ -1472,7 +1515,9 @@ const AdminPage = () => {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Object.entries(systemStatus).map(([key, value]) => (
+                {Object.entries(systemStatus)
+                  .filter(([key, value]) => key !== 'debug_mode') // Remove debug mode
+                  .map(([key, value]) => (
                   <div key={key} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     <h5 className="font-medium text-gray-900 dark:text-white mb-2">
                       {key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}

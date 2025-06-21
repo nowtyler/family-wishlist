@@ -687,4 +687,8 @@ export const deleteItemAsAdmin = (itemId) => {
   return apiClient.delete(`/admin/items/${itemId}`);
 };
 
+export const getDatabaseVersion = () => {
+  return apiClient.get('/admin/system/database-version');
+};
+
 export default apiClient;
