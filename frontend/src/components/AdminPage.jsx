@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Users, Settings, Mail, Shield, Trash2, Plus, 
-  Edit, Eye, EyeOff, Check, X, AlertTriangle, RefreshCw,
+  Edit, Eye, EyeOff, Check, X, TriangleAlert, RefreshCw,
   Home, UserPlus, UserMinus, Lock, Unlock, Send, TestTube,
   Calendar, Gift, FileText, Archive, Download, Upload, Save, ArrowUp,
-  CheckCircle, XCircle, Database, AlertCircle, Cube
+  CircleCheck, CircleX, Database, CircleAlert, Box
 } from 'lucide-react';
 import { useAppContext } from '../contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
@@ -206,19 +206,19 @@ const AdminPage = () => {
       <StatCard
         title="System Status"
         value={systemStatus?.status || "Unknown"}
-        icon={systemStatus?.status === "healthy" ? CheckCircle : XCircle}
+        icon={systemStatus?.status === "healthy" ? CircleCheck : CircleX}
         color={systemStatus?.status === "healthy" ? "green" : "red"}
       />
       <StatCard
         title="Database Status"
         value={systemStatus?.database_status || "Unknown"}
-        icon={systemStatus?.database_status === "connected" ? Database : AlertCircle}
+        icon={systemStatus?.database_status === "connected" ? Database : CircleAlert}
         color={systemStatus?.database_status === "connected" ? "blue" : "yellow"}
       />
       <StatCard
         title="Cache Status"
         value={systemStatus?.cache_status || "Unknown"}
-        icon={systemStatus?.cache_status === "available" ? Cube : AlertCircle}
+        icon={systemStatus?.cache_status === "available" ? Box : CircleAlert}
         color={systemStatus?.cache_status === "available" ? "purple" : "yellow"}
       />
       {/* Add more stat cards as needed */}
@@ -1262,7 +1262,7 @@ const AdminPage = () => {
               <div className="space-y-3">
                 <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
                   <div className="flex items-center">
-                    <AlertTriangle className="w-5 h-5 text-yellow-500 mr-2" />
+                    <TriangleAlert className="w-5 h-5 text-yellow-500 mr-2" />
                     <span className="text-yellow-800 dark:text-yellow-200">Database updates available</span>
                   </div>
                 </div>
@@ -1321,7 +1321,7 @@ const AdminPage = () => {
                     </>
                   ) : (
                     <>
-                      <AlertTriangle className="w-4 h-4 mr-2" />
+                      <TriangleAlert className="w-4 h-4 mr-2" />
                       Hard Reset
                     </>
                   )}

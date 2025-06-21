@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, AlertTriangle, Check, Home } from 'lucide-react';
+import { X, TriangleAlert, Check, Home } from 'lucide-react';
 import { getAdminAccess } from '../services/api';
 import MigrationManager from './admin/MigrationManager';
 
@@ -55,7 +55,7 @@ const EmergencyAccessModal = ({ isOpen, onClose, onSuccess }) => {
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
                     <div className="flex items-center">
-                        <AlertTriangle className="w-6 h-6 text-red-500 mr-3" />
+                        <TriangleAlert className="w-6 h-6 text-red-500 mr-3" />
                         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                             Emergency Database Access
                         </h2>

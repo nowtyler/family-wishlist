@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, Check, RotateCcw, Trash2, Loader, X, AlertCircle } from 'lucide-react';
+import { TriangleAlert, Check, RotateCcw, Trash2, Loader, X, CircleAlert } from 'lucide-react';
 import MigrationManager from './MigrationManager';
 
 const MigrationModal = ({ isOpen, onClose }) => {
@@ -252,7 +252,7 @@ const MigrationModal = ({ isOpen, onClose }) => {
       >
         <div className="mb-6">
           <div className="flex items-start gap-2 mb-1">
-            <AlertTriangle className="text-yellow-500 mt-1" size={20} />
+            <TriangleAlert className="text-yellow-500 mt-1" size={20} />
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">
               Database Migration Manager
             </h2>
@@ -300,7 +300,7 @@ const MigrationModal = ({ isOpen, onClose }) => {
                         </>
                       ) : (
                         <>
-                          <AlertCircle size={18} />
+                          <CircleAlert size={18} />
                           <span>Operation Failed - Click to dismiss</span>
                         </>
                       )}
@@ -377,7 +377,7 @@ const MigrationModal = ({ isOpen, onClose }) => {
                     </span>
                   ) : backupError ? (
                     <span className="flex items-center gap-2" onClick={() => setBackupError(false)}>
-                      <AlertCircle size={18} className="text-white" />
+                      <CircleAlert size={18} className="text-white" />
                       <span className="font-medium">Backup Failed - Try Again</span>
                     </span>
                   ) : (

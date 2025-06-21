@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getMigrations, upgradeMigration, getBackups, restoreBackup, deleteBackup, getSchemaHash, deleteMigration, resetMigrationState, hardResetMigrations, resetSchemaHash } from '../../services/api';
-import { AlertCircle, Database, Archive, Download, RotateCcw, Plus, Trash2, ArrowUp, X, GitMerge, AlertTriangle, Check, RefreshCw } from 'lucide-react';
+import { CircleAlert, Database, Archive, Download, RotateCcw, Plus, Trash2, ArrowUp, X, GitMerge, TriangleAlert, Check, RefreshCw } from 'lucide-react';
 
 const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setSelectedBackup }) => {
     const [migrations, setMigrations] = useState([]);
@@ -403,7 +403,7 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
 
             <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
                 <h3 className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200 font-medium mb-2">
-                    <AlertCircle size={18} />
+                    <CircleAlert size={18} />
                     Important Safety Information
                 </h3>
                 <p className="text-sm text-yellow-700 dark:text-yellow-300">
@@ -419,7 +419,7 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
                 {currentVersion?.includes(',') && (
                     <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                         <h3 className="flex items-center gap-2 text-red-800 dark:text-red-200 font-medium mb-2">
-                            <AlertTriangle size={18} />
+                            <TriangleAlert size={18} />
                             Migration State Issue Detected
                         </h3>
                         <p className="text-sm text-red-600 dark:text-red-300 mb-3">
@@ -430,7 +430,7 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
                             className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm font-medium flex items-center gap-2"
                             disabled={loading}
                         >
-                            <AlertTriangle size={14} />
+                            <TriangleAlert size={14} />
                             Emergency Hard Reset
                         </button>
                     </div>

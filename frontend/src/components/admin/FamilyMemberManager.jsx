@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Plus, Pencil, Save, Trash2, X, AlertTriangle, Calendar, 
+  Plus, Pencil, Save, Trash2, X, TriangleAlert, Calendar, 
   Check, Loader, UserRound, ChevronRight 
 } from 'lucide-react';
 import { 

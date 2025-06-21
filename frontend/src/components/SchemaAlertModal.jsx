@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { AlertTriangle } from 'lucide-react';
+import { TriangleAlert } from 'lucide-react';
 
 const SchemaAlertModal = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
@@ -21,7 +21,7 @@ const SchemaAlertModal = ({ isOpen, onClose }) => {
         className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full"
       >
         <div className="flex items-center gap-3 text-yellow-500 mb-4">
-          <AlertTriangle className="w-6 h-6" />
+          <TriangleAlert className="w-6 h-6" />
           <h3 className="text-xl font-bold text-gray-900 dark:text-white">
             Database Update Required
           </h3>

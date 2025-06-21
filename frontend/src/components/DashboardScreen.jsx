@@ -10,7 +10,7 @@ import ExternalWishlistsButton from './ExternalWishlistsButton'; // Confirm this
 import UserPreferencesDropdown from './UserPreferencesDropdown';
 import Navbar from './Navbar';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, ChevronDown, Gift, AlertTriangle, Home, Calendar } from 'lucide-react';
+import { Plus, ChevronDown, Gift, TriangleAlert, Home, Calendar } from 'lucide-react';
 
 const DashboardScreen = ({ onViewingMemberChange }) => {
   const { selectedUser, familyMembers, setFamilyMembers } = useAppContext();
@@ -345,7 +345,7 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
           {needsUpgrade && !isAdmin && (
             <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="text-yellow-500" size={18} />
+                <TriangleAlert className="text-yellow-500" size={18} />
                 <p className="text-yellow-800 dark:text-yellow-200">
                   Database update required. Some features may be limited until an administrator performs the update.
                 </p>

@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, MessageCircleHeart, ShoppingCart, MessageCircle, Trash2, Plus, Pencil, 
-  Gift, Moon, Sun, Settings, User, Database, RotateCcw, AlertTriangle,
+  Gift, Moon, Sun, Settings, User, Database, RotateCcw, TriangleAlert,
   RefreshCw, Archive, Home, Ruler
 } from 'lucide-react';
 
@@ -355,7 +355,7 @@ const HelpModal = ({ isOpen, onClose, isAdmin }) => {
                     <p>Migrations update the database structure when application updates require schema changes. 
                     Access the migration manager from the gear icon → Manage Migrations.</p>
                     <p className="mt-1 text-amber-600 dark:text-amber-400">
-                      <AlertTriangle size={14} className="inline mr-1" />
+                      <TriangleAlert size={14} className="inline mr-1" />
                       Always back up your database before running migrations.
                     </p>
                   </Feature>
@@ -388,7 +388,7 @@ const HelpModal = ({ isOpen, onClose, isAdmin }) => {
                     <p>As an admin, you can clear all wishlists for all users at once. This is useful for resetting the system
                     after an event or holiday season. Access this feature from the gear icon → Clear All Wishlists.</p>
                     <p className="mt-1 text-red-600 dark:text-red-400">
-                      <AlertTriangle size={14} className="inline mr-1" />
+                      <TriangleAlert size={14} className="inline mr-1" />
                       This action cannot be undone! Always create a backup first.
                     </p>
                   </Feature>
@@ -405,7 +405,7 @@ const HelpModal = ({ isOpen, onClose, isAdmin }) => {
 
                 <HelpSection 
                   title="Best Practices for Admins" 
-                  icon={<AlertTriangle size={20} />}
+                  icon={<TriangleAlert size={20} />}
                   color="amber"
                 >
                   <ul className="list-disc ml-4 space-y-2">
