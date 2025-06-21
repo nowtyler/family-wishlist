@@ -2033,36 +2033,21 @@ def test_email_settings(
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id_from_header)
 ):
-    """Test email settings by sending a test email (admin only)"""
-    if current_user_id is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
-    
-    # Check admin privileges
-    user = crud.get_family_member(db, current_user_id)
-    if not user or not user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
-    
+    """Test email settings by sending a test email."""
     try:
+        # Verify admin
+        member = crud.get_family_member(db, current_user_id)
+        if not member or not member.is_admin:
+            raise HTTPException(status_code=403, detail="Admin access required")
+
+        # Get email service
         email_service = EmailService(db)
-        if test_request.template_name:
-            # Test with specific template
-            log_entry = email_service.send_template_email(
-                test_request.template_name,
-                test_request.recipient_email,
-                "Test User",
-                {"test_var": "test_value"}
-            )
-        else:
-            # Test with generic test email
-            log_entry = email_service.test_email_settings(test_request.recipient_email)
-        
-        return schemas.EmailLog.from_orm(log_entry)
+
+        # Send test email
+        log = email_service.test_email_settings(test_request.recipient_email)
+        return log
     except Exception as e:
-        logger.error(f"Failed to send test email: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to send test email: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/admin/system/status")
 def get_system_status(
@@ -2292,40 +2277,26 @@ def clear_system_cache(
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id_from_header)
 ):
-    """Clear system cache (admin only)"""
-    if current_user_id is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
-    
-    # Check admin privileges
-    user = crud.get_family_member(db, current_user_id)
-    if not user or not user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
-    
+    """Clear system cache."""
     try:
-        # Clear Redis cache if using Redis
-        # For now, just clear session data and any in-memory caches
-        cache_dir = os.path.join(os.path.dirname(__file__), 'cache')
-        if os.path.exists(cache_dir):
-            for file in os.listdir(cache_dir):
-                file_path = os.path.join(cache_dir, file)
-                try:
-                    if os.path.isfile(file_path):
-                        os.unlink(file_path)
-                except Exception as e:
-                    logger.error(f"Error deleting {file_path}: {e}")
-        
-        # Clear any session data
-        db.query(models.Session).delete()
-        db.commit()
-        
-        return {"message": "System cache cleared successfully"}
+        # Verify admin
+        member = crud.get_family_member(db, current_user_id)
+        if not member or not member.is_admin:
+            raise HTTPException(status_code=403, detail="Admin access required")
+
+        # Clear any caches we have
+        # 1. Clear SQLAlchemy session
+        db.expire_all()
+        # 2. Clear any in-memory caches
+        if hasattr(app, 'cache'):
+            app.cache.clear()
+        # 3. Clear Redis cache if configured
+        if hasattr(app, 'redis'):
+            app.redis.flushdb()
+
+        return {"success": True, "message": "System cache cleared successfully"}
     except Exception as e:
-        db.rollback()
-        logger.error(f"Failed to clear system cache: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to clear system cache: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/admin/households/{household_id}/members", response_model=schemas.Household)
 def add_user_to_household(
@@ -2547,3 +2518,25 @@ def delete_item_admin(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete item: {str(e)}"
         )
+
+@app.post("/api/admin/system/maintenance")
+def set_maintenance_mode(
+    enabled: bool,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Enable or disable maintenance mode."""
+    try:
+        # Verify admin
+        member = crud.get_family_member(db, current_user_id)
+        if not member or not member.is_admin:
+            raise HTTPException(status_code=403, detail="Admin access required")
+
+        # Update maintenance mode in system settings
+        settings = crud.get_system_settings(db)
+        settings["maintenance_mode"] = enabled
+        crud.update_system_settings(db, settings)
+
+        return {"success": True, "message": f"Maintenance mode {'enabled' if enabled else 'disabled'}", "enabled": enabled}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

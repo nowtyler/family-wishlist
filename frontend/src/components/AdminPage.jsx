@@ -4,7 +4,8 @@ import {
   Users, Settings, Database, Mail, Shield, Trash2, Plus, 
   Edit, Eye, EyeOff, Check, X, AlertTriangle, RefreshCw,
   Home, UserPlus, UserMinus, Lock, Unlock, Send, TestTube,
-  Calendar, Gift, FileText, Archive, Download, Upload, Save, ArrowUp
+  Calendar, Gift, FileText, Archive, Download, Upload, Save, ArrowUp,
+  CheckCircleIcon, XCircleIcon, DatabaseIcon, ExclamationCircleIcon, CubeIcon
 } from 'lucide-react';
 import { useAppContext } from '../contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
@@ -63,6 +64,18 @@ const AdminPage = () => {
   const [households, setHouseholds] = useState([]);
   const [migrations, setMigrations] = useState([]);
   const [backups, setBackups] = useState([]);
+  const [systemStatus, setSystemStatus] = useState({
+    version: '',
+    uptime: '',
+    memory_usage: '',
+    disk_usage: '',
+    active_users: 0,
+    last_backup: '',
+    environment: '',
+    debug_mode: false,
+    database_status: '',
+    cache_status: ''
+  });
 
   // Check if user is admin
   useEffect(() => {
@@ -77,24 +90,25 @@ const AdminPage = () => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        // Get all data in parallel
-        const [familyMembersRes, householdsRes, systemStatsRes] = await Promise.all([
-          getFamilyMembers(),
-          getHouseholds(),
-          getSystemStats()
-        ]);
+        // Fetch stats
+        const statsResponse = await getSystemStats();
+        setStats(statsResponse.data);
+
+        // Fetch migrations
+        const migrationsResponse = await getMigrations();
+        setMigrations(migrationsResponse.data.available_migrations || []);
+
+        // Fetch backups
+        const backupsResponse = await getBackups();
+        setBackups(backupsResponse.data.backups || []);
+
+        // Fetch system status
+        const statusResponse = await getSystemStatus();
+        setSystemStatus(statusResponse.data);
 
         // Set users and households for other tabs
         setUsers(familyMembersRes.data || []);
         setHouseholds(householdsRes.data || []);
-
-        // Set dashboard stats
-        setStats({
-          totalUsers: familyMembersRes.data?.length || 0,
-          activeHouseholds: householdsRes.data?.length || 0,
-          totalItems: systemStatsRes.data?.total_items || 0,
-          systemStatus: systemStatsRes.data?.status || 'Unknown'
-        });
 
         // Set recent activity if available
         if (systemStatsRes.data?.recent_activity) {
@@ -188,37 +202,26 @@ const AdminPage = () => {
   );
 
   const DashboardTab = () => (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Total Users" value={stats.totalUsers.toString()} icon={Users} color="blue" />
-        <StatCard title="Active Households" value={stats.activeHouseholds.toString()} icon={Home} color="green" />
-        <StatCard title="Total Items" value={stats.totalItems.toString()} icon={Gift} color="purple" />
-        <StatCard title="System Status" value={stats.systemStatus} icon={Check} color="green" />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <AdminCard title="Recent Activity" icon={FileText}>
-          <div className="space-y-3">
-            {recentActivity.length > 0 ? (
-              recentActivity.map((activity, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                  <div className="flex items-center">
-                    {activity.type === 'user_added' && <UserPlus className="w-4 h-4 text-green-500 mr-2" />}
-                    {activity.type === 'household_created' && <Home className="w-4 h-4 text-blue-500 mr-2" />}
-                    {activity.type === 'email_sent' && <Mail className="w-4 h-4 text-purple-500 mr-2" />}
-                    <span className="text-sm text-gray-700 dark:text-gray-300">{activity.message}</span>
-                  </div>
-                  <span className="text-xs text-gray-500">{activity.time}</span>
-                </div>
-              ))
-            ) : (
-              <div className="text-center text-gray-500 dark:text-gray-400 py-4">
-                No recent activity
-              </div>
-            )}
-          </div>
-        </AdminCard>
-      </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+      <StatCard
+        title="System Status"
+        value={systemStatus?.status || "Unknown"}
+        icon={systemStatus?.status === "healthy" ? CheckCircleIcon : XCircleIcon}
+        color={systemStatus?.status === "healthy" ? "green" : "red"}
+      />
+      <StatCard
+        title="Database Status"
+        value={systemStatus?.database_status || "Unknown"}
+        icon={systemStatus?.database_status === "connected" ? DatabaseIcon : ExclamationCircleIcon}
+        color={systemStatus?.database_status === "connected" ? "blue" : "yellow"}
+      />
+      <StatCard
+        title="Cache Status"
+        value={systemStatus?.cache_status || "Unknown"}
+        icon={systemStatus?.cache_status === "available" ? CubeIcon : ExclamationCircleIcon}
+        color={systemStatus?.cache_status === "available" ? "purple" : "yellow"}
+      />
+      {/* Add more stat cards as needed */}
     </div>
   );
 
@@ -227,198 +230,73 @@ const AdminPage = () => {
     const [selectedUser, setSelectedUser] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [editMode, setEditMode] = useState('');
 
     useEffect(() => {
-      const fetchUsers = async () => {
-        setIsLoading(true);
-        try {
-          const response = await getFamilyMembers();
-          setUsers(response.data || []);
-        } catch (err) {
-          console.error('Failed to fetch users:', err);
-          toast.error(err.response?.data?.detail || 'Failed to load users');
-        } finally {
-          setIsLoading(false);
-        }
-      };
-
       fetchUsers();
     }, []);
 
+    const fetchUsers = async () => {
+      try {
+        setIsLoading(true);
+        const response = await api.getFamilyMembers();
+        setUsers(response.data);
+      } catch (error) {
+        console.error('Failed to fetch users:', error);
+        toast.error('Failed to load users');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     const handleEditUser = (user) => {
       setSelectedUser(user);
+      setEditMode('edit');
       setIsModalOpen(true);
     };
 
     const handleCloseModal = () => {
       setIsModalOpen(false);
       setSelectedUser(null);
-      // Refresh the users list
-      getFamilyMembers().then(response => {
-        setUsers(response.data || []);
-      }      );
+      setEditMode('');
     };
 
-    return (
-      <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h4 className="text-lg font-medium text-gray-900 dark:text-white">Database Migrations</h4>
-          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-            <button 
-              onClick={handleCheckUpdates}
-              disabled={isLoading}
-              className="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Check Updates
-            </button>
-            <button 
-              onClick={handleResetMigrations}
-              disabled={isLoading}
-              className="flex items-center px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg transition-colors disabled:opacity-50"
-            >
-              <AlertTriangle className="w-4 h-4 mr-2" />
-              Reset State
-            </button>
-          </div>
-        </div>
-        
-        {isLoading ? (
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-            <p className="mt-2 text-gray-600 dark:text-gray-400">Loading migrations...</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {migrations.current_version && (
-              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-                <p className="text-blue-800 dark:text-blue-200">
-                  Current Version: <span className="font-semibold">{migrations.current_version}</span>
-                </p>
-                {migrations.needs_upgrade && (
-                  <p className="text-yellow-800 dark:text-yellow-200 mt-1">
-                    Database upgrade required!
-                  </p>
-                )}
-              </div>
-            )}
-            
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
-                  <tr>
-                    <th className="px-6 py-3">Version</th>
-                    <th className="px-6 py-3">Description</th>
-                    <th className="px-6 py-3">Status</th>
-                    <th className="px-6 py-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {migrations.available_migrations?.map(migration => (
-                    <tr key={migration.version} className="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
-                      <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{migration.version}</td>
-                      <td className="px-6 py-4">{migration.description}</td>
-                      <td className="px-6 py-4">
-                        <span className={`bg-${migration.applied ? 'green' : 'gray'}-100 text-${migration.applied ? 'green' : 'gray'}-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-${migration.applied ? 'green' : 'gray'}-900 dark:text-${migration.applied ? 'green' : 'gray'}-300`}>
-                          {migration.applied ? 'Applied' : 'Pending'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col sm:flex-row gap-2">
-                          {!migration.applied && (
-                            <button 
-                              onClick={() => handleApplyMigration(migration.version)}
-                              disabled={isLoading}
-                              className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50"
-                            >
-                              Apply
-                            </button>
-                          )}
-                          {!migration.protected && (
-                            <button 
-                              onClick={() => handleDeleteMigration(migration.version)}
-                              disabled={isLoading}
-                              className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50"
-                            >
-                              Delete
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-  
-  const BackupsSubTab = () => {
-    const [backups, setBackups] = useState([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [isCreating, setIsCreating] = useState(false);
+    const handleAddUser = () => {
+      setEditMode('add');
+      setIsModalOpen(true);
+    };
 
-    const fetchBackups = async () => {
-      setIsLoading(true);
+    const handleSaveUser = async (userData) => {
       try {
-        const response = await getBackups();
-        setBackups(response.data?.backups || []);
-      } catch (err) {
-        console.error('Failed to fetch backups:', err);
-        toast.error(err.response?.data?.detail || 'Failed to load backups');
+        setIsLoading(true);
+        if (editMode === 'add') {
+          await api.createUserWithAuth(userData);
+          toast.success('User created successfully');
+        } else {
+          await api.updateUserWithAuth(selectedUser.id, userData);
+          toast.success('User updated successfully');
+        }
+        await fetchUsers();
+        handleCloseModal();
+      } catch (error) {
+        console.error('Failed to save user:', error);
+        toast.error(error.response?.data?.detail || 'Failed to save user');
       } finally {
         setIsLoading(false);
       }
     };
 
-    useEffect(() => {
-      fetchBackups();
-    }, []);
-
-    const handleCreateBackup = async () => {
-      setIsCreating(true);
-      try {
-        const response = await createBackup();
-        toast.success('Backup created successfully');
-        await fetchBackups(); // Refresh the list
-      } catch (err) {
-        console.error('Failed to create backup:', err);
-        toast.error(err.response?.data?.detail || 'Failed to create backup');
-      } finally {
-        setIsCreating(false);
-      }
-    };
-
-    const handleRestoreBackup = async (filename) => {
-      if (!confirm(`Are you sure you want to restore from backup "${filename}"? This will overwrite current data.`)) return;
+    const handleDeleteUser = async (userId) => {
+      if (!confirm('Are you sure you want to delete this user?')) return;
       
-      setIsLoading(true);
       try {
-        const response = await restoreBackup(filename);
-        toast.success('Backup restored successfully');
-        await fetchBackups(); // Refresh the list
-      } catch (err) {
-        console.error('Failed to restore backup:', err);
-        toast.error(err.response?.data?.detail || 'Failed to restore backup');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    const handleDeleteBackup = async (filename) => {
-      if (!confirm(`Are you sure you want to delete backup "${filename}"?`)) return;
-      
-      setIsLoading(true);
-      try {
-        await deleteBackup(filename);
-        toast.success('Backup deleted successfully');
-        await fetchBackups(); // Refresh the list
-      } catch (err) {
-        console.error('Failed to delete backup:', err);
-        toast.error(err.response?.data?.detail || 'Failed to delete backup');
+        setIsLoading(true);
+        await api.deleteFamilyMember(userId);
+        toast.success('User deleted successfully');
+        await fetchUsers();
+      } catch (error) {
+        console.error('Failed to delete user:', error);
+        toast.error(error.response?.data?.detail || 'Failed to delete user');
       } finally {
         setIsLoading(false);
       }
@@ -426,63 +304,83 @@ const AdminPage = () => {
 
     return (
       <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h4 className="text-lg font-medium text-gray-900 dark:text-white">Database Backups</h4>
-          <button 
-            onClick={handleCreateBackup}
-            disabled={isCreating}
-            className="flex items-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors disabled:opacity-50"
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-semibold">User Management</h3>
+          <button
+            onClick={handleAddUser}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
-            <Archive className="w-4 h-4 mr-2" />
-            {isCreating ? 'Creating...' : 'Create Backup'}
+            Add User
           </button>
         </div>
-        
-        {isLoading && !backups.length ? (
+
+        {isLoading && !users.length ? (
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-            <p className="mt-2 text-gray-600 dark:text-gray-400">Loading backups...</p>
-          </div>
-        ) : backups.length === 0 ? (
-          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-            No backups available
+            <p className="mt-2 text-gray-600 dark:text-gray-400">Loading users...</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-              <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-800">
                 <tr>
-                  <th className="px-6 py-3">Filename</th>
-                  <th className="px-6 py-3">Created</th>
-                  <th className="px-6 py-3">Size</th>
-                  <th className="px-6 py-3">Version</th>
-                  <th className="px-6 py-3">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Username
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Email
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Role
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
-              <tbody>
-                {backups.map(backup => (
-                  <tr key={backup.filename} className="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
-                    <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{backup.filename}</td>
-                    <td className="px-6 py-4">{new Date(backup.created_at).toLocaleString()}</td>
-                    <td className="px-6 py-4">{backup.size_kb.toFixed(1)} KB</td>
-                    <td className="px-6 py-4">{backup.version}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        <button 
-                          onClick={() => handleRestoreBackup(backup.filename)}
-                          disabled={isLoading}
-                          className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50"
-                        >
-                          Restore
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteBackup(backup.filename)}
-                          disabled={isLoading}
-                          className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50"
-                        >
-                          Delete
-                        </button>
+              <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-900 dark:divide-gray-700">
+                {users.map((user) => (
+                  <tr key={user.id}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">
+                        {user.name}
                       </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        {user.username}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        {user.email}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        user.is_admin
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                          : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+                      }`}>
+                        {user.is_admin ? 'Admin' : 'User'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <button
+                        onClick={() => handleEditUser(user)}
+                        className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 mr-4"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteUser(user.id)}
+                        className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                      >
+                        Delete
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -490,11 +388,110 @@ const AdminPage = () => {
             </table>
           </div>
         )}
+
+        {isModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg w-full max-w-md">
+              <h3 className="text-lg font-semibold mb-4">
+                {editMode === 'add' ? 'Add User' : 'Edit User'}
+              </h3>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                handleSaveUser({
+                  username: formData.get('username'),
+                  password: formData.get('password'),
+                  name: formData.get('name'),
+                  email: formData.get('email'),
+                  is_admin: formData.get('is_admin') === 'true'
+                });
+              }}>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Username
+                    </label>
+                    <input
+                      type="text"
+                      name="username"
+                      defaultValue={selectedUser?.username}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600"
+                      required
+                    />
+                  </div>
+                  {editMode === 'add' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Password
+                      </label>
+                      <input
+                        type="password"
+                        name="password"
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600"
+                        required
+                      />
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Name
+                    </label>
+                    <input
+                      type="text"
+                      name="name"
+                      defaultValue={selectedUser?.name}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      name="email"
+                      defaultValue={selectedUser?.email}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Role
+                    </label>
+                    <select
+                      name="is_admin"
+                      defaultValue={selectedUser?.is_admin.toString()}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600"
+                    >
+                      <option value="false">User</option>
+                      <option value="true">Admin</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="mt-6 flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={handleCloseModal}
+                    className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                  >
+                    {isLoading ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
-
-
 
   const HouseholdsTab = () => {
     const [households, setHouseholds] = useState([]);
@@ -1719,16 +1716,6 @@ const AdminPage = () => {
   };
 
   const SystemTab = () => {
-    const [systemStatus, setSystemStatus] = useState({
-      version: '',
-      uptime: '',
-      memory_usage: '',
-      disk_usage: '',
-      active_users: 0,
-      last_backup: '',
-      environment: '',
-      debug_mode: false
-    });
     const [systemSettings, setSystemSettings] = useState({
       maintenance_mode: false,
       debug_mode: false,

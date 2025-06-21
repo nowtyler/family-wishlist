@@ -238,128 +238,108 @@ def generate_reset_token() -> str:
     return ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(32))
 
 def create_default_templates(db: Session):
-    """Create default email templates if they don't exist"""
-    templates = [
+    """Create default email templates if they don't exist."""
+    default_templates = [
         {
             "name": "password_reset",
-            "subject": "Family Wishlist - Password Reset Request",
+            "subject": "Password Reset Request",
             "body": """
-            <html>
-            <body>
-                <h2>Password Reset Request</h2>
-                <p>Hello {user_name},</p>
-                <p>You have requested a password reset for your Family Wishlist account.</p>
-                <p>Username: {username}</p>
-                <p>Click the link below to reset your password:</p>
-                <p><a href="{reset_url}">Reset Password</a></p>
-                <p>This link will expire in {expires_in}.</p>
-                <p>If you didn't request this reset, please ignore this email.</p>
-                <p>Best regards,<br>Family Wishlist Team</p>
-            </body>
-            </html>
+            Hello {name},
+
+            You have requested to reset your password. Please click the link below to reset your password:
+
+            {reset_url}
+
+            If you did not request this password reset, please ignore this email.
+
+            Best regards,
+            Family Wishlist Team
             """
         },
         {
-            "name": "welcome_user",
+            "name": "welcome",
             "subject": "Welcome to Family Wishlist",
             "body": """
-            <html>
-            <body>
-                <h2>Welcome to Family Wishlist!</h2>
-                <p>Hello {user_name},</p>
-                <p>Welcome to your Family Wishlist account!</p>
-                <p>Your account details:</p>
-                <ul>
-                    <li>Username: {username}</li>
-                    <li>Email: {email}</li>
-                </ul>
-                <p>You can now:</p>
-                <ul>
-                    <li>Create and manage your wishlist</li>
-                    <li>View other family members' wishlists (if in same household)</li>
-                    <li>Mark items as interested or purchased</li>
-                    <li>Add comments to wishlist items</li>
-                </ul>
-                <p>If you have any questions, please contact your family admin.</p>
-                <p>Best regards,<br>Family Wishlist Team</p>
-            </body>
-            </html>
+            Welcome {name}!
+
+            Thank you for joining Family Wishlist. We're excited to have you on board.
+
+            You can now start creating your wishlist and sharing it with your family members.
+
+            Best regards,
+            Family Wishlist Team
             """
         },
         {
             "name": "password_changed",
-            "subject": "Family Wishlist - Password Changed",
+            "subject": "Password Changed",
             "body": """
-            <html>
-            <body>
-                <h2>Password Changed</h2>
-                <p>Hello {user_name},</p>
-                <p>Your Family Wishlist password has been changed by an administrator.</p>
-                <p>Username: {username}</p>
-                <p>You will be required to set a new password the next time you log in.</p>
-                <p>If you didn't expect this change, please contact your family admin immediately.</p>
-                <p>Best regards,<br>Family Wishlist Team</p>
-            </body>
-            </html>
+            Hello {name},
+
+            Your password has been successfully changed.
+
+            If you did not make this change, please contact the administrator immediately.
+
+            Best regards,
+            Family Wishlist Team
             """
         },
         {
             "name": "household_request",
-            "subject": "Family Wishlist - Household Join Request",
+            "subject": "New Household Request",
             "body": """
-            <html>
-            <body>
-                <h2>Household Join Request</h2>
-                <p>Hello {user_name},</p>
-                <p>You have requested to join the household: {household_name}</p>
-                <p>Your request is pending approval by the household administrator.</p>
-                <p>You will receive an email notification once your request is reviewed.</p>
-                <p>Best regards,<br>Family Wishlist Team</p>
-            </body>
-            </html>
+            Hello {name},
+
+            You have been invited to join the household: {household_name}
+
+            Please log in to accept or decline this invitation.
+
+            Best regards,
+            Family Wishlist Team
             """
         },
         {
-            "name": "household_approved",
-            "subject": "Family Wishlist - Household Request Approved",
+            "name": "household_response",
+            "subject": "Household Request {status}",
             "body": """
-            <html>
-            <body>
-                <h2>Household Request Approved</h2>
-                <p>Hello {user_name},</p>
-                <p>Great news! Your request to join {household_name} has been approved.</p>
-                <p>You can now view and interact with wishlists from other members of this household.</p>
-                <p>Best regards,<br>Family Wishlist Team</p>
-            </body>
-            </html>
+            Hello {name},
+
+            Your request to join the household {household_name} has been {status}.
+
+            Best regards,
+            Family Wishlist Team
             """
         },
         {
-            "name": "household_declined",
-            "subject": "Family Wishlist - Household Request Declined",
+            "name": "test_email",
+            "subject": "Test Email",
             "body": """
-            <html>
-            <body>
-                <h2>Household Request Declined</h2>
-                <p>Hello {user_name},</p>
-                <p>Your request to join {household_name} has been declined.</p>
-                <p>You may contact the household administrator for more information.</p>
-                <p>Best regards,<br>Family Wishlist Team</p>
-            </body>
-            </html>
+            Hello,
+
+            This is a test email to verify your email settings.
+
+            If you received this email, your email settings are configured correctly.
+
+            Best regards,
+            Family Wishlist Team
             """
         }
     ]
-    
-    for template_data in templates:
-        existing = db.query(EmailTemplate).filter(EmailTemplate.name == template_data["name"]).first()
+
+    for template in default_templates:
+        existing = db.query(EmailTemplate).filter_by(name=template["name"]).first()
         if not existing:
-            template = EmailTemplate(**template_data)
-            db.add(template)
-    
+            new_template = EmailTemplate(
+                name=template["name"],
+                subject=template["subject"],
+                body=template["body"].strip(),
+                is_active=True
+            )
+            db.add(new_template)
+
     try:
         db.commit()
-        logger.info("Default email templates created successfully")
     except Exception as e:
-        logger.error(f"Failed to create default email templates: {e}")
-        db.rollback() 
+        db.rollback()
+        logger.error(f"Failed to create default templates: {e}")
+        raise 
