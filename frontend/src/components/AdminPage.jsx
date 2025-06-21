@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useAppContext } from '../contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import { 
   getFamilyMembers,
   getHouseholds,
@@ -46,8 +47,6 @@ const AdminPage = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
   // Data states
   const [stats, setStats] = useState({
@@ -100,7 +99,7 @@ const AdminPage = () => {
         }
       } catch (err) {
         console.error('Failed to fetch admin data:', err);
-        setError('Failed to load admin dashboard data');
+        toast.error('Failed to load admin dashboard data');
       } finally {
         setIsLoading(false);
       }
@@ -111,8 +110,6 @@ const AdminPage = () => {
 
   const handleQuickAction = async (action) => {
     setIsLoading(true);
-    setError('');
-    setSuccess('');
 
     try {
       switch (action) {
@@ -122,17 +119,17 @@ const AdminPage = () => {
         case 'createHousehold':
           const newHousehold = await createHousehold({ name: 'New Household' });
           if (newHousehold.data) {
-            setSuccess('Household created successfully');
+            toast.success('Household created successfully');
             setHouseholds([...households, newHousehold.data]);
           }
           break;
         case 'testEmail':
           const emailTest = await testEmailSettings();
-          setSuccess(emailTest.data.message || 'Test email sent successfully');
+          toast.success(emailTest.data.message || 'Test email sent successfully');
           break;
         case 'createBackup':
           const backup = await createBackup();
-          setSuccess('Backup created successfully');
+          toast.success('Backup created successfully');
           const backupsRes = await getBackups();
           setBackups(backupsRes.data || []);
           break;
@@ -141,7 +138,7 @@ const AdminPage = () => {
       }
     } catch (err) {
       console.error('Quick action failed:', err);
-      setError(err.response?.data?.detail || 'Action failed. Please try again.');
+      toast.error(err.response?.data?.detail || 'Action failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -149,9 +146,9 @@ const AdminPage = () => {
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
-    { id: 'users', label: 'User Management', icon: Users },
+    { id: 'users', label: 'Users', icon: Users },
     { id: 'households', label: 'Households', icon: Home },
-    { id: 'email', label: 'Email Settings', icon: Mail },
+    { id: 'email', label: 'Email', icon: Mail },
     { id: 'migrations', label: 'Database', icon: Database },
     { id: 'backups', label: 'Backups', icon: Archive },
     { id: 'system', label: 'System', icon: Settings }
@@ -219,24 +216,6 @@ const AdminPage = () => {
           </div>
         </AdminCard>
       </div>
-
-      {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <div className="flex items-center text-red-800 dark:text-red-200">
-            <AlertTriangle className="w-5 h-5 mr-2" />
-            <span>{error}</span>
-          </div>
-        </div>
-      )}
-
-      {success && (
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-          <div className="flex items-center text-green-800 dark:text-green-200">
-            <Check className="w-5 h-5 mr-2" />
-            <span>{success}</span>
-          </div>
-        </div>
-      )}
     </div>
   );
 
@@ -254,7 +233,7 @@ const AdminPage = () => {
           setUsers(response.data || []);
         } catch (err) {
           console.error('Failed to fetch users:', err);
-          setError(err.response?.data?.detail || 'Failed to load users');
+          toast.error(err.response?.data?.detail || 'Failed to load users');
         } finally {
           setIsLoading(false);
         }
@@ -368,7 +347,7 @@ const AdminPage = () => {
         setHouseholds(response.data || []);
       } catch (err) {
         console.error('Failed to fetch households:', err);
-        setError(err.response?.data?.detail || 'Failed to load households');
+        toast.error(err.response?.data?.detail || 'Failed to load households');
       } finally {
         setIsLoading(false);
       }
@@ -386,10 +365,10 @@ const AdminPage = () => {
           description: 'New household description'
         });
         setHouseholds(prevHouseholds => [...prevHouseholds, response.data]);
-        setSuccess('Household created successfully');
+        toast.success('Household created successfully');
       } catch (err) {
         console.error('Failed to create household:', err);
-        setError(err.response?.data?.detail || 'Failed to create household');
+        toast.error(err.response?.data?.detail || 'Failed to create household');
       } finally {
         setIsLoading(false);
       }
@@ -411,11 +390,11 @@ const AdminPage = () => {
         setHouseholds(prevHouseholds => 
           prevHouseholds.map(h => h.id === selectedHousehold.id ? response.data : h)
         );
-        setSuccess('Household updated successfully');
+        toast.success('Household updated successfully');
         setIsEditing(false);
       } catch (err) {
         console.error('Failed to update household:', err);
-        setError(err.response?.data?.detail || 'Failed to update household');
+        toast.error(err.response?.data?.detail || 'Failed to update household');
       } finally {
         setIsLoading(false);
       }
@@ -428,10 +407,10 @@ const AdminPage = () => {
       try {
         await deleteHousehold(householdId);
         setHouseholds(prevHouseholds => prevHouseholds.filter(h => h.id !== householdId));
-        setSuccess('Household deleted successfully');
+        toast.success('Household deleted successfully');
       } catch (err) {
         console.error('Failed to delete household:', err);
-        setError(err.response?.data?.detail || 'Failed to delete household');
+        toast.error(err.response?.data?.detail || 'Failed to delete household');
       } finally {
         setIsLoading(false);
       }
@@ -442,10 +421,10 @@ const AdminPage = () => {
       try {
         await addUserToHousehold(householdId, userId);
         await fetchHouseholds(); // Refresh the list
-        setSuccess('User added to household successfully');
+        toast.success('User added to household successfully');
       } catch (err) {
         console.error('Failed to add user to household:', err);
-        setError(err.response?.data?.detail || 'Failed to add user to household');
+        toast.error(err.response?.data?.detail || 'Failed to add user to household');
       } finally {
         setIsLoading(false);
       }
@@ -458,10 +437,10 @@ const AdminPage = () => {
       try {
         await removeUserFromHousehold(householdId, userId);
         await fetchHouseholds(); // Refresh the list
-        setSuccess('User removed from household successfully');
+        toast.success('User removed from household successfully');
       } catch (err) {
         console.error('Failed to remove user from household:', err);
-        setError(err.response?.data?.detail || 'Failed to remove user from household');
+        toast.error(err.response?.data?.detail || 'Failed to remove user from household');
       } finally {
         setIsLoading(false);
       }
@@ -643,7 +622,7 @@ const AdminPage = () => {
         setEmailSettings(settingsRes.data || {});
       } catch (err) {
         console.error('Failed to fetch email settings:', err);
-        setError('Failed to load email settings');
+        toast.error('Failed to load email settings');
       } finally {
         setIsLoadingSettings(false);
       }
@@ -653,7 +632,7 @@ const AdminPage = () => {
         setEmailTemplates(templatesRes.data || []);
       } catch (err) {
         console.error('Failed to fetch email templates:', err);
-        setError('Failed to load email templates');
+        toast.error('Failed to load email templates');
       } finally {
         setIsLoadingTemplates(false);
       }
@@ -668,10 +647,10 @@ const AdminPage = () => {
       setIsSaving(true);
       try {
         await updateEmailSettings(emailSettings);
-        setSuccess('Email settings updated successfully');
+        toast.success('Email settings updated successfully');
       } catch (err) {
         console.error('Failed to update email settings:', err);
-        setError(err.response?.data?.detail || 'Failed to update email settings');
+        toast.error(err.response?.data?.detail || 'Failed to update email settings');
       } finally {
         setIsSaving(false);
       }
@@ -682,10 +661,10 @@ const AdminPage = () => {
       setIsTestingEmail(true);
       try {
         const response = await testEmailSettings();
-        setSuccess(response.data.message || 'Test email sent successfully');
+        toast.success(response.data.message || 'Test email sent successfully');
       } catch (err) {
         console.error('Failed to send test email:', err);
-        setError(err.response?.data?.detail || 'Failed to send test email');
+        toast.error(err.response?.data?.detail || 'Failed to send test email');
       } finally {
         setIsTestingEmail(false);
       }
@@ -713,11 +692,11 @@ const AdminPage = () => {
               : t
           )
         );
-        setSuccess('Email template updated successfully');
+        toast.success('Email template updated successfully');
         setIsEditingTemplate(false);
       } catch (err) {
         console.error('Failed to update email template:', err);
-        setError(err.response?.data?.detail || 'Failed to update email template');
+        toast.error(err.response?.data?.detail || 'Failed to update email template');
       } finally {
         setIsSaving(false);
       }
@@ -969,7 +948,7 @@ const AdminPage = () => {
         setMigrationStatus(response.data.status || 'current');
       } catch (err) {
         console.error('Failed to fetch migrations:', err);
-        setError(err.response?.data?.detail || 'Failed to load migrations');
+        toast.error(err.response?.data?.detail || 'Failed to load migrations');
       } finally {
         setIsLoading(false);
       }
@@ -981,7 +960,7 @@ const AdminPage = () => {
 
     const handleCheckUpdates = async () => {
       await fetchMigrations();
-      setSuccess('Migration status checked successfully');
+      toast.success('Migration status checked successfully');
     };
 
     const handleResetMigrations = async () => {
@@ -991,14 +970,14 @@ const AdminPage = () => {
       try {
         const response = await resetMigrationState();
         if (response.data.success) {
-          setSuccess(response.data.message || 'Migration state reset successfully');
+          toast.success(response.data.message || 'Migration state reset successfully');
           await fetchMigrations();
         } else {
-          setError(response.data.message || 'Failed to reset migration state');
+          toast.error(response.data.message || 'Failed to reset migration state');
         }
       } catch (err) {
         console.error('Failed to reset migrations:', err);
-        setError(err.response?.data?.detail || 'Failed to reset migrations');
+        toast.error(err.response?.data?.detail || 'Failed to reset migrations');
       } finally {
         setIsResetting(false);
       }
@@ -1011,14 +990,14 @@ const AdminPage = () => {
       try {
         const response = await hardResetMigrations();
         if (response.data.success) {
-          setSuccess(response.data.message || 'Migration state hard reset successfully');
+          toast.success(response.data.message || 'Migration state hard reset successfully');
           await fetchMigrations();
         } else {
-          setError(response.data.message || 'Failed to hard reset migration state');
+          toast.error(response.data.message || 'Failed to hard reset migration state');
         }
       } catch (err) {
         console.error('Failed to hard reset migrations:', err);
-        setError(err.response?.data?.detail || 'Failed to hard reset migrations');
+        toast.error(err.response?.data?.detail || 'Failed to hard reset migrations');
       } finally {
         setIsHardResetting(false);
       }
@@ -1155,10 +1134,11 @@ const AdminPage = () => {
       setIsLoading(true);
       try {
         const response = await getBackups();
-        setBackupsList(response.data || []);
+        // Ensure we always have an array
+        setBackupsList(Array.isArray(response.data) ? response.data : []);
       } catch (err) {
         console.error('Failed to fetch backups:', err);
-        setError(err.response?.data?.detail || 'Failed to load backups');
+        toast.error(err.response?.data?.detail || 'Failed to load backups');
       } finally {
         setIsLoading(false);
       }
@@ -1174,12 +1154,12 @@ const AdminPage = () => {
       try {
         const response = await createBackup({ note: backupNote });
         setBackupsList(prevBackups => [response.data, ...prevBackups]);
-        setSuccess('Backup created successfully');
+        toast.success('Backup created successfully');
         setIsCreating(false);
         setBackupNote('');
       } catch (err) {
         console.error('Failed to create backup:', err);
-        setError(err.response?.data?.detail || 'Failed to create backup');
+        toast.error(err.response?.data?.detail || 'Failed to create backup');
       } finally {
         setIsCreating(false);
       }
@@ -1191,10 +1171,10 @@ const AdminPage = () => {
       setIsRestoring(backupId);
       try {
         await restoreBackup(backupId);
-        setSuccess('Backup restored successfully');
+        toast.success('Backup restored successfully');
       } catch (err) {
         console.error('Failed to restore backup:', err);
-        setError(err.response?.data?.detail || 'Failed to restore backup');
+        toast.error(err.response?.data?.detail || 'Failed to restore backup');
       } finally {
         setIsRestoring(null);
       }
@@ -1207,10 +1187,10 @@ const AdminPage = () => {
       try {
         await deleteBackup(backupId);
         setBackupsList(prevBackups => prevBackups.filter(b => b.id !== backupId));
-        setSuccess('Backup deleted successfully');
+        toast.success('Backup deleted successfully');
       } catch (err) {
         console.error('Failed to delete backup:', err);
-        setError(err.response?.data?.detail || 'Failed to delete backup');
+        toast.error(err.response?.data?.detail || 'Failed to delete backup');
       } finally {
         setIsDeleting(null);
       }
@@ -1228,10 +1208,10 @@ const AdminPage = () => {
         document.body.appendChild(link);
         link.click();
         link.remove();
-        setSuccess('Backup downloaded successfully');
+        toast.success('Backup downloaded successfully');
       } catch (err) {
         console.error('Failed to download backup:', err);
-        setError(err.response?.data?.detail || 'Failed to download backup');
+        toast.error(err.response?.data?.detail || 'Failed to download backup');
       } finally {
         setIsDownloading(null);
       }
@@ -1412,7 +1392,7 @@ const AdminPage = () => {
         setSystemStatus(statusRes.data || {});
       } catch (err) {
         console.error('Failed to fetch system status:', err);
-        setError('Failed to load system status');
+        toast.error('Failed to load system status');
       } finally {
         setIsLoadingStatus(false);
       }
@@ -1422,7 +1402,7 @@ const AdminPage = () => {
         setSystemSettings(settingsRes.data || {});
       } catch (err) {
         console.error('Failed to fetch system settings:', err);
-        setError('Failed to load system settings');
+        toast.error('Failed to load system settings');
       } finally {
         setIsLoadingSettings(false);
       }
@@ -1434,7 +1414,7 @@ const AdminPage = () => {
 
     const handleRefreshStatus = async () => {
       await fetchSystemInfo();
-      setSuccess('System status refreshed');
+      toast.success('System status refreshed');
     };
 
     const handleEditSettings = () => {
@@ -1447,11 +1427,11 @@ const AdminPage = () => {
       try {
         await updateSystemSettings(editForm);
         setSystemSettings(editForm);
-        setSuccess('System settings updated successfully');
+        toast.success('System settings updated successfully');
         setIsEditingSettings(false);
       } catch (err) {
         console.error('Failed to update settings:', err);
-        setError(err.response?.data?.detail || 'Failed to update system settings');
+        toast.error(err.response?.data?.detail || 'Failed to update system settings');
       } finally {
         setIsSavingSettings(false);
       }
@@ -1464,10 +1444,10 @@ const AdminPage = () => {
       try {
         await setMaintenanceMode(enabled);
         setSystemSettings(prev => ({ ...prev, maintenance_mode: enabled }));
-        setSuccess(`Maintenance mode ${enabled ? 'enabled' : 'disabled'}`);
+        toast.success(`Maintenance mode ${enabled ? 'enabled' : 'disabled'}`);
       } catch (err) {
         console.error('Failed to update maintenance mode:', err);
-        setError(err.response?.data?.detail || 'Failed to update maintenance mode');
+        toast.error(err.response?.data?.detail || 'Failed to update maintenance mode');
       } finally {
         setIsTogglingMaintenance(false);
       }
@@ -1479,10 +1459,10 @@ const AdminPage = () => {
       setIsClearingCache(true);
       try {
         await clearSystemCache();
-        setSuccess('System cache cleared successfully');
+        toast.success('System cache cleared successfully');
       } catch (err) {
         console.error('Failed to clear cache:', err);
-        setError(err.response?.data?.detail || 'Failed to clear system cache');
+        toast.error(err.response?.data?.detail || 'Failed to clear system cache');
       } finally {
         setIsClearingCache(false);
       }
@@ -1773,9 +1753,6 @@ const AdminPage = () => {
                   </button>
                 );
               })}
-            </div>
-            <div className="px-2 py-0.5 bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200 text-xs font-medium rounded-full">
-              ADMIN DASHBOARD
             </div>
           </div>
         </div>

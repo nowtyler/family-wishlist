@@ -28,6 +28,8 @@ from .services.user_auth_service import UserAuthService
 from .middleware.rate_limiter import RateLimiter
 from .deps import validate_password_strength
 import secrets
+import psutil
+import json
 
 # Initialize the product scraper service
 product_scraper = ProductScraper()
@@ -2012,4 +2014,147 @@ def test_email_settings(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to send test email: {str(e)}"
+        )
+
+@app.get("/api/admin/system/status")
+def get_system_status(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get system status information (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    try:
+        # Get system settings
+        settings = db.query(models.SystemSettings).first()
+        if not settings:
+            settings = models.SystemSettings(version="1.0.0")
+            db.add(settings)
+            db.commit()
+        
+        # Get system stats
+        total_users = db.query(models.FamilyMember).count()
+        active_users = db.query(models.FamilyMember).filter(models.FamilyMember.is_active == True).count()
+        
+        # Get process info
+        process = psutil.Process()
+        memory_info = process.memory_info()
+        
+        # Get disk usage
+        disk = psutil.disk_usage('/')
+        
+        # Get last backup info
+        last_backup = db.query(models.Backup).order_by(models.Backup.created_at.desc()).first()
+        
+        return {
+            "version": settings.version,
+            "uptime": str(datetime.now() - datetime.fromtimestamp(process.create_time())),
+            "memory_usage": f"{memory_info.rss / 1024 / 1024:.1f}MB",
+            "disk_usage": f"{disk.percent}%",
+            "active_users": active_users,
+            "total_users": total_users,
+            "last_backup": last_backup.created_at.isoformat() if last_backup else "Never",
+            "environment": os.getenv("ENVIRONMENT", "production"),
+            "debug_mode": os.getenv("DEBUG", "false").lower() == "true"
+        }
+    except Exception as e:
+        logger.error(f"Failed to get system status: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get system status: {str(e)}"
+        )
+
+@app.get("/api/admin/system/settings")
+def get_system_settings(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get system settings (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    try:
+        # Get all system config entries
+        configs = db.query(models.SystemConfig).all()
+        settings = {}
+        
+        # Convert to dictionary
+        for config in configs:
+            # Try to parse as JSON if possible
+            try:
+                settings[config.key] = json.loads(config.value)
+            except:
+                settings[config.key] = config.value
+        
+        # Set defaults if not found
+        settings.setdefault('maintenance_mode', False)
+        settings.setdefault('debug_mode', os.getenv('DEBUG', 'false').lower() == 'true')
+        settings.setdefault('log_level', os.getenv('LOG_LEVEL', 'info'))
+        settings.setdefault('max_upload_size', '5MB')
+        settings.setdefault('session_timeout', '24h')
+        settings.setdefault('backup_retention_days', 30)
+        
+        return settings
+    except Exception as e:
+        logger.error(f"Failed to get system settings: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get system settings: {str(e)}"
+        )
+
+@app.put("/api/admin/system/settings")
+def update_system_settings(
+    settings: dict,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Update system settings (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    try:
+        # Update each setting
+        for key, value in settings.items():
+            # Convert value to JSON string if it's not a string
+            if not isinstance(value, str):
+                value = json.dumps(value)
+            
+            # Get or create config entry
+            config = db.query(models.SystemConfig).filter(models.SystemConfig.key == key).first()
+            if config:
+                config.value = value
+                config.updated_at = datetime.utcnow()
+            else:
+                config = models.SystemConfig(
+                    key=key,
+                    value=value,
+                    created_at=datetime.utcnow(),
+                    updated_at=datetime.utcnow()
+                )
+                db.add(config)
+        
+        db.commit()
+        return {"message": "Settings updated successfully"}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to update system settings: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update system settings: {str(e)}"
         )
