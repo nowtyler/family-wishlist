@@ -609,6 +609,10 @@ export const updateEmailTemplate = (templateName, templateData) => {
   return apiClient.put(`/admin/email/templates/${templateName}`, templateData);
 };
 
+export const createEmailTemplate = (templateData) => {
+  return apiClient.post('/admin/email/templates', templateData);
+};
+
 export const testEmailSettings = () => {
   return apiClient.post('/admin/email/test');
 };

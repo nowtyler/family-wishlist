@@ -1915,11 +1915,27 @@ def get_email_settings(
     
     try:
         settings = db.query(models.EmailSettings).filter(models.EmailSettings.is_active == True).first()
+        
         if not settings:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Email settings not found")
+            # Create default settings if none exist
+            settings = models.EmailSettings(
+                smtp_server="",
+                smtp_port=587,
+                smtp_username="",
+                smtp_password="",
+                from_email="",
+                from_name="Family Wishlist",
+                use_tls=True,
+                use_ssl=False,
+                is_active=True,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+            db.add(settings)
+            db.commit()
+            db.refresh(settings)
+        
         return schemas.EmailSettings.from_orm(settings)
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Failed to get email settings: {e}")
         raise HTTPException(
@@ -2025,6 +2041,51 @@ def update_email_template(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update email template: {str(e)}"
+        )
+
+@app.post("/api/admin/email/templates", response_model=schemas.EmailTemplate)
+def create_email_template(
+    template_create: schemas.EmailTemplateCreate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Create a new email template (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    try:
+        # Check if template with same name already exists
+        existing_template = db.query(models.EmailTemplate).filter(models.EmailTemplate.name == template_create.name).first()
+        if existing_template:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Template with this name already exists")
+        
+        # Create new template
+        template = models.EmailTemplate(
+            name=template_create.name,
+            subject=template_create.subject,
+            body=template_create.body,
+            is_active=True,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        
+        db.add(template)
+        db.commit()
+        db.refresh(template)
+        return schemas.EmailTemplate.from_orm(template)
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to create email template: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create email template: {str(e)}"
         )
 
 @app.post("/api/admin/email/test", response_model=schemas.EmailLog)

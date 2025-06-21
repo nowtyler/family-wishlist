@@ -5,7 +5,7 @@ import {
   Edit, Eye, EyeOff, Check, X, TriangleAlert, RefreshCw,
   Home, UserPlus, UserMinus, Lock, Unlock, Send, TestTube,
   Calendar, Gift, FileText, Archive, Download, Upload, Save, ArrowUp,
-  CircleCheck, CircleX, Database, CircleAlert, Box
+  CircleCheck, CircleX, Database, CircleAlert, Box, RotateCcw
 } from 'lucide-react';
 import { useAppContext } from '../contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
@@ -29,6 +29,7 @@ import {
   updateEmailSettings,
   getEmailTemplates,
   updateEmailTemplate,
+  createEmailTemplate,
   resetMigrationState,
   hardResetMigrations,
   restoreBackup,
@@ -244,6 +245,15 @@ const AdminPage = () => {
     const handleCloseModal = () => {
       setIsModalOpen(false);
       // Refresh the users list after modal closes
+      const fetchData = async () => {
+        try {
+          const response = await getFamilyMembers();
+          setUsers(response.data || []);
+        } catch (err) {
+          console.error('Failed to fetch users:', err);
+          toast.error('Failed to load users');
+        }
+      };
       fetchData();
     };
 
@@ -251,15 +261,15 @@ const AdminPage = () => {
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <h2 className="text-xl font-semibold">Users</h2>
-          <button
+            <button 
             onClick={handleAddUser}
             className="flex items-center px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
           >
             <Plus className="w-4 h-4 mr-2" />
             Add User
-          </button>
+            </button>
         </div>
-
+        
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {users.map((user) => (
             <div
@@ -272,16 +282,16 @@ const AdminPage = () => {
                   <p className="text-sm text-gray-500 dark:text-gray-400">
                     {user.email || 'No email'}
                   </p>
-                </div>
+              </div>
                 {user.is_admin && (
                   <span className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded">
                     Admin
-                  </span>
-                )}
-              </div>
+                        </span>
+                          )}
+                        </div>
             </div>
-          ))}
-        </div>
+                  ))}
+            </div>
 
         {/* Use the FamilyMemberManager modal */}
         <FamilyMemberManager
@@ -506,25 +516,34 @@ const AdminPage = () => {
                         </button>
                       </div>
                     ))}
-                    <select
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          handleAddUserToHousehold(selectedHousehold.id, e.target.value);
-                          e.target.value = '';
+                    <div className="flex space-x-2">
+                      <select
+                        id="add-user-select"
+                        className="flex-1 px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+                        disabled={isLoading}
+                      >
+                        <option value="">Select user to add...</option>
+                        {users
+                          .filter(user => !selectedHousehold?.members?.find(m => m.id === user.id))
+                          .map(user => (
+                            <option key={user.id} value={user.id}>{user.name}</option>
+                          ))
                         }
-                      }}
-                      className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-                      value=""
-                      disabled={isLoading}
-                    >
-                      <option value="">Add member...</option>
-                      {users
-                        .filter(user => !selectedHousehold?.members?.find(m => m.id === user.id))
-                        .map(user => (
-                          <option key={user.id} value={user.id}>{user.name}</option>
-                        ))
-                      }
-                    </select>
+                      </select>
+                      <button
+                        onClick={() => {
+                          const select = document.getElementById('add-user-select');
+                          if (select && select.value) {
+                            handleAddUserToHousehold(selectedHousehold.id, select.value);
+                            select.value = '';
+                          }
+                        }}
+                        className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors disabled:opacity-50"
+                        disabled={isLoading}
+                      >
+                        Add
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div className="flex justify-end space-x-3 mt-6">
@@ -564,7 +583,9 @@ const AdminPage = () => {
     const [emailTemplates, setEmailTemplates] = useState([]);
     const [selectedTemplate, setSelectedTemplate] = useState(null);
     const [isEditingTemplate, setIsEditingTemplate] = useState(false);
+    const [isAddingTemplate, setIsAddingTemplate] = useState(false);
     const [templateForm, setTemplateForm] = useState({
+      name: '',
       subject: '',
       body: ''
     });
@@ -572,6 +593,7 @@ const AdminPage = () => {
     const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isTestingEmail, setIsTestingEmail] = useState(false);
+    const [testEmail, setTestEmail] = useState('');
 
     const fetchEmailData = async () => {
       setIsLoadingSettings(true);
@@ -581,7 +603,16 @@ const AdminPage = () => {
         setEmailSettings(settingsRes.data || {});
       } catch (err) {
         console.error('Failed to fetch email settings:', err);
-        toast.error('Failed to load email settings');
+        // Create default settings if none exist
+        setEmailSettings({
+          smtp_server: '',
+          smtp_port: '',
+          smtp_username: '',
+          smtp_password: '',
+          use_tls: true,
+          from_email: '',
+          from_name: ''
+        });
       } finally {
         setIsLoadingSettings(false);
       }
@@ -616,10 +647,10 @@ const AdminPage = () => {
     };
 
     const handleTestEmail = async () => {
-      if (isTestingEmail) return;
+      if (isTestingEmail || !testEmail) return;
       setIsTestingEmail(true);
       try {
-        const response = await testEmailSettings();
+        const response = await testEmailSettings({ recipient_email: testEmail });
         toast.success(response.data.message || 'Test email sent successfully');
       } catch (err) {
         console.error('Failed to send test email:', err);
@@ -632,30 +663,51 @@ const AdminPage = () => {
     const handleEditTemplate = (template) => {
       setSelectedTemplate(template);
       setTemplateForm({
+        name: template.name,
         subject: template.subject,
         body: template.body
       });
       setIsEditingTemplate(true);
     };
 
+    const handleAddTemplate = () => {
+      setSelectedTemplate(null);
+      setTemplateForm({
+        name: '',
+        subject: '',
+        body: ''
+      });
+      setIsAddingTemplate(true);
+    };
+
     const handleSaveTemplate = async () => {
-      if (!selectedTemplate || isSaving) return;
+      if (!templateForm.name || !templateForm.subject || !templateForm.body || isSaving) return;
       
       setIsSaving(true);
       try {
-        await updateEmailTemplate(selectedTemplate.name, templateForm);
-        setEmailTemplates(templates => 
-          templates.map(t => 
-            t.name === selectedTemplate.name 
-              ? { ...t, ...templateForm }
-              : t
-          )
-        );
-        toast.success('Email template updated successfully');
+        if (selectedTemplate) {
+          // Update existing template
+          await updateEmailTemplate(selectedTemplate.id, templateForm);
+          setEmailTemplates(templates => 
+            templates.map(t => 
+              t.id === selectedTemplate.id 
+                ? { ...t, ...templateForm }
+                : t
+            )
+          );
+          toast.success('Email template updated successfully');
+        } else {
+          // Create new template
+          const { createEmailTemplate } = await import('../services/api');
+          const response = await createEmailTemplate(templateForm);
+          setEmailTemplates(templates => [...templates, response.data]);
+          toast.success('Email template created successfully');
+        }
         setIsEditingTemplate(false);
+        setIsAddingTemplate(false);
       } catch (err) {
-        console.error('Failed to update email template:', err);
-        toast.error(err.response?.data?.detail || 'Failed to update email template');
+        console.error('Failed to save email template:', err);
+        toast.error(err.response?.data?.detail || 'Failed to save email template');
       } finally {
         setIsSaving(false);
       }
@@ -771,23 +823,38 @@ const AdminPage = () => {
                       </>
                     )}
                   </button>
-                  <button 
-                    onClick={handleTestEmail}
-                    className="flex items-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
-                    disabled={isTestingEmail}
-                  >
-                    {isTestingEmail ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Testing...
-                      </>
-                    ) : (
-                      <>
-                        <TestTube className="w-4 h-4 mr-2" />
-                        Test Email
-                      </>
-                    )}
-                  </button>
+                </div>
+
+                {/* Test Email Section */}
+                <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                  <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Test Email Settings</h4>
+                  <div className="flex space-x-3">
+                    <input
+                      type="email"
+                      value={testEmail}
+                      onChange={(e) => setTestEmail(e.target.value)}
+                      placeholder="Enter email address to test"
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                      disabled={isTestingEmail}
+                    />
+                    <button 
+                      onClick={handleTestEmail}
+                      className="flex items-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+                      disabled={isTestingEmail || !testEmail}
+                    >
+                      {isTestingEmail ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Testing...
+                        </>
+                      ) : (
+                        <>
+                          <TestTube className="w-4 h-4 mr-2" />
+                          Test Email
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </>
             )}
@@ -796,6 +863,18 @@ const AdminPage = () => {
 
         <AdminCard title="Email Templates" icon={FileText}>
           <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <h4 className="text-lg font-medium text-gray-900 dark:text-white">Templates</h4>
+              <button 
+                onClick={handleAddTemplate}
+                className="flex items-center px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                disabled={isSaving}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Template
+              </button>
+            </div>
+            
             {isLoadingTemplates ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
@@ -805,10 +884,10 @@ const AdminPage = () => {
               <>
                 {emailTemplates.length > 0 ? (
                   emailTemplates.map(template => (
-                    <div key={template.name} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div key={template.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                       <div>
                         <h5 className="font-medium text-gray-900 dark:text-white">{template.name}</h5>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">{template.description}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">{template.subject}</p>
                       </div>
                       <button 
                         onClick={() => handleEditTemplate(template)}
@@ -830,13 +909,25 @@ const AdminPage = () => {
         </AdminCard>
 
         {/* Edit Template Modal */}
-        {isEditingTemplate && (
+        {(isEditingTemplate || isAddingTemplate) && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-4xl w-full">
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                Edit Template: {selectedTemplate?.name}
+                {isAddingTemplate ? 'Add New Template' : `Edit Template: ${selectedTemplate?.name}`}
               </h3>
               <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Template Name
+                  </label>
+                  <input
+                    type="text"
+                    value={templateForm.name}
+                    onChange={(e) => setTemplateForm({ ...templateForm, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                    disabled={isSaving}
+                  />
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Subject
@@ -863,7 +954,10 @@ const AdminPage = () => {
                 </div>
                 <div className="flex justify-end space-x-3">
                   <button
-                    onClick={() => setIsEditingTemplate(false)}
+                    onClick={() => {
+                      setIsEditingTemplate(false);
+                      setIsAddingTemplate(false);
+                    }}
                     className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
                     disabled={isSaving}
                   >
@@ -895,7 +989,169 @@ const AdminPage = () => {
   const DatabaseTab = () => {
     const [isProcessing, setIsProcessing] = useState(false);
     const [selectedBackup, setSelectedBackup] = useState(null);
+    const [backupAction, setBackupAction] = useState(null);
+    const [backupActionConfirm, setBackupActionConfirm] = useState(false);
+    const [backupActionLoading, setBackupActionLoading] = useState(false);
+    const [backupActionResult, setBackupActionResult] = useState(null);
+    const [isCreatingBackup, setIsCreatingBackup] = useState(false);
+    const [backupSuccess, setBackupSuccess] = useState(false);
+    const [backupError, setBackupError] = useState(false);
+    
+    const handleBackupItemClick = (backup) => {
+      setSelectedBackup(selectedBackup?.filename === backup.filename ? null : backup);
+      setBackupAction(null);
+      setBackupActionConfirm(false);
+      setBackupActionLoading(false);
+      setBackupActionResult(null);
+    };
 
+    const handleActionClick = (action) => {
+      if (!selectedBackup) return;
+      
+      if (backupAction === action && !backupActionConfirm) {
+        setBackupActionConfirm(true);
+      } else {
+        setBackupAction(action);
+        setBackupActionConfirm(false);
+        setBackupActionResult(null);
+      }
+    };
+
+    const handleActionConfirm = async () => {
+      if (!selectedBackup || !backupAction || !backupActionConfirm) return;
+
+      try {
+        setBackupActionLoading(true);
+        setIsProcessing(true);
+        
+        if (backupAction === 'restore') {
+          const { restoreBackup } = await import('../services/api');
+          const response = await restoreBackup(selectedBackup.filename);
+          
+          if (response.data.requires_migration) {
+            setBackupActionResult('failure');
+            toast.error('This backup requires migration. Please upgrade the database first.');
+            return;
+          }
+
+          if (response.data.success) {
+            setBackupActionResult('success');
+            toast.success('Backup restored successfully');
+          } else {
+            setBackupActionResult('failure');
+            toast.error(response.data.message);
+          }
+        } else if (backupAction === 'delete') {
+          const { deleteBackup } = await import('../services/api');
+          await deleteBackup(selectedBackup.filename);
+          setBackupActionResult('success');
+          toast.success('Backup deleted successfully');
+        }
+        
+        // Refresh backups after action
+        if (window.refreshBackups) {
+          await window.refreshBackups();
+        }
+        
+        // Reset states after delay
+        setTimeout(() => {
+          setBackupAction(null);
+          setBackupActionConfirm(false);
+          setBackupActionLoading(false);
+          setBackupActionResult(null);
+          setSelectedBackup(null);
+        }, 3000);
+        
+      } catch (err) {
+        console.error(`Failed to ${backupAction} backup:`, err);
+        setBackupActionResult('failure');
+        toast.error(err.response?.data?.detail || `Failed to ${backupAction} backup`);
+        
+        setTimeout(() => {
+          setBackupActionLoading(false);
+          setBackupAction(null);
+          setBackupActionConfirm(false);
+          setBackupActionResult(null);
+        }, 5000);
+      } finally {
+        setBackupActionLoading(false);
+        setIsProcessing(false);
+      }
+    };
+
+    const handleCreateBackup = async () => {
+      if (isCreatingBackup || backupSuccess) return;
+      
+      try {
+        setIsCreatingBackup(true);
+        setIsProcessing(true);
+        setBackupSuccess(false);
+        setBackupError(false);
+        
+        const { createBackup } = await import('../services/api');
+        await createBackup();
+        
+        setBackupSuccess(true);
+        toast.success('Backup created successfully');
+        
+        if (window.refreshBackups) {
+          await window.refreshBackups();
+        }
+        
+        setTimeout(() => {
+          setBackupSuccess(false);
+        }, 2000);
+      } catch (err) {
+        console.error('Failed to create backup:', err);
+        setBackupSuccess(false);
+        setBackupError(true);
+        toast.error(err.response?.data?.detail || 'Failed to create backup');
+      } finally {
+        setIsCreatingBackup(false);
+        setIsProcessing(false);
+      }
+    };
+
+    const getActionButtonStyles = (type) => {
+      if (backupActionLoading) {
+        return "bg-gray-500 cursor-not-allowed";
+      } else if (backupActionResult === 'success') {
+        return "bg-green-500";
+      } else if (backupActionResult === 'failure') {
+        return "bg-orange-500";
+      }
+      
+      return type === 'restore' 
+        ? 'bg-blue-500 hover:bg-blue-600'
+        : 'bg-red-500 hover:bg-red-600';
+    };
+
+    const getActionButtonText = () => {
+      if (backupActionLoading) {
+        return 'Processing...';
+      } else if (backupActionResult === 'success') {
+        return 'Success!';
+      } else if (backupActionResult === 'failure') {
+        return 'Failed!';
+      } else if (backupActionConfirm) {
+        return 'Confirm?';
+      } else {
+        return backupAction === 'restore' ? 'Restore' : 'Delete';
+      }
+    };
+
+    const getBackupButtonStyles = () => {
+      if (isCreatingBackup) {
+        return "bg-blue-500 hover:bg-blue-500";
+      } else if (backupSuccess) {
+        return "bg-green-500 hover:bg-green-500";
+      } else if (backupError) {
+        return "bg-orange-500 hover:bg-orange-600";
+      } else {
+        return "bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700";
+      }
+    };
+    
     return (
       <div className="space-y-6">
         <AdminCard title="Database Management" icon={Database}>
@@ -904,6 +1160,79 @@ const AdminPage = () => {
             selectedBackup={selectedBackup}
             setSelectedBackup={setSelectedBackup}
           />
+          
+          {/* Backup Action Buttons */}
+          <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex gap-3">
+              {selectedBackup ? (
+                <>
+                  <button
+                    onClick={() => handleActionClick('restore')}
+                    disabled={backupActionLoading}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 
+                      ${getActionButtonStyles('restore')} 
+                      text-white rounded-lg shadow-sm transition-all duration-300`}
+                  >
+                    <RotateCcw size={18} />
+                    <span>{getActionButtonText()}</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => handleActionClick('delete')}
+                    disabled={backupActionLoading}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 
+                      ${getActionButtonStyles('delete')} 
+                      text-white rounded-lg shadow-sm transition-all duration-300`}
+                  >
+                    <Trash2 size={18} />
+                    <span>{getActionButtonText()}</span>
+                  </button>
+                  
+                  {backupActionConfirm && (
+                    <button
+                      onClick={handleActionConfirm}
+                      disabled={backupActionLoading}
+                      className="px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-lg shadow-sm transition-colors"
+                    >
+                      {backupActionLoading ? 'Processing...' : 'Confirm'}
+                    </button>
+                  )}
+                </>
+              ) : (
+                <button
+                  onClick={handleCreateBackup}
+                  disabled={isProcessing}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 
+                    ${getBackupButtonStyles()}
+                    text-white rounded-lg shadow-sm
+                    transition-all duration-300
+                    ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {isCreatingBackup ? (
+                    <span className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      Creating Backup...
+                    </span>
+                  ) : backupSuccess ? (
+                    <span className="flex items-center gap-2">
+                      <Check size={18} />
+                      <span className="font-medium">Backup Created!</span>
+                    </span>
+                  ) : backupError ? (
+                    <span className="flex items-center gap-2" onClick={() => setBackupError(false)}>
+                      <TriangleAlert size={18} />
+                      <span className="font-medium">Backup Failed - Try Again</span>
+                    </span>
+                  ) : (
+                    <>
+                      <Archive size={18} />
+                      <span className="font-medium">Create Backup</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
         </AdminCard>
       </div>
     );
@@ -1227,6 +1556,120 @@ const AdminPage = () => {
             </div>
           </div>
         )}
+      </div>
+    );
+  };
+
+  const ItemsTab = () => {
+    const [items, setItems] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [selectedItem, setSelectedItem] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const fetchItems = async () => {
+      setIsLoading(true);
+      try {
+        const response = await getAllItems();
+        setItems(response.data || []);
+      } catch (err) {
+        console.error('Failed to fetch items:', err);
+        toast.error('Failed to load items');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    useEffect(() => {
+      fetchItems();
+    }, []);
+
+    const handleDeleteItem = async (itemId) => {
+      if (!confirm('Are you sure you want to delete this item?')) return;
+      
+      setIsDeleting(true);
+      try {
+        await deleteItemAsAdmin(itemId);
+        setItems(prevItems => prevItems.filter(item => item.id !== itemId));
+        toast.success('Item deleted successfully');
+      } catch (err) {
+        console.error('Failed to delete item:', err);
+        toast.error(err.response?.data?.detail || 'Failed to delete item');
+      } finally {
+        setIsDeleting(false);
+      }
+    };
+
+    return (
+      <div className="space-y-6">
+        <AdminCard title="All Wishlist Items" icon={Gift}>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h4 className="text-lg font-medium text-gray-900 dark:text-white">Items</h4>
+              <button 
+                onClick={fetchItems}
+                className="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Refresh
+                  </>
+                )}
+              </button>
+            </div>
+            
+            {isLoading && !items.length ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-2 text-gray-600 dark:text-gray-400">Loading items...</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {items.map(item => (
+                  <div key={item.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h5 className="font-medium text-gray-900 dark:text-white truncate">{item.title}</h5>
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        item.is_purchased 
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                          : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
+                      }`}>
+                        {item.is_purchased ? 'Purchased' : 'Available'}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
+                      {item.description || 'No description'}
+                    </p>
+                    <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
+                      <span>Owner: {item.owner_name || 'Unknown'}</span>
+                      <span>Priority: {item.priority}</span>
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      <button 
+                        onClick={() => handleDeleteItem(item.id)}
+                        className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                        disabled={isDeleting}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {!items.length && !isLoading && (
+                  <div className="col-span-3 text-center py-8 text-gray-500 dark:text-gray-400">
+                    No items available
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </AdminCard>
       </div>
     );
   };
