@@ -4,7 +4,7 @@ import {
   Save, X, Calendar, UserRound, Loader, Check
 } from 'lucide-react';
 import { 
-  updateUserWithAuth
+  updateUserProfile
 } from '../services/api';
 import { useAppContext } from '../contexts/AppContext';
 import { toast } from 'react-toastify';
@@ -100,7 +100,7 @@ const UserProfileModal = ({ isOpen, onClose }) => {
         updateData.password = formData.password;
       }
       
-      await updateUserWithAuth(selectedUser.id, updateData);
+      await updateUserProfile(selectedUser.id, updateData);
       
       // Try to update the global state
       try {

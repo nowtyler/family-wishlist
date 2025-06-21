@@ -257,6 +257,13 @@ const AdminPage = () => {
       fetchData();
     };
 
+    // Get households for a specific user
+    const getUserHouseholds = (userId) => {
+      return households.filter(household => 
+        household.members?.some(member => member.id === userId)
+      );
+    };
+
     return (
       <div className="space-y-4">
         <div className="flex justify-between items-center">
@@ -271,27 +278,55 @@ const AdminPage = () => {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {users.map((user) => (
-            <div
-              key={user.id}
-              className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow space-y-2"
-            >
-              <div className="flex justify-between items-start">
+          {users.map((user) => {
+            const userHouseholds = getUserHouseholds(user.id);
+            return (
+              <div
+                key={user.id}
+                className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow space-y-3"
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-medium">{user.name}</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {user.email || 'No email'}
+                    </p>
+                  </div>
+                  {user.is_admin && (
+                    <span className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded">
+                      Admin
+                    </span>
+                  )}
+                </div>
+                
+                {/* Household Information */}
                 <div>
-                  <h3 className="font-medium">{user.name}</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {user.email || 'No email'}
-                  </p>
-              </div>
-                {user.is_admin && (
-                  <span className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded">
-                    Admin
-                        </span>
-                          )}
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Households ({userHouseholds.length})
+                  </h4>
+                  {userHouseholds.length > 0 ? (
+                    <div className="space-y-1">
+                      {userHouseholds.map(household => (
+                        <div key={household.id} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 px-2 py-1 rounded text-xs">
+                          <span className="text-gray-600 dark:text-gray-300 truncate">
+                            {household.name}
+                          </span>
+                          <span className="text-gray-400 dark:text-gray-500">
+                            {household.members?.length || 0} members
+                          </span>
                         </div>
-            </div>
-                  ))}
-            </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Not in any households
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
         {/* Use the FamilyMemberManager modal */}
         <FamilyMemberManager
@@ -307,6 +342,8 @@ const AdminPage = () => {
     const [selectedHousehold, setSelectedHousehold] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editMode, setEditMode] = useState('');
+    const [selectedUsersToAdd, setSelectedUsersToAdd] = useState([]);
+    const [selectedUsersToRemove, setSelectedUsersToRemove] = useState([]);
 
     const fetchHouseholds = async () => {
       setIsLoading(true);
@@ -341,6 +378,8 @@ const AdminPage = () => {
     const handleEditHousehold = (household) => {
       setSelectedHousehold(household);
       setEditMode('edit');
+      setSelectedUsersToAdd([]);
+      setSelectedUsersToRemove([]);
     };
 
     const handleSaveHousehold = async () => {
@@ -351,16 +390,38 @@ const AdminPage = () => {
       
       setIsLoading(true);
       try {
+        // First save the household details
         const response = await updateHousehold(selectedHousehold.id, {
           name: selectedHousehold.name,
           description: selectedHousehold.description || ''
         });
-        setHouseholds(prevHouseholds => 
-          prevHouseholds.map(h => h.id === selectedHousehold.id ? response.data : h)
-        );
+        
+        // Then handle user additions and removals
+        const promises = [];
+        
+        // Add selected users
+        for (const userId of selectedUsersToAdd) {
+          promises.push(addUserToHousehold(selectedHousehold.id, userId));
+        }
+        
+        // Remove selected users
+        for (const userId of selectedUsersToRemove) {
+          promises.push(removeUserFromHousehold(selectedHousehold.id, userId));
+        }
+        
+        // Wait for all operations to complete
+        if (promises.length > 0) {
+          await Promise.all(promises);
+        }
+        
+        // Refresh the households list
+        await fetchHouseholds();
+        
         toast.success('Household updated successfully');
         setEditMode('');
         setSelectedHousehold(null);
+        setSelectedUsersToAdd([]);
+        setSelectedUsersToRemove([]);
       } catch (err) {
         console.error('Failed to update household:', err);
         toast.error(err.response?.data?.detail || 'Failed to update household');
@@ -385,34 +446,31 @@ const AdminPage = () => {
       }
     };
 
-    const handleAddUserToHousehold = async (householdId, userId) => {
-      setIsLoading(true);
-      try {
-        await addUserToHousehold(householdId, userId);
-        await fetchHouseholds(); // Refresh the list
-        toast.success('User added to household successfully');
-      } catch (err) {
-        console.error('Failed to add user to household:', err);
-        toast.error(err.response?.data?.detail || 'Failed to add user to household');
-      } finally {
-        setIsLoading(false);
+    const handleUserSelectionChange = (userId, action) => {
+      if (action === 'add') {
+        setSelectedUsersToAdd(prev => 
+          prev.includes(userId) ? prev : [...prev, userId]
+        );
+      } else if (action === 'remove') {
+        setSelectedUsersToRemove(prev => 
+          prev.includes(userId) ? prev : [...prev, userId]
+        );
       }
     };
 
-    const handleRemoveUserFromHousehold = async (householdId, userId) => {
-      if (!confirm('Are you sure you want to remove this user from the household?')) return;
-      
-      setIsLoading(true);
-      try {
-        await removeUserFromHousehold(householdId, userId);
-        await fetchHouseholds(); // Refresh the list
-        toast.success('User removed from household successfully');
-      } catch (err) {
-        console.error('Failed to remove user from household:', err);
-        toast.error(err.response?.data?.detail || 'Failed to remove user from household');
-      } finally {
-        setIsLoading(false);
-      }
+    const getAvailableUsers = () => {
+      if (!selectedHousehold) return [];
+      return users.filter(user => 
+        !selectedHousehold.members?.find(m => m.id === user.id) &&
+        !selectedUsersToAdd.includes(user.id)
+      );
+    };
+
+    const getCurrentMembers = () => {
+      if (!selectedHousehold) return [];
+      return selectedHousehold.members?.filter(member => 
+        !selectedUsersToRemove.includes(member.id)
+      ) || [];
     };
 
     return (
@@ -480,7 +538,7 @@ const AdminPage = () => {
         {/* Edit Household Modal */}
         {editMode === 'edit' && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Edit Household</h3>
               <div className="space-y-4">
                 <div>
@@ -501,54 +559,82 @@ const AdminPage = () => {
                     rows={3}
                   />
                 </div>
+                
+                {/* Current Members */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Members</label>
-                  <div className="space-y-2">
-                    {selectedHousehold?.members?.map(member => (
-                      <div key={member.id} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 p-2 rounded">
-                        <span className="text-gray-900 dark:text-white">{member.name}</span>
-                        <button
-                          onClick={() => handleRemoveUserFromHousehold(selectedHousehold.id, member.id)}
-                          className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                          disabled={isLoading}
-                        >
-                          <UserMinus className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                    <div className="flex space-x-2">
-                      <select
-                        id="add-user-select"
-                        className="flex-1 px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-                        disabled={isLoading}
-                      >
-                        <option value="">Select user to add...</option>
-                        {users
-                          .filter(user => !selectedHousehold?.members?.find(m => m.id === user.id))
-                          .map(user => (
-                            <option key={user.id} value={user.id}>{user.name}</option>
-                          ))
-                        }
-                      </select>
-                      <button
-                        onClick={() => {
-                          const select = document.getElementById('add-user-select');
-                          if (select && select.value) {
-                            handleAddUserToHousehold(selectedHousehold.id, select.value);
-                            select.value = '';
-                          }
-                        }}
-                        className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors disabled:opacity-50"
-                        disabled={isLoading}
-                      >
-                        Add
-                      </button>
-                    </div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Current Members ({getCurrentMembers().length})
+                  </label>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {getCurrentMembers().length > 0 ? (
+                      getCurrentMembers().map(member => (
+                        <div key={member.id} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 p-2 rounded">
+                          <span className="text-gray-900 dark:text-white">{member.name}</span>
+                          <button
+                            onClick={() => handleUserSelectionChange(member.id, 'remove')}
+                            className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                            disabled={isLoading}
+                          >
+                            <UserMinus className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-500 dark:text-gray-400 text-sm">No members</p>
+                    )}
                   </div>
                 </div>
+
+                {/* Add Members */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Add Members
+                  </label>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {getAvailableUsers().length > 0 ? (
+                      getAvailableUsers().map(user => (
+                        <div key={user.id} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 p-2 rounded">
+                          <span className="text-gray-900 dark:text-white">{user.name}</span>
+                          <button
+                            onClick={() => handleUserSelectionChange(user.id, 'add')}
+                            className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                            disabled={isLoading}
+                          >
+                            <UserPlus className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-500 dark:text-gray-400 text-sm">No users available to add</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Selected Changes Summary */}
+                {(selectedUsersToAdd.length > 0 || selectedUsersToRemove.length > 0) && (
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                    <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">Pending Changes:</h4>
+                    {selectedUsersToAdd.length > 0 && (
+                      <p className="text-sm text-blue-700 dark:text-blue-300">
+                        Will add: {selectedUsersToAdd.map(id => users.find(u => u.id === id)?.name).join(', ')}
+                      </p>
+                    )}
+                    {selectedUsersToRemove.length > 0 && (
+                      <p className="text-sm text-blue-700 dark:text-blue-300">
+                        Will remove: {selectedUsersToRemove.map(id => selectedHousehold.members?.find(m => m.id === id)?.name).join(', ')}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex justify-end space-x-3 mt-6">
                   <button
-                    onClick={() => setEditMode('')}
+                    onClick={() => {
+                      setEditMode('');
+                      setSelectedHousehold(null);
+                      setSelectedUsersToAdd([]);
+                      setSelectedUsersToRemove([]);
+                    }}
                     className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
                     disabled={isLoading}
                   >

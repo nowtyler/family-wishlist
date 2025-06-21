@@ -207,6 +207,10 @@ export const updateUserWithAuth = (memberId, userData) => {
   return apiClient.put(`/admin/users/${memberId}`, userData);
 };
 
+export const updateUserProfile = (memberId, userData) => {
+  return apiClient.put(`/users/${memberId}/profile`, userData);
+};
+
 // --- Wishlist Items ---
 /**
  * Get wishlist items for a specific user
