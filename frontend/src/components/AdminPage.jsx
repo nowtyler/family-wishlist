@@ -42,7 +42,7 @@ import {
   getAllItems,
   deleteItemAsAdmin
 } from '../services/api';
-import FamilyMemberManager from './admin/FamilyMemberManager';
+import { FamilyMemberManager } from './admin/FamilyMemberManager';
 import Navbar from './Navbar';
 
 const AdminPage = () => {
@@ -90,29 +90,27 @@ const AdminPage = () => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        // Fetch stats
-        const statsResponse = await getSystemStats();
+        // Fetch all data in parallel
+        const [statsResponse, migrationsResponse, backupsResponse, statusResponse, familyMembersResponse, householdsResponse] = await Promise.all([
+          getSystemStats(),
+          getMigrations(),
+          getBackups(),
+          getSystemStatus(),
+          getFamilyMembers(),
+          getHouseholds()
+        ]);
+
+        // Set the state with the responses
         setStats(statsResponse.data);
-
-        // Fetch migrations
-        const migrationsResponse = await getMigrations();
         setMigrations(migrationsResponse.data.available_migrations || []);
-
-        // Fetch backups
-        const backupsResponse = await getBackups();
         setBackups(backupsResponse.data.backups || []);
-
-        // Fetch system status
-        const statusResponse = await getSystemStatus();
         setSystemStatus(statusResponse.data);
-
-        // Set users and households for other tabs
-        setUsers(familyMembersRes.data || []);
-        setHouseholds(householdsRes.data || []);
+        setUsers(familyMembersResponse.data || []);
+        setHouseholds(householdsResponse.data || []);
 
         // Set recent activity if available
-        if (systemStatsRes.data?.recent_activity) {
-          setRecentActivity(systemStatsRes.data.recent_activity);
+        if (statsResponse.data?.recent_activity) {
+          setRecentActivity(statsResponse.data.recent_activity);
         }
       } catch (err) {
         console.error('Failed to fetch admin data:', err);
@@ -226,282 +224,72 @@ const AdminPage = () => {
   );
 
   const UsersTab = () => {
-    const [users, setUsers] = useState([]);
-    const [selectedUser, setSelectedUser] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const [editMode, setEditMode] = useState('');
 
-    useEffect(() => {
-      fetchUsers();
-    }, []);
-
-    const fetchUsers = async () => {
-      try {
-        setIsLoading(true);
-        const response = await getFamilyMembers();
-        setUsers(response.data);
-      } catch (error) {
-        console.error('Failed to fetch users:', error);
-        toast.error('Failed to load users');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    const handleEditUser = (user) => {
-      setSelectedUser(user);
-      setEditMode('edit');
+    const handleAddUser = () => {
       setIsModalOpen(true);
     };
 
     const handleCloseModal = () => {
       setIsModalOpen(false);
-      setSelectedUser(null);
-      setEditMode('');
-    };
-
-    const handleAddUser = () => {
-      setEditMode('add');
-      setIsModalOpen(true);
-    };
-
-    const handleSaveUser = async (userData) => {
-      try {
-        setIsLoading(true);
-        if (editMode === 'add') {
-          await api.createUserWithAuth(userData);
-          toast.success('User created successfully');
-        } else {
-          await api.updateUserWithAuth(selectedUser.id, userData);
-          toast.success('User updated successfully');
-        }
-        await fetchUsers();
-        handleCloseModal();
-      } catch (error) {
-        console.error('Failed to save user:', error);
-        toast.error(error.response?.data?.detail || 'Failed to save user');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    const handleDeleteUser = async (userId) => {
-      if (!confirm('Are you sure you want to delete this user?')) return;
-      
-      try {
-        setIsLoading(true);
-        await api.deleteFamilyMember(userId);
-        toast.success('User deleted successfully');
-        await fetchUsers();
-      } catch (error) {
-        console.error('Failed to delete user:', error);
-        toast.error(error.response?.data?.detail || 'Failed to delete user');
-      } finally {
-        setIsLoading(false);
-      }
+      // Refresh the users list after modal closes
+      fetchData();
     };
 
     return (
       <div className="space-y-4">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold">User Management</h3>
+          <h2 className="text-xl font-semibold">Users</h2>
           <button
             onClick={handleAddUser}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            className="flex items-center px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
           >
+            <Plus className="w-4 h-4 mr-2" />
             Add User
           </button>
         </div>
 
-        {isLoading && !users.length ? (
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-            <p className="mt-2 text-gray-600 dark:text-gray-400">Loading users...</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-800">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Username
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Role
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-900 dark:divide-gray-700">
-                {users.map((user) => (
-                  <tr key={user.id}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">
-                        {user.name}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {user.username}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {user.email}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        user.is_admin
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                          : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
-                      }`}>
-                        {user.is_admin ? 'Admin' : 'User'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => handleEditUser(user)}
-                        className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 mr-4"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteUser(user.id)}
-                        className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {isModalOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg w-full max-w-md">
-              <h3 className="text-lg font-semibold mb-4">
-                {editMode === 'add' ? 'Add User' : 'Edit User'}
-              </h3>
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                const formData = new FormData(e.target);
-                handleSaveUser({
-                  username: formData.get('username'),
-                  password: formData.get('password'),
-                  name: formData.get('name'),
-                  email: formData.get('email'),
-                  is_admin: formData.get('is_admin') === 'true'
-                });
-              }}>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Username
-                    </label>
-                    <input
-                      type="text"
-                      name="username"
-                      defaultValue={selectedUser?.username}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600"
-                      required
-                    />
-                  </div>
-                  {editMode === 'add' && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Password
-                      </label>
-                      <input
-                        type="password"
-                        name="password"
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600"
-                        required
-                      />
-                    </div>
-                  )}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Name
-                    </label>
-                    <input
-                      type="text"
-                      name="name"
-                      defaultValue={selectedUser?.name}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      name="email"
-                      defaultValue={selectedUser?.email}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Role
-                    </label>
-                    <select
-                      name="is_admin"
-                      defaultValue={selectedUser?.is_admin.toString()}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600"
-                    >
-                      <option value="false">User</option>
-                      <option value="true">Admin</option>
-                    </select>
-                  </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {users.map((user) => (
+            <div
+              key={user.id}
+              className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow space-y-2"
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="font-medium">{user.name}</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {user.email || 'No email'}
+                  </p>
                 </div>
-                <div className="mt-6 flex justify-end space-x-3">
-                  <button
-                    type="button"
-                    onClick={handleCloseModal}
-                    className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-                  >
-                    {isLoading ? 'Saving...' : 'Save'}
-                  </button>
-                </div>
-              </form>
+                {user.is_admin && (
+                  <span className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded">
+                    Admin
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          ))}
+        </div>
+
+        {/* Use the FamilyMemberManager modal */}
+        <FamilyMemberManager
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+        />
       </div>
     );
   };
 
   const HouseholdsTab = () => {
-    const [households, setHouseholds] = useState([]);
-    const [selectedHousehold, setSelectedHousehold] = useState(null);
-    const [isEditing, setIsEditing] = useState(false);
-    const [editForm, setEditForm] = useState({
-      name: '',
-      description: ''
-    });
     const [isLoading, setIsLoading] = useState(false);
+    const [selectedHousehold, setSelectedHousehold] = useState(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editMode, setEditMode] = useState('');
+
+    useEffect(() => {
+      fetchHouseholds();
+    }, []);
 
     const fetchHouseholds = async () => {
       setIsLoading(true);
@@ -515,10 +303,6 @@ const AdminPage = () => {
         setIsLoading(false);
       }
     };
-
-    useEffect(() => {
-      fetchHouseholds();
-    }, []);
 
     const handleCreateHousehold = async () => {
       setIsLoading(true);
@@ -539,11 +323,7 @@ const AdminPage = () => {
 
     const handleEditHousehold = (household) => {
       setSelectedHousehold(household);
-      setEditForm({
-        name: household.name,
-        description: household.description || ''
-      });
-      setIsEditing(true);
+      setEditMode('edit');
     };
 
     const handleSaveHousehold = async () => {
@@ -554,17 +334,16 @@ const AdminPage = () => {
       
       setIsLoading(true);
       try {
-        const response = await updateHousehold(selectedHousehold.id, editForm);
+        const response = await updateHousehold(selectedHousehold.id, {
+          name: selectedHousehold.name,
+          description: selectedHousehold.description || ''
+        });
         setHouseholds(prevHouseholds => 
           prevHouseholds.map(h => h.id === selectedHousehold.id ? response.data : h)
         );
         toast.success('Household updated successfully');
-        setIsEditing(false);
+        setEditMode('');
         setSelectedHousehold(null);
-        setEditForm({
-          name: '',
-          description: ''
-        });
       } catch (err) {
         console.error('Failed to update household:', err);
         toast.error(err.response?.data?.detail || 'Failed to update household');
@@ -626,7 +405,7 @@ const AdminPage = () => {
             <div className="flex justify-between items-center">
               <h4 className="text-lg font-medium text-gray-900 dark:text-white">Households</h4>
               <button 
-                onClick={handleCreateHousehold}
+                onClick={() => setIsModalOpen(true)}
                 className="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
                 disabled={isLoading}
               >
@@ -682,7 +461,7 @@ const AdminPage = () => {
         </AdminCard>
 
         {/* Edit Household Modal */}
-        {isEditing && (
+        {editMode === 'edit' && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4">
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Edit Household</h3>
@@ -691,16 +470,16 @@ const AdminPage = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
                   <input
                     type="text"
-                    value={editForm.name}
-                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    value={selectedHousehold.name}
+                    onChange={(e) => setSelectedHousehold({ ...selectedHousehold, name: e.target.value })}
                     className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
                   <textarea
-                    value={editForm.description}
-                    onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                    value={selectedHousehold.description}
+                    onChange={(e) => setSelectedHousehold({ ...selectedHousehold, description: e.target.value })}
                     className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                     rows={3}
                   />
@@ -743,7 +522,7 @@ const AdminPage = () => {
                 </div>
                 <div className="flex justify-end space-x-3 mt-6">
                   <button
-                    onClick={() => setIsEditing(false)}
+                    onClick={() => setEditMode('')}
                     className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
                     disabled={isLoading}
                   >
