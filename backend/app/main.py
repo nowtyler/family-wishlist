@@ -2032,17 +2032,14 @@ def get_system_status(
     
     try:
         # Get system settings
-        settings = db.query(models.SystemSettings).first()
-        if not settings:
-            settings = models.SystemSettings(version="1.0.0")
-            db.add(settings)
-            db.commit()
+        settings = db.query(models.SystemConfig).filter(models.SystemConfig.key == 'version').first()
+        version = settings.value if settings else "1.0.0"
         
         # Get system stats
         total_users = db.query(models.FamilyMember).count()
         active_users = db.query(models.FamilyMember).filter(models.FamilyMember.is_active == True).count()
         
-        # Get process info
+        # Get process info using psutil
         process = psutil.Process()
         memory_info = process.memory_info()
         
@@ -2052,16 +2049,23 @@ def get_system_status(
         # Get last backup info
         last_backup = db.query(models.Backup).order_by(models.Backup.created_at.desc()).first()
         
+        # Get environment info
+        environment = os.getenv("ENVIRONMENT", "production")
+        debug_mode = os.getenv("DEBUG", "false").lower() == "true"
+        
+        # Calculate uptime
+        uptime = datetime.now() - datetime.fromtimestamp(process.create_time())
+        
         return {
-            "version": settings.version,
-            "uptime": str(datetime.now() - datetime.fromtimestamp(process.create_time())),
+            "version": version,
+            "uptime": str(uptime),
             "memory_usage": f"{memory_info.rss / 1024 / 1024:.1f}MB",
             "disk_usage": f"{disk.percent}%",
             "active_users": active_users,
             "total_users": total_users,
             "last_backup": last_backup.created_at.isoformat() if last_backup else "Never",
-            "environment": os.getenv("ENVIRONMENT", "production"),
-            "debug_mode": os.getenv("DEBUG", "false").lower() == "true"
+            "environment": environment,
+            "debug_mode": debug_mode
         }
     except Exception as e:
         logger.error(f"Failed to get system status: {e}")
@@ -2157,4 +2161,97 @@ def update_system_settings(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update system settings: {str(e)}"
+        )
+
+@app.put("/api/admin/households/{household_id}", response_model=schemas.Household)
+def update_household(
+    household_id: int,
+    household_data: schemas.HouseholdUpdate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Update a household (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    try:
+        # Get the household
+        household = db.query(models.Household).filter(models.Household.id == household_id).first()
+        if not household:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Household not found")
+        
+        # Update fields
+        if household_data.name is not None:
+            household.name = household_data.name
+        if household_data.description is not None:
+            household.description = household_data.description
+        
+        db.commit()
+        db.refresh(household)
+        
+        # Get member count
+        member_count = db.query(models.user_household_association).filter(
+            models.user_household_association.c.household_id == household.id
+        ).count()
+        
+        # Return updated household with member count
+        return schemas.Household(
+            id=household.id,
+            name=household.name,
+            description=household.description,
+            created_at=household.created_at,
+            created_by=household.created_by,
+            member_count=member_count
+        )
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to update household: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update household: {str(e)}"
+        )
+
+@app.post("/api/admin/system/cache/clear")
+def clear_system_cache(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Clear system cache (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    try:
+        # Clear Redis cache if using Redis
+        # For now, just clear session data and any in-memory caches
+        cache_dir = os.path.join(os.path.dirname(__file__), 'cache')
+        if os.path.exists(cache_dir):
+            for file in os.listdir(cache_dir):
+                file_path = os.path.join(cache_dir, file)
+                try:
+                    if os.path.isfile(file_path):
+                        os.unlink(file_path)
+                except Exception as e:
+                    logger.error(f"Error deleting {file_path}: {e}")
+        
+        # Clear any session data
+        db.query(models.Session).delete()
+        db.commit()
+        
+        return {"message": "System cache cleared successfully"}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to clear system cache: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to clear system cache: {str(e)}"
         )

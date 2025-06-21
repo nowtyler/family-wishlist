@@ -510,8 +510,8 @@ const AdminPage = () => {
 
         {/* Edit Household Modal */}
         {isEditing && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4">
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Edit Household</h3>
               <div className="space-y-4">
                 <div>
@@ -520,7 +520,7 @@ const AdminPage = () => {
                     type="text"
                     value={editForm.name}
                     onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                    className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                   />
                 </div>
                 <div>
@@ -528,7 +528,7 @@ const AdminPage = () => {
                   <textarea
                     value={editForm.description}
                     onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                    className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                     rows={3}
                   />
                 </div>
@@ -537,7 +537,7 @@ const AdminPage = () => {
                   <div className="space-y-2">
                     {selectedHousehold?.members?.map(member => (
                       <div key={member.id} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 p-2 rounded">
-                        <span>{member.name}</span>
+                        <span className="text-gray-900 dark:text-white">{member.name}</span>
                         <button
                           onClick={() => handleRemoveUserFromHousehold(selectedHousehold.id, member.id)}
                           className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
@@ -554,7 +554,7 @@ const AdminPage = () => {
                           e.target.value = '';
                         }
                       }}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                      className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                       value=""
                       disabled={isLoading}
                     >
@@ -571,14 +571,14 @@ const AdminPage = () => {
                 <div className="flex justify-end space-x-3 mt-6">
                   <button
                     onClick={() => setIsEditing(false)}
-                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
                     disabled={isLoading}
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleSaveHousehold}
-                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md"
+                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors"
                     disabled={isLoading}
                   >
                     {isLoading ? 'Saving...' : 'Save Changes'}
@@ -1308,8 +1308,8 @@ const AdminPage = () => {
 
         {/* Create Backup Modal */}
         {isCreating && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4">
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Create New Backup</h3>
               <div className="space-y-4">
                 <div>
@@ -1319,7 +1319,7 @@ const AdminPage = () => {
                   <textarea
                     value={backupNote}
                     onChange={(e) => setBackupNote(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                    className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                     rows={3}
                     placeholder="Add a note to help identify this backup later..."
                   />
@@ -1330,13 +1330,13 @@ const AdminPage = () => {
                       setIsCreating(false);
                       setBackupNote('');
                     }}
-                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleCreateBackup}
-                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md flex items-center"
+                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md flex items-center transition-colors"
                     disabled={isCreating}
                   >
                     {isCreating ? (
@@ -1601,8 +1601,8 @@ const AdminPage = () => {
 
         {/* Edit Settings Modal */}
         {isEditingSettings && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4">
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Edit System Settings</h3>
               <div className="space-y-4">
                 <div>
@@ -1612,7 +1612,7 @@ const AdminPage = () => {
                   <select
                     value={editForm.debug_mode ? 'true' : 'false'}
                     onChange={(e) => setEditForm({ ...editForm, debug_mode: e.target.value === 'true' })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                    className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                     disabled={isSavingSettings}
                   >
                     <option value="false">Disabled</option>
@@ -1626,7 +1626,7 @@ const AdminPage = () => {
                   <select
                     value={editForm.log_level}
                     onChange={(e) => setEditForm({ ...editForm, log_level: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                    className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                     disabled={isSavingSettings}
                   >
                     <option value="debug">Debug</option>
@@ -1643,7 +1643,7 @@ const AdminPage = () => {
                     type="text"
                     value={editForm.max_upload_size}
                     onChange={(e) => setEditForm({ ...editForm, max_upload_size: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                    className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                     disabled={isSavingSettings}
                   />
                 </div>
@@ -1655,7 +1655,7 @@ const AdminPage = () => {
                     type="text"
                     value={editForm.session_timeout}
                     onChange={(e) => setEditForm({ ...editForm, session_timeout: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                    className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                     disabled={isSavingSettings}
                   />
                 </div>
@@ -1667,21 +1667,21 @@ const AdminPage = () => {
                     type="number"
                     value={editForm.backup_retention_days}
                     onChange={(e) => setEditForm({ ...editForm, backup_retention_days: parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                    className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                     disabled={isSavingSettings}
                   />
                 </div>
                 <div className="flex justify-end space-x-3">
                   <button
                     onClick={() => setIsEditingSettings(false)}
-                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
                     disabled={isSavingSettings}
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleSaveSettings}
-                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md flex items-center"
+                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md flex items-center transition-colors"
                     disabled={isSavingSettings}
                   >
                     {isSavingSettings ? (

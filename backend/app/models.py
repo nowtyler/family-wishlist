@@ -217,3 +217,19 @@ class SystemConfig(Base):
     value = Column(String)
     created_at = Column(DateTime)
     updated_at = Column(DateTime)
+
+class Session(Base):
+    __tablename__ = "sessions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("family_members.id"))
+    session_id = Column(String, unique=True, index=True)
+    data = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime)
+    
+    # Relationships
+    user = relationship("FamilyMember")
+
+    def __repr__(self):
+        return f"<Session(id={self.id}, user_id={self.user_id})>"
