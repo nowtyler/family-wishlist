@@ -5,7 +5,8 @@ import {
   Edit, Eye, EyeOff, Check, X, TriangleAlert, RefreshCw,
   Home, UserPlus, UserMinus, Lock, Unlock, Send, TestTube,
   Calendar, Gift, FileText, Archive, Download, Upload, Save, ArrowUp,
-  CircleCheck, CircleX, Database, CircleAlert, Box, RotateCcw
+  CircleCheck, CircleX, Database, CircleAlert, Box, RotateCcw,
+  AlertOctagon
 } from 'lucide-react';
 import { useAppContext } from '../contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
@@ -42,7 +43,8 @@ import {
   setMaintenanceMode,
   clearSystemCache,
   getAllItems,
-  deleteItemAsAdmin
+  deleteItemAsAdmin,
+  clearAllWishlists
 } from '../services/api';
 import FamilyMemberManager from './admin/FamilyMemberManager';
 import Navbar from './Navbar';
@@ -243,7 +245,7 @@ const AdminPage = () => {
 
     const handleCloseModal = () => {
       setIsModalOpen(false);
-      // Refresh the users list after modal closes
+      // Simple refresh after modal closes - no race condition
       const fetchData = async () => {
         try {
           const response = await getFamilyMembers();
@@ -271,8 +273,8 @@ const AdminPage = () => {
             onClick={handleAddUser}
             className="flex items-center px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
           >
-            <Plus className="w-4 h-4 mr-2" />
-            Add User
+            <Edit className="w-4 h-4 mr-2" />
+            Manage
             </button>
         </div>
         
@@ -1517,6 +1519,8 @@ const AdminPage = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [selectedItem, setSelectedItem] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [showPurchaseStatus, setShowPurchaseStatus] = useState(false);
+    const [showClearConfirm, setShowClearConfirm] = useState(false);
 
     const fetchItems = async () => {
       setIsLoading(true);
@@ -1551,29 +1555,84 @@ const AdminPage = () => {
       }
     };
 
+    const handleClearAllWishlists = async () => {
+      if (!confirm('Are you sure you want to delete ALL wishlists for ALL users? This action cannot be undone.')) return;
+      
+      setIsLoading(true);
+      try {
+        await clearAllWishlists();
+        setItems([]);
+        toast.success('All wishlists cleared successfully');
+        setShowClearConfirm(false);
+      } catch (err) {
+        console.error('Failed to clear all wishlists:', err);
+        toast.error(err.response?.data?.detail || 'Failed to clear all wishlists');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Group items by owner
+    const groupedItems = items.reduce((acc, item) => {
+      const ownerName = item.owner_name || 'Unknown';
+      if (!acc[ownerName]) {
+        acc[ownerName] = [];
+      }
+      acc[ownerName].push(item);
+      return acc;
+    }, {});
+
+    // Get households for a specific user
+    const getUserHouseholds = (ownerId) => {
+      const user = users.find(u => u.id === ownerId);
+      if (!user) return [];
+      
+      return households.filter(household => 
+        household.members?.some(member => member.id === ownerId)
+      );
+    };
+
     return (
       <div className="space-y-6">
         <AdminCard title="All Wishlist Items" icon={Gift}>
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h4 className="text-lg font-medium text-gray-900 dark:text-white">Items</h4>
-              <button 
-                onClick={fetchItems}
-                className="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Loading...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Refresh
-                  </>
-                )}
-              </button>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setShowPurchaseStatus(!showPurchaseStatus)}
+                  className="flex items-center px-3 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                  title={showPurchaseStatus ? "Hide purchase status" : "Show purchase status"}
+                >
+                  <Eye className="w-4 h-4 mr-2" />
+                  {showPurchaseStatus ? "Hide Status" : "Show Status"}
+                </button>
+                <button 
+                  onClick={fetchItems}
+                  className="flex items-center px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Refresh
+                    </>
+                  )}
+                </button>
+                <button 
+                  onClick={() => setShowClearConfirm(true)}
+                  className="flex items-center px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                  disabled={isLoading}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Clear All
+                </button>
+              </div>
             </div>
             
             {isLoading && !items.length ? (
@@ -1582,39 +1641,82 @@ const AdminPage = () => {
                 <p className="mt-2 text-gray-600 dark:text-gray-400">Loading items...</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {items.map(item => (
-                  <div key={item.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <h5 className="font-medium text-gray-900 dark:text-white truncate">{item.title}</h5>
-                      <span className={`text-xs px-2 py-1 rounded ${
-                        item.is_purchased 
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                          : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
-                      }`}>
-                        {item.is_purchased ? 'Purchased' : 'Available'}
-                      </span>
+              <div className="space-y-6">
+                {Object.entries(groupedItems).map(([ownerName, ownerItems]) => {
+                  const ownerItem = ownerItems[0];
+                  const ownerHouseholds = getUserHouseholds(ownerItem.owner_id);
+                  
+                  return (
+                    <div key={ownerName} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                      {/* Owner Header */}
+                      <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 border-b border-gray-200 dark:border-gray-600">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h5 className="font-medium text-gray-900 dark:text-white">{ownerName}</h5>
+                            {ownerHouseholds.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {ownerHouseholds.map(household => (
+                                  <span key={household.id} className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 px-2 py-0.5 rounded">
+                                    {household.name}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">
+                            {ownerItems.length} item{ownerItems.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {/* Items List */}
+                      <div className="divide-y divide-gray-200 dark:divide-gray-600">
+                        {ownerItems.map(item => (
+                          <div key={item.id} className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <h6 className="font-medium text-gray-900 dark:text-white truncate">
+                                    {item.title}
+                                  </h6>
+                                  {showPurchaseStatus && (
+                                    <span className={`text-xs px-2 py-0.5 rounded ${
+                                      item.is_purchased 
+                                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                                        : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
+                                    }`}>
+                                      {item.is_purchased ? 'Purchased' : 'Available'}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
+                                  {item.description || 'No description'}
+                                </p>
+                                <div className="flex items-center gap-4 mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                  <span>Priority: {item.priority}</span>
+                                  {item.price && (
+                                    <span>Price: ${(item.price / 100).toFixed(2)}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <button 
+                                onClick={() => handleDeleteItem(item.id)}
+                                className="ml-3 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                                disabled={isDeleting}
+                                title="Delete item"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
-                      {item.description || 'No description'}
-                    </p>
-                    <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
-                      <span>Owner: {item.owner_name || 'Unknown'}</span>
-                      <span>Priority: {item.priority}</span>
-                    </div>
-                    <div className="mt-3 flex justify-end">
-                      <button 
-                        onClick={() => handleDeleteItem(item.id)}
-                        className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                        disabled={isDeleting}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
+                
                 {!items.length && !isLoading && (
-                  <div className="col-span-3 text-center py-8 text-gray-500 dark:text-gray-400">
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                     No items available
                   </div>
                 )}
@@ -1622,6 +1724,36 @@ const AdminPage = () => {
             )}
           </div>
         </AdminCard>
+
+        {/* Clear All Confirmation Modal */}
+        {showClearConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+              <div className="flex items-center gap-3 text-red-500 mb-4">
+                <AlertOctagon className="w-6 h-6" />
+                <h3 className="text-xl font-bold">Clear All Wishlists</h3>
+              </div>
+              <p className="text-gray-600 dark:text-gray-300 mb-6">
+                Are you sure you want to delete ALL wishlists for ALL users? This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowClearConfirm(false)}
+                  className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleClearAllWishlists}
+                  className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                  disabled={isLoading}
+                >
+                  {isLoading ? 'Clearing...' : 'Clear All'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };

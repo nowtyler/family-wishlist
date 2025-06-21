@@ -341,17 +341,6 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
                           <Database className="w-4 h-4 mr-2" />
                           Manage Migrations
                         </button>
-                        <button
-                          onClick={() => {
-                            setShowSettings(false);
-                            setDeleteMode('all');
-                            setShowDeleteConfirm(true);
-                          }}
-                          className="flex items-center w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-600 border-t border-gray-200 dark:border-gray-600"
-                        >
-                          <AlertOctagon className="w-4 h-4 mr-2" />
-                          Clear All Wishlists
-                        </button>
                       </>
                     )}
                     <button

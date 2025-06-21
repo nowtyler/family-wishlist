@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, MessageCircleHeart, ShoppingCart, MessageCircle, Trash2, Plus, Pencil, 
   Gift, Moon, Sun, Settings, User, Database, RotateCcw, TriangleAlert,
-  RefreshCw, Archive, Home, Ruler
+  RefreshCw, Archive, Home, Ruler, LogOut, Lock, AlertOctagon, Mail
 } from 'lucide-react';
 
 const HelpModal = ({ isOpen, onClose, isAdmin }) => {
@@ -282,7 +282,15 @@ const HelpModal = ({ isOpen, onClose, isAdmin }) => {
                 </div>
               </Feature>
               
-              {/* Add new feature about size preferences */}
+              <Feature 
+                icon={<User size={18} />} 
+                title="Edit Profile" 
+                color="blue"
+              >
+                <p>Click the settings gear icon in the top navigation bar, then select "Edit Profile" to update your personal information including name, username, email, and password.</p>
+                <p className="mt-1">You can change your password at any time by entering a new password in the profile form. The new password must be at least 8 characters with uppercase, lowercase, and numbers.</p>
+              </Feature>
+              
               <Feature 
                 icon={<Ruler size={18} />} 
                 title="Size Preferences" 
@@ -301,12 +309,11 @@ const HelpModal = ({ isOpen, onClose, isAdmin }) => {
               </Feature>
               
               <Feature 
-                icon={<User size={18} />} 
-                title="Change User" 
+                icon={<LogOut size={18} />} 
+                title="Logout" 
                 color="gray"
               >
-                <p>Click the settings gear icon, then select "Change User" to switch to a different family member.
-                    You really shouldn't need to do this unless you made a mistake when logging in.</p>
+                <p>Click the settings gear icon, then select "Logout" to sign out of your account. You'll be returned to the login screen where you can sign in as a different user if needed.</p>
               </Feature>
               
               <Feature 
@@ -316,6 +323,41 @@ const HelpModal = ({ isOpen, onClose, isAdmin }) => {
               >
                 <p>Click the settings gear icon, then select "Clear Wishlist" to delete all items from your wishlist at once. 
                 This action cannot be undone, so use it carefully!</p>
+              </Feature>
+            </HelpSection>
+
+            {/* Login and Authentication */}
+            <HelpSection 
+              title="Login and Authentication" 
+              icon={<User size={20} />}
+              color="indigo"
+            >
+              <Feature 
+                icon={<User size={18} />} 
+                title="User Registration" 
+                color="blue"
+              >
+                <p>New users can register by clicking "New user? Register" on the login screen. You'll need to provide:</p>
+                <ul className="list-disc ml-6 mt-1 space-y-1">
+                  <li>Your name</li>
+                  <li>A unique username</li>
+                  <li>A secure password (8+ characters with uppercase, lowercase, and numbers)</li>
+                  <li>Optional email address</li>
+                </ul>
+              </Feature>
+              
+              <Feature 
+                icon={<Lock size={18} />} 
+                title="Password Requirements" 
+                color="amber"
+              >
+                <p>All passwords must meet these security requirements:</p>
+                <ul className="list-disc ml-6 mt-1 space-y-1">
+                  <li>At least 8 characters long</li>
+                  <li>Include at least one uppercase letter (A-Z)</li>
+                  <li>Include at least one lowercase letter (a-z)</li>
+                  <li>Include at least one number (0-9)</li>
+                </ul>
               </Feature>
             </HelpSection>
 
@@ -339,9 +381,73 @@ const HelpModal = ({ isOpen, onClose, isAdmin }) => {
             {isAdmin && (
               <>
                 <h3 className="text-xl font-bold text-amber-500 dark:text-amber-400 mt-8 mb-4 border-t border-gray-200 dark:border-gray-700 pt-6">
-                  Admin-Only Features
+                  Admin Dashboard Features
                 </h3>
                 
+                <HelpSection 
+                  title="Admin Dashboard Overview" 
+                  icon={<Settings size={20} />}
+                  color="amber"
+                >
+                  <p>The admin dashboard provides comprehensive management tools organized into tabs:</p>
+                  
+                  <Feature 
+                    icon={<Home size={18} />} 
+                    title="Dashboard Tab" 
+                    color="blue"
+                  >
+                    <p>Overview of system status, last backup time, and database size. Quick access to key system metrics.</p>
+                  </Feature>
+                  
+                  <Feature 
+                    icon={<User size={18} />} 
+                    title="Users Tab" 
+                    color="blue"
+                  >
+                    <p>Manage all family members. Click "Manage" to add new users, edit existing profiles, or delete users. View household memberships for each user.</p>
+                  </Feature>
+                  
+                  <Feature 
+                    icon={<Home size={18} />} 
+                    title="Households Tab" 
+                    color="blue"
+                  >
+                    <p>Create and manage households. Add or remove users from households, edit household details, and view member counts.</p>
+                  </Feature>
+                  
+                  <Feature 
+                    icon={<Gift size={18} />} 
+                    title="Items Tab" 
+                    color="blue"
+                  >
+                    <p>View all wishlist items across all users, grouped by owner. Use "Show Status" to reveal purchase status, and "Clear All" to delete all wishlists.</p>
+                  </Feature>
+                  
+                  <Feature 
+                    icon={<Mail size={18} />} 
+                    title="Email Tab" 
+                    color="blue"
+                  >
+                    <p>Configure email settings for notifications and create email templates for automated communications.</p>
+                  </Feature>
+                  
+                  <Feature 
+                    icon={<Database size={18} />} 
+                    title="Database Tab" 
+                    color="blue"
+                  >
+                    <p>Manage database migrations, create backups, restore from backups, and handle database maintenance tasks.</p>
+                  </Feature>
+                  
+                  <Feature 
+                    icon={<Settings size={18} />} 
+                    title="System Tab" 
+                    color="blue"
+                  >
+                    <p>Monitor system status including uptime, memory usage, disk usage, and active users. Refresh system information as needed.</p>
+                  </Feature>
+                </HelpSection>
+
                 <HelpSection 
                   title="Database Management" 
                   icon={<Database size={20} />}
@@ -353,7 +459,7 @@ const HelpModal = ({ isOpen, onClose, isAdmin }) => {
                     color="blue"
                   >
                     <p>Migrations update the database structure when application updates require schema changes. 
-                    Access the migration manager from the gear icon → Manage Migrations.</p>
+                    Access the migration manager from the Database tab.</p>
                     <p className="mt-1 text-amber-600 dark:text-amber-400">
                       <TriangleAlert size={14} className="inline mr-1" />
                       Always back up your database before running migrations.
@@ -366,7 +472,7 @@ const HelpModal = ({ isOpen, onClose, isAdmin }) => {
                     color="blue"
                   >
                     <p>The system automatically creates a backup before each migration. 
-                    You can also create manual backups from the migration manager:</p>
+                    You can also create manual backups from the Database tab:</p>
                     <ul className="list-disc ml-6 mt-1 space-y-1">
                       <li>Create Backup: Makes a new backup of the current database</li>
                       <li>Restore Backup: Reverts the database to a previous state</li>
@@ -385,8 +491,8 @@ const HelpModal = ({ isOpen, onClose, isAdmin }) => {
                     title="Clear All Wishlists" 
                     color="red"
                   >
-                    <p>As an admin, you can clear all wishlists for all users at once. This is useful for resetting the system
-                    after an event or holiday season. Access this feature from the gear icon → Clear All Wishlists.</p>
+                    <p>From the Items tab, you can clear all wishlists for all users at once. This is useful for resetting the system
+                    after an event or holiday season.</p>
                     <p className="mt-1 text-red-600 dark:text-red-400">
                       <TriangleAlert size={14} className="inline mr-1" />
                       This action cannot be undone! Always create a backup first.
@@ -401,6 +507,24 @@ const HelpModal = ({ isOpen, onClose, isAdmin }) => {
                     <p>You can update the application version number displayed in the navbar. 
                     Click on the version number shown next to "Family Wishlist" to edit it.</p>
                   </Feature>
+
+                  <Feature 
+                    icon={<AlertOctagon size={18} />} 
+                    title="Emergency Access" 
+                    color="red"
+                  >
+                    <p>If you're locked out of your account, you can use emergency access by:</p>
+                    <ul className="list-disc ml-6 mt-1 space-y-1">
+                      <li>Entering "bypass" as the username</li>
+                      <li>Using your emergency access key as the password</li>
+                    </ul>
+                    <p className="mt-1 text-red-600 dark:text-red-400">
+                      <TriangleAlert size={14} className="inline mr-1" />
+                      Keep your emergency access key safe - it cannot be recovered if lost!
+                    </p>
+              </Feature>
+
+
                 </HelpSection>
 
                 <HelpSection 
@@ -413,6 +537,8 @@ const HelpModal = ({ isOpen, onClose, isAdmin }) => {
                     <li><strong>Migration Timing:</strong> Run migrations during low-usage periods</li>
                     <li><strong>Test Restores:</strong> Periodically verify that backups can be successfully restored</li>
                     <li><strong>Year-End Reset:</strong> Consider clearing all wishlists at the beginning of a new year or after major holidays</li>
+                    <li><strong>User Management:</strong> Regularly review and update user accounts and household memberships</li>
+                    <li><strong>System Monitoring:</strong> Check the System tab regularly to monitor resource usage and system health</li>
                   </ul>
                 </HelpSection>
               </>
