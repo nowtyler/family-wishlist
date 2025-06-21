@@ -666,4 +666,13 @@ export const firstTimeSetup = async (setupData) => {
   }
 };
 
+// Items management functions
+export const getAllItems = () => {
+  return apiClient.get('/admin/items');
+};
+
+export const deleteItemAsAdmin = (itemId) => {
+  return apiClient.delete(`/admin/items/${itemId}`);
+};
+
 export default apiClient;

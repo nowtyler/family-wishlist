@@ -37,7 +37,9 @@ import {
   getSystemSettings,
   updateSystemSettings,
   setMaintenanceMode,
-  clearSystemCache
+  clearSystemCache,
+  getAllItems,
+  deleteItemAsAdmin
 } from '../services/api';
 import FamilyMemberManager from './admin/FamilyMemberManager';
 import Navbar from './Navbar';
@@ -47,6 +49,7 @@ const AdminPage = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isLoading, setIsLoading] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Data states
   const [stats, setStats] = useState({
@@ -148,9 +151,9 @@ const AdminPage = () => {
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'users', label: 'Users', icon: Users },
     { id: 'households', label: 'Households', icon: Home },
+    { id: 'items', label: 'Items', icon: Gift },
     { id: 'email', label: 'Email', icon: Mail },
-    { id: 'migrations', label: 'Database', icon: Database },
-    { id: 'backups', label: 'Backups', icon: Archive },
+    { id: 'database', label: 'Database', icon: Database },
     { id: 'system', label: 'System', icon: Settings }
   ];
 
@@ -253,62 +256,91 @@ const AdminPage = () => {
       // Refresh the users list
       getFamilyMembers().then(response => {
         setUsers(response.data || []);
-      });
+      }      );
     };
 
     return (
-      <div className="space-y-6">
-        <AdminCard title="User Management" icon={Users}>
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <h4 className="text-lg font-medium text-gray-900 dark:text-white">Database Migrations</h4>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <button 
+              onClick={handleCheckUpdates}
+              disabled={isLoading}
+              className="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Check Updates
+            </button>
+            <button 
+              onClick={handleResetMigrations}
+              disabled={isLoading}
+              className="flex items-center px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg transition-colors disabled:opacity-50"
+            >
+              <AlertTriangle className="w-4 h-4 mr-2" />
+              Reset State
+            </button>
+          </div>
+        </div>
+        
+        {isLoading ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+            <p className="mt-2 text-gray-600 dark:text-gray-400">Loading migrations...</p>
+          </div>
+        ) : (
           <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h4 className="text-lg font-medium text-gray-900 dark:text-white">Family Members</h4>
-              <button 
-                onClick={() => setIsModalOpen(true)}
-                className="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add User
-              </button>
-            </div>
+            {migrations.current_version && (
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                <p className="text-blue-800 dark:text-blue-200">
+                  Current Version: <span className="font-semibold">{migrations.current_version}</span>
+                </p>
+                {migrations.needs_upgrade && (
+                  <p className="text-yellow-800 dark:text-yellow-200 mt-1">
+                    Database upgrade required!
+                  </p>
+                )}
+              </div>
+            )}
             
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
                 <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
                   <tr>
-                    <th className="px-6 py-3">Name</th>
-                    <th className="px-6 py-3">Username</th>
-                    <th className="px-6 py-3">Email</th>
-                    <th className="px-6 py-3">Households</th>
+                    <th className="px-6 py-3">Version</th>
+                    <th className="px-6 py-3">Description</th>
                     <th className="px-6 py-3">Status</th>
                     <th className="px-6 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map(user => (
-                    <tr key={user.id} className="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
-                      <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{user.name}</td>
-                      <td className="px-6 py-4">{user.username}</td>
-                      <td className="px-6 py-4">{user.email}</td>
-                      <td className="px-6 py-4">{user.households?.map(h => h.name).join(', ') || 'None'}</td>
+                  {migrations.available_migrations?.map(migration => (
+                    <tr key={migration.version} className="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
+                      <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{migration.version}</td>
+                      <td className="px-6 py-4">{migration.description}</td>
                       <td className="px-6 py-4">
-                        <span className={`bg-${user.is_active ? 'green' : 'gray'}-100 text-${user.is_active ? 'green' : 'gray'}-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-${user.is_active ? 'green' : 'gray'}-900 dark:text-${user.is_active ? 'green' : 'gray'}-300`}>
-                          {user.is_active ? 'Active' : 'Inactive'}
+                        <span className={`bg-${migration.applied ? 'green' : 'gray'}-100 text-${migration.applied ? 'green' : 'gray'}-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-${migration.applied ? 'green' : 'gray'}-900 dark:text-${migration.applied ? 'green' : 'gray'}-300`}>
+                          {migration.applied ? 'Applied' : 'Pending'}
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex space-x-2">
-                          <button 
-                            onClick={() => handleEditUser(user)}
-                            className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          {!user.is_admin && (
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          {!migration.applied && (
                             <button 
-                              onClick={() => handleDeleteUser(user.id)}
-                              className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                              onClick={() => handleApplyMigration(migration.version)}
+                              disabled={isLoading}
+                              className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              Apply
+                            </button>
+                          )}
+                          {!migration.protected && (
+                            <button 
+                              onClick={() => handleDeleteMigration(migration.version)}
+                              disabled={isLoading}
+                              className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50"
+                            >
+                              Delete
                             </button>
                           )}
                         </div>
@@ -319,16 +351,150 @@ const AdminPage = () => {
               </table>
             </div>
           </div>
-        </AdminCard>
-
-        {/* Family Member Manager Modal */}
-        <FamilyMemberManager
-          isOpen={isModalOpen}
-          onClose={handleCloseModal}
-        />
+        )}
       </div>
     );
   };
+  
+  const BackupsSubTab = () => {
+    const [backups, setBackups] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [isCreating, setIsCreating] = useState(false);
+
+    const fetchBackups = async () => {
+      setIsLoading(true);
+      try {
+        const response = await getBackups();
+        setBackups(response.data?.backups || []);
+      } catch (err) {
+        console.error('Failed to fetch backups:', err);
+        toast.error(err.response?.data?.detail || 'Failed to load backups');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    useEffect(() => {
+      fetchBackups();
+    }, []);
+
+    const handleCreateBackup = async () => {
+      setIsCreating(true);
+      try {
+        const response = await createBackup();
+        toast.success('Backup created successfully');
+        await fetchBackups(); // Refresh the list
+      } catch (err) {
+        console.error('Failed to create backup:', err);
+        toast.error(err.response?.data?.detail || 'Failed to create backup');
+      } finally {
+        setIsCreating(false);
+      }
+    };
+
+    const handleRestoreBackup = async (filename) => {
+      if (!confirm(`Are you sure you want to restore from backup "${filename}"? This will overwrite current data.`)) return;
+      
+      setIsLoading(true);
+      try {
+        const response = await restoreBackup(filename);
+        toast.success('Backup restored successfully');
+        await fetchBackups(); // Refresh the list
+      } catch (err) {
+        console.error('Failed to restore backup:', err);
+        toast.error(err.response?.data?.detail || 'Failed to restore backup');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    const handleDeleteBackup = async (filename) => {
+      if (!confirm(`Are you sure you want to delete backup "${filename}"?`)) return;
+      
+      setIsLoading(true);
+      try {
+        await deleteBackup(filename);
+        toast.success('Backup deleted successfully');
+        await fetchBackups(); // Refresh the list
+      } catch (err) {
+        console.error('Failed to delete backup:', err);
+        toast.error(err.response?.data?.detail || 'Failed to delete backup');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <h4 className="text-lg font-medium text-gray-900 dark:text-white">Database Backups</h4>
+          <button 
+            onClick={handleCreateBackup}
+            disabled={isCreating}
+            className="flex items-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors disabled:opacity-50"
+          >
+            <Archive className="w-4 h-4 mr-2" />
+            {isCreating ? 'Creating...' : 'Create Backup'}
+          </button>
+        </div>
+        
+        {isLoading && !backups.length ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+            <p className="mt-2 text-gray-600 dark:text-gray-400">Loading backups...</p>
+          </div>
+        ) : backups.length === 0 ? (
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+            No backups available
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+              <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                <tr>
+                  <th className="px-6 py-3">Filename</th>
+                  <th className="px-6 py-3">Created</th>
+                  <th className="px-6 py-3">Size</th>
+                  <th className="px-6 py-3">Version</th>
+                  <th className="px-6 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {backups.map(backup => (
+                  <tr key={backup.filename} className="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
+                    <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{backup.filename}</td>
+                    <td className="px-6 py-4">{new Date(backup.created_at).toLocaleString()}</td>
+                    <td className="px-6 py-4">{backup.size_kb.toFixed(1)} KB</td>
+                    <td className="px-6 py-4">{backup.version}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <button 
+                          onClick={() => handleRestoreBackup(backup.filename)}
+                          disabled={isLoading}
+                          className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50"
+                        >
+                          Restore
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteBackup(backup.filename)}
+                          disabled={isLoading}
+                          className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+
 
   const HouseholdsTab = () => {
     const [households, setHouseholds] = useState([]);
@@ -944,6 +1110,46 @@ const AdminPage = () => {
   };
 
   const MigrationsTab = () => {
+    const [selectedSubTab, setSelectedSubTab] = useState('migrations');
+    
+    return (
+      <div className="space-y-6">
+        <AdminCard title="Database Management" icon={Database}>
+          <div className="space-y-4">
+            <div className="border-b border-gray-200 dark:border-gray-700">
+              <nav className="-mb-px flex space-x-8">
+                <button
+                  onClick={() => setSelectedSubTab('migrations')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    selectedSubTab === 'migrations'
+                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                  }`}
+                >
+                  Migrations
+                </button>
+                <button
+                  onClick={() => setSelectedSubTab('backups')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    selectedSubTab === 'backups'
+                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                  }`}
+                >
+                  Backups
+                </button>
+              </nav>
+            </div>
+            
+            {selectedSubTab === 'migrations' && <MigrationsSubTab />}
+            {selectedSubTab === 'backups' && <BackupsSubTab />}
+          </div>
+        </AdminCard>
+      </div>
+    );
+  };
+  
+  const MigrationsSubTab = () => {
     const [migrationStatus, setMigrationStatus] = useState('current');
     const [availableMigrations, setAvailableMigrations] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -1367,6 +1573,151 @@ const AdminPage = () => {
     );
   };
 
+  const ItemsTab = () => {
+    const [items, setItems] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+
+    useEffect(() => {
+      const fetchItems = async () => {
+        setIsLoading(true);
+        try {
+          const response = await getAllItems();
+          setItems(response.data || []);
+        } catch (err) {
+          console.error('Failed to fetch items:', err);
+          toast.error(err.response?.data?.detail || 'Failed to load items');
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      fetchItems();
+    }, []);
+
+    const handleDeleteItem = async (itemId) => {
+      if (!confirm('Are you sure you want to delete this item?')) return;
+      
+      setIsLoading(true);
+      try {
+        await deleteItemAsAdmin(itemId);
+        setItems(prevItems => prevItems.filter(item => item.id !== itemId));
+        toast.success('Item deleted successfully');
+      } catch (err) {
+        console.error('Failed to delete item:', err);
+        toast.error(err.response?.data?.detail || 'Failed to delete item');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    const filteredItems = items.filter(item =>
+      item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.owner_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.households.some(h => h.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+    return (
+      <div className="space-y-6">
+        <AdminCard title="Items Management" icon={Gift}>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h4 className="text-lg font-medium text-gray-900 dark:text-white">All Wishlist Items</h4>
+              <input
+                type="text"
+                placeholder="Search items, owners, or households..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            
+            {isLoading && !items.length ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-2 text-gray-600 dark:text-gray-400">Loading items...</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                  <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                    <tr>
+                      <th className="px-6 py-3">Title</th>
+                      <th className="px-6 py-3">Owner</th>
+                      <th className="px-6 py-3">Households</th>
+                      <th className="px-6 py-3">Status</th>
+                      <th className="px-6 py-3">Priority</th>
+                      <th className="px-6 py-3">Price</th>
+                      <th className="px-6 py-3">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredItems.map(item => (
+                      <tr key={item.id} className="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
+                        <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
+                          <div>
+                            <div className="font-semibold">{item.title}</div>
+                            {item.description && (
+                              <div className="text-xs text-gray-500 truncate max-w-xs">
+                                {item.description.length > 50 ? item.description.substring(0, 50) + '...' : item.description}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">{item.owner_name}</td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-wrap gap-1">
+                            {item.households.map((household, index) => (
+                              <span key={index} className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">
+                                {household}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`bg-${item.is_purchased ? 'green' : 'gray'}-100 text-${item.is_purchased ? 'green' : 'gray'}-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-${item.is_purchased ? 'green' : 'gray'}-900 dark:text-${item.is_purchased ? 'green' : 'gray'}-300`}>
+                            {item.is_purchased ? `Purchased${item.purchased_by ? ` by ${item.purchased_by}` : ''}` : 'Available'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            item.priority === 2 ? 'bg-red-100 text-red-800' :
+                            item.priority === 1 ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-green-100 text-green-800'
+                          }`}>
+                            {item.priority === 2 ? 'High' : item.priority === 1 ? 'Medium' : 'Low'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          {item.price ? `$${(item.price / 100).toFixed(2)}` : 'N/A'}
+                        </td>
+                        <td className="px-6 py-4">
+                          <button 
+                            onClick={() => handleDeleteItem(item.id)}
+                            className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                            disabled={isLoading}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                
+                {filteredItems.length === 0 && (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    {searchTerm ? 'No items match your search.' : 'No items found.'}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </AdminCard>
+      </div>
+    );
+  };
+
   const SystemTab = () => {
     const [systemStatus, setSystemStatus] = useState({
       version: '',
@@ -1720,12 +2071,12 @@ const AdminPage = () => {
         return <UsersTab />;
       case 'households':
         return <HouseholdsTab />;
+      case 'items':
+        return <ItemsTab />;
       case 'email':
         return <EmailTab />;
-      case 'migrations':
+      case 'database':
         return <MigrationsTab />;
-      case 'backups':
-        return <BackupsTab />;
       case 'system':
         return <SystemTab />;
       default:

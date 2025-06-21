@@ -8,6 +8,7 @@ import AddItemForm from './AddItemForm';
 import SchemaAlertModal from './SchemaAlertModal';
 import ExternalWishlistsButton from './ExternalWishlistsButton'; // Confirm this import exists
 import UserPreferencesDropdown from './UserPreferencesDropdown';
+import Navbar from './Navbar';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, ChevronDown, Gift, AlertTriangle, Home, Calendar } from 'lucide-react';
 
@@ -315,249 +316,256 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
   };
 
   return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-      className="space-y-6"
-    >
-      <AnimatePresence>
-        {showUpgradeAlert && (
-          <SchemaAlertModal
-            isOpen={showUpgradeAlert}
-            onClose={handleCloseUpgradeAlert}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Enhanced Upcoming Events Banner */}
-      {familyMembers.length > 0 && (
-        <EnhancedUpcomingEventsBanner familyMembers={familyMembers} />
-      )}
-
-      {/* Schema Warning Banner */}
-      {needsUpgrade && !isAdmin && (
-        <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="text-yellow-500" size={18} />
-            <p className="text-yellow-800 dark:text-yellow-200">
-              Database update required. Some features may be limited until an administrator performs the update.
-            </p>
-          </div>
-        </div>
-      )}
+    <>
+      {/* Add Navbar component */}
+      <Navbar onClearWishlist={refreshWishlistItems} viewingMember={viewingMember} />
       
-      {/* Header section - with user preferences dropdown */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)]">
-        <div className="w-full md:w-auto">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-white">
-              {viewingMember?.id === selectedUser.id ? "Your Wishlist" : `${viewingMember?.name || ''}'s Wishlist`}
-            </h1>
-            
-            {/* Replace birthday badge with preferences dropdown */}
-            {viewingMember && (
-              <UserPreferencesDropdown 
-                member={viewingMember}
-                isOwner={viewingMember.id === selectedUser.id || isAdmin}
-                currentUserId={selectedUser.id}
-                onUpdateSuccess={handlePreferencesUpdate}
+      <div className="container mx-auto px-6 py-8">
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5 }}
+          className="space-y-6"
+        >
+          <AnimatePresence>
+            {showUpgradeAlert && (
+              <SchemaAlertModal
+                isOpen={showUpgradeAlert}
+                onClose={handleCloseUpgradeAlert}
               />
             )}
+          </AnimatePresence>
+
+          {/* Enhanced Upcoming Events Banner */}
+          {familyMembers.length > 0 && (
+            <EnhancedUpcomingEventsBanner familyMembers={familyMembers} />
+          )}
+
+          {/* Schema Warning Banner */}
+          {needsUpgrade && !isAdmin && (
+            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="text-yellow-500" size={18} />
+                <p className="text-yellow-800 dark:text-yellow-200">
+                  Database update required. Some features may be limited until an administrator performs the update.
+                </p>
+              </div>
+            </div>
+          )}
+          
+          {/* Header section - with user preferences dropdown */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)]">
+            <div className="w-full md:w-auto">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-white">
+                  {viewingMember?.id === selectedUser.id ? "Your Wishlist" : `${viewingMember?.name || ''}'s Wishlist`}
+                </h1>
+                
+                {/* Replace birthday badge with preferences dropdown */}
+                {viewingMember && (
+                  <UserPreferencesDropdown 
+                    member={viewingMember}
+                    isOwner={viewingMember.id === selectedUser.id || isAdmin}
+                    currentUserId={selectedUser.id}
+                    onUpdateSuccess={handlePreferencesUpdate}
+                  />
+                )}
+              </div>
+              <p className="text-gray-600 dark:text-gray-300 mt-1">
+                {viewingMember?.id === selectedUser.id ? "Manage your wishes or " : "Browse wishes and "}
+                see what others are hoping for!
+              </p>
+            </div>
+            
+            {/* External Wishlists Button - full width on mobile, auto width on larger screens */}
+            {viewingMember && <div className="w-full md:w-auto">
+              <ExternalWishlistsButton member={viewingMember} />
+            </div>}
           </div>
-          <p className="text-gray-600 dark:text-gray-300 mt-1">
-            {viewingMember?.id === selectedUser.id ? "Manage your wishes or " : "Browse wishes and "}
-            see what others are hoping for!
-          </p>
-        </div>
-        
-        {/* External Wishlists Button - full width on mobile, auto width on larger screens */}
-        {viewingMember && <div className="w-full md:w-auto">
-          <ExternalWishlistsButton member={viewingMember} />
-        </div>}
-      </div>
 
-      {error && <p className="text-red-500 bg-red-100 p-3 rounded-md text-center">{error}</p>}
+          {error && <p className="text-red-500 bg-red-100 p-3 rounded-md text-center">{error}</p>}
 
-      {/* Collapsible Browse Wishlist Section - Enhanced with gradient styling */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)] overflow-hidden">
-        <button
-          onClick={() => setBrowserExpanded(!isBrowserExpanded)}
-          className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-sky-50 to-indigo-50 dark:from-sky-900/20 dark:to-indigo-900/20 hover:from-sky-100 hover:to-indigo-100 dark:hover:from-sky-900/30 dark:hover:to-indigo-900/30 transition-colors duration-200"
-        >
-          <div className="flex items-center gap-2">
-            <Gift className="w-4 h-4 text-primary dark:text-primary-400" />
-            <span className="font-semibold text-gray-800 dark:text-white">
-              Browse Wishlists
-            </span>
-            {Array.isArray(familyMembers) && (
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                ({familyMembers.filter(m => !m.is_admin).length})
-              </span>
-            )}
-            <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full">
-              View Others
-            </span>
-          </div>
-          <ChevronDown
-            className={`w-4 h-4 text-gray-500 dark:text-gray-400 transform transition-transform duration-200 ${
-              isBrowserExpanded ? 'rotate-180' : ''
-            }`}
-          />
-        </button>
-
-        <motion.div
-          initial={false}
-          animate={{
-            height: isBrowserExpanded ? 'auto' : 0,
-            opacity: isBrowserExpanded ? 1 : 0
-          }}
-          transition={{ duration: 0.2 }}
-          className="overflow-hidden border-t border-gray-100 dark:border-gray-700"
-        >
-          <div className="p-4 grid gap-2">
-            {Array.isArray(familyMembers) && familyMembers
-              .filter(member => !member.is_admin)
-              .map(member => (
-                <motion.button
-                  key={member.id}
-                  onClick={() => handleSelectViewingMember(member)}
-                  className={`w-full flex items-center justify-between px-4 py-2.5 rounded-lg transition-all duration-200
-                    ${viewingMember?.id === member.id
-                      ? 'bg-gradient-to-r from-sky-500 to-indigo-500 dark:from-sky-400 dark:to-indigo-400 text-white shadow-sm'
-                      : 'bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'
-                    }`}
-                >
-                  <span className="font-medium">{member.name}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full
-                    ${viewingMember?.id === member.id
-                      ? 'bg-white/20'
-                      : 'bg-white dark:bg-gray-600'
-                    }`}
-                  >
-                    {member.wishlist_item_count}
+          {/* Collapsible Browse Wishlist Section - Enhanced with gradient styling */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)] overflow-hidden">
+            <button
+              onClick={() => setBrowserExpanded(!isBrowserExpanded)}
+              className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-sky-50 to-indigo-50 dark:from-sky-900/20 dark:to-indigo-900/20 hover:from-sky-100 hover:to-indigo-100 dark:hover:from-sky-900/30 dark:hover:to-indigo-900/30 transition-colors duration-200"
+            >
+              <div className="flex items-center gap-2">
+                <Gift className="w-4 h-4 text-primary dark:text-primary-400" />
+                <span className="font-semibold text-gray-800 dark:text-white">
+                  Browse Wishlists
+                </span>
+                {Array.isArray(familyMembers) && (
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    ({familyMembers.filter(m => !m.is_admin).length})
                   </span>
-                </motion.button>
-            ))}
+                )}
+                <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full">
+                  View Others
+                </span>
+              </div>
+              <ChevronDown
+                className={`w-4 h-4 text-gray-500 dark:text-gray-400 transform transition-transform duration-200 ${
+                  isBrowserExpanded ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+
+            <motion.div
+              initial={false}
+              animate={{
+                height: isBrowserExpanded ? 'auto' : 0,
+                opacity: isBrowserExpanded ? 1 : 0
+              }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden border-t border-gray-100 dark:border-gray-700"
+            >
+              <div className="p-4 grid gap-2">
+                {Array.isArray(familyMembers) && familyMembers
+                  .filter(member => !member.is_admin)
+                  .map(member => (
+                    <motion.button
+                      key={member.id}
+                      onClick={() => handleSelectViewingMember(member)}
+                      className={`w-full flex items-center justify-between px-4 py-2.5 rounded-lg transition-all duration-200
+                        ${viewingMember?.id === member.id
+                          ? 'bg-gradient-to-r from-sky-500 to-indigo-500 dark:from-sky-400 dark:to-indigo-400 text-white shadow-sm'
+                          : 'bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'
+                        }`}
+                    >
+                      <span className="font-medium">{member.name}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full
+                        ${viewingMember?.id === member.id
+                          ? 'bg-white/20'
+                          : 'bg-white dark:bg-gray-600'
+                        }`}
+                      >
+                        {member.wishlist_item_count}
+                      </span>
+                    </motion.button>
+                ))}
+              </div>
+            </motion.div>
           </div>
+
+          {/* Wishlist items for viewingMember */}
+          {viewingMember && (
+            <div className="relative">
+              <WishlistCard
+                member={viewingMember}
+                items={Array.isArray(wishlistItems) ? wishlistItems : []}
+                isLoading={isLoading}
+                isOwnWishlist={isAdmin || viewingMember.id === selectedUser.id}
+                currentUserId={selectedUser.id}
+                onUpdateItems={refreshWishlistItems}
+                onDeleteItem={handleDeleteItem}
+                onThinkingAbout={handleThinkingAbout}
+                onMarkPurchased={handleMarkPurchased}
+                onItemClick={handleItemClick}
+                onItemModalClose={handleItemModalClose}
+                selectedItem={selectedItem}
+              />
+            </div>
+          )}
+
+          {/* Floating Add Button - Updated to hide when modal is open */}
+          <AnimatePresence>
+            {(viewingMember?.id === selectedUser?.id || isAdmin) && !isAddingItem && !selectedItem && (
+              <motion.button
+                onClick={handleOpenAddItemForm}
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 dark:from-sky-400 dark:to-indigo-400 text-white shadow-lg hover:from-sky-600 hover:to-indigo-600 dark:hover:from-sky-500 dark:hover:to-indigo-500 flex items-center justify-center transition-all duration-200 z-10"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                title="Add new item"
+              >
+                <Plus size={24} />
+              </motion.button>
+            )}
+            
+            {/* Floating Home Button - Only shows when viewing someone else's wishlist */}
+            {viewingMember?.id !== selectedUser?.id && !isAdmin && !selectedItem && (
+              <motion.button
+                onClick={() => handleSelectViewingMember(selectedUser)}
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 dark:from-emerald-400 dark:to-teal-400 text-white shadow-lg hover:from-emerald-600 hover:to-teal-600 dark:hover:from-emerald-500 dark:hover:to-teal-500 flex items-center justify-center transition-all duration-200 z-10"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                title="Return to your wishlist"
+              >
+                <Home size={24} />
+              </motion.button>
+            )}
+          </AnimatePresence>
+
+          {/* Add Item Form Modal */}
+          <AnimatePresence>
+            {isAddingItem && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  zIndex: 50,
+                }}
+                onMouseDown={(e) => {
+                  // Only track mousedown on the backdrop itself, not the modal content
+                  if (e.target === e.currentTarget) {
+                    setIsDragging(false);
+                  }
+                }}
+                onMouseUp={(e) => {
+                  // Only close if this was a click directly on the backdrop
+                  // and not following a text selection drag
+                  if (e.target === e.currentTarget && !isDragging && !window.getSelection().toString()) {
+                    handleCloseAddItemForm();
+                  }
+                  setIsDragging(false);
+                }}
+                onClick={(e) => {
+                  // Prevent the click event from closing the dialog if triggered
+                  // as part of selecting text or following a drag
+                  e.stopPropagation();
+                }}
+              >
+                <motion.div
+                  initial={{ scale: 0.95, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.95, opacity: 0 }}
+                  className="relative w-full max-w-2xl mx-auto my-8 max-h-[90vh] overflow-y-auto"
+                  onMouseDown={() => {
+                    // Track when mouse is pressed down inside the modal
+                    setIsDragging(false);
+                  }}
+                  onMouseMove={() => {
+                    // Flag as dragging if mouse moves after mousedown
+                    setIsDragging(true);
+                  }}
+                  onClick={e => e.stopPropagation()} // Prevent closing when clicking the form
+                >
+                  <AddItemForm
+                    wishlistId={viewingMember.id}
+                    onAddItem={handleAddItem}
+                    onClose={handleCloseAddItemForm}
+                  />
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       </div>
-
-      {/* Wishlist items for viewingMember */}
-      {viewingMember && (
-        <div className="relative">
-          <WishlistCard
-            member={viewingMember}
-            items={Array.isArray(wishlistItems) ? wishlistItems : []}
-            isLoading={isLoading}
-            isOwnWishlist={isAdmin || viewingMember.id === selectedUser.id}
-            currentUserId={selectedUser.id}
-            onUpdateItems={refreshWishlistItems}
-            onDeleteItem={handleDeleteItem}
-            onThinkingAbout={handleThinkingAbout}
-            onMarkPurchased={handleMarkPurchased}
-            onItemClick={handleItemClick}
-            onItemModalClose={handleItemModalClose}
-            selectedItem={selectedItem}
-          />
-        </div>
-      )}
-
-      {/* Floating Add Button - Updated to hide when modal is open */}
-      <AnimatePresence>
-        {(viewingMember?.id === selectedUser?.id || isAdmin) && !isAddingItem && !selectedItem && (
-          <motion.button
-            onClick={handleOpenAddItemForm}
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 dark:from-sky-400 dark:to-indigo-400 text-white shadow-lg hover:from-sky-600 hover:to-indigo-600 dark:hover:from-sky-500 dark:hover:to-indigo-500 flex items-center justify-center transition-all duration-200 z-10"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            title="Add new item"
-          >
-            <Plus size={24} />
-          </motion.button>
-        )}
-        
-        {/* Floating Home Button - Only shows when viewing someone else's wishlist */}
-        {viewingMember?.id !== selectedUser?.id && !isAdmin && !selectedItem && (
-          <motion.button
-            onClick={() => handleSelectViewingMember(selectedUser)}
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 dark:from-emerald-400 dark:to-teal-400 text-white shadow-lg hover:from-emerald-600 hover:to-teal-600 dark:hover:from-emerald-500 dark:hover:to-teal-500 flex items-center justify-center transition-all duration-200 z-10"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            title="Return to your wishlist"
-          >
-            <Home size={24} />
-          </motion.button>
-        )}
-      </AnimatePresence>
-
-      {/* Add Item Form Modal */}
-      <AnimatePresence>
-        {isAddingItem && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              zIndex: 50,
-            }}
-            onMouseDown={(e) => {
-              // Only track mousedown on the backdrop itself, not the modal content
-              if (e.target === e.currentTarget) {
-                setIsDragging(false);
-              }
-            }}
-            onMouseUp={(e) => {
-              // Only close if this was a click directly on the backdrop
-              // and not following a text selection drag
-              if (e.target === e.currentTarget && !isDragging && !window.getSelection().toString()) {
-                handleCloseAddItemForm();
-              }
-              setIsDragging(false);
-            }}
-            onClick={(e) => {
-              // Prevent the click event from closing the dialog if triggered
-              // as part of selecting text or following a drag
-              e.stopPropagation();
-            }}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="relative w-full max-w-2xl mx-auto my-8 max-h-[90vh] overflow-y-auto"
-              onMouseDown={() => {
-                // Track when mouse is pressed down inside the modal
-                setIsDragging(false);
-              }}
-              onMouseMove={() => {
-                // Flag as dragging if mouse moves after mousedown
-                setIsDragging(true);
-              }}
-              onClick={e => e.stopPropagation()} // Prevent closing when clicking the form
-            >
-              <AddItemForm
-                wishlistId={viewingMember.id}
-                onAddItem={handleAddItem}
-                onClose={handleCloseAddItemForm}
-              />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+    </>
   );
 };
 

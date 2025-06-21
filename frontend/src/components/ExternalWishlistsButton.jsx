@@ -12,6 +12,13 @@ const ExternalWishlistsButton = ({ member }) => {
   const [lastFetchTimestamp, setLastFetchTimestamp] = useState(0);
   const minFetchInterval = 2000; // Minimum 2 seconds between fetches
   
+  // Add missing state declarations
+  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [formData, setFormData] = useState({ name: '', url: '' });
+  const [urlError, setUrlError] = useState('');
+  const [showConfirmDelete, setShowConfirmDelete] = useState(null);
+  
   const { selectedUser } = useAppContext();
   const modalRef = useRef(null);
   

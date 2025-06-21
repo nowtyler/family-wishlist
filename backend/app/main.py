@@ -25,6 +25,7 @@ from .services.migration_service import MigrationService
 from .services.backup_service import BackupService
 from .services.url_scraper import ProductScraper
 from .services.user_auth_service import UserAuthService
+from .services.email_service import EmailService
 from .middleware.rate_limiter import RateLimiter
 from .deps import validate_password_strength
 import secrets
@@ -2078,42 +2079,71 @@ def get_system_status(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
     
     try:
-        # Get system settings
-        settings = db.query(models.SystemConfig).filter(models.SystemConfig.key == 'version').first()
-        version = settings.value if settings else "1.0.0"
+        # Get system settings with safer error handling
+        try:
+            settings = db.query(models.SystemConfig).filter(models.SystemConfig.key == 'version').first()
+            version = settings.value if settings else "1.0.0"
+        except Exception as e:
+            logger.warning(f"Could not get version from SystemConfig: {e}")
+            version = "1.0.0"
         
         # Get system stats
-        total_users = db.query(models.FamilyMember).count()
+        try:
+            total_users = db.query(models.FamilyMember).count()
+        except Exception as e:
+            logger.warning(f"Could not get user count: {e}")
+            total_users = 0
         
-        # Get process info using psutil
-        process = psutil.Process()
-        memory_info = process.memory_info()
+        # Get process info using psutil with error handling
+        try:
+            import psutil
+            process = psutil.Process()
+            memory_info = process.memory_info()
+            memory_usage = f"{memory_info.rss / 1024 / 1024:.1f}MB"
+            uptime = datetime.now() - datetime.fromtimestamp(process.create_time())
+            uptime_str = str(uptime)
+        except Exception as e:
+            logger.warning(f"Could not get process info: {e}")
+            memory_usage = "N/A"
+            uptime_str = "N/A"
         
-        # Get disk usage
-        disk = psutil.disk_usage('/')
+        # Get disk usage with error handling
+        try:
+            import psutil
+            disk = psutil.disk_usage('/')
+            disk_usage = f"{disk.percent}%"
+        except Exception as e:
+            logger.warning(f"Could not get disk usage: {e}")
+            disk_usage = "N/A"
         
         # Get environment info
         environment = os.getenv("ENVIRONMENT", "production")
         debug_mode = os.getenv("DEBUG", "false").lower() == "true"
         
-        # Calculate uptime
-        uptime = datetime.now() - datetime.fromtimestamp(process.create_time())
-        
         return {
             "version": version,
-            "uptime": str(uptime),
-            "memory_usage": f"{memory_info.rss / 1024 / 1024:.1f}MB",
-            "disk_usage": f"{disk.percent}%",
+            "uptime": uptime_str,
+            "memory_usage": memory_usage,
+            "disk_usage": disk_usage,
             "total_users": total_users,
             "environment": environment,
-            "debug_mode": debug_mode
+            "debug_mode": debug_mode,
+            "status": "healthy"
         }
     except Exception as e:
         logger.error(f"Failed to get system status: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get system status: {str(e)}"
-        )
+        # Return a basic status even if detailed info fails
+        return {
+            "version": "1.0.0",
+            "uptime": "N/A",
+            "memory_usage": "N/A", 
+            "disk_usage": "N/A",
+            "total_users": 0,
+            "environment": os.getenv("ENVIRONMENT", "production"),
+            "debug_mode": os.getenv("DEBUG", "false").lower() == "true",
+            "status": "error",
+            "error": str(e)
+        }
 
 @app.get("/api/admin/system/settings")
 def get_system_settings(
@@ -2295,4 +2325,225 @@ def clear_system_cache(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to clear system cache: {str(e)}"
+        )
+
+@app.post("/api/admin/households/{household_id}/members", response_model=schemas.Household)
+def add_user_to_household(
+    household_id: int,
+    user_data: dict,  # Expect {"user_id": int}
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Add a user to a household (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    user_id = user_data.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="user_id is required")
+    
+    try:
+        # Check if household exists
+        household = db.query(models.Household).filter(models.Household.id == household_id).first()
+        if not household:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Household not found")
+        
+        # Check if user exists
+        target_user = crud.get_family_member(db, user_id)
+        if not target_user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        
+        # Check if user is already in household
+        existing = db.query(models.user_household_association).filter(
+            models.user_household_association.c.user_id == user_id,
+            models.user_household_association.c.household_id == household_id
+        ).first()
+        
+        if existing:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User is already in this household")
+        
+        # Add user to household
+        stmt = models.user_household_association.insert().values(
+            user_id=user_id,
+            household_id=household_id,
+            status='active',
+            joined_at=datetime.utcnow(),
+            requested_at=datetime.utcnow()
+        )
+        db.execute(stmt)
+        db.commit()
+        
+        # Return updated household
+        member_count = db.query(models.user_household_association).filter(
+            models.user_household_association.c.household_id == household_id
+        ).count()
+        
+        return schemas.Household(
+            id=household.id,
+            name=household.name,
+            description=household.description,
+            created_at=household.created_at,
+            created_by=household.created_by,
+            member_count=member_count
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to add user to household: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to add user to household: {str(e)}"
+        )
+
+@app.delete("/api/admin/households/{household_id}/members/{user_id}", response_model=schemas.Household)
+def remove_user_from_household(
+    household_id: int,
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Remove a user from a household (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    try:
+        # Check if household exists
+        household = db.query(models.Household).filter(models.Household.id == household_id).first()
+        if not household:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Household not found")
+        
+        # Remove user from household
+        result = db.execute(
+            models.user_household_association.delete().where(
+                models.user_household_association.c.user_id == user_id,
+                models.user_household_association.c.household_id == household_id
+            )
+        )
+        
+        if result.rowcount == 0:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found in household")
+        
+        db.commit()
+        
+        # Return updated household
+        member_count = db.query(models.user_household_association).filter(
+            models.user_household_association.c.household_id == household_id
+        ).count()
+        
+        return schemas.Household(
+            id=household.id,
+            name=household.name,
+            description=household.description,
+            created_at=household.created_at,
+            created_by=household.created_by,
+            member_count=member_count
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to remove user from household: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to remove user from household: {str(e)}"
+        )
+
+@app.get("/api/admin/items")
+def get_all_items(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get all wishlist items for admin management (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    try:
+        # Get all items with owner information
+        items = db.query(models.WishlistItem).join(models.FamilyMember).all()
+        
+        result = []
+        for item in items:
+            # Get households for the owner
+            households = db.query(models.Household).join(
+                models.user_household_association,
+                models.Household.id == models.user_household_association.c.household_id
+            ).filter(models.user_household_association.c.user_id == item.owner_id).all()
+            
+            household_names = [h.name for h in households] if households else ["No household"]
+            
+            result.append({
+                "id": item.id,
+                "title": item.title,
+                "description": item.description,
+                "owner_id": item.owner_id,
+                "owner_name": item.owner.name,
+                "households": household_names,
+                "is_purchased": item.is_purchased,
+                "purchased_by": item.purchased_by,
+                "priority": item.priority,
+                "price": item.price,
+                "created_at": item.id  # Using ID as proxy for creation order since created_at isn't in model
+            })
+        
+        return result
+    except Exception as e:
+        logger.error(f"Failed to get all items: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get all items: {str(e)}"
+        )
+
+@app.delete("/api/admin/items/{item_id}")
+def delete_item_admin(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Delete any item as admin"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    try:
+        # Find the item
+        item = db.query(models.WishlistItem).filter(models.WishlistItem.id == item_id).first()
+        if not item:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+        
+        # Delete associated comments first
+        db.query(models.Comment).filter(models.Comment.item_id == item_id).delete()
+        
+        # Delete the item
+        db.delete(item)
+        db.commit()
+        
+        return {"message": "Item deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to delete item: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete item: {str(e)}"
         )
