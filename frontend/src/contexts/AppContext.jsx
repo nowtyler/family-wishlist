@@ -1,6 +1,6 @@
 // frontend/src/contexts/AppContext.jsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { setCurrentUserHeader, getAdminAccess, getFamilyMembers } from '../services/api';
+import { setCurrentUserHeader, getAdminAccess, getFamilyMembers, clearApiCache } from '../services/api';
 
 const AppContext = createContext();
 
@@ -36,13 +36,8 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     if (isAuthenticated) {
       sessionStorage.setItem('wishlistAuthenticated', 'true');
-    } else {
-      sessionStorage.removeItem('wishlistAuthenticated');
-      sessionStorage.removeItem('wishlistSelectedUser');
-      sessionStorage.removeItem('wishlistDirectLogin');
-      setSelectedUser(null);
-      setDirectLogin(false);
     }
+    // Note: logout function now handles clearing session storage and state
   }, [isAuthenticated]);
 
   useEffect(() => {
@@ -85,12 +80,25 @@ export const AppProvider = ({ children }) => {
   const login = (direct = false) => {
     setIsAuthenticated(true);
     setDirectLogin(direct);
+    // Clear any existing family members to force a fresh fetch
+    setFamilyMembers([]);
   };
 
   const logout = () => {
     setIsAuthenticated(false);
-    // setSelectedUser(null); // Done by useEffect for isAuthenticated
-    // setCurrentUserHeader(null); // Done by useEffect for selectedUser
+    // Clear all cached data to prevent it from showing to the next user
+    setFamilyMembers([]);
+    setSelectedUser(null);
+    setDirectLogin(false);
+    setCurrentUserHeader(null);
+    
+    // Clear all session storage related to the app
+    sessionStorage.removeItem('wishlistAuthenticated');
+    sessionStorage.removeItem('wishlistSelectedUser');
+    sessionStorage.removeItem('wishlistDirectLogin');
+    
+    // Clear API cache to ensure fresh data for next user
+    clearApiCache();
   };
 
   // Add a function to refresh family members data
@@ -103,6 +111,18 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  // Add a function to completely reset and refresh all data
+  const forceRefreshAllData = async () => {
+    // Clear current data
+    setFamilyMembers([]);
+    
+    // Clear API cache
+    clearApiCache();
+    
+    // Fetch fresh data
+    await refreshFamilyMembers();
+  };
+
   // Add refreshFamilyMembers to the context value
   const value = {
     isAuthenticated,
@@ -113,6 +133,7 @@ export const AppProvider = ({ children }) => {
     selectedUser,
     setSelectedUser,
     refreshFamilyMembers,
+    forceRefreshAllData,
     directLogin,
     setDirectLogin,
   };

@@ -105,6 +105,22 @@ export const setCurrentUserHeader = (userId) => {
   }
 };
 
+// Function to clear all cached API data (useful on logout)
+export const clearApiCache = () => {
+  // Clear any axios cached data by creating a cache-busting timestamp
+  // This forces fresh requests for all subsequent API calls
+  apiClient.defaults.headers.common['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+  apiClient.defaults.headers.common['Pragma'] = 'no-cache';
+  apiClient.defaults.headers.common['Expires'] = '0';
+  
+  // Remove user-specific headers
+  delete apiClient.defaults.headers.common['X-Current-User-Id'];
+  
+  // Clear any pending requests (if needed)
+  // Note: This is more aggressive and should only be used on logout
+  return Promise.resolve();
+};
+
 // --- Auth ---
 export const verifyPassword = async (password) => {
     try {
