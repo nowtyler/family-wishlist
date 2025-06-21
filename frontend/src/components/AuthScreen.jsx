@@ -5,6 +5,8 @@ import { useAppContext } from '../contexts/AppContext';
 import { verifyPassword, loginUser, registerUser, requestPasswordReset, getAdminAccess } from '../services/api';
 import { motion } from 'framer-motion';
 import EmergencyAccessModal from './EmergencyAccessModal';
+import { validatePassword, validatePasswordMatch } from '../utils/passwordValidation';
+import { toast } from 'react-toastify';
 
 const AuthScreen = () => {
   // Authentication states
@@ -116,8 +118,17 @@ const AuthScreen = () => {
     setError('');
     setIsLoading(true);
     
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
+    // Frontend password validation with toast notifications
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      toast.error(passwordValidation.error);
+      setIsLoading(false);
+      return;
+    }
+    
+    const passwordMatchValidation = validatePasswordMatch(password, confirmPassword);
+    if (!passwordMatchValidation.isValid) {
+      toast.error(passwordMatchValidation.error);
       setIsLoading(false);
       return;
     }
@@ -133,7 +144,7 @@ const AuthScreen = () => {
       
       const response = await registerUser(userData);
       if (response.data.success) {
-        setSuccess('Registration successful! You can now login.');
+        toast.success('Registration successful! You can now login.');
         setAuthMode('login');
         // Clear form
         setUsername('');
@@ -147,7 +158,14 @@ const AuthScreen = () => {
       }
     } catch (err) {
       console.error('Registration error:', err);
-      setError(err.response?.data?.detail || err.userMessage || 'Failed to register. Please try again.');
+      const errorMessage = err.response?.data?.detail || err.userMessage || 'Failed to register. Please try again.';
+      
+      // Check if it's a password validation error from backend
+      if (err.response?.data?.detail && err.response.data.detail.includes('Password must be at least 8 characters')) {
+        toast.error(err.response.data.detail);
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }

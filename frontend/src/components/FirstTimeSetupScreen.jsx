@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
 import { firstTimeSetup } from '../services/api';
+import { validatePassword, validatePasswordMatch } from '../utils/passwordValidation';
+import { toast } from 'react-toastify';
 
 const FirstTimeSetupScreen = () => {
   const [formData, setFormData] = useState({
@@ -20,13 +22,6 @@ const FirstTimeSetupScreen = () => {
   const { login, setSelectedUser } = useAppContext();
   const navigate = useNavigate();
 
-  const validatePassword = (password) => {
-    const hasNumber = /\d/.test(password);
-    const hasSpecial = /[!@#$%^&*(),.?":{}|<>_ ]/.test(password);
-    const hasMinLength = password.length >= 10;
-    return hasNumber && hasSpecial && hasMinLength;
-  };
-  
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === 'admin_username' || name === 'admin_name') {
@@ -43,15 +38,16 @@ const FirstTimeSetupScreen = () => {
     setError('');
     setSuccess('');
 
-    // Validate password
-    if (!validatePassword(formData.admin_password)) {
-      setError('Password must be at least 10 characters long and include at least one number and one special character.');
+    // Frontend password validation with toast notifications
+    const passwordValidation = validatePassword(formData.admin_password);
+    if (!passwordValidation.isValid) {
+      toast.error(passwordValidation.error);
       return;
     }
-
-    // Check password confirmation
-    if (formData.admin_password !== formData.admin_password_confirm) {
-      setError('Passwords do not match.');
+    
+    const passwordMatchValidation = validatePasswordMatch(formData.admin_password, formData.admin_password_confirm);
+    if (!passwordMatchValidation.isValid) {
+      toast.error(passwordMatchValidation.error);
       return;
     }
 
@@ -65,12 +61,19 @@ const FirstTimeSetupScreen = () => {
         admin_name: formData.admin_name
       });
       setEmergencyKey(response.emergency_access_key);
-      setSuccess('System setup completed successfully! Please save your emergency access key.');
+      toast.success('System setup completed successfully! Please save your emergency access key.');
       login(true);
       setSelectedUser(response.admin_user);
     } catch (err) {
       console.error('Setup error:', err);
-      setError(err.response?.data?.detail || err.message || 'Setup failed');
+      const errorMessage = err.response?.data?.detail || err.message || 'Setup failed';
+      
+      // Check if it's a password validation error from backend
+      if (err.response?.data?.detail && err.response.data.detail.includes('Password must be at least 8 characters')) {
+        toast.error(err.response.data.detail);
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -129,7 +132,7 @@ const FirstTimeSetupScreen = () => {
                   />
                 </div>
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Password must be at least 10 characters long and include at least one number and one special character.
+                  Password must be at least 8 characters with uppercase, lowercase and numbers
                 </p>
               </div>
 

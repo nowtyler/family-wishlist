@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { confirmPasswordReset } from '../services/api';
+import { validatePassword, validatePasswordMatch } from '../utils/passwordValidation';
+import { toast } from 'react-toastify';
 import { motion } from 'framer-motion';
 
 const PasswordResetScreen = () => {
@@ -24,14 +26,17 @@ const PasswordResetScreen = () => {
     setError('');
     setIsLoading(true);
 
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
+    // Frontend password validation with toast notifications
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      toast.error(passwordValidation.error);
       setIsLoading(false);
       return;
     }
-
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters');
+    
+    const passwordMatchValidation = validatePasswordMatch(password, confirmPassword);
+    if (!passwordMatchValidation.isValid) {
+      toast.error(passwordMatchValidation.error);
       setIsLoading(false);
       return;
     }
@@ -39,7 +44,7 @@ const PasswordResetScreen = () => {
     try {
       const response = await confirmPasswordReset(token, password);
       if (response.data.success) {
-        setSuccess('Your password has been reset successfully.');
+        toast.success('Your password has been reset successfully.');
         setTimeout(() => {
           navigate('/login');
         }, 3000);
@@ -48,7 +53,14 @@ const PasswordResetScreen = () => {
       }
     } catch (err) {
       console.error('Password reset error:', err);
-      setError(err.response?.data?.detail || err.userMessage || 'Failed to reset password. Please try again.');
+      const errorMessage = err.response?.data?.detail || err.userMessage || 'Failed to reset password. Please try again.';
+      
+      // Check if it's a password validation error from backend
+      if (err.response?.data?.detail && err.response.data.detail.includes('Password must be at least 8 characters')) {
+        toast.error(err.response.data.detail);
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }

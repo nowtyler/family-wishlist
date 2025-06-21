@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, Pencil, Save, Trash2, X, TriangleAlert, Calendar, 
-  Check, Loader, UserRound, ChevronRight 
+  Check, Loader, UserRound, ChevronRight, Mail, User, Lock
 } from 'lucide-react';
 import { 
   getFamilyMembers, 
@@ -13,6 +13,8 @@ import {
   updateUserWithAuth
 } from '../../services/api';
 import { useAppContext } from '../../contexts/AppContext';
+import { validatePassword, validatePasswordMatch } from '../../utils/passwordValidation';
+import { toast } from 'react-toastify';
 
 const FamilyMemberManager = ({ isOpen, onClose }) => {
   const [members, setMembers] = useState([]);
@@ -183,14 +185,18 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
       setError('Username is required');
       return;
     }
-    // Password validation for both admin and non-admin
+    
+    // Frontend password validation with toast notifications
     if (addMode || formData.password) {
-      if (!formData.password || formData.password.length < 8) {
-        setError('Password must be at least 8 characters');
+      const passwordValidation = validatePassword(formData.password);
+      if (!passwordValidation.isValid) {
+        toast.error(passwordValidation.error);
         return;
       }
-      if (formData.password !== formData.confirmPassword) {
-        setError('Passwords do not match');
+      
+      const passwordMatchValidation = validatePasswordMatch(formData.password, formData.confirmPassword);
+      if (!passwordMatchValidation.isValid) {
+        toast.error(passwordMatchValidation.error);
         return;
       }
     }
@@ -245,9 +251,23 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
       setActionConfirm(false);
       setSelectedMember(null);
       setError('');
+      
+      // Show success toast
+      if (editMemberId) {
+        toast.success('User updated successfully');
+      } else if (addMode) {
+        toast.success('User created successfully');
+      }
     } catch (err) {
       console.error("Failed to save family member:", err);
-      setError(err.response?.data?.detail || 'Failed to save changes. Please try again.');
+      const errorMessage = err.response?.data?.detail || 'Failed to save changes. Please try again.';
+      
+      // Check if it's a password validation error from backend
+      if (err.response?.data?.detail && err.response.data.detail.includes('Password must be at least 8 characters')) {
+        toast.error(err.response.data.detail);
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setSaveLoading(false);
     }

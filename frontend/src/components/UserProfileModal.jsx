@@ -8,6 +8,7 @@ import {
 } from '../services/api';
 import { useAppContext } from '../contexts/AppContext';
 import { toast } from 'react-toastify';
+import { validatePassword, validatePasswordMatch } from '../utils/passwordValidation';
 
 const UserProfileModal = ({ isOpen, onClose }) => {
   const { selectedUser, refreshFamilyMembers } = useAppContext();
@@ -75,13 +76,20 @@ const UserProfileModal = ({ isOpen, onClose }) => {
       setError('Username is required');
       return;
     }
-    if (formData.password && formData.password.length < 8) {
-      setError('Password must be at least 8 characters');
-      return;
-    }
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
-      return;
+    
+    // Frontend password validation with toast notifications
+    if (formData.password) {
+      const passwordValidation = validatePassword(formData.password);
+      if (!passwordValidation.isValid) {
+        toast.error(passwordValidation.error);
+        return;
+      }
+      
+      const passwordMatchValidation = validatePasswordMatch(formData.password, formData.confirmPassword);
+      if (!passwordMatchValidation.isValid) {
+        toast.error(passwordMatchValidation.error);
+        return;
+      }
     }
     
     setIsLoading(true);
@@ -115,7 +123,14 @@ const UserProfileModal = ({ isOpen, onClose }) => {
       handleClose();
     } catch (err) {
       console.error("Failed to update profile:", err);
-      setError(err.response?.data?.detail || 'Failed to update profile. Please try again.');
+      const errorMessage = err.response?.data?.detail || 'Failed to update profile. Please try again.';
+      
+      // Check if it's a password validation error from backend
+      if (err.response?.data?.detail && err.response.data.detail.includes('Password must be at least 8 characters')) {
+        toast.error(err.response.data.detail);
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }
