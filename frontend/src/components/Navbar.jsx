@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import MigrationModal from './admin/MigrationModal';
 import HelpModal from './HelpModal';
 import FamilyMemberManager from './admin/FamilyMemberManager';
+import UserProfileModal from './UserProfileModal';
 
 const Navbar = ({ onClearWishlist, viewingMember }) => {
   const { selectedUser, logout, setSelectedUser, setFamilyMembers } = useAppContext();
@@ -27,6 +28,7 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
   const [isDevEnvironment, setIsDevEnvironment] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showFamilyManager, setShowFamilyManager] = useState(false);
+  const [showUserProfileModal, setShowUserProfileModal] = useState(false);
   const settingsRef = useRef(null);
   const isAdmin = selectedUser?.is_admin;
 
@@ -295,7 +297,7 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
                       <button
                         onClick={() => {
                           setShowSettings(false);
-                          // TODO: Open user profile management modal
+                          setShowUserProfileModal(true);
                         }}
                         className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
                       >
@@ -432,6 +434,13 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
           <FamilyMemberManager
             isOpen={showFamilyManager}
             onClose={() => setShowFamilyManager(false)}
+          />
+        )}
+        {/* User Profile Modal */}
+        {showUserProfileModal && (
+          <UserProfileModal
+            isOpen={showUserProfileModal}
+            onClose={() => setShowUserProfileModal(false)}
           />
         )}
       </AnimatePresence>

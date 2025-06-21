@@ -422,7 +422,7 @@ const AdminPage = () => {
             <div className="flex justify-between items-center">
               <h4 className="text-lg font-medium text-gray-900 dark:text-white">Households</h4>
               <button 
-                onClick={() => setIsModalOpen(true)}
+                onClick={handleCreateHousehold}
                 className="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
                 disabled={isLoading}
               >
@@ -1298,25 +1298,10 @@ const AdminPage = () => {
   };
 
   const SystemTab = () => {
-    const [systemSettings, setSystemSettings] = useState({
-      maintenance_mode: false,
-      debug_mode: false,
-      log_level: 'info',
-      max_upload_size: '5MB',
-      session_timeout: '24h',
-      backup_retention_days: 30
-    });
-    const [isEditingSettings, setIsEditingSettings] = useState(false);
-    const [editForm, setEditForm] = useState({});
     const [isLoadingStatus, setIsLoadingStatus] = useState(false);
-    const [isLoadingSettings, setIsLoadingSettings] = useState(false);
-    const [isSavingSettings, setIsSavingSettings] = useState(false);
-    const [isTogglingMaintenance, setIsTogglingMaintenance] = useState(false);
-    const [isClearingCache, setIsClearingCache] = useState(false);
 
     const handleRefreshStatus = async () => {
       setIsLoadingStatus(true);
-      setIsLoadingSettings(true);
       try {
         const [statusRes, settingsRes] = await Promise.all([
           getSystemStatus(),
@@ -1330,58 +1315,6 @@ const AdminPage = () => {
         toast.error('Failed to load system information');
       } finally {
         setIsLoadingStatus(false);
-        setIsLoadingSettings(false);
-      }
-    };
-
-    const handleEditSettings = () => {
-      setEditForm({ ...systemSettings });
-      setIsEditingSettings(true);
-    };
-
-    const handleSaveSettings = async () => {
-      setIsSavingSettings(true);
-      try {
-        await updateSystemSettings(editForm);
-        setSystemSettings(editForm);
-        toast.success('System settings updated successfully');
-        setIsEditingSettings(false);
-      } catch (err) {
-        console.error('Failed to update settings:', err);
-        toast.error(err.response?.data?.detail || 'Failed to update system settings');
-      } finally {
-        setIsSavingSettings(false);
-      }
-    };
-
-    const handleMaintenanceMode = async (enabled) => {
-      if (!confirm(`Are you sure you want to ${enabled ? 'enable' : 'disable'} maintenance mode?`)) return;
-      
-      setIsTogglingMaintenance(true);
-      try {
-        await setMaintenanceMode(enabled);
-        setSystemSettings(prev => ({ ...prev, maintenance_mode: enabled }));
-        toast.success(`Maintenance mode ${enabled ? 'enabled' : 'disabled'}`);
-      } catch (err) {
-        console.error('Failed to update maintenance mode:', err);
-        toast.error(err.response?.data?.detail || 'Failed to update maintenance mode');
-      } finally {
-        setIsTogglingMaintenance(false);
-      }
-    };
-
-    const handleClearCache = async () => {
-      if (!confirm('Are you sure you want to clear the system cache?')) return;
-      
-      setIsClearingCache(true);
-      try {
-        await clearSystemCache();
-        toast.success('System cache cleared successfully');
-      } catch (err) {
-        console.error('Failed to clear cache:', err);
-        toast.error(err.response?.data?.detail || 'Failed to clear system cache');
-      } finally {
-        setIsClearingCache(false);
       }
     };
 
@@ -1431,190 +1364,6 @@ const AdminPage = () => {
             )}
           </div>
         </AdminCard>
-
-        <AdminCard title="System Settings" icon={Settings}>
-          <div className="space-y-4">
-            {isLoadingSettings ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-                <p className="mt-2 text-gray-600 dark:text-gray-400">Loading system settings...</p>
-              </div>
-            ) : (
-              <>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h4 className="text-lg font-medium text-gray-900 dark:text-white">Configuration</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Manage system-wide settings and configurations
-                    </p>
-                  </div>
-                  <div className="flex space-x-3">
-                    <button 
-                      onClick={() => handleMaintenanceMode(!systemSettings.maintenance_mode)}
-                      className={`flex items-center px-4 py-2 ${
-                        systemSettings.maintenance_mode 
-                          ? 'bg-yellow-500 hover:bg-yellow-600' 
-                          : 'bg-green-500 hover:bg-green-600'
-                      } text-white rounded-lg transition-colors`}
-                      disabled={isTogglingMaintenance}
-                    >
-                      {isTogglingMaintenance ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                          Updating...
-                        </>
-                      ) : (
-                        <>
-                          {systemSettings.maintenance_mode ? <Lock className="w-4 h-4 mr-2" /> : <Unlock className="w-4 h-4 mr-2" />}
-                          {systemSettings.maintenance_mode ? 'Disable Maintenance' : 'Enable Maintenance'}
-                        </>
-                      )}
-                    </button>
-                    <button 
-                      onClick={handleClearCache}
-                      className="flex items-center px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
-                      disabled={isClearingCache}
-                    >
-                      {isClearingCache ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                          Clearing...
-                        </>
-                      ) : (
-                        <>
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Clear Cache
-                        </>
-                      )}
-                    </button>
-                    <button 
-                      onClick={handleEditSettings}
-                      className="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
-                    >
-                      <Edit className="w-4 h-4 mr-2" />
-                      Edit Settings
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  {Object.entries(systemSettings).map(([key, value]) => (
-                    <div key={key} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                      <div>
-                        <h5 className="font-medium text-gray-900 dark:text-white">
-                          {key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
-                        </h5>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {typeof value === 'boolean' ? (value ? 'Enabled' : 'Disabled') : value.toString()}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        </AdminCard>
-
-        {/* Edit Settings Modal */}
-        {isEditingSettings && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Edit System Settings</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Debug Mode
-                  </label>
-                  <select
-                    value={editForm.debug_mode ? 'true' : 'false'}
-                    onChange={(e) => setEditForm({ ...editForm, debug_mode: e.target.value === 'true' })}
-                    className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-                    disabled={isSavingSettings}
-                  >
-                    <option value="false">Disabled</option>
-                    <option value="true">Enabled</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Log Level
-                  </label>
-                  <select
-                    value={editForm.log_level}
-                    onChange={(e) => setEditForm({ ...editForm, log_level: e.target.value })}
-                    className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-                    disabled={isSavingSettings}
-                  >
-                    <option value="debug">Debug</option>
-                    <option value="info">Info</option>
-                    <option value="warning">Warning</option>
-                    <option value="error">Error</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Max Upload Size
-                  </label>
-                  <input
-                    type="text"
-                    value={editForm.max_upload_size}
-                    onChange={(e) => setEditForm({ ...editForm, max_upload_size: e.target.value })}
-                    className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-                    disabled={isSavingSettings}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Session Timeout
-                  </label>
-                  <input
-                    type="text"
-                    value={editForm.session_timeout}
-                    onChange={(e) => setEditForm({ ...editForm, session_timeout: e.target.value })}
-                    className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-                    disabled={isSavingSettings}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Backup Retention (days)
-                  </label>
-                  <input
-                    type="number"
-                    value={editForm.backup_retention_days}
-                    onChange={(e) => setEditForm({ ...editForm, backup_retention_days: parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-                    disabled={isSavingSettings}
-                  />
-                </div>
-                <div className="flex justify-end space-x-3">
-                  <button
-                    onClick={() => setIsEditingSettings(false)}
-                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
-                    disabled={isSavingSettings}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSaveSettings}
-                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md flex items-center transition-colors"
-                    disabled={isSavingSettings}
-                  >
-                    {isSavingSettings ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Saving...
-                      </>
-                    ) : (
-                      'Save Settings'
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     );
   };
