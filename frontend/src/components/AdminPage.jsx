@@ -1008,13 +1008,18 @@ const AdminPage = () => {
     const handleActionClick = (action) => {
       if (!selectedBackup) return;
       
-      if (backupAction === action && !backupActionConfirm) {
-        setBackupActionConfirm(true);
-      } else {
-        setBackupAction(action);
-        setBackupActionConfirm(false);
-        setBackupActionResult(null);
+      // If action is already in progress or showing result, do nothing
+      if (backupActionLoading || backupActionResult) return;
+      
+      // If confirmation is already showing for this action type, execute it
+      if (backupAction === action && backupActionConfirm) {
+        handleActionConfirm();
+        return;
       }
+      
+      // Otherwise show confirmation for this action type
+      setBackupAction(action);
+      setBackupActionConfirm(true);
     };
 
     const handleActionConfirm = async () => {
@@ -1053,29 +1058,32 @@ const AdminPage = () => {
           await window.refreshBackups();
         }
         
-        // Reset states after delay
+        // Auto-dismiss success after 2 seconds
         setTimeout(() => {
-          setBackupAction(null);
-          setBackupActionConfirm(false);
-          setBackupActionLoading(false);
-          setBackupActionResult(null);
-          setSelectedBackup(null);
-        }, 3000);
+          resetActionStates();
+        }, 2000);
         
       } catch (err) {
         console.error(`Failed to ${backupAction} backup:`, err);
         setBackupActionResult('failure');
         toast.error(err.response?.data?.detail || `Failed to ${backupAction} backup`);
         
-        setTimeout(() => {
-          setBackupActionLoading(false);
-          setBackupAction(null);
-          setBackupActionConfirm(false);
-          setBackupActionResult(null);
-        }, 5000);
+        // Don't reset after failure - user must manually dismiss
       } finally {
         setBackupActionLoading(false);
         setIsProcessing(false);
+      }
+    };
+
+    const resetActionStates = (keepSelection = false) => {
+      setBackupAction(null);
+      setBackupActionConfirm(false);
+      setBackupActionLoading(false);
+      setBackupActionResult(null);
+      setBackupError(false);
+      
+      if (!keepSelection) {
+        setSelectedBackup(null);
       }
     };
 
@@ -1112,34 +1120,7 @@ const AdminPage = () => {
       }
     };
 
-    const getActionButtonStyles = (type) => {
-      if (backupActionLoading) {
-        return "bg-gray-500 cursor-not-allowed";
-      } else if (backupActionResult === 'success') {
-        return "bg-green-500";
-      } else if (backupActionResult === 'failure') {
-        return "bg-orange-500";
-      }
-      
-      return type === 'restore' 
-        ? 'bg-blue-500 hover:bg-blue-600'
-        : 'bg-red-500 hover:bg-red-600';
-    };
-
-    const getActionButtonText = () => {
-      if (backupActionLoading) {
-        return 'Processing...';
-      } else if (backupActionResult === 'success') {
-        return 'Success!';
-      } else if (backupActionResult === 'failure') {
-        return 'Failed!';
-      } else if (backupActionConfirm) {
-        return 'Confirm?';
-      } else {
-        return backupAction === 'restore' ? 'Restore' : 'Delete';
-      }
-    };
-
+    // Get button styles and text based on current state (copied from MigrationModal)
     const getBackupButtonStyles = () => {
       if (isCreatingBackup) {
         return "bg-blue-500 hover:bg-blue-500";
@@ -1150,6 +1131,56 @@ const AdminPage = () => {
       } else {
         return "bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700";
       }
+    };
+    
+    // Get action button styles (copied from MigrationModal)
+    const getActionButtonStyles = (type) => {
+      if (backupActionLoading) {
+        return "bg-gray-500";
+      }
+      
+      if (backupActionResult === 'success') {
+        return "bg-green-500";
+      }
+      
+      if (backupActionResult === 'failure') {
+        return "bg-orange-500";
+      }
+      
+      if (type === 'restore') {
+        return backupActionConfirm && backupAction === 'restore'
+          ? "bg-blue-600 hover:bg-blue-700" 
+          : "bg-blue-500 hover:bg-blue-600";
+      }
+      
+      if (type === 'delete') {
+        return backupActionConfirm && backupAction === 'delete'
+          ? "bg-red-600 hover:bg-red-700"
+          : "bg-red-500 hover:bg-red-600";
+      }
+      
+      return "bg-gray-500";
+    };
+
+    // Get text for the button based on state (copied from MigrationModal)
+    const getActionButtonText = (type) => {
+      if (backupActionLoading && backupAction === type) {
+        return "Processing...";
+      }
+      
+      if (backupActionResult === 'success' && backupAction === type) {
+        return "Success!";
+      }
+      
+      if (backupActionResult === 'failure' && backupAction === type) {
+        return "Failed!";
+      }
+      
+      if (backupActionConfirm && backupAction === type) {
+        return "Confirm?";
+      }
+      
+      return type === 'restore' ? "Restore" : "Delete";
     };
     
     return (
@@ -1166,36 +1197,64 @@ const AdminPage = () => {
             <div className="flex gap-3">
               {selectedBackup ? (
                 <>
-                  <button
-                    onClick={() => handleActionClick('restore')}
-                    disabled={backupActionLoading}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 
-                      ${getActionButtonStyles('restore')} 
-                      text-white rounded-lg shadow-sm transition-all duration-300`}
-                  >
-                    <RotateCcw size={18} />
-                    <span>{getActionButtonText()}</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => handleActionClick('delete')}
-                    disabled={backupActionLoading}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 
-                      ${getActionButtonStyles('delete')} 
-                      text-white rounded-lg shadow-sm transition-all duration-300`}
-                  >
-                    <Trash2 size={18} />
-                    <span>{getActionButtonText()}</span>
-                  </button>
-                  
-                  {backupActionConfirm && (
+                  {/* Show different layouts depending on action state */}
+                  {backupActionResult ? (
+                    // Success or Failure state - show only the relevant button at full width
                     <button
-                      onClick={handleActionConfirm}
-                      disabled={backupActionLoading}
-                      className="px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-lg shadow-sm transition-colors"
+                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 
+                        ${backupActionResult === 'success' ? 'bg-green-500' : 'bg-orange-500'} 
+                        text-white rounded-lg shadow-sm transition-all duration-300`}
+                      onClick={() => backupActionResult === 'success' ? resetActionStates() : resetActionStates(true)}
                     >
-                      {backupActionLoading ? 'Processing...' : 'Confirm'}
+                      {backupActionResult === 'success' ? (
+                        <>
+                          <Check size={18} />
+                          <span>{backupAction === 'restore' ? 'Restored Successfully!' : 'Deleted Successfully!'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <TriangleAlert size={18} />
+                          <span>Operation Failed - Click to dismiss</span>
+                        </>
+                      )}
                     </button>
+                  ) : backupActionLoading ? (
+                    // Loading state - show only the loading button at full width
+                    <button
+                      disabled
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 
+                        bg-blue-500 text-white rounded-lg shadow-sm"
+                    >
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      <span>Processing {backupAction}...</span>
+                    </button>
+                  ) : (
+                    // Normal state with both buttons
+                    <>
+                      {/* Restore Button */}
+                      <button
+                        onClick={() => handleActionClick('restore')}
+                        disabled={backupActionLoading}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 
+                          ${getActionButtonStyles('restore')} 
+                          text-white rounded-lg shadow-sm transition-all duration-300`}
+                      >
+                        <RotateCcw size={18} />
+                        <span>{getActionButtonText('restore')}</span>
+                      </button>
+                      
+                      {/* Delete Button */}
+                      <button
+                        onClick={() => handleActionClick('delete')}
+                        disabled={backupActionLoading}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 
+                          ${getActionButtonStyles('delete')} 
+                          text-white rounded-lg shadow-sm transition-all duration-300`}
+                      >
+                        <Trash2 size={18} />
+                        <span>{getActionButtonText('delete')}</span>
+                      </button>
+                    </>
                   )}
                 </>
               ) : (
