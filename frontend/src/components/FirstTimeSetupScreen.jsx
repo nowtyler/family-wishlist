@@ -5,8 +5,9 @@ import { firstTimeSetup } from '../services/api';
 
 const FirstTimeSetupScreen = () => {
   const [formData, setFormData] = useState({
-    admin_username: '',
+    admin_username: 'Admin',
     admin_password: '',
+    admin_password_confirm: '',
     admin_email: '',
     admin_name: 'Admin'
   });
@@ -18,9 +19,19 @@ const FirstTimeSetupScreen = () => {
   
   const { login, setSelectedUser } = useAppContext();
   const navigate = useNavigate();
+
+  const validatePassword = (password) => {
+    const hasNumber = /\d/.test(password);
+    const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+    const hasMinLength = password.length >= 10;
+    return hasNumber && hasSpecial && hasMinLength;
+  };
   
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'admin_username' || name === 'admin_name') {
+      return; // These fields are read-only
+    }
     setFormData(prev => ({
       ...prev,
       [name]: value
@@ -31,10 +42,28 @@ const FirstTimeSetupScreen = () => {
     e.preventDefault();
     setError('');
     setSuccess('');
+
+    // Validate password
+    if (!validatePassword(formData.admin_password)) {
+      setError('Password must be at least 10 characters long and include at least one number and one special character.');
+      return;
+    }
+
+    // Check password confirmation
+    if (formData.admin_password !== formData.admin_password_confirm) {
+      setError('Passwords do not match.');
+      return;
+    }
+
     setIsLoading(true);
     
     try {
-      const response = await firstTimeSetup(formData);
+      const response = await firstTimeSetup({
+        admin_username: formData.admin_username,
+        admin_password: formData.admin_password,
+        admin_email: formData.admin_email,
+        admin_name: formData.admin_name
+      });
       setEmergencyKey(response.emergency_access_key);
       setSuccess('System setup completed successfully! Please save your emergency access key.');
       login(true);
@@ -49,6 +78,7 @@ const FirstTimeSetupScreen = () => {
   
   const handleContinue = () => {
     navigate('/admin');
+    window.location.reload(); // Force reload to ensure proper state
   };
   
   return (
@@ -77,8 +107,8 @@ const FirstTimeSetupScreen = () => {
                     type="text"
                     required
                     value={formData.admin_username}
-                    onChange={handleChange}
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    readOnly
+                    className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -94,6 +124,26 @@ const FirstTimeSetupScreen = () => {
                     type="password"
                     required
                     value={formData.admin_password}
+                    onChange={handleChange}
+                    className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  />
+                </div>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Password must be at least 10 characters long and include at least one number and one special character.
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="admin_password_confirm" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Confirm Password
+                </label>
+                <div className="mt-1">
+                  <input
+                    id="admin_password_confirm"
+                    name="admin_password_confirm"
+                    type="password"
+                    required
+                    value={formData.admin_password_confirm}
                     onChange={handleChange}
                     className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                   />
@@ -127,8 +177,8 @@ const FirstTimeSetupScreen = () => {
                     name="admin_name"
                     type="text"
                     value={formData.admin_name}
-                    onChange={handleChange}
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    readOnly
+                    className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm cursor-not-allowed"
                   />
                 </div>
               </div>
