@@ -19,7 +19,7 @@ export default defineConfig({
         target: isDev ? 'http://dev-backend:8000' : 'http://backend:8000',
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path, // Remove path rewriting
+        rewrite: (path) => path.replace(/^\/api/, ''), // Remove /api prefix before forwarding
         configure: (proxy, options) => {
           proxy.on('error', (err, req, res) => {
             console.error('proxy error', err);
