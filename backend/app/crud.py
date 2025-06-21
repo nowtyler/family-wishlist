@@ -1,8 +1,8 @@
 # backend/app/crud.py
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import text
+from sqlalchemy import text, exists
 from . import models, schemas
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Set
 from datetime import date, datetime, timedelta
 import os
 import logging
@@ -148,6 +148,42 @@ def initialize_family_members(db: Session):
 
 # --- Wishlist Item CRUD ---
 def get_wishlist_items_by_owner(db: Session, owner_id: int, current_user_id: int) -> List[schemas.WishlistItem]:
+    # First check if the current user and owner share any households (household-based access control)
+    requesting_user = get_family_member(db, current_user_id)
+    is_admin = requesting_user and requesting_user.name.lower() == 'admin'
+    
+    # Skip household check for admin users
+    if not is_admin:
+        # Check if users share any households
+        try:
+            # Get current user's household IDs
+            current_user_households_query = db.query(models.user_household_association.c.household_id).filter(
+                models.user_household_association.c.user_id == current_user_id,
+                models.user_household_association.c.status == 'active'
+            )
+            current_user_households = {row[0] for row in current_user_households_query.all()}
+            
+            # Get owner's household IDs  
+            owner_households_query = db.query(models.user_household_association.c.household_id).filter(
+                models.user_household_association.c.user_id == owner_id,
+                models.user_household_association.c.status == 'active'
+            )
+            owner_households = {row[0] for row in owner_households_query.all()}
+            
+            # Check if they share any households
+            shared_households = current_user_households.intersection(owner_households)
+            
+            # If no shared households and not the same user, return empty list
+            if not shared_households and current_user_id != owner_id:
+                logger.info(f"User {current_user_id} denied access to user {owner_id}'s wishlist (no shared households)")
+                return []
+                
+        except Exception as e:
+            logger.error(f"Error checking household access for user {current_user_id} viewing user {owner_id}: {e}")
+            # If household check fails, only allow viewing own items (fallback security)
+            if current_user_id != owner_id:
+                return []
+    
     items_query = db.query(models.WishlistItem).options(
         joinedload(models.WishlistItem.comments).joinedload(models.Comment.author)
     ).filter(models.WishlistItem.owner_id == owner_id)
@@ -158,10 +194,6 @@ def get_wishlist_items_by_owner(db: Session, owner_id: int, current_user_id: int
 
     result_items = []
     for item in db_items:
-        # Get the requesting user to check if they're an admin
-        requesting_user = get_family_member(db, current_user_id)
-        is_admin = requesting_user and requesting_user.name.lower() == 'admin'
-        
         is_item_visible_to_current_user = True
         effective_is_purchased = item.is_purchased
         effective_purchased_by = item.purchased_by
@@ -382,42 +414,86 @@ def delete_comment(db: Session, comment_id: int, author_id: int) -> bool:
     return False
 
 # --- Gift Reminder Logic ---
-def get_next_gift_event() -> Optional[schemas.GiftEvent]:
-    family_members_str = os.getenv("FAMILY_MEMBERS_CONFIG")
+def get_next_gift_event(db: Session, current_user_id: int) -> Optional[schemas.GiftEvent]:
+    """Get the next gift event (birthday or Christmas) for users in the same households as current user"""
     christmas_month = int(os.getenv("CHRISTMAS_MONTH", "12"))
     christmas_day = int(os.getenv("CHRISTMAS_DAY", "25"))
     
-    if not family_members_str:
-        return None
-
     today = date.today()
     current_year = today.year
     events = []
 
-    # Add Christmas
+    # Add Christmas (universal event - always included)
     christmas_this_year = date(current_year, christmas_month, christmas_day)
     if christmas_this_year >= today:
         events.append({"name": "Christmas", "date": christmas_this_year})
-    else:  # Birthday next year
+    else:  # Christmas next year
         events.append({"name": "Christmas", "date": date(current_year + 1, christmas_month, christmas_day)})
 
-    # Add Birthdays
-    member_configs = family_members_str.split(',')
-    for config_str in member_configs:
-        parts = config_str.strip().split(':')
-        name = parts[0]
-        birthday_str = parts[1] if len(parts) > 1 else None
-        if birthday_str and birthday_str != "admin":
-            try:
-                birth_month, birth_day = map(int, birthday_str.split('-')[1:])
-                birthday_this_year = date(current_year, birth_month, birth_day)
-                if birthday_this_year >= today:
-                    events.append({"name": f"{name}'s Birthday", "date": birthday_this_year})
-                else:  # Birthday next year
-                    events.append({"name": f"{name}'s Birthday", "date": date(current_year + 1, birth_month, birth_day)})
-            except ValueError:
-                logger.warning(f"Could not parse birthday for reminder: {name} - {birthday_str}")
-                continue
+    # Add Birthdays - only for users in the same households as current user
+    try:
+        # Get current user info
+        current_user = get_family_member(db, current_user_id)
+        if not current_user:
+            logger.warning(f"Could not find current user {current_user_id}")
+            return None
+        
+        is_admin = current_user.name.lower() == 'admin'
+        
+        if is_admin:
+            # Admin can see all birthdays
+            visible_members = db.query(models.FamilyMember).filter(
+                models.FamilyMember.birthday.isnot(None),
+                models.FamilyMember.birthday != ""
+            ).all()
+        else:
+            # Get current user's household IDs
+            current_user_households_query = db.query(models.user_household_association.c.household_id).filter(
+                models.user_household_association.c.user_id == current_user_id,
+                models.user_household_association.c.status == 'active'
+            )
+            current_user_households = {row[0] for row in current_user_households_query.all()}
+            
+            if not current_user_households:
+                # If user has no households, only show their own birthday
+                visible_members = [current_user]
+            else:
+                # Get all users who share at least one household with current user
+                household_member_ids_query = db.query(models.user_household_association.c.user_id).filter(
+                    models.user_household_association.c.household_id.in_(current_user_households),
+                    models.user_household_association.c.status == 'active'
+                ).distinct()
+                household_member_ids = {row[0] for row in household_member_ids_query.all()}
+                
+                # Get family members with birthdays who are in the same households
+                visible_members = db.query(models.FamilyMember).filter(
+                    models.FamilyMember.id.in_(household_member_ids),
+                    models.FamilyMember.birthday.isnot(None),
+                    models.FamilyMember.birthday != ""
+                ).all()
+        
+        # Process visible members' birthdays
+        for member in visible_members:
+            if member.birthday:
+                try:
+                    # Parse birthday from YYYY-MM-DD format
+                    birthday_date = datetime.strptime(member.birthday, "%Y-%m-%d").date()
+                    birth_month = birthday_date.month
+                    birth_day = birthday_date.day
+                    
+                    birthday_this_year = date(current_year, birth_month, birth_day)
+                    if birthday_this_year >= today:
+                        events.append({"name": f"{member.name}'s Birthday", "date": birthday_this_year})
+                    else:  # Birthday next year
+                        events.append({"name": f"{member.name}'s Birthday", "date": date(current_year + 1, birth_month, birth_day)})
+                except ValueError:
+                    logger.warning(f"Could not parse birthday for reminder: {member.name} - {member.birthday}")
+                    continue
+                    
+    except Exception as e:
+        logger.error(f"Error getting household members for gift events for user {current_user_id}: {e}")
+        # Fallback: only show Christmas if there's an error
+        pass
 
     # Find the soonest event
     if not events:

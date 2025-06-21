@@ -210,12 +210,56 @@ def get_current_user_id_from_header(x_current_user_id: Optional[int] = Header(No
 def read_family_members(
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=100, description="Maximum number of records to return"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
 ):
     """
-    Retrieve all family members with their wishlist item counts.
+    Retrieve family members who share at least one household with the current user.
     """
-    members = crud.get_family_members(db)
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current user context (X-Current-User-Id header) is required.")
+    
+    # Get current user to check if admin
+    current_user = crud.get_family_member(db, current_user_id)
+    if not current_user:
+        raise HTTPException(status_code=404, detail="Current user not found")
+    
+    is_admin = current_user.name.lower() == 'admin'
+    
+    if is_admin:
+        # Admin can see all family members
+        members = crud.get_family_members(db)
+    else:
+        # Regular users can only see members who share households with them
+        try:
+            # Get current user's household IDs
+            current_user_households_query = db.query(models.user_household_association.c.household_id).filter(
+                models.user_household_association.c.user_id == current_user_id,
+                models.user_household_association.c.status == 'active'
+            )
+            current_user_households = {row[0] for row in current_user_households_query.all()}
+            
+            if not current_user_households:
+                # If user has no households, they can only see themselves
+                members = [current_user]
+            else:
+                # Get all users who share at least one household with current user
+                household_member_ids_query = db.query(models.user_household_association.c.user_id).filter(
+                    models.user_household_association.c.household_id.in_(current_user_households),
+                    models.user_household_association.c.status == 'active'
+                ).distinct()
+                household_member_ids = {row[0] for row in household_member_ids_query.all()}
+                
+                # Get family members who are in the same households
+                members = db.query(models.FamilyMember).filter(
+                    models.FamilyMember.id.in_(household_member_ids)
+                ).all()
+                
+        except Exception as e:
+            logger.error(f"Error filtering family members by household for user {current_user_id}: {e}")
+            # Fallback: only show current user
+            members = [current_user]
+    
     members_with_counts = []
     for member in members:
         count = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == member.id).count()
@@ -743,8 +787,14 @@ def delete_comment(
 
 # --- Gift Reminder ---
 @app.get("/api/upcoming-event", response_model=Optional[schemas.UpcomingEventResponse])
-def get_upcoming_gift_event():
-    event = crud.get_next_gift_event()
+def get_upcoming_gift_event(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current user context (X-Current-User-Id header) is required.")
+    
+    event = crud.get_next_gift_event(db, current_user_id)
     if not event:
         return None # Or some default message like {"event_name": "All caught up!", "display_text": ""}
     
@@ -1502,13 +1552,53 @@ def get_external_wishlists_for_member(
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id_from_header)
 ):
-    """Get all external wishlists for a specific member"""
+    """Get all external wishlists for a specific member (household-based access control)"""
     if current_user_id is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
     
     db_member = crud.get_family_member(db, member_id=owner_id)
     if not db_member:
         raise HTTPException(status_code=404, detail="Family member not found")
+    
+    # Check household-based access control
+    current_user = crud.get_family_member(db, current_user_id)
+    if not current_user:
+        raise HTTPException(status_code=404, detail="Current user not found")
+    
+    is_admin = current_user.name.lower() == 'admin'
+    
+    # Skip household check for admin users or if viewing own wishlists
+    if not is_admin and current_user_id != owner_id:
+        # Check if users share any households
+        try:
+            # Get current user's household IDs
+            current_user_households_query = db.query(models.user_household_association.c.household_id).filter(
+                models.user_household_association.c.user_id == current_user_id,
+                models.user_household_association.c.status == 'active'
+            )
+            current_user_households = {row[0] for row in current_user_households_query.all()}
+            
+            # Get owner's household IDs  
+            owner_households_query = db.query(models.user_household_association.c.household_id).filter(
+                models.user_household_association.c.user_id == owner_id,
+                models.user_household_association.c.status == 'active'
+            )
+            owner_households = {row[0] for row in owner_households_query.all()}
+            
+            # Check if they share any households
+            shared_households = current_user_households.intersection(owner_households)
+            
+            # If no shared households, deny access
+            if not shared_households:
+                logger.info(f"User {current_user_id} denied access to user {owner_id}'s external wishlists (no shared households)")
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: no shared households")
+                
+        except HTTPException:
+            raise  # Re-raise HTTP exceptions
+        except Exception as e:
+            logger.error(f"Error checking household access for user {current_user_id} viewing user {owner_id}: {e}")
+            # If household check fails, deny access (fallback security)
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     
     return crud.get_external_wishlists(db, owner_id=owner_id)
 
