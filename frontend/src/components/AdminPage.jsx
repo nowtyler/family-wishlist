@@ -396,32 +396,58 @@ const AdminPage = () => {
           description: selectedHousehold.description || ''
         });
         
-        // Then handle user additions and removals
-        const promises = [];
+        // Then handle user additions and removals individually
+        const results = [];
         
         // Add selected users
         for (const userId of selectedUsersToAdd) {
-          promises.push(addUserToHousehold(selectedHousehold.id, userId));
+          try {
+            const result = await addUserToHousehold(selectedHousehold.id, userId);
+            results.push({ type: 'add', userId, success: true, result });
+          } catch (err) {
+            console.error(`Failed to add user ${userId} to household:`, err);
+            const errorMessage = err.response?.data?.detail || 'Failed to add user to household';
+            toast.error(errorMessage);
+            results.push({ type: 'add', userId, success: false, error: errorMessage });
+          }
         }
         
         // Remove selected users
         for (const userId of selectedUsersToRemove) {
-          promises.push(removeUserFromHousehold(selectedHousehold.id, userId));
+          try {
+            const result = await removeUserFromHousehold(selectedHousehold.id, userId);
+            results.push({ type: 'remove', userId, success: true, result });
+          } catch (err) {
+            console.error(`Failed to remove user ${userId} from household:`, err);
+            const errorMessage = err.response?.data?.detail || 'Failed to remove user from household';
+            toast.error(errorMessage);
+            results.push({ type: 'remove', userId, success: false, error: errorMessage });
+          }
         }
         
-        // Wait for all operations to complete
-        if (promises.length > 0) {
-          await Promise.all(promises);
+        // Check if any operations failed
+        const failedOperations = results.filter(r => !r.success);
+        const successfulOperations = results.filter(r => r.success);
+        
+        if (successfulOperations.length > 0) {
+          toast.success(`Successfully updated household with ${successfulOperations.length} changes`);
         }
         
         // Refresh the households list
         await fetchHouseholds();
         
-        toast.success('Household updated successfully');
-        setEditMode('');
-        setSelectedHousehold(null);
-        setSelectedUsersToAdd([]);
-        setSelectedUsersToRemove([]);
+        // Only close modal if all operations succeeded or if there were no user changes
+        if (failedOperations.length === 0) {
+          setEditMode('');
+          setSelectedHousehold(null);
+          setSelectedUsersToAdd([]);
+          setSelectedUsersToRemove([]);
+        } else {
+          // Keep modal open but clear the failed operations from the pending lists
+          const failedUserIds = failedOperations.map(r => r.userId);
+          setSelectedUsersToAdd(prev => prev.filter(id => !failedUserIds.includes(id)));
+          setSelectedUsersToRemove(prev => prev.filter(id => !failedUserIds.includes(id)));
+        }
       } catch (err) {
         console.error('Failed to update household:', err);
         toast.error(err.response?.data?.detail || 'Failed to update household');
@@ -460,10 +486,18 @@ const AdminPage = () => {
 
     const getAvailableUsers = () => {
       if (!selectedHousehold) return [];
-      return users.filter(user => 
-        !selectedHousehold.members?.find(m => m.id === user.id) &&
-        !selectedUsersToAdd.includes(user.id)
-      );
+      return users.filter(user => {
+        // Don't show users who are being added (they'll be in the pending changes)
+        const isBeingAdded = selectedUsersToAdd.includes(user.id);
+        return !isBeingAdded;
+      });
+    };
+
+    const isUserAlreadyMember = (userId) => {
+      if (!selectedHousehold) return false;
+      const isCurrentMember = selectedHousehold.members?.find(m => m.id === userId);
+      const isBeingRemoved = selectedUsersToRemove.includes(userId);
+      return isCurrentMember && !isBeingRemoved;
     };
 
     const getCurrentMembers = () => {
@@ -592,18 +626,36 @@ const AdminPage = () => {
                   </label>
                   <div className="space-y-2 max-h-32 overflow-y-auto">
                     {getAvailableUsers().length > 0 ? (
-                      getAvailableUsers().map(user => (
-                        <div key={user.id} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 p-2 rounded">
-                          <span className="text-gray-900 dark:text-white">{user.name}</span>
-                          <button
-                            onClick={() => handleUserSelectionChange(user.id, 'add')}
-                            className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                            disabled={isLoading}
-                          >
-                            <UserPlus className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))
+                      getAvailableUsers().map(user => {
+                        const isAlreadyMember = isUserAlreadyMember(user.id);
+                        return (
+                          <div key={user.id} className={`flex items-center justify-between p-2 rounded ${
+                            isAlreadyMember 
+                              ? 'bg-gray-100 dark:bg-gray-600 border border-gray-200 dark:border-gray-500' 
+                              : 'bg-gray-50 dark:bg-gray-700'
+                          }`}>
+                            <div className="flex items-center">
+                              <span className={`${isAlreadyMember ? 'text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-white'}`}>
+                                {user.name}
+                              </span>
+                              {isAlreadyMember && (
+                                <span className="ml-2 px-2 py-0.5 text-xs bg-gray-200 dark:bg-gray-500 text-gray-600 dark:text-gray-300 rounded">
+                                  Already Member
+                                </span>
+                              )}
+                            </div>
+                            {!isAlreadyMember && (
+                              <button
+                                onClick={() => handleUserSelectionChange(user.id, 'add')}
+                                className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                                disabled={isLoading}
+                              >
+                                <UserPlus className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })
                     ) : (
                       <p className="text-gray-500 dark:text-gray-400 text-sm">No users available to add</p>
                     )}

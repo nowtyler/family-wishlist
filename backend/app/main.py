@@ -2348,12 +2348,12 @@ def update_household(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
     
     try:
-        # Get the household
+        # Check if household exists
         household = db.query(models.Household).filter(models.Household.id == household_id).first()
         if not household:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Household not found")
         
-        # Update fields
+        # Update household fields
         if household_data.name is not None:
             household.name = household_data.name
         if household_data.description is not None:
@@ -2367,7 +2367,6 @@ def update_household(
             models.user_household_association.c.household_id == household.id
         ).count()
         
-        # Return updated household with member count
         return schemas.Household(
             id=household.id,
             name=household.name,
@@ -2376,12 +2375,64 @@ def update_household(
             created_by=household.created_by,
             member_count=member_count
         )
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to update household: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update household: {str(e)}"
+        )
+
+@app.delete("/api/admin/households/{household_id}", response_model=schemas.Household)
+def delete_household(
+    household_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Delete a household (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    try:
+        # Check if household exists
+        household = db.query(models.Household).filter(models.Household.id == household_id).first()
+        if not household:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Household not found")
+        
+        # Remove all user associations first
+        db.execute(
+            models.user_household_association.delete().where(
+                models.user_household_association.c.household_id == household_id
+            )
+        )
+        
+        # Delete the household
+        db.delete(household)
+        db.commit()
+        
+        return schemas.Household(
+            id=household.id,
+            name=household.name,
+            description=household.description,
+            created_at=household.created_at,
+            created_by=household.created_by,
+            member_count=0
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to delete household: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete household: {str(e)}"
         )
 
 @app.post("/api/admin/system/cache/clear")
