@@ -4,7 +4,7 @@ import {
   Users, Settings, Database, Mail, Shield, Trash2, Plus, 
   Edit, Eye, EyeOff, Check, X, AlertTriangle, RefreshCw,
   Home, UserPlus, UserMinus, Lock, Unlock, Send, TestTube,
-  Calendar, Gift, FileText, Archive, Download, Upload, Save, LogOut, ArrowUp
+  Calendar, Gift, FileText, Archive, Download, Upload, Save, ArrowUp
 } from 'lucide-react';
 import { useAppContext } from '../contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
@@ -39,9 +39,10 @@ import {
   clearSystemCache
 } from '../services/api';
 import FamilyMemberManager from './admin/FamilyMemberManager';
+import Navbar from './Navbar';
 
 const AdminPage = () => {
-  const { selectedUser, logout } = useAppContext();
+  const { selectedUser } = useAppContext();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isLoading, setIsLoading] = useState(false);
@@ -107,11 +108,6 @@ const AdminPage = () => {
 
     fetchData();
   }, []);
-
-  const handleLogout = () => {
-    logout();
-    navigate('/auth');
-  };
 
   const handleQuickAction = async (action) => {
     setIsLoading(true);
@@ -222,43 +218,6 @@ const AdminPage = () => {
             )}
           </div>
         </AdminCard>
-
-        <AdminCard title="Quick Actions" icon={Settings}>
-          <div className="space-y-3">
-            <button 
-              onClick={() => handleQuickAction('addUser')}
-              className="w-full flex items-center justify-center p-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
-              disabled={isLoading}
-            >
-              <UserPlus className="w-4 h-4 mr-2" />
-              Add New User
-            </button>
-            <button 
-              onClick={() => handleQuickAction('createHousehold')}
-              className="w-full flex items-center justify-center p-3 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
-              disabled={isLoading}
-            >
-              <Home className="w-4 h-4 mr-2" />
-              Create Household
-            </button>
-            <button 
-              onClick={() => handleQuickAction('testEmail')}
-              className="w-full flex items-center justify-center p-3 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors"
-              disabled={isLoading}
-            >
-              <Mail className="w-4 h-4 mr-2" />
-              Test Email
-            </button>
-            <button 
-              onClick={() => handleQuickAction('createBackup')}
-              className="w-full flex items-center justify-center p-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
-              disabled={isLoading}
-            >
-              <Archive className="w-4 h-4 mr-2" />
-              Create Backup
-            </button>
-          </div>
-        </AdminCard>
       </div>
 
       {error && (
@@ -282,32 +241,35 @@ const AdminPage = () => {
   );
 
   const UsersTab = () => {
+    const [users, setUsers] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
-    const [isEditing, setIsEditing] = useState(false);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+
+    useEffect(() => {
+      const fetchUsers = async () => {
+        setIsLoading(true);
+        try {
+          const response = await getFamilyMembers();
+          setUsers(response.data || []);
+        } catch (err) {
+          console.error('Failed to fetch users:', err);
+          setError(err.response?.data?.detail || 'Failed to load users');
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      fetchUsers();
+    }, []);
 
     const handleEditUser = (user) => {
       setSelectedUser(user);
-      setIsEditing(true);
+      setIsModalOpen(true);
     };
 
-    const handleDeleteUser = async (userId) => {
-      if (!confirm('Are you sure you want to delete this user?')) return;
-      
-      setIsLoading(true);
-      try {
-        await deleteFamilyMember(userId);
-        setUsers(users.filter(u => u.id !== userId));
-        setSuccess('User deleted successfully');
-      } catch (err) {
-        console.error('Failed to delete user:', err);
-        setError(err.response?.data?.detail || 'Failed to delete user');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    const handleCloseEdit = () => {
-      setIsEditing(false);
+    const handleCloseModal = () => {
+      setIsModalOpen(false);
       setSelectedUser(null);
       // Refresh the users list
       getFamilyMembers().then(response => {
@@ -322,7 +284,7 @@ const AdminPage = () => {
             <div className="flex justify-between items-center">
               <h4 className="text-lg font-medium text-gray-900 dark:text-white">Family Members</h4>
               <button 
-                onClick={() => setIsEditing(true)}
+                onClick={() => setIsModalOpen(true)}
                 className="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
               >
                 <Plus className="w-4 h-4 mr-2" />
@@ -380,44 +342,39 @@ const AdminPage = () => {
           </div>
         </AdminCard>
 
-        {/* Use FamilyMemberManager for editing */}
-        {isEditing && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-              <FamilyMemberManager
-                user={selectedUser}
-                onClose={handleCloseEdit}
-                isAdmin={true}
-              />
-            </div>
-          </div>
-        )}
+        {/* Family Member Manager Modal */}
+        <FamilyMemberManager
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+        />
       </div>
     );
   };
 
   const HouseholdsTab = () => {
+    const [households, setHouseholds] = useState([]);
     const [selectedHousehold, setSelectedHousehold] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState({
       name: '',
       description: ''
     });
+    const [isLoading, setIsLoading] = useState(false);
+
+    const fetchHouseholds = async () => {
+      setIsLoading(true);
+      try {
+        const response = await getHouseholds();
+        setHouseholds(response.data || []);
+      } catch (err) {
+        console.error('Failed to fetch households:', err);
+        setError(err.response?.data?.detail || 'Failed to load households');
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
     useEffect(() => {
-      const fetchHouseholds = async () => {
-        setIsLoading(true);
-        try {
-          const response = await getHouseholds();
-          setHouseholds(response.data || []);
-        } catch (err) {
-          console.error('Failed to fetch households:', err);
-          setError(err.response?.data?.detail || 'Failed to load households');
-        } finally {
-          setIsLoading(false);
-        }
-      };
-
       fetchHouseholds();
     }, []);
 
@@ -428,7 +385,7 @@ const AdminPage = () => {
           name: 'New Household',
           description: 'New household description'
         });
-        setHouseholds([...households, response.data]);
+        setHouseholds(prevHouseholds => [...prevHouseholds, response.data]);
         setSuccess('Household created successfully');
       } catch (err) {
         console.error('Failed to create household:', err);
@@ -451,7 +408,9 @@ const AdminPage = () => {
       setIsLoading(true);
       try {
         const response = await updateHousehold(selectedHousehold.id, editForm);
-        setHouseholds(households.map(h => h.id === selectedHousehold.id ? response.data : h));
+        setHouseholds(prevHouseholds => 
+          prevHouseholds.map(h => h.id === selectedHousehold.id ? response.data : h)
+        );
         setSuccess('Household updated successfully');
         setIsEditing(false);
       } catch (err) {
@@ -468,7 +427,7 @@ const AdminPage = () => {
       setIsLoading(true);
       try {
         await deleteHousehold(householdId);
-        setHouseholds(households.filter(h => h.id !== householdId));
+        setHouseholds(prevHouseholds => prevHouseholds.filter(h => h.id !== householdId));
         setSuccess('Household deleted successfully');
       } catch (err) {
         console.error('Failed to delete household:', err);
@@ -482,9 +441,7 @@ const AdminPage = () => {
       setIsLoading(true);
       try {
         await addUserToHousehold(householdId, userId);
-        // Refresh households to get updated member list
-        const response = await getHouseholds();
-        setHouseholds(response.data);
+        await fetchHouseholds(); // Refresh the list
         setSuccess('User added to household successfully');
       } catch (err) {
         console.error('Failed to add user to household:', err);
@@ -500,9 +457,7 @@ const AdminPage = () => {
       setIsLoading(true);
       try {
         await removeUserFromHousehold(householdId, userId);
-        // Refresh households to get updated member list
-        const response = await getHouseholds();
-        setHouseholds(response.data);
+        await fetchHouseholds(); // Refresh the list
         setSuccess('User removed from household successfully');
       } catch (err) {
         console.error('Failed to remove user from household:', err);
@@ -528,40 +483,49 @@ const AdminPage = () => {
               </button>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Array.isArray(households) && households.map(household => (
-                <div key={household.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h5 className="font-medium text-gray-900 dark:text-white">{household.name}</h5>
-                    <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">
-                      {Array.isArray(household.members) ? household.members.length : 0} members
-                    </span>
+            {isLoading && !households.length ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-2 text-gray-600 dark:text-gray-400">Loading households...</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {households.map(household => (
+                  <div key={household.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h5 className="font-medium text-gray-900 dark:text-white">{household.name}</h5>
+                      <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">
+                        {Array.isArray(household.members) ? household.members.length : 0} members
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                      {household.description || 'No description'}
+                    </p>
+                    <div className="flex space-x-2">
+                      <button 
+                        onClick={() => handleEditHousehold(household)}
+                        className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                        disabled={isLoading}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteHousehold(household.id)}
+                        className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                        disabled={isLoading}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                    {household.description || 'No description'}
-                  </p>
-                  <div className="flex space-x-2">
-                    <button 
-                      onClick={() => handleEditHousehold(household)}
-                      className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteHousehold(household.id)}
-                      className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                ))}
+                {!households.length && !isLoading && (
+                  <div className="col-span-3 text-center py-8 text-gray-500 dark:text-gray-400">
+                    No households available
                   </div>
-                </div>
-              ))}
-              {(!Array.isArray(households) || households.length === 0) && !isLoading && (
-                <div className="col-span-3 text-center py-8 text-gray-500 dark:text-gray-400">
-                  No households available
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
         </AdminCard>
 
@@ -598,15 +562,22 @@ const AdminPage = () => {
                         <button
                           onClick={() => handleRemoveUserFromHousehold(selectedHousehold.id, member.id)}
                           className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                          disabled={isLoading}
                         >
                           <UserMinus className="w-4 h-4" />
                         </button>
                       </div>
                     ))}
                     <select
-                      onChange={(e) => handleAddUserToHousehold(selectedHousehold.id, e.target.value)}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          handleAddUserToHousehold(selectedHousehold.id, e.target.value);
+                          e.target.value = '';
+                        }
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
                       value=""
+                      disabled={isLoading}
                     >
                       <option value="">Add member...</option>
                       {users
@@ -622,14 +593,16 @@ const AdminPage = () => {
                   <button
                     onClick={() => setIsEditing(false)}
                     className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                    disabled={isLoading}
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleSaveHousehold}
                     className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md"
+                    disabled={isLoading}
                   >
-                    Save Changes
+                    {isLoading ? 'Saving...' : 'Save Changes'}
                   </button>
                 </div>
               </div>
@@ -659,37 +632,40 @@ const AdminPage = () => {
     });
     const [isLoadingSettings, setIsLoadingSettings] = useState(false);
     const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isTestingEmail, setIsTestingEmail] = useState(false);
+
+    const fetchEmailData = async () => {
+      setIsLoadingSettings(true);
+      setIsLoadingTemplates(true);
+      try {
+        const settingsRes = await getEmailSettings();
+        setEmailSettings(settingsRes.data || {});
+      } catch (err) {
+        console.error('Failed to fetch email settings:', err);
+        setError('Failed to load email settings');
+      } finally {
+        setIsLoadingSettings(false);
+      }
+
+      try {
+        const templatesRes = await getEmailTemplates();
+        setEmailTemplates(templatesRes.data || []);
+      } catch (err) {
+        console.error('Failed to fetch email templates:', err);
+        setError('Failed to load email templates');
+      } finally {
+        setIsLoadingTemplates(false);
+      }
+    };
 
     useEffect(() => {
-      const fetchEmailData = async () => {
-        setIsLoadingSettings(true);
-        setIsLoadingTemplates(true);
-        try {
-          const settingsRes = await getEmailSettings();
-          setEmailSettings(settingsRes.data || {});
-        } catch (err) {
-          console.error('Failed to fetch email settings:', err);
-          setError('Failed to load email settings');
-        } finally {
-          setIsLoadingSettings(false);
-        }
-
-        try {
-          const templatesRes = await getEmailTemplates();
-          setEmailTemplates(templatesRes.data || []);
-        } catch (err) {
-          console.error('Failed to fetch email templates:', err);
-          setError('Failed to load email templates');
-        } finally {
-          setIsLoadingTemplates(false);
-        }
-      };
-
       fetchEmailData();
     }, []);
 
     const handleSaveSettings = async () => {
-      setIsLoading(true);
+      if (isSaving) return;
+      setIsSaving(true);
       try {
         await updateEmailSettings(emailSettings);
         setSuccess('Email settings updated successfully');
@@ -697,12 +673,13 @@ const AdminPage = () => {
         console.error('Failed to update email settings:', err);
         setError(err.response?.data?.detail || 'Failed to update email settings');
       } finally {
-        setIsLoading(false);
+        setIsSaving(false);
       }
     };
 
     const handleTestEmail = async () => {
-      setIsLoading(true);
+      if (isTestingEmail) return;
+      setIsTestingEmail(true);
       try {
         const response = await testEmailSettings();
         setSuccess(response.data.message || 'Test email sent successfully');
@@ -710,7 +687,7 @@ const AdminPage = () => {
         console.error('Failed to send test email:', err);
         setError(err.response?.data?.detail || 'Failed to send test email');
       } finally {
-        setIsLoading(false);
+        setIsTestingEmail(false);
       }
     };
 
@@ -724,9 +701,9 @@ const AdminPage = () => {
     };
 
     const handleSaveTemplate = async () => {
-      if (!selectedTemplate) return;
+      if (!selectedTemplate || isSaving) return;
       
-      setIsLoading(true);
+      setIsSaving(true);
       try {
         await updateEmailTemplate(selectedTemplate.name, templateForm);
         setEmailTemplates(templates => 
@@ -742,7 +719,7 @@ const AdminPage = () => {
         console.error('Failed to update email template:', err);
         setError(err.response?.data?.detail || 'Failed to update email template');
       } finally {
-        setIsLoading(false);
+        setIsSaving(false);
       }
     };
 
@@ -768,6 +745,7 @@ const AdminPage = () => {
                       onChange={(e) => setEmailSettings({ ...emailSettings, smtp_server: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                       placeholder="smtp.gmail.com"
+                      disabled={isSaving}
                     />
                   </div>
                   <div>
@@ -780,6 +758,7 @@ const AdminPage = () => {
                       onChange={(e) => setEmailSettings({ ...emailSettings, smtp_port: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                       placeholder="587"
+                      disabled={isSaving}
                     />
                   </div>
                   <div>
@@ -792,6 +771,7 @@ const AdminPage = () => {
                       onChange={(e) => setEmailSettings({ ...emailSettings, smtp_username: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                       placeholder="your-email@gmail.com"
+                      disabled={isSaving}
                     />
                   </div>
                   <div>
@@ -804,6 +784,7 @@ const AdminPage = () => {
                       onChange={(e) => setEmailSettings({ ...emailSettings, smtp_password: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                       placeholder="App password"
+                      disabled={isSaving}
                     />
                   </div>
                   <div>
@@ -816,6 +797,7 @@ const AdminPage = () => {
                       onChange={(e) => setEmailSettings({ ...emailSettings, from_email: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                       placeholder="noreply@yourapp.com"
+                      disabled={isSaving}
                     />
                   </div>
                   <div>
@@ -828,6 +810,7 @@ const AdminPage = () => {
                       onChange={(e) => setEmailSettings({ ...emailSettings, from_name: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                       placeholder="Family Wishlist"
+                      disabled={isSaving}
                     />
                   </div>
                 </div>
@@ -836,18 +819,36 @@ const AdminPage = () => {
                   <button 
                     onClick={handleSaveSettings}
                     className="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
-                    disabled={isLoading}
+                    disabled={isSaving}
                   >
-                    <Save className="w-4 h-4 mr-2" />
-                    Save Settings
+                    {isSaving ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Settings
+                      </>
+                    )}
                   </button>
                   <button 
                     onClick={handleTestEmail}
                     className="flex items-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
-                    disabled={isLoading}
+                    disabled={isTestingEmail}
                   >
-                    <TestTube className="w-4 h-4 mr-2" />
-                    Test Email
+                    {isTestingEmail ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Testing...
+                      </>
+                    ) : (
+                      <>
+                        <TestTube className="w-4 h-4 mr-2" />
+                        Test Email
+                      </>
+                    )}
                   </button>
                 </div>
               </>
@@ -864,7 +865,7 @@ const AdminPage = () => {
               </div>
             ) : (
               <>
-                {Array.isArray(emailTemplates) && emailTemplates.length > 0 ? (
+                {emailTemplates.length > 0 ? (
                   emailTemplates.map(template => (
                     <div key={template.name} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                       <div>
@@ -874,6 +875,7 @@ const AdminPage = () => {
                       <button 
                         onClick={() => handleEditTemplate(template)}
                         className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                        disabled={isSaving}
                       >
                         <Edit className="w-4 h-4" />
                       </button>
@@ -906,6 +908,7 @@ const AdminPage = () => {
                     value={templateForm.subject}
                     onChange={(e) => setTemplateForm({ ...templateForm, subject: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                    disabled={isSaving}
                   />
                 </div>
                 <div>
@@ -917,20 +920,30 @@ const AdminPage = () => {
                     onChange={(e) => setTemplateForm({ ...templateForm, body: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md font-mono"
                     rows={15}
+                    disabled={isSaving}
                   />
                 </div>
                 <div className="flex justify-end space-x-3">
                   <button
                     onClick={() => setIsEditingTemplate(false)}
                     className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                    disabled={isSaving}
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleSaveTemplate}
                     className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md"
+                    disabled={isSaving}
                   >
-                    Save Template
+                    {isSaving ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Saving...
+                      </>
+                    ) : (
+                      'Save Template'
+                    )}
                   </button>
                 </div>
               </div>
@@ -944,51 +957,42 @@ const AdminPage = () => {
   const MigrationsTab = () => {
     const [migrationStatus, setMigrationStatus] = useState('current');
     const [availableMigrations, setAvailableMigrations] = useState([]);
-    const [isConfirming, setIsConfirming] = useState(false);
-    const [confirmAction, setConfirmAction] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [isResetting, setIsResetting] = useState(false);
+    const [isHardResetting, setIsHardResetting] = useState(false);
 
-    useEffect(() => {
-      const fetchMigrations = async () => {
-        setIsLoading(true);
-        try {
-          const response = await getMigrations();
-          setAvailableMigrations(response.data.migrations || []);
-          setMigrationStatus(response.data.status || 'current');
-        } catch (err) {
-          console.error('Failed to fetch migrations:', err);
-          setError(err.response?.data?.detail || 'Failed to load migrations');
-        } finally {
-          setIsLoading(false);
-        }
-      };
-
-      fetchMigrations();
-    }, []);
-
-    const handleCheckUpdates = async () => {
+    const fetchMigrations = async () => {
       setIsLoading(true);
       try {
         const response = await getMigrations();
         setAvailableMigrations(response.data.migrations || []);
         setMigrationStatus(response.data.status || 'current');
-        setSuccess('Migration status checked successfully');
       } catch (err) {
-        console.error('Failed to check migrations:', err);
-        setError(err.response?.data?.detail || 'Failed to check migrations');
+        console.error('Failed to fetch migrations:', err);
+        setError(err.response?.data?.detail || 'Failed to load migrations');
       } finally {
         setIsLoading(false);
       }
     };
 
+    useEffect(() => {
+      fetchMigrations();
+    }, []);
+
+    const handleCheckUpdates = async () => {
+      await fetchMigrations();
+      setSuccess('Migration status checked successfully');
+    };
+
     const handleResetMigrations = async () => {
       if (!confirm('Are you sure you want to reset the migration state? This will create a backup first.')) return;
       
-      setIsLoading(true);
+      setIsResetting(true);
       try {
         const response = await resetMigrationState();
         if (response.data.success) {
           setSuccess(response.data.message || 'Migration state reset successfully');
-          await handleCheckUpdates();
+          await fetchMigrations();
         } else {
           setError(response.data.message || 'Failed to reset migration state');
         }
@@ -996,19 +1000,19 @@ const AdminPage = () => {
         console.error('Failed to reset migrations:', err);
         setError(err.response?.data?.detail || 'Failed to reset migrations');
       } finally {
-        setIsLoading(false);
+        setIsResetting(false);
       }
     };
 
     const handleHardReset = async () => {
       if (!confirm('WARNING: This will completely reset the migration state and might require manual intervention. Continue?')) return;
       
-      setIsLoading(true);
+      setIsHardResetting(true);
       try {
         const response = await hardResetMigrations();
         if (response.data.success) {
           setSuccess(response.data.message || 'Migration state hard reset successfully');
-          await handleCheckUpdates();
+          await fetchMigrations();
         } else {
           setError(response.data.message || 'Failed to hard reset migration state');
         }
@@ -1016,7 +1020,7 @@ const AdminPage = () => {
         console.error('Failed to hard reset migrations:', err);
         setError(err.response?.data?.detail || 'Failed to hard reset migrations');
       } finally {
-        setIsLoading(false);
+        setIsHardResetting(false);
       }
     };
 
@@ -1036,12 +1040,26 @@ const AdminPage = () => {
                 className="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
                 disabled={isLoading}
               >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Check for Updates
+                {isLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Checking...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Check for Updates
+                  </>
+                )}
               </button>
             </div>
             
-            {migrationStatus === 'current' ? (
+            {isLoading && !availableMigrations.length ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-2 text-gray-600 dark:text-gray-400">Loading migration status...</p>
+              </div>
+            ) : migrationStatus === 'current' ? (
               <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
                 <div className="flex items-center">
                   <Check className="w-5 h-5 text-green-500 mr-2" />
@@ -1068,6 +1086,7 @@ const AdminPage = () => {
                         <button
                           onClick={() => handleUpgradeMigration(migration.version)}
                           className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                          disabled={isLoading}
                         >
                           <ArrowUp className="w-4 h-4" />
                         </button>
@@ -1084,18 +1103,36 @@ const AdminPage = () => {
                 <button 
                   onClick={handleResetMigrations}
                   className="flex items-center px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg transition-colors"
-                  disabled={isLoading}
+                  disabled={isResetting || isHardResetting}
                 >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Reset Migration State
+                  {isResetting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Resetting...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Reset Migration State
+                    </>
+                  )}
                 </button>
                 <button 
                   onClick={handleHardReset}
                   className="flex items-center px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
-                  disabled={isLoading}
+                  disabled={isResetting || isHardResetting}
                 >
-                  <AlertTriangle className="w-4 h-4 mr-2" />
-                  Hard Reset
+                  {isHardResetting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Hard Resetting...
+                    </>
+                  ) : (
+                    <>
+                      <AlertTriangle className="w-4 h-4 mr-2" />
+                      Hard Reset
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -1109,30 +1146,34 @@ const AdminPage = () => {
     const [backupsList, setBackupsList] = useState([]);
     const [isCreating, setIsCreating] = useState(false);
     const [backupNote, setBackupNote] = useState('');
-    const [selectedBackup, setSelectedBackup] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [isRestoring, setIsRestoring] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
+
+    const fetchBackups = async () => {
+      setIsLoading(true);
+      try {
+        const response = await getBackups();
+        setBackupsList(response.data || []);
+      } catch (err) {
+        console.error('Failed to fetch backups:', err);
+        setError(err.response?.data?.detail || 'Failed to load backups');
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
     useEffect(() => {
-      const fetchBackups = async () => {
-        setIsLoading(true);
-        try {
-          const response = await getBackups();
-          setBackupsList(response.data || []);
-        } catch (err) {
-          console.error('Failed to fetch backups:', err);
-          setError(err.response?.data?.detail || 'Failed to load backups');
-        } finally {
-          setIsLoading(false);
-        }
-      };
-
       fetchBackups();
     }, []);
 
     const handleCreateBackup = async () => {
-      setIsLoading(true);
+      if (isCreating) return;
+      setIsCreating(true);
       try {
         const response = await createBackup({ note: backupNote });
-        setBackupsList([response.data, ...backupsList]);
+        setBackupsList(prevBackups => [response.data, ...prevBackups]);
         setSuccess('Backup created successfully');
         setIsCreating(false);
         setBackupNote('');
@@ -1140,14 +1181,14 @@ const AdminPage = () => {
         console.error('Failed to create backup:', err);
         setError(err.response?.data?.detail || 'Failed to create backup');
       } finally {
-        setIsLoading(false);
+        setIsCreating(false);
       }
     };
 
     const handleRestoreBackup = async (backupId) => {
       if (!confirm('Are you sure you want to restore this backup? This will overwrite current data.')) return;
       
-      setIsLoading(true);
+      setIsRestoring(backupId);
       try {
         await restoreBackup(backupId);
         setSuccess('Backup restored successfully');
@@ -1155,28 +1196,28 @@ const AdminPage = () => {
         console.error('Failed to restore backup:', err);
         setError(err.response?.data?.detail || 'Failed to restore backup');
       } finally {
-        setIsLoading(false);
+        setIsRestoring(null);
       }
     };
 
     const handleDeleteBackup = async (backupId) => {
       if (!confirm('Are you sure you want to delete this backup?')) return;
       
-      setIsLoading(true);
+      setIsDeleting(backupId);
       try {
         await deleteBackup(backupId);
-        setBackupsList(backupsList.filter(b => b.id !== backupId));
+        setBackupsList(prevBackups => prevBackups.filter(b => b.id !== backupId));
         setSuccess('Backup deleted successfully');
       } catch (err) {
         console.error('Failed to delete backup:', err);
         setError(err.response?.data?.detail || 'Failed to delete backup');
       } finally {
-        setIsLoading(false);
+        setIsDeleting(null);
       }
     };
 
     const handleDownloadBackup = async (backupId) => {
-      setIsLoading(true);
+      setIsDownloading(backupId);
       try {
         const response = await downloadBackup(backupId);
         // Create a download link
@@ -1192,7 +1233,7 @@ const AdminPage = () => {
         console.error('Failed to download backup:', err);
         setError(err.response?.data?.detail || 'Failed to download backup');
       } finally {
-        setIsLoading(false);
+        setIsDownloading(null);
       }
     };
 
@@ -1212,54 +1253,76 @@ const AdminPage = () => {
               </button>
             </div>
 
-            <div className="space-y-3">
-              {backupsList.map(backup => (
-                <div key={backup.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <h5 className="font-medium text-gray-900 dark:text-white">
-                        {new Date(backup.created_at).toLocaleString()}
-                      </h5>
-                      <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">
-                        {backup.size}
-                      </span>
+            {isLoading && !backupsList.length ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-2 text-gray-600 dark:text-gray-400">Loading backups...</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {backupsList.map(backup => (
+                  <div key={backup.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <h5 className="font-medium text-gray-900 dark:text-white">
+                          {new Date(backup.created_at).toLocaleString()}
+                        </h5>
+                        <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">
+                          {backup.size}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        {backup.note || 'No description'}
+                      </p>
                     </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {backup.note || 'No description'}
-                    </p>
+                    <div className="flex space-x-2">
+                      <button 
+                        onClick={() => handleDownloadBackup(backup.id)}
+                        className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                        disabled={isDownloading === backup.id}
+                        title="Download"
+                      >
+                        {isDownloading === backup.id ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                        ) : (
+                          <Download className="w-4 h-4" />
+                        )}
+                      </button>
+                      <button 
+                        onClick={() => handleRestoreBackup(backup.id)}
+                        className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                        disabled={isRestoring === backup.id}
+                        title="Restore"
+                      >
+                        {isRestoring === backup.id ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                        ) : (
+                          <RefreshCw className="w-4 h-4" />
+                        )}
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteBackup(backup.id)}
+                        className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                        disabled={isDeleting === backup.id}
+                        title="Delete"
+                      >
+                        {isDeleting === backup.id ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex space-x-2">
-                    <button 
-                      onClick={() => handleDownloadBackup(backup.id)}
-                      className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                      title="Download"
-                    >
-                      <Download className="w-4 h-4" />
-                    </button>
-                    <button 
-                      onClick={() => handleRestoreBackup(backup.id)}
-                      className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                      title="Restore"
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteBackup(backup.id)}
-                      className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))}
 
-              {backupsList.length === 0 && !isLoading && (
-                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                  No backups available
-                </div>
-              )}
-            </div>
+                {!backupsList.length && !isLoading && (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    No backups available
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </AdminCard>
 
@@ -1293,10 +1356,17 @@ const AdminPage = () => {
                   </button>
                   <button
                     onClick={handleCreateBackup}
-                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md"
-                    disabled={isLoading}
+                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md flex items-center"
+                    disabled={isCreating}
                   >
-                    Create Backup
+                    {isCreating ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Creating...
+                      </>
+                    ) : (
+                      'Create Backup'
+                    )}
                   </button>
                 </div>
               </div>
@@ -1330,6 +1400,9 @@ const AdminPage = () => {
     const [editForm, setEditForm] = useState({});
     const [isLoadingStatus, setIsLoadingStatus] = useState(false);
     const [isLoadingSettings, setIsLoadingSettings] = useState(false);
+    const [isSavingSettings, setIsSavingSettings] = useState(false);
+    const [isTogglingMaintenance, setIsTogglingMaintenance] = useState(false);
+    const [isClearingCache, setIsClearingCache] = useState(false);
 
     const fetchSystemInfo = async () => {
       setIsLoadingStatus(true);
@@ -1370,7 +1443,7 @@ const AdminPage = () => {
     };
 
     const handleSaveSettings = async () => {
-      setIsLoading(true);
+      setIsSavingSettings(true);
       try {
         await updateSystemSettings(editForm);
         setSystemSettings(editForm);
@@ -1380,30 +1453,30 @@ const AdminPage = () => {
         console.error('Failed to update settings:', err);
         setError(err.response?.data?.detail || 'Failed to update system settings');
       } finally {
-        setIsLoading(false);
+        setIsSavingSettings(false);
       }
     };
 
     const handleMaintenanceMode = async (enabled) => {
       if (!confirm(`Are you sure you want to ${enabled ? 'enable' : 'disable'} maintenance mode?`)) return;
       
-      setIsLoading(true);
+      setIsTogglingMaintenance(true);
       try {
         await setMaintenanceMode(enabled);
-        setSystemSettings({ ...systemSettings, maintenance_mode: enabled });
+        setSystemSettings(prev => ({ ...prev, maintenance_mode: enabled }));
         setSuccess(`Maintenance mode ${enabled ? 'enabled' : 'disabled'}`);
       } catch (err) {
         console.error('Failed to update maintenance mode:', err);
         setError(err.response?.data?.detail || 'Failed to update maintenance mode');
       } finally {
-        setIsLoading(false);
+        setIsTogglingMaintenance(false);
       }
     };
 
     const handleClearCache = async () => {
       if (!confirm('Are you sure you want to clear the system cache?')) return;
       
-      setIsLoading(true);
+      setIsClearingCache(true);
       try {
         await clearSystemCache();
         setSuccess('System cache cleared successfully');
@@ -1411,7 +1484,7 @@ const AdminPage = () => {
         console.error('Failed to clear cache:', err);
         setError(err.response?.data?.detail || 'Failed to clear system cache');
       } finally {
-        setIsLoading(false);
+        setIsClearingCache(false);
       }
     };
 
@@ -1426,8 +1499,17 @@ const AdminPage = () => {
                 className="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
                 disabled={isLoadingStatus}
               >
-                <RefreshCw className={`w-4 h-4 mr-2 ${isLoadingStatus ? 'animate-spin' : ''}`} />
-                {isLoadingStatus ? 'Refreshing...' : 'Refresh Status'}
+                {isLoadingStatus ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Refreshing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Refresh Status
+                  </>
+                )}
               </button>
             </div>
 
@@ -1469,14 +1551,53 @@ const AdminPage = () => {
                       Manage system-wide settings and configurations
                     </p>
                   </div>
-                  <button 
-                    onClick={handleEditSettings}
-                    className="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
-                    disabled={isLoading}
-                  >
-                    <Edit className="w-4 h-4 mr-2" />
-                    Edit Settings
-                  </button>
+                  <div className="flex space-x-3">
+                    <button 
+                      onClick={() => handleMaintenanceMode(!systemSettings.maintenance_mode)}
+                      className={`flex items-center px-4 py-2 ${
+                        systemSettings.maintenance_mode 
+                          ? 'bg-yellow-500 hover:bg-yellow-600' 
+                          : 'bg-green-500 hover:bg-green-600'
+                      } text-white rounded-lg transition-colors`}
+                      disabled={isTogglingMaintenance}
+                    >
+                      {isTogglingMaintenance ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Updating...
+                        </>
+                      ) : (
+                        <>
+                          {systemSettings.maintenance_mode ? <Lock className="w-4 h-4 mr-2" /> : <Unlock className="w-4 h-4 mr-2" />}
+                          {systemSettings.maintenance_mode ? 'Disable Maintenance' : 'Enable Maintenance'}
+                        </>
+                      )}
+                    </button>
+                    <button 
+                      onClick={handleClearCache}
+                      className="flex items-center px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                      disabled={isClearingCache}
+                    >
+                      {isClearingCache ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Clearing...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Clear Cache
+                        </>
+                      )}
+                    </button>
+                    <button 
+                      onClick={handleEditSettings}
+                      className="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                    >
+                      <Edit className="w-4 h-4 mr-2" />
+                      Edit Settings
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-4">
@@ -1512,6 +1633,7 @@ const AdminPage = () => {
                     value={editForm.debug_mode ? 'true' : 'false'}
                     onChange={(e) => setEditForm({ ...editForm, debug_mode: e.target.value === 'true' })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                    disabled={isSavingSettings}
                   >
                     <option value="false">Disabled</option>
                     <option value="true">Enabled</option>
@@ -1525,6 +1647,7 @@ const AdminPage = () => {
                     value={editForm.log_level}
                     onChange={(e) => setEditForm({ ...editForm, log_level: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                    disabled={isSavingSettings}
                   >
                     <option value="debug">Debug</option>
                     <option value="info">Info</option>
@@ -1541,6 +1664,7 @@ const AdminPage = () => {
                     value={editForm.max_upload_size}
                     onChange={(e) => setEditForm({ ...editForm, max_upload_size: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                    disabled={isSavingSettings}
                   />
                 </div>
                 <div>
@@ -1552,6 +1676,7 @@ const AdminPage = () => {
                     value={editForm.session_timeout}
                     onChange={(e) => setEditForm({ ...editForm, session_timeout: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                    disabled={isSavingSettings}
                   />
                 </div>
                 <div>
@@ -1563,20 +1688,30 @@ const AdminPage = () => {
                     value={editForm.backup_retention_days}
                     onChange={(e) => setEditForm({ ...editForm, backup_retention_days: parseInt(e.target.value) })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                    disabled={isSavingSettings}
                   />
                 </div>
                 <div className="flex justify-end space-x-3">
                   <button
                     onClick={() => setIsEditingSettings(false)}
                     className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                    disabled={isSavingSettings}
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleSaveSettings}
-                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md"
+                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md flex items-center"
+                    disabled={isSavingSettings}
                   >
-                    Save Settings
+                    {isSavingSettings ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Saving...
+                      </>
+                    ) : (
+                      'Save Settings'
+                    )}
                   </button>
                 </div>
               </div>
@@ -1614,48 +1749,34 @@ const AdminPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 to-sky-100 dark:from-gray-900 dark:to-gray-800">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-800 shadow-md">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center">
-              <Shield className="w-8 h-8 text-blue-600 dark:text-blue-400 mr-3" />
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Admin Dashboard
-              </h1>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="flex items-center px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
-            </button>
-          </div>
-        </div>
-      </div>
+      <Navbar />
 
       {/* Navigation Tabs */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <div className="container mx-auto px-6">
-          <div className="flex space-x-8 overflow-x-auto">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
-                    activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                  }`}
-                >
-                  <Icon className="w-4 h-4 mr-2" />
-                  {tab.label}
-                </button>
-              );
-            })}
+          <div className="flex items-center justify-between py-4">
+            <div className="flex space-x-8 overflow-x-auto">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center py-2 px-2 border-b-2 font-medium text-sm transition-colors ${
+                      activeTab === tab.id
+                        ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 mr-2" />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="px-2 py-0.5 bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200 text-xs font-medium rounded-full">
+              ADMIN DASHBOARD
+            </div>
           </div>
         </div>
       </div>

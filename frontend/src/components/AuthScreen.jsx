@@ -72,12 +72,12 @@ const AuthScreen = () => {
           // Store user info and login with direct=true
           login(true);
           
-          // Fetch the full user info based on the ID returned from login
-          if (response.data.user_id) {
+          // Use the user object from the response
+          if (response.data.user) {
             const userData = {
-              id: response.data.user_id,
-              name: response.data.username || username,  // Include the username
-              is_admin: response.data.is_admin || false  // Make sure is_admin is explicitly set
+              ...response.data.user,
+              // Ensure these fields are set even if not in response
+              is_admin: response.data.user.is_admin || false
             };
             
             // Set the user data first
@@ -96,8 +96,8 @@ const AuthScreen = () => {
               navigate('/');
             }
           } else {
-            console.error('No user_id in login response:', response.data);
-            navigate('/'); // Fallback if no user_id returned
+            console.error('No user object in login response:', response.data);
+            setError('Login failed - invalid response format');
           }
         } else {
           setError(response.data.message || 'Login failed');
@@ -212,7 +212,7 @@ const AuthScreen = () => {
                 type="text"
                 required
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
-                placeholder="Username or 'bypass' for emergency access"
+                placeholder="Username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
               />
