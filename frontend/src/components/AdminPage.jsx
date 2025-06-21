@@ -38,7 +38,6 @@ import {
   downloadBackup,
   getSystemStatus,
   getDatabaseVersion,
-  getSystemSettings,
   updateSystemSettings,
   setMaintenanceMode,
   clearSystemCache,
@@ -74,16 +73,12 @@ const AdminPage = () => {
     active_users: 0,
     last_backup: '',
     environment: '',
-    debug_mode: false,
     database_status: '',
-    cache_status: '',
     database_size_kb: 0
   });
   const [databaseVersion, setDatabaseVersion] = useState('unknown');
   const [systemSettings, setSystemSettings] = useState({
     maintenance_mode: false,
-    debug_mode: false,
-    log_level: 'info',
     max_upload_size: '5MB',
     session_timeout: '24h',
     backup_retention_days: 30
@@ -108,14 +103,12 @@ const AdminPage = () => {
           statusResponse,
           familyMembersResponse,
           householdsResponse,
-          systemSettingsResponse,
           databaseVersionResponse
         ] = await Promise.all([
           getSystemStats(),
           getSystemStatus(),
           getFamilyMembers(),
           getHouseholdsWithMembers(),
-          getSystemSettings(),
           getDatabaseVersion()
         ]);
 
@@ -124,7 +117,6 @@ const AdminPage = () => {
         setSystemStatus(statusResponse.data || {});
         setUsers(familyMembersResponse.data || []);
         setHouseholds(householdsResponse.data || []);
-        setSystemSettings(systemSettingsResponse.data || {});
         setDatabaseVersion(databaseVersionResponse.data?.current_version || 'unknown');
 
         // Set recent activity if available
@@ -227,15 +219,15 @@ const AdminPage = () => {
         color={systemStatus?.status === "healthy" ? "green" : "red"}
       />
       <StatCard
-        title="Database Version"
-        value={databaseVersion || "Unknown"}
-        icon={Database}
+        title="Last Backup"
+        value={systemStatus?.last_backup || "Never"}
+        icon={Archive}
         color="blue"
       />
       <StatCard
         title="Database Size"
         value={`${systemStatus?.database_size_kb || 0} KB`}
-        icon={Archive}
+        icon={Database}
         color="purple"
       />
       {/* Add more stat cards as needed */}
@@ -244,24 +236,6 @@ const AdminPage = () => {
 
   const UsersTab = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
-
-    // Refresh data when tab becomes active
-    useEffect(() => {
-      const refreshData = async () => {
-        try {
-          const [usersResponse, householdsResponse] = await Promise.all([
-            getFamilyMembers(),
-            getHouseholdsWithMembers()
-          ]);
-          setUsers(usersResponse.data || []);
-          setHouseholds(householdsResponse.data || []);
-        } catch (err) {
-          console.error('Failed to fetch data:', err);
-          toast.error('Failed to load data');
-        }
-      };
-      refreshData();
-    }, []);
 
     const handleAddUser = () => {
       setIsModalOpen(true);
@@ -272,15 +246,11 @@ const AdminPage = () => {
       // Refresh the users list after modal closes
       const fetchData = async () => {
         try {
-          const [usersResponse, householdsResponse] = await Promise.all([
-            getFamilyMembers(),
-            getHouseholdsWithMembers()
-          ]);
-          setUsers(usersResponse.data || []);
-          setHouseholds(householdsResponse.data || []);
+          const response = await getFamilyMembers();
+          setUsers(response.data || []);
         } catch (err) {
-          console.error('Failed to fetch data:', err);
-          toast.error('Failed to load data');
+          console.error('Failed to fetch users:', err);
+          toast.error('Failed to load users');
         }
       };
       fetchData();
@@ -372,11 +342,6 @@ const AdminPage = () => {
     const [editMode, setEditMode] = useState('');
     const [selectedUsersToAdd, setSelectedUsersToAdd] = useState([]);
     const [selectedUsersToRemove, setSelectedUsersToRemove] = useState([]);
-
-    // Refresh data when tab becomes active
-    useEffect(() => {
-      fetchHouseholds();
-    }, []);
 
     const fetchHouseholds = async () => {
       setIsLoading(true);
@@ -1466,13 +1431,11 @@ const AdminPage = () => {
     const handleRefreshStatus = async () => {
       setIsLoadingStatus(true);
       try {
-        const [statusRes, settingsRes, versionRes] = await Promise.all([
+        const [statusRes, versionRes] = await Promise.all([
           getSystemStatus(),
-          getSystemSettings(),
           getDatabaseVersion()
         ]);
         setSystemStatus(statusRes.data || {});
-        setSystemSettings(settingsRes.data || {});
         setDatabaseVersion(versionRes.data?.current_version || 'unknown');
         toast.success('System status refreshed');
       } catch (err) {
@@ -1517,16 +1480,30 @@ const AdminPage = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {Object.entries(systemStatus)
                   .filter(([key, value]) => key !== 'debug_mode') // Remove debug mode
-                  .map(([key, value]) => (
-                  <div key={key} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                    <h5 className="font-medium text-gray-900 dark:text-white mb-2">
-                      {key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
-                    </h5>
-                    <p className="text-gray-600 dark:text-gray-400">
-                      {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value.toString()}
-                    </p>
-                  </div>
-                ))}
+                  .map(([key, value]) => {
+                    // Custom display for specific fields
+                    let displayKey = key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+                    let displayValue = typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value.toString();
+                    
+                    // Custom formatting for specific fields
+                    if (key === 'uptime') {
+                      displayKey = 'Server Uptime';
+                    } else if (key === 'database_size_kb') {
+                      displayKey = 'Database Size';
+                      displayValue = `${value} KB`;
+                    }
+                    
+                    return (
+                      <div key={key} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <h5 className="font-medium text-gray-900 dark:text-white mb-2">
+                          {displayKey}
+                        </h5>
+                        <p className="text-gray-600 dark:text-gray-400">
+                          {displayValue}
+                        </p>
+                      </div>
+                    );
+                  })}
               </div>
             )}
           </div>

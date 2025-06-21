@@ -2289,9 +2289,7 @@ def get_system_status(
             "active_users": active_users,
             "last_backup": last_backup,
             "environment": os.getenv("ENVIRONMENT", "development"),
-            "debug_mode": os.getenv("DEBUG", "false").lower() == "true",
             "database_status": "connected",
-            "cache_status": "available",
             "database_size_kb": round(db_size_kb, 2)
         }
     except Exception as e:
@@ -2330,8 +2328,6 @@ def get_system_settings(
         
         # Set defaults if not found
         settings.setdefault('maintenance_mode', False)
-        settings.setdefault('debug_mode', os.getenv('DEBUG', 'false').lower() == 'true')
-        settings.setdefault('log_level', os.getenv('LOG_LEVEL', 'info'))
         settings.setdefault('max_upload_size', '5MB')
         settings.setdefault('session_timeout', '24h')
         settings.setdefault('backup_retention_days', 30)
