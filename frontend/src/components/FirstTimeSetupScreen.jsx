@@ -22,7 +22,7 @@ const FirstTimeSetupScreen = () => {
 
   const validatePassword = (password) => {
     const hasNumber = /\d/.test(password);
-    const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+    const hasSpecial = /[!@#$%^&*(),.?":{}|<>_ ]/.test(password);
     const hasMinLength = password.length >= 10;
     return hasNumber && hasSpecial && hasMinLength;
   };
@@ -224,9 +224,16 @@ const FirstTimeSetupScreen = () => {
                     {showKey ? 'Hide' : 'Show'}
                   </button>
                 </div>
-                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                  Please save this key in a secure location. You will need it for emergency access if you get locked out.
-                </p>
+                <div className="mt-4 space-y-2 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 p-4 rounded-md border border-gray-200 dark:border-gray-700">
+                  <p className="font-medium text-gray-700 dark:text-gray-300">Emergency Access Instructions:</p>
+                  <p>1. Save this key in a secure location</p>
+                  <p>2. To use emergency access:</p>
+                  <ul className="ml-4 list-disc">
+                    <li>Enter "bypass" as the username</li>
+                    <li>Enter your emergency access key as the password</li>
+                  </ul>
+                  <p className="mt-2 text-red-600 dark:text-red-400 font-medium">Important: This key cannot be recovered if lost!</p>
+                </div>
               </div>
 
               <div>

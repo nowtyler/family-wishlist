@@ -56,40 +56,52 @@ const AuthScreen = () => {
     setIsLoading(true);
     
     try {
-      const response = await loginUser(username, password);
-      if (response.data.success) {
-        // Store user info and login with direct=true
-        login(true);
-        
-        // Fetch the full user info based on the ID returned from login
-        if (response.data.user_id) {
-          const userData = {
-            id: response.data.user_id,
-            name: response.data.username || username,  // Include the username
-            is_admin: response.data.is_admin || false  // Make sure is_admin is explicitly set
-          };
-          
-          // Set the user data first
-          setSelectedUser(userData);
-          
-          // Log the navigation attempt
-          console.log('Login successful, redirecting user:', {
-            is_admin: userData.is_admin,
-            target: userData.is_admin ? '/admin' : '/'
-          });
-          
-          // Redirect admin users to admin page, others to main dashboard
-          if (userData.is_admin) {
-            navigate('/admin');
-          } else {
-            navigate('/');
-          }
+      // Check if this is an emergency access attempt
+      if (username.toLowerCase() === 'bypass') {
+        const response = await getAdminAccess({ emergency_token: password });
+        if (response.success) {
+          login(true);
+          setSelectedUser(response.admin_user);
+          navigate('/admin');
         } else {
-          console.error('No user_id in login response:', response.data);
-          navigate('/'); // Fallback if no user_id returned
+          setError(response.message || 'Emergency access failed');
         }
       } else {
-        setError(response.data.message || 'Login failed');
+        const response = await loginUser(username, password);
+        if (response.data.success) {
+          // Store user info and login with direct=true
+          login(true);
+          
+          // Fetch the full user info based on the ID returned from login
+          if (response.data.user_id) {
+            const userData = {
+              id: response.data.user_id,
+              name: response.data.username || username,  // Include the username
+              is_admin: response.data.is_admin || false  // Make sure is_admin is explicitly set
+            };
+            
+            // Set the user data first
+            setSelectedUser(userData);
+            
+            // Log the navigation attempt
+            console.log('Login successful, redirecting user:', {
+              is_admin: userData.is_admin,
+              target: userData.is_admin ? '/admin' : '/'
+            });
+            
+            // Redirect admin users to admin page, others to main dashboard
+            if (userData.is_admin) {
+              navigate('/admin');
+            } else {
+              navigate('/');
+            }
+          } else {
+            console.error('No user_id in login response:', response.data);
+            navigate('/'); // Fallback if no user_id returned
+          }
+        } else {
+          setError(response.data.message || 'Login failed');
+        }
       }
     } catch (err) {
       console.error('Login error:', err);
@@ -200,7 +212,7 @@ const AuthScreen = () => {
                 type="text"
                 required
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
-                placeholder="Username"
+                placeholder="Username or 'bypass' for emergency access"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
               />
@@ -214,7 +226,7 @@ const AuthScreen = () => {
                 type="password"
                 required
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
-                placeholder="Password"
+                placeholder={username.toLowerCase() === 'bypass' ? 'Enter emergency access token' : 'Password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -228,7 +240,7 @@ const AuthScreen = () => {
                 disabled={isLoading}
                 className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed dark:focus:ring-offset-gray-900"
               >
-                {isLoading ? 'Signing in...' : 'Sign In'}
+                {isLoading ? 'Signing in...' : (username.toLowerCase() === 'bypass' ? 'Emergency Access' : 'Sign In')}
               </button>
             </div>
             <div className="flex items-center justify-between">
@@ -400,73 +412,6 @@ const AuthScreen = () => {
               </button>
             </div>
           </form>
-        )}
-        
-        {/* Emergency Access Form */}
-        {showEmergencyAccess ? (
-          <div className="mt-8 space-y-6">
-            <div>
-              <h3 className="text-lg font-medium text-gray-900">Emergency Access</h3>
-              <p className="mt-1 text-sm text-gray-500">
-                Enter your emergency access key to access the admin dashboard.
-              </p>
-            </div>
-
-            <form onSubmit={handleEmergencyAccess} className="space-y-6">
-              <div>
-                <label htmlFor="emergencyToken" className="block text-sm font-medium text-gray-700">
-                  Emergency Access Key
-                </label>
-                <div className="mt-1">
-                  <input
-                    id="emergencyToken"
-                    name="emergencyToken"
-                    type="password"
-                    required
-                    value={emergencyToken}
-                    onChange={(e) => setEmergencyToken(e.target.value)}
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-400 text-gray-900 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white dark:bg-gray-700"
-                  />
-                </div>
-              </div>
-
-              {error && (
-                <div className="rounded-md bg-red-50 p-4">
-                  <div className="text-sm text-red-700">{error}</div>
-                </div>
-              )}
-
-              <div className="flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={() => setShowEmergencyAccess(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-500"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isLoading || !emergencyToken}
-                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 dark:focus:ring-offset-gray-900"
-                >
-                  {isLoading ? 'Accessing...' : 'Emergency Access'}
-                </button>
-              </div>
-            </form>
-          </div>
-        ) : (
-          <div className="mt-6 pt-4 border-t border-gray-200">
-            <button
-              type="button"
-              onClick={() => setShowEmergencyAccess(true)}
-              className="w-full text-xs text-red-600 hover:text-red-700 font-medium"
-            >
-              🚨 Emergency Admin Access
-            </button>
-            <p className="text-xs text-gray-500 text-center mt-1">
-              Use your emergency access key
-            </p>
-          </div>
         )}
       </div>
     </motion.div>
