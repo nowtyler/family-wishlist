@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppProvider, useAppContext } from './contexts/AppContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import AuthScreen from './components/AuthScreen';
 import DashboardScreen from './components/DashboardScreen';
 import PasswordResetScreen from './components/PasswordResetScreen';
@@ -112,6 +114,18 @@ const App = () => {
       <ThemeProvider>
         <AppProvider>
           <AppContent />
+          <ToastContainer
+            position="top-right"
+            autoClose={3000}
+            hideProgressBar={false}
+            newestOnTop
+            closeOnClick
+            rtl={false}
+            pauseOnFocusLoss
+            draggable
+            pauseOnHover
+            theme="colored"
+          />
         </AppProvider>
       </ThemeProvider>
     </Router>
