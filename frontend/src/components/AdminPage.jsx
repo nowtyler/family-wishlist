@@ -5,7 +5,7 @@ import {
   Edit, Eye, EyeOff, Check, X, AlertTriangle, RefreshCw,
   Home, UserPlus, UserMinus, Lock, Unlock, Send, TestTube,
   Calendar, Gift, FileText, Archive, Download, Upload, Save, ArrowUp,
-  CheckCircleIcon, XCircleIcon, DatabaseIcon, ExclamationCircleIcon, CubeIcon
+  CheckCircle, XCircle, Database, ExclamationCircle, Cube
 } from 'lucide-react';
 import { useAppContext } from '../contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
@@ -206,19 +206,19 @@ const AdminPage = () => {
       <StatCard
         title="System Status"
         value={systemStatus?.status || "Unknown"}
-        icon={systemStatus?.status === "healthy" ? CheckCircleIcon : XCircleIcon}
+        icon={systemStatus?.status === "healthy" ? CheckCircle : XCircle}
         color={systemStatus?.status === "healthy" ? "green" : "red"}
       />
       <StatCard
         title="Database Status"
         value={systemStatus?.database_status || "Unknown"}
-        icon={systemStatus?.database_status === "connected" ? DatabaseIcon : ExclamationCircleIcon}
+        icon={systemStatus?.database_status === "connected" ? Database : ExclamationCircle}
         color={systemStatus?.database_status === "connected" ? "blue" : "yellow"}
       />
       <StatCard
         title="Cache Status"
         value={systemStatus?.cache_status || "Unknown"}
-        icon={systemStatus?.cache_status === "available" ? CubeIcon : ExclamationCircleIcon}
+        icon={systemStatus?.cache_status === "available" ? Cube : ExclamationCircle}
         color={systemStatus?.cache_status === "available" ? "purple" : "yellow"}
       />
       {/* Add more stat cards as needed */}
