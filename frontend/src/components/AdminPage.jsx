@@ -239,7 +239,7 @@ const AdminPage = () => {
     const fetchUsers = async () => {
       try {
         setIsLoading(true);
-        const response = await api.getFamilyMembers();
+        const response = await getFamilyMembers();
         setUsers(response.data);
       } catch (error) {
         console.error('Failed to fetch users:', error);
