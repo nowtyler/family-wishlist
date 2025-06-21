@@ -218,9 +218,14 @@ def read_family_members(
     members_with_counts = []
     for member in members:
         count = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == member.id).count()
+        # Get household count for this member
+        household_count = db.query(models.user_household_association).filter(
+            models.user_household_association.c.user_id == member.id
+        ).count()
         # Ensure birthday is correctly formatted if present
         member_schema = schemas.FamilyMember.from_orm(member)
         member_schema.wishlist_item_count = count
+        member_schema.household_count = household_count
         members_with_counts.append(member_schema)
     return members_with_counts
 
@@ -1862,6 +1867,61 @@ def get_all_households(
             detail=f"Failed to get households: {str(e)}"
         )
 
+@app.get("/api/admin/households/with-members", response_model=List[schemas.HouseholdWithMembers])
+def get_all_households_with_members(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get all households with their members (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    try:
+        # Get households with their actual members
+        households = []
+        for h in db.query(models.Household).all():
+            # Get members for this household
+            members = db.query(models.FamilyMember).join(
+                models.user_household_association,
+                models.FamilyMember.id == models.user_household_association.c.user_id
+            ).filter(
+                models.user_household_association.c.household_id == h.id
+            ).all()
+            
+            # Convert members to schema
+            member_schemas = []
+            for member in members:
+                member_schemas.append({
+                    "id": member.id,
+                    "name": member.name,
+                    "username": member.username,
+                    "email": member.email,
+                    "is_admin": member.is_admin
+                })
+            
+            household_dict = {
+                "id": h.id,
+                "name": h.name,
+                "description": h.description,
+                "created_at": h.created_at,
+                "created_by": h.created_by,
+                "member_count": len(members),
+                "members": member_schemas
+            }
+            households.append(schemas.HouseholdWithMembers(**household_dict))
+        return households
+    except Exception as e:
+        logger.error(f"Failed to get households with members: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get households with members: {str(e)}"
+        )
+
 @app.post("/api/admin/households", response_model=schemas.Household)
 def create_household(
     household: schemas.HouseholdCreate,
@@ -2517,13 +2577,33 @@ def add_user_to_household(
             models.user_household_association.c.household_id == household_id
         ).count()
         
-        return schemas.Household(
+        # Get updated members
+        members = db.query(models.FamilyMember).join(
+            models.user_household_association,
+            models.FamilyMember.id == models.user_household_association.c.user_id
+        ).filter(
+            models.user_household_association.c.household_id == household_id
+        ).all()
+        
+        # Convert members to schema
+        member_schemas = []
+        for member in members:
+            member_schemas.append({
+                "id": member.id,
+                "name": member.name,
+                "username": member.username,
+                "email": member.email,
+                "is_admin": member.is_admin
+            })
+        
+        return schemas.HouseholdWithMembers(
             id=household.id,
             name=household.name,
             description=household.description,
             created_at=household.created_at,
             created_by=household.created_by,
-            member_count=member_count
+            member_count=member_count,
+            members=member_schemas
         )
     except HTTPException:
         raise
@@ -2575,13 +2655,33 @@ def remove_user_from_household(
             models.user_household_association.c.household_id == household_id
         ).count()
         
-        return schemas.Household(
+        # Get updated members
+        members = db.query(models.FamilyMember).join(
+            models.user_household_association,
+            models.FamilyMember.id == models.user_household_association.c.user_id
+        ).filter(
+            models.user_household_association.c.household_id == household_id
+        ).all()
+        
+        # Convert members to schema
+        member_schemas = []
+        for member in members:
+            member_schemas.append({
+                "id": member.id,
+                "name": member.name,
+                "username": member.username,
+                "email": member.email,
+                "is_admin": member.is_admin
+            })
+        
+        return schemas.HouseholdWithMembers(
             id=household.id,
             name=household.name,
             description=household.description,
             created_at=household.created_at,
             created_by=household.created_by,
-            member_count=member_count
+            member_count=member_count,
+            members=member_schemas
         )
     except HTTPException:
         raise

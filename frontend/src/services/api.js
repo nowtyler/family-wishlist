@@ -576,6 +576,10 @@ export const getHouseholds = () => {
   return apiClient.get('/admin/households');
 };
 
+export const getHouseholdsWithMembers = () => {
+  return apiClient.get('/admin/households/with-members');
+};
+
 export const createHousehold = (householdData) => {
   return apiClient.post('/admin/households', householdData);
 };

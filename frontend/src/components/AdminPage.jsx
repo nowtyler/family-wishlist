@@ -13,6 +13,7 @@ import { toast } from 'react-toastify';
 import { 
   getFamilyMembers,
   getHouseholds,
+  getHouseholdsWithMembers,
   getSystemStats,
   createHousehold,
   testEmailSettings,
@@ -109,7 +110,7 @@ const AdminPage = () => {
           getSystemStats(),
           getSystemStatus(),
           getFamilyMembers(),
-          getHouseholds(),
+          getHouseholdsWithMembers(),
           getSystemSettings()
         ]);
 
@@ -279,7 +280,6 @@ const AdminPage = () => {
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {users.map((user) => {
-            const userHouseholds = getUserHouseholds(user.id);
             return (
               <div
                 key={user.id}
@@ -302,17 +302,17 @@ const AdminPage = () => {
                 {/* Household Information */}
                 <div>
                   <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Households ({userHouseholds.length})
+                    Households ({user.household_count || 0})
                   </h4>
-                  {userHouseholds.length > 0 ? (
+                  {user.household_count > 0 ? (
                     <div className="space-y-1">
-                      {userHouseholds.map(household => (
+                      {getUserHouseholds(user.id).map(household => (
                         <div key={household.id} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 px-2 py-1 rounded text-xs">
                           <span className="text-gray-600 dark:text-gray-300 truncate">
                             {household.name}
                           </span>
                           <span className="text-gray-400 dark:text-gray-500">
-                            {household.members?.length || 0} members
+                            {household.member_count || 0} members
                           </span>
                         </div>
                       ))}
@@ -348,7 +348,7 @@ const AdminPage = () => {
     const fetchHouseholds = async () => {
       setIsLoading(true);
       try {
-        const response = await getHouseholds();
+        const response = await getHouseholdsWithMembers();
         setHouseholds(response.data || []);
       } catch (err) {
         console.error('Failed to fetch households:', err);
@@ -487,9 +487,11 @@ const AdminPage = () => {
     const getAvailableUsers = () => {
       if (!selectedHousehold) return [];
       return users.filter(user => {
+        // Don't show users who are already members
+        const isAlreadyMember = selectedHousehold.members?.some(m => m.id === user.id);
         // Don't show users who are being added (they'll be in the pending changes)
         const isBeingAdded = selectedUsersToAdd.includes(user.id);
-        return !isBeingAdded;
+        return !isAlreadyMember && !isBeingAdded;
       });
     };
 
@@ -535,7 +537,7 @@ const AdminPage = () => {
                     <div className="flex items-center justify-between mb-3">
                       <h5 className="font-medium text-gray-900 dark:text-white">{household.name}</h5>
                       <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">
-                        {Array.isArray(household.members) ? household.members.length : 0} members
+                        {household.member_count || 0} members
                       </span>
                     </div>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
@@ -626,36 +628,18 @@ const AdminPage = () => {
                   </label>
                   <div className="space-y-2 max-h-32 overflow-y-auto">
                     {getAvailableUsers().length > 0 ? (
-                      getAvailableUsers().map(user => {
-                        const isAlreadyMember = isUserAlreadyMember(user.id);
-                        return (
-                          <div key={user.id} className={`flex items-center justify-between p-2 rounded ${
-                            isAlreadyMember 
-                              ? 'bg-gray-100 dark:bg-gray-600 border border-gray-200 dark:border-gray-500' 
-                              : 'bg-gray-50 dark:bg-gray-700'
-                          }`}>
-                            <div className="flex items-center">
-                              <span className={`${isAlreadyMember ? 'text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-white'}`}>
-                                {user.name}
-                              </span>
-                              {isAlreadyMember && (
-                                <span className="ml-2 px-2 py-0.5 text-xs bg-gray-200 dark:bg-gray-500 text-gray-600 dark:text-gray-300 rounded">
-                                  Already Member
-                                </span>
-                              )}
-                            </div>
-                            {!isAlreadyMember && (
-                              <button
-                                onClick={() => handleUserSelectionChange(user.id, 'add')}
-                                className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                                disabled={isLoading}
-                              >
-                                <UserPlus className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })
+                      getAvailableUsers().map(user => (
+                        <div key={user.id} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 p-2 rounded">
+                          <span className="text-gray-900 dark:text-white">{user.name}</span>
+                          <button
+                            onClick={() => handleUserSelectionChange(user.id, 'add')}
+                            className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                            disabled={isLoading}
+                          >
+                            <UserPlus className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))
                     ) : (
                       <p className="text-gray-500 dark:text-gray-400 text-sm">No users available to add</p>
                     )}
