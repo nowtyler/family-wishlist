@@ -42,7 +42,7 @@ import {
   getAllItems,
   deleteItemAsAdmin
 } from '../services/api';
-import { FamilyMemberManager } from './admin/FamilyMemberManager';
+import FamilyMemberManager from './admin/FamilyMemberManager';
 import Navbar from './Navbar';
 
 const AdminPage = () => {
