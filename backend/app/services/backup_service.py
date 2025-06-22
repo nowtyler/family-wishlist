@@ -200,14 +200,21 @@ class BackupService:
             return False, error_msg
 
     def delete_backup(self, backup_filename: str) -> Tuple[bool, str]:
-        """Deletes a backup file"""
+        """Deletes a backup file and its corresponding .meta file if it exists"""
         try:
             backup_path = os.path.join(self.backup_dir, backup_filename)
             if not os.path.exists(backup_path):
                 return False, "Backup file not found"
             
+            # Delete the backup file
             os.remove(backup_path)
-            return True, "Backup deleted successfully"
+            
+            # Check for and delete the corresponding metadata file
+            meta_path = backup_path + '.meta'
+            if os.path.exists(meta_path):
+                os.remove(meta_path)
+                logger.info(f"Deleted metadata file: {meta_path}")
+            
+            return True, "Backup and associated metadata deleted successfully"
         except Exception as e:
-            return False, f"Failed to delete backup: {str(e)}"
             return False, f"Failed to delete backup: {str(e)}"
