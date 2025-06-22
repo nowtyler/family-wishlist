@@ -7,10 +7,11 @@ import { motion } from 'framer-motion';
 import EmergencyAccessModal from './EmergencyAccessModal';
 import { validatePassword, validatePasswordMatch } from '../utils/passwordValidation';
 import { toast } from 'react-toastify';
+import HouseholdSelectionScreen from './HouseholdSelectionScreen';
 
 const AuthScreen = () => {
   // Authentication states
-  const [authMode, setAuthMode] = useState('login'); // login, register, reset
+  const [authMode, setAuthMode] = useState('login'); // login, register, reset, household-selection
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -144,8 +145,18 @@ const AuthScreen = () => {
       
       const response = await registerUser(userData);
       if (response.data.success) {
-        toast.success('Registration successful! You can now login.');
-        setAuthMode('login');
+        // Instead of showing success message and switching to login,
+        // we'll log the user in and show the household selection screen
+        const loginResponse = await loginUser({ username, password });
+        if (loginResponse.data.success) {
+          login(loginResponse.data.is_admin);
+          setSelectedUser(loginResponse.data.user);
+          setAuthMode('household-selection');
+        } else {
+          toast.error('Registration successful but login failed. Please try logging in.');
+          setAuthMode('login');
+        }
+        
         // Clear form
         setUsername('');
         setPassword('');
@@ -192,15 +203,16 @@ const AuthScreen = () => {
     }
   };
 
+  const handleHouseholdSelectionComplete = () => {
+    navigate('/dashboard');
+  };
+
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gray-50 dark:bg-gray-900"
-    >
-      <div className="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 p-8 rounded-lg shadow">
-        <div>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      {authMode === 'household-selection' ? (
+        <HouseholdSelectionScreen onComplete={handleHouseholdSelectionComplete} />
+      ) : (
+        <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <h2 className="text-center text-3xl font-extrabold text-gray-900 dark:text-white">
             Welcome to Family Wishlist
           </h2>
@@ -209,230 +221,230 @@ const AuthScreen = () => {
             {authMode === 'register' && "Create your account"}
             {authMode === 'reset' && "Reset your password"}
           </p>
+          
+          {/* Success message */}
+          {success && (
+            <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-md">
+              <p className="text-green-600 dark:text-green-400 text-sm">{success}</p>
+            </div>
+          )}
+          
+          {/* Login Form */}
+          {authMode === 'login' && (
+            <form className="space-y-6" onSubmit={handleLogin}>
+              <div>
+                <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Username
+                </label>
+                <input
+                  id="username"
+                  type="text"
+                  required
+                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
+                  placeholder="Username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                />
+              </div>
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Password
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  required
+                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
+                  placeholder={username.toLowerCase() === 'bypass' ? 'Enter emergency access token' : 'Password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+              {error && (
+                <div className="text-red-500 dark:text-red-400 text-sm text-center">{error}</div>
+              )}
+              <div>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed dark:focus:ring-offset-gray-900"
+                >
+                  {isLoading ? 'Signing in...' : (username.toLowerCase() === 'bypass' ? 'Emergency Access' : 'Sign In')}
+                </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode('register'); setError(''); setSuccess(''); }}
+                  className="text-sm font-medium text-primary hover:text-primary-dark dark:text-primary-light dark:hover:text-primary"
+                >
+                  New user? Register
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode('reset'); setError(''); setSuccess(''); }}
+                  className="text-sm font-medium text-primary hover:text-primary-dark dark:text-primary-light dark:hover:text-primary"
+                >
+                  Forgot password?
+                </button>
+              </div>
+            </form>
+          )}
+          
+          {/* Register Form */}
+          {authMode === 'register' && (
+            <form className="space-y-4" onSubmit={handleRegister}>
+              <div>
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Name
+                </label>
+                <input
+                  id="name"
+                  type="text"
+                  required
+                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
+                  placeholder="Your name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label htmlFor="reg-username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Username
+                </label>
+                <input
+                  id="reg-username"
+                  type="text"
+                  required
+                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
+                  placeholder="Choose a username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                />
+              </div>
+              <div>
+                <label htmlFor="reg-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Password
+                </label>
+                <input
+                  id="reg-password"
+                  type="password"
+                  required
+                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
+                  placeholder="Choose a secure password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Password must be at least 8 characters with uppercase, lowercase and numbers
+                </p>
+              </div>
+              <div>
+                <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Confirm Password
+                </label>
+                <input
+                  id="confirm-password"
+                  type="password"
+                  required
+                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
+                  placeholder="Confirm your password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+              </div>
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Email (optional, for password recovery)
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
+                  placeholder="your.email@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+              <div>
+                <label htmlFor="birthday" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Birthday (optional)
+                </label>
+                <input
+                  id="birthday"
+                  type="date"
+                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
+                  value={birthday}
+                  onChange={(e) => setBirthday(e.target.value)}
+                />
+              </div>
+              {error && (
+                <div className="text-red-500 dark:text-red-400 text-sm text-center">{error}</div>
+              )}
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed dark:focus:ring-offset-gray-900"
+                >
+                  {isLoading ? 'Registering...' : 'Register'}
+                </button>
+              </div>
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode('login'); setError(''); setSuccess(''); }}
+                  className="text-sm font-medium text-primary hover:text-primary-dark dark:text-primary-light dark:hover:text-primary"
+                >
+                  Already have an account? Sign in
+                </button>
+              </div>
+            </form>
+          )}
+          
+          {/* Password Reset Form */}
+          {authMode === 'reset' && (
+            <form className="space-y-6" onSubmit={handlePasswordReset}>
+              <div>
+                <label htmlFor="reset-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Username or Email
+                </label>
+                <input
+                  id="reset-email"
+                  type="text"
+                  required
+                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
+                  placeholder="Enter your username or email"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value.toLowerCase())}
+                />
+              </div>
+              {error && (
+                <div className="text-red-500 dark:text-red-400 text-sm text-center">{error}</div>
+              )}
+              <div>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed dark:focus:ring-offset-gray-900"
+                >
+                  {isLoading ? 'Sending...' : 'Send Reset Link'}
+                </button>
+              </div>
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode('login'); setError(''); setSuccess(''); }}
+                  className="text-sm font-medium text-primary hover:text-primary-dark dark:text-primary-light dark:hover:text-primary"
+                >
+                  Back to login
+                </button>
+              </div>
+            </form>
+          )}
         </div>
-        
-        {/* Success message */}
-        {success && (
-          <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-md">
-            <p className="text-green-600 dark:text-green-400 text-sm">{success}</p>
-          </div>
-        )}
-        
-        {/* Login Form */}
-        {authMode === 'login' && (
-          <form className="space-y-6" onSubmit={handleLogin}>
-            <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Username
-              </label>
-              <input
-                id="username"
-                type="text"
-                required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
-                placeholder="Username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value.toLowerCase())}
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
-                placeholder={username.toLowerCase() === 'bypass' ? 'Enter emergency access token' : 'Password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-            {error && (
-              <div className="text-red-500 dark:text-red-400 text-sm text-center">{error}</div>
-            )}
-            <div>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed dark:focus:ring-offset-gray-900"
-              >
-                {isLoading ? 'Signing in...' : (username.toLowerCase() === 'bypass' ? 'Emergency Access' : 'Sign In')}
-              </button>
-            </div>
-            <div className="flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => { setAuthMode('register'); setError(''); setSuccess(''); }}
-                className="text-sm font-medium text-primary hover:text-primary-dark dark:text-primary-light dark:hover:text-primary"
-              >
-                New user? Register
-              </button>
-              <button
-                type="button"
-                onClick={() => { setAuthMode('reset'); setError(''); setSuccess(''); }}
-                className="text-sm font-medium text-primary hover:text-primary-dark dark:text-primary-light dark:hover:text-primary"
-              >
-                Forgot password?
-              </button>
-            </div>
-          </form>
-        )}
-        
-        {/* Register Form */}
-        {authMode === 'register' && (
-          <form className="space-y-4" onSubmit={handleRegister}>
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Name
-              </label>
-              <input
-                id="name"
-                type="text"
-                required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
-                placeholder="Your name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-            <div>
-              <label htmlFor="reg-username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Username
-              </label>
-              <input
-                id="reg-username"
-                type="text"
-                required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
-                placeholder="Choose a username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value.toLowerCase())}
-              />
-            </div>
-            <div>
-              <label htmlFor="reg-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Password
-              </label>
-              <input
-                id="reg-password"
-                type="password"
-                required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
-                placeholder="Choose a secure password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Password must be at least 8 characters with uppercase, lowercase and numbers
-              </p>
-            </div>
-            <div>
-              <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Confirm Password
-              </label>
-              <input
-                id="confirm-password"
-                type="password"
-                required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
-                placeholder="Confirm your password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-              />
-            </div>
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Email (optional, for password recovery)
-              </label>
-              <input
-                id="email"
-                type="email"
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
-                placeholder="your.email@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div>
-              <label htmlFor="birthday" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Birthday (optional)
-              </label>
-              <input
-                id="birthday"
-                type="date"
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
-                value={birthday}
-                onChange={(e) => setBirthday(e.target.value)}
-              />
-            </div>
-            {error && (
-              <div className="text-red-500 dark:text-red-400 text-sm text-center">{error}</div>
-            )}
-            <div className="pt-2">
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed dark:focus:ring-offset-gray-900"
-              >
-                {isLoading ? 'Registering...' : 'Register'}
-              </button>
-            </div>
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={() => { setAuthMode('login'); setError(''); setSuccess(''); }}
-                className="text-sm font-medium text-primary hover:text-primary-dark dark:text-primary-light dark:hover:text-primary"
-              >
-                Already have an account? Sign in
-              </button>
-            </div>
-          </form>
-        )}
-        
-        {/* Password Reset Form */}
-        {authMode === 'reset' && (
-          <form className="space-y-6" onSubmit={handlePasswordReset}>
-            <div>
-              <label htmlFor="reset-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Username or Email
-              </label>
-              <input
-                id="reset-email"
-                type="text"
-                required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
-                placeholder="Enter your username or email"
-                value={resetEmail}
-                onChange={(e) => setResetEmail(e.target.value.toLowerCase())}
-              />
-            </div>
-            {error && (
-              <div className="text-red-500 dark:text-red-400 text-sm text-center">{error}</div>
-            )}
-            <div>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed dark:focus:ring-offset-gray-900"
-              >
-                {isLoading ? 'Sending...' : 'Send Reset Link'}
-              </button>
-            </div>
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={() => { setAuthMode('login'); setError(''); setSuccess(''); }}
-                className="text-sm font-medium text-primary hover:text-primary-dark dark:text-primary-light dark:hover:text-primary"
-              >
-                Back to login
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-    </motion.div>
+      )}
+    </div>
   );
 };
 
