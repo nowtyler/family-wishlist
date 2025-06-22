@@ -26,6 +26,7 @@ from .services.backup_service import BackupService
 from .services.url_scraper import ProductScraper
 from .services.user_auth_service import UserAuthService
 from .services.email_service import EmailService
+from .services.emergency_token_service import EmergencyTokenService
 from .middleware.rate_limiter import RateLimiter
 from .deps import validate_password_strength
 import secrets
@@ -126,6 +127,9 @@ app.add_middleware(
 
 # Initialize rate limiter
 rate_limiter = RateLimiter(requests_per_minute=60)
+
+# Initialize emergency token service
+emergency_token_service = EmergencyTokenService()
 
 # --- App Startup ---
 @app.on_event("startup")
@@ -1307,13 +1311,13 @@ async def check_setup_status(db: Session = Depends(get_db)):
         # Check if any admin user exists
         admin_exists = db.query(models.FamilyMember).filter(models.FamilyMember.is_admin == True).first() is not None
         
-        # Check if emergency access key exists
-        emergency_key = db.query(models.SystemConfig).filter(models.SystemConfig.key == "emergency_access_key").first()
+        # Check if emergency access key exists in encrypted file storage
+        emergency_key_exists = emergency_token_service.token_exists()
         
         return {
-            "is_setup_complete": admin_exists and emergency_key is not None,
+            "is_setup_complete": admin_exists and emergency_key_exists,
             "needs_admin": not admin_exists,
-            "needs_emergency_key": emergency_key is None
+            "needs_emergency_key": not emergency_key_exists
         }
     except Exception as e:
         logger.error(f"Error checking setup status: {e}")
@@ -1348,15 +1352,20 @@ async def first_time_setup(
         )
         db.add(admin)
         
-        # Generate and store emergency access key
-        emergency_key = secrets.token_urlsafe(32)
-        emergency_config = models.SystemConfig(
-            key="emergency_access_key",
-            value=emergency_key,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
-        )
-        db.add(emergency_config)
+        # Generate and store emergency access key using encrypted file storage
+        emergency_key = emergency_token_service.generate_token()
+        if not emergency_token_service.save_token(emergency_key):
+            logger.error("Failed to save emergency token to encrypted file")
+            # Still save to database as fallback
+            emergency_config = models.SystemConfig(
+                key="emergency_access_key",
+                value=emergency_key,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+            db.add(emergency_config)
+        else:
+            logger.info("Emergency token saved to encrypted file storage")
         
         db.commit()
         db.refresh(admin)
@@ -1392,21 +1401,19 @@ async def emergency_admin_access_secure(
     client_host: str = Header(None, alias="X-Forwarded-For"),
     db: Session = Depends(get_db)
 ):
-    """Secure emergency endpoint to get admin access with database-stored token validation"""
+    """Secure emergency endpoint to get admin access with file-based encrypted token validation"""
     try:
-        # Get emergency token from database
-        emergency_config = db.query(models.SystemConfig).filter(
-            models.SystemConfig.key == "emergency_access_key"
-        ).first()
+        # Get emergency token from encrypted file storage
+        stored_token = emergency_token_service.get_token()
         
-        if not emergency_config:
-            logger.error("Emergency access key not found in database")
+        if not stored_token:
+            logger.error("Emergency access token not found in encrypted storage")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Emergency access not configured"
             )
         
-        if request.emergency_token != emergency_config.value:
+        if request.emergency_token != stored_token:
             logger.warning("Emergency access attempt with invalid token")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -1446,6 +1453,124 @@ async def emergency_admin_access_secure(
         raise
     except Exception as e:
         logger.error(f"Emergency admin access error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@app.put("/api/admin/emergency-token", response_model=schemas.UpdateEmergencyTokenResponse)
+async def update_emergency_token(
+    request: schemas.UpdateEmergencyTokenRequest,
+    current_user_id: int = Depends(get_current_user_id_from_header),
+    db: Session = Depends(get_db)
+):
+    """Update the emergency access token (admin only)"""
+    if not current_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required"
+        )
+    
+    user = db.query(models.FamilyMember).filter(models.FamilyMember.id == current_user_id).first()
+    if not user or not (user.is_admin or user.name.lower() == 'admin'):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    
+    try:
+        success = emergency_token_service.update_token(request.new_token)
+        if success:
+            logger.info(f"Emergency token updated by admin user {user.username}")
+            return schemas.UpdateEmergencyTokenResponse(
+                success=True,
+                message="Emergency token updated successfully"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update emergency token"
+            )
+    except Exception as e:
+        logger.error(f"Error updating emergency token: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@app.get("/api/admin/emergency-token/info", response_model=schemas.EmergencyTokenInfoResponse)
+async def get_emergency_token_info(
+    current_user_id: int = Depends(get_current_user_id_from_header),
+    db: Session = Depends(get_db)
+):
+    """Get emergency token information (admin only)"""
+    if not current_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required"
+        )
+    
+    user = db.query(models.FamilyMember).filter(models.FamilyMember.id == current_user_id).first()
+    if not user or not (user.is_admin or user.name.lower() == 'admin'):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    
+    try:
+        token_info = emergency_token_service.get_token_info()
+        if token_info:
+            return schemas.EmergencyTokenInfoResponse(**token_info)
+        else:
+            return schemas.EmergencyTokenInfoResponse(
+                exists=False,
+                created_at=None,
+                updated_at=None,
+                has_token=False
+            )
+    except Exception as e:
+        logger.error(f"Error getting emergency token info: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@app.post("/api/admin/emergency-token/generate", response_model=schemas.UpdateEmergencyTokenResponse)
+async def generate_new_emergency_token(
+    current_user_id: int = Depends(get_current_user_id_from_header),
+    db: Session = Depends(get_db)
+):
+    """Generate a new emergency access token (admin only)"""
+    if not current_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required"
+        )
+    
+    user = db.query(models.FamilyMember).filter(models.FamilyMember.id == current_user_id).first()
+    if not user or not (user.is_admin or user.name.lower() == 'admin'):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    
+    try:
+        new_token = emergency_token_service.generate_token()
+        success = emergency_token_service.update_token(new_token)
+        
+        if success:
+            logger.info(f"New emergency token generated by admin user {user.username}")
+            return schemas.UpdateEmergencyTokenResponse(
+                success=True,
+                message=f"New emergency token generated: {new_token}"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to save new emergency token"
+            )
+    except Exception as e:
+        logger.error(f"Error generating new emergency token: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
@@ -1755,7 +1880,7 @@ async def login(
             detail=str(e)
         )
 
-@app.post("/api/auth/register", 
+@app.post("/api/auth/register
     response_model=schemas.AuthResponse,
     tags=["Authentication"],
     summary="Register a new user",

@@ -470,6 +470,19 @@ class EmergencyAccessResponse(BaseModel):
     message: str
     admin_user: FamilyMember
 
+class UpdateEmergencyTokenRequest(BaseModel):
+    new_token: str
+
+class UpdateEmergencyTokenResponse(BaseModel):
+    success: bool
+    message: str
+
+class EmergencyTokenInfoResponse(BaseModel):
+    exists: bool
+    created_at: Optional[str]
+    updated_at: Optional[str]
+    has_token: bool
+
 class SystemConfig(BaseModel):
     key: str
     value: str
