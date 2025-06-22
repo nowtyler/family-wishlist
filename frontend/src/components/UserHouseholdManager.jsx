@@ -364,14 +364,6 @@ const UserHouseholdManager = ({
           </div>
           
           <div className="flex gap-3">
-            {showSkipOption && (
-              <button
-                onClick={onComplete}
-                className="py-2.5 px-4 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors"
-              >
-                Skip for now
-              </button>
-            )}
             <button
               onClick={handleSubmit}
               disabled={isSubmitting || (selectedHouseholds.size === 0 && householdsToLeave.size === 0)}
