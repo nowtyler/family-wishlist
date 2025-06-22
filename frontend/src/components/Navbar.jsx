@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
 import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPlus, 
-         Trash2, AlertOctagon, Database, HelpCircle, UserRound, User } from 'lucide-react';
+         Trash2, AlertOctagon, Database, HelpCircle, UserRound, User, Home } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems, 
          getFamilyMembers, clearAllWishlists, getAdminAccess } from '../services/api';
@@ -12,6 +12,7 @@ import MigrationModal from './admin/MigrationModal';
 import HelpModal from './HelpModal';
 import FamilyMemberManager from './admin/FamilyMemberManager';
 import UserProfileModal from './UserProfileModal';
+import UserHouseholdManager from './UserHouseholdManager';
 
 const Navbar = ({ onClearWishlist, viewingMember }) => {
   const { selectedUser, logout, setSelectedUser, setFamilyMembers } = useAppContext();
@@ -29,6 +30,7 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showFamilyManager, setShowFamilyManager] = useState(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
+  const [showUserHouseholdManager, setShowUserHouseholdManager] = useState(false);
   const settingsRef = useRef(null);
   const isAdmin = selectedUser?.is_admin;
 
@@ -294,16 +296,29 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
                     
                     {/* User Profile Management for non-admin users */}
                     {!isAdmin && (
-                      <button
-                        onClick={() => {
-                          setShowSettings(false);
-                          setShowUserProfileModal(true);
-                        }}
-                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
-                      >
-                        <User className="w-4 h-4 mr-2" />
-                        Edit Profile
-                      </button>
+                      <>
+                        <button
+                          onClick={() => {
+                            setShowSettings(false);
+                            setShowUserProfileModal(true);
+                          }}
+                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                        >
+                          <User className="w-4 h-4 mr-2" />
+                          Edit Profile
+                        </button>
+                        
+                        <button
+                          onClick={() => {
+                            setShowSettings(false);
+                            setShowUserHouseholdManager(true);
+                          }}
+                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                        >
+                          <Home className="w-4 h-4 mr-2" />
+                          Manage Households
+                        </button>
+                      </>
                     )}
                     
                     {/* Admin Management for admin users */}
@@ -430,6 +445,17 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
           <UserProfileModal
             isOpen={showUserProfileModal}
             onClose={() => setShowUserProfileModal(false)}
+          />
+        )}
+        
+        {/* User Household Manager Modal */}
+        {showUserHouseholdManager && (
+          <UserHouseholdManager
+            isOpen={showUserHouseholdManager}
+            onClose={() => setShowUserHouseholdManager(false)}
+            onComplete={() => setShowUserHouseholdManager(false)}
+            title="Manage Your Households"
+            subtitle="Join existing households, create new ones, or leave households you're in"
           />
         )}
       </AnimatePresence>

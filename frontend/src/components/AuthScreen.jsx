@@ -5,12 +5,13 @@ import { useAppContext } from '../contexts/AppContext';
 import { verifyPassword, loginUser, registerUser, requestPasswordReset, getAdminAccess } from '../services/api';
 import { motion } from 'framer-motion';
 import EmergencyAccessModal from './EmergencyAccessModal';
+import UserHouseholdManager from './UserHouseholdManager';
 import { validatePassword, validatePasswordMatch } from '../utils/passwordValidation';
 import { toast } from 'react-toastify';
 
 const AuthScreen = () => {
   // Authentication states
-  const [authMode, setAuthMode] = useState('login'); // login, register, reset
+  const [authMode, setAuthMode] = useState('login'); // login, register, reset, householdSetup
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -19,12 +20,14 @@ const AuthScreen = () => {
   const [birthday, setBirthday] = useState('');
   const [resetEmail, setResetEmail] = useState('');
   const [emergencyToken, setEmergencyToken] = useState('');
+  const [registeredUser, setRegisteredUser] = useState(null);
 
   // UI states
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showEmergencyAccess, setShowEmergencyAccess] = useState(false);
+  const [showHouseholdSetup, setShowHouseholdSetup] = useState(false);
   
   const { login, setSelectedUser } = useAppContext();
   const navigate = useNavigate();
@@ -144,8 +147,9 @@ const AuthScreen = () => {
       
       const response = await registerUser(userData);
       if (response.data.success) {
-        toast.success('Registration successful! You can now login.');
-        setAuthMode('login');
+        toast.success('Registration successful! Now let\'s set up your households.');
+        setRegisteredUser({ username, password });
+        setShowHouseholdSetup(true);
         // Clear form
         setUsername('');
         setPassword('');
@@ -153,6 +157,22 @@ const AuthScreen = () => {
         setName('');
         setEmail('');
         setBirthday('');
+        
+        // Set the registered user for household management
+        setRegisteredUser({
+          username,
+          name,
+          email: email || '',
+          birthday: birthday || '',
+          // Add any other default household fields if necessary
+        });
+        
+        // Automatically navigate to household manager after registration
+        setTimeout(() => {
+          setAuthMode('householdSetup');
+          setSuccess('');
+          setError('');
+        }, 1000);
       } else {
         setError(response.data.message || 'Registration failed');
       }
@@ -192,6 +212,43 @@ const AuthScreen = () => {
     }
   };
 
+  const handleHouseholdSetupComplete = async () => {
+    // After household setup, automatically log the user in
+    if (registeredUser) {
+      try {
+        setIsLoading(true);
+        const response = await loginUser(registeredUser.username, registeredUser.password);
+        if (response.data.success && response.data.user) {
+          login(response.data.user.is_admin);
+          setSelectedUser(response.data.user);
+          setShowHouseholdSetup(false);
+          navigate('/');
+        } else {
+          // If auto-login fails, redirect to login
+          setShowHouseholdSetup(false);
+          setAuthMode('login');
+          toast.info('Please log in to continue.');
+        }
+      } catch (err) {
+        console.error('Auto-login error:', err);
+        setShowHouseholdSetup(false);
+        setAuthMode('login');
+        toast.info('Please log in to continue.');
+      } finally {
+        setIsLoading(false);
+        setRegisteredUser(null);
+      }
+    }
+  };
+
+  const handleSkipHouseholdSetup = () => {
+    // If user skips household setup, just redirect to login
+    setShowHouseholdSetup(false);
+    setAuthMode('login');
+    setRegisteredUser(null);
+    toast.info('You can set up households later from your settings.');
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
@@ -208,6 +265,7 @@ const AuthScreen = () => {
             {authMode === 'login' && "Sign in to your account"}
             {authMode === 'register' && "Create your account"}
             {authMode === 'reset' && "Reset your password"}
+            {authMode === 'householdSetup' && "Set up your household"}
           </p>
         </div>
         
@@ -432,6 +490,16 @@ const AuthScreen = () => {
           </form>
         )}
       </div>
+
+      {/* Household Setup Modal - Shown after registration */}
+      <UserHouseholdManager 
+        isOpen={showHouseholdSetup}
+        onClose={handleSkipHouseholdSetup}
+        onComplete={handleHouseholdSetupComplete}
+        showSkipOption={true}
+        title="Welcome! Set up your households"
+        subtitle="Join existing households or create new ones to get started"
+      />
     </motion.div>
   );
 };

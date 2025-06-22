@@ -204,6 +204,20 @@ class HouseholdResponse(BaseModel):
     message: str
     household: Optional[Household] = None
 
+# --- User Household Management ---
+class UserHouseholdJoinRequest(BaseModel):
+    pass  # No additional data needed, user_id comes from auth header
+
+class UserHouseholdResponse(BaseModel):
+    success: bool
+    message: str
+    household: Optional[Household] = None
+
+class UserHouseholdsResponse(BaseModel):
+    success: bool
+    message: str
+    households: List[Household] = []
+
 # --- Email Management ---
 class EmailSettingsCreate(EmailSettingsBase):
     pass

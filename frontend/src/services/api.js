@@ -720,4 +720,25 @@ export const generateNewEmergencyToken = () => {
   return apiClient.post('/admin/emergency-token/generate');
 };
 
+// --- User Household Management (Non-Admin) ---
+export const getUserHouseholds = () => {
+  return apiClient.get('/user/households');
+};
+
+export const getAllHouseholds = () => {
+  return apiClient.get('/households');
+};
+
+export const createHouseholdByUser = (householdData) => {
+  return apiClient.post('/households', householdData);
+};
+
+export const joinHousehold = (householdId) => {
+  return apiClient.post(`/households/${householdId}/join`);
+};
+
+export const leaveHousehold = (householdId) => {
+  return apiClient.delete(`/households/${householdId}/leave`);
+};
+
 export default apiClient;
