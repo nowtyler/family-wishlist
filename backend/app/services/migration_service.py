@@ -2,7 +2,7 @@ from alembic.config import Config
 from alembic import command, autogenerate
 from alembic.script import ScriptDirectory
 from alembic.runtime.migration import MigrationContext
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, inspect, text, func
 import os
 import hashlib
 import subprocess
@@ -15,6 +15,8 @@ import logging
 from .backup_service import BackupService
 from ..database import Base
 from ..models import *  # Import all models to register them with Base.metadata
+from sqlalchemy.orm import Session
+from ..utils.timezone_utils import get_est_timestamp, get_est_timestamp_strftime
 
 logger = logging.getLogger(__name__)
 
@@ -491,7 +493,7 @@ class MigrationService:
                             # Insert new hash
                             conn.execute(text(
                                 "INSERT INTO schema_version (hash, updated_at) VALUES (:hash, :updated_at)"
-                            ), {"hash": post_migration_hash, "updated_at": datetime.utcnow()})
+                            ), {"hash": post_migration_hash, "updated_at": get_est_timestamp()})
                         except Exception as e:
                             logger.warning(f"Failed to update schema_version table: {e}")
 
@@ -629,6 +631,10 @@ class MigrationService:
             script_directory = ScriptDirectory.from_config(self.alembic_cfg)
             current_head = script_directory.get_current_head()
             
+            # Create migration filename with timestamp
+            timestamp = get_est_timestamp_strftime("%Y%m%d_%H%M%S")
+            filename = f"{timestamp}_{safe_message.replace(' ', '_').lower()}.py"
+            
             return f"Successfully created migration: {current_head}"
         except Exception as e:
             error_msg = f"Failed to create migration: {str(e)}"
@@ -669,7 +675,7 @@ class MigrationService:
                 # Insert new hash
                 conn.execute(text(
                     "INSERT INTO schema_version (hash, updated_at) VALUES (:hash, :updated_at)"
-                ), {"hash": current_hash, "updated_at": datetime.utcnow()})
+                ), {"hash": current_hash, "updated_at": get_est_timestamp()})
                 
                 # Also update system_settings if it exists and has schema_hash column
                 try:

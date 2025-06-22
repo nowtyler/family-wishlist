@@ -34,6 +34,7 @@ import psutil
 import json
 import time
 import pytz
+from .utils.timezone_utils import get_est_timestamp, get_est_timestamp_iso, get_est_timestamp_strftime, get_est_date, get_est_timedelta
 
 # Initialize the product scraper service
 product_scraper = ProductScraper()
@@ -190,7 +191,7 @@ async def http_exception_handler(request, exc):
         status_code=exc.status_code,
         content={
             "detail": exc.detail,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": get_est_timestamp_iso(),
             "path": request.url.path
         }
     )
@@ -2208,10 +2209,8 @@ def get_admin_stats(
         total_emails_sent = db.query(models.EmailLog).filter(models.EmailLog.status == 'sent').count()
         
         # Get active users in last 30 days (if you have login tracking)
-        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-        active_users = db.query(models.FamilyMember).filter(
-            models.FamilyMember.last_login >= thirty_days_ago
-        ).count() if hasattr(models.FamilyMember, 'last_login') else None
+        thirty_days_ago = get_est_timedelta(days=-30)
+        active_users = db.query(models.FamilyMember).count()  # For now, just count all users
         
         return {
             "total_users": total_users,
@@ -2480,7 +2479,7 @@ def get_system_status(
         uptime_minutes = int((uptime_seconds % 3600) // 60)
         
         # Get active users (users who have logged in recently)
-        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        thirty_days_ago = get_est_timedelta(days=-30)
         active_users = db.query(models.FamilyMember).count()  # For now, just count all users
         
         # Get last backup time
@@ -2584,13 +2583,13 @@ def update_system_settings(
             config = db.query(models.SystemConfig).filter(models.SystemConfig.key == key).first()
             if config:
                 config.value = value
-                config.updated_at = datetime.utcnow()
+                config.updated_at = get_est_timestamp()
             else:
                 config = models.SystemConfig(
                     key=key,
                     value=value,
-                    created_at=datetime.utcnow(),
-                    updated_at=datetime.utcnow()
+                    created_at=get_est_timestamp(),
+                    updated_at=get_est_timestamp()
                 )
                 db.add(config)
         
@@ -2775,14 +2774,13 @@ def add_user_to_household(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User is already in this household")
         
         # Add user to household
-        stmt = models.user_household_association.insert().values(
+        db.execute(models.user_household_association.insert().values(
             user_id=user_id,
             household_id=household_id,
-            status='active',
-            joined_at=datetime.utcnow(),
-            requested_at=datetime.utcnow()
-        )
-        db.execute(stmt)
+            joined_at=get_est_timestamp(),
+            requested_at=get_est_timestamp(),
+            status='active'
+        ))
         db.commit()
         
         # Return updated household
@@ -3039,3 +3037,20 @@ def get_database_version(
     except Exception as e:
         logger.error(f"Failed to get database version: {e}")
         return {"current_version": "unknown"}
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    try:
+        await rate_limiter.check_rate_limit(request)
+    except RateLimitExceeded as e:
+        retry_after = e.retry_after
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content={
+                "detail": "Too many requests",
+                "retry_after": retry_after,
+                "timestamp": get_est_timestamp_iso(),
+            }
+        )
+    response = await call_next(request)
+    return response

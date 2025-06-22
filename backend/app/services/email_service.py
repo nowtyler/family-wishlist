@@ -3,6 +3,8 @@ import smtplib
 import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any
 import logging
@@ -12,6 +14,7 @@ import string
 
 from ..models import EmailSettings, EmailTemplate, EmailLog, FamilyMember
 from .. import crud
+from ..utils.timezone_utils import get_est_timestamp_strftime
 
 logger = logging.getLogger(__name__)
 
@@ -224,7 +227,7 @@ class EmailService:
             <p>Sent at: {timestamp}</p>
         </body>
         </html>
-        """.format(timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        """.format(timestamp=get_est_timestamp_strftime("%Y-%m-%d %H:%M:%S"))
         
         success = self._send_email(test_email, subject, body, "Test User")
         

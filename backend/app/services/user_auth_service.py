@@ -5,9 +5,10 @@ import secrets
 import string
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, and_, or_
 from passlib.context import CryptContext
 from .. import models, schemas, auth
+from ..utils.timezone_utils import get_est_timestamp, get_est_timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +87,7 @@ class UserAuthService:
             # Generate token
             token = UserAuthService.generate_reset_token()
             user.reset_token = token
-            user.reset_token_expires = datetime.utcnow() + timedelta(hours=1)
+            user.reset_token_expires = get_est_timedelta(hours=1)
             
             db.commit()
             
@@ -115,7 +116,7 @@ class UserAuthService:
                 return False, "Invalid or expired reset token", None
             
             # Check if token is expired
-            if not user.reset_token_expires or user.reset_token_expires < datetime.utcnow():
+            if not user.reset_token_expires or user.reset_token_expires < get_est_timestamp():
                 return False, "Reset token has expired", None
             
             return True, "Token is valid", user

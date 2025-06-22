@@ -1,11 +1,12 @@
 # backend/app/crud.py
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import text, exists, func
+from sqlalchemy import text, exists, func, and_, or_
 from . import models, schemas
 from typing import List, Optional, Tuple, Set
 from datetime import date, datetime, timedelta
 import os
 import logging
+from .utils.timezone_utils import get_est_timestamp, get_est_date
 
 logger = logging.getLogger(__name__)
 
@@ -397,7 +398,7 @@ def delete_all_wishlists(db: Session, requesting_user_id: int) -> bool:
 
 # --- Comment CRUD ---
 def create_comment(db: Session, item_id: int, text: str, author_id: int) -> models.Comment:
-    now = datetime.utcnow()
+    now = get_est_timestamp()
     db_comment = models.Comment(
         text=text,
         author_id=author_id,
@@ -557,7 +558,9 @@ def update_system_version(db: Session, new_version: str, user_id: int) -> Option
             db.add(settings)
         else:
             settings.version = new_version
-            settings.last_updated = datetime.now().date()
+            # Update last_updated timestamp
+            now = get_est_timestamp()
+            settings.last_updated = now.date()
         db.commit()
         logger.info(f"Version updated successfully to {new_version} by {user.name}")
         return settings.version

@@ -3,6 +3,7 @@ import os
 import json
 import secrets
 from datetime import datetime
+import pytz
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -24,6 +25,11 @@ class EmergencyTokenService:
         
         # Initialize encryption key
         self._ensure_encryption_key()
+    
+    def _get_est_timestamp(self) -> str:
+        """Get current timestamp in EST timezone"""
+        eastern = pytz.timezone('US/Eastern')
+        return datetime.now(eastern).isoformat()
     
     def _ensure_encryption_key(self):
         """Ensure encryption key exists, create if not"""
@@ -64,8 +70,8 @@ class EmergencyTokenService:
         try:
             config_data = {
                 "emergency_token": token,
-                "created_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat()
+                "created_at": self._get_est_timestamp(),
+                "updated_at": self._get_est_timestamp()
             }
             
             encrypted_data = self._encrypt_data(json.dumps(config_data))
@@ -117,12 +123,12 @@ class EmergencyTokenService:
             # Update with new token
             config_data.update({
                 "emergency_token": new_token,
-                "updated_at": datetime.utcnow().isoformat()
+                "updated_at": self._get_est_timestamp()
             })
             
             # If no created_at, add it
             if "created_at" not in config_data:
-                config_data["created_at"] = datetime.utcnow().isoformat()
+                config_data["created_at"] = self._get_est_timestamp()
             
             encrypted_data = self._encrypt_data(json.dumps(config_data))
             

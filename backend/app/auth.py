@@ -7,6 +7,8 @@ from logging.handlers import RotatingFileHandler
 import traceback
 from datetime import datetime, timedelta
 import re
+from typing import Optional, Dict
+from .utils.timezone_utils import get_est_timestamp, get_est_timedelta
 
 # Configure logging with more security
 log_path = '/app/data/auth.log'
@@ -73,21 +75,22 @@ class AuthState:
     def record_failure(self):
         self.failed_attempts += 1
         if self.failed_attempts >= 5:
-            self.lockout_until = datetime.now() + timedelta(minutes=5)
+            self.lockout_until = get_est_timedelta(minutes=5)
             logger.warning(f"Account locked until {self.lockout_until}")
 
     def record_success(self):
         self.failed_attempts = 0
         self.lockout_until = None
 
-    def is_locked_out(self):
+    def is_locked_out(self) -> bool:
+        """Check if the IP is currently locked out"""
         if not self.lockout_until:
             return False
-        if datetime.now() > self.lockout_until:
+        if get_est_timestamp() > self.lockout_until:
+            # Reset if lockout period has passed
             self.failed_attempts = 0
-            self.lockout_until = None
             return False
-        return True
+        return self.failed_attempts >= 5
 
     def get_lockout_message(self):
         if not self.lockout_until:
@@ -96,6 +99,13 @@ class AuthState:
         if remaining <= 0:
             return None
         return f"Too many failed attempts. Please try again in {int(remaining/60)} minutes."
+
+    def get_remaining_lockout_time(self) -> int:
+        """Get remaining lockout time in seconds"""
+        if not self.is_locked_out() or not self.lockout_until:
+            return 0
+        remaining = (self.lockout_until - get_est_timestamp()).total_seconds()
+        return max(0, int(remaining))
 
 # Create a global auth state instance
 auth_state = AuthState()
