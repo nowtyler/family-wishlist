@@ -2246,11 +2246,11 @@ def get_email_settings(
         if not settings:
             # Create default settings if none exist
             settings = models.EmailSettings(
-                smtp_server="",
-                smtp_port=587,
-                smtp_username="",
+                smtp_server="smtp.gmail.com",
+                smtp_port=465,
+                smtp_username="your-email@gmail.com",
                 smtp_password="",
-                from_email="",
+                from_email="your-email@gmail.com",
                 from_name="Family Wishlist",
                 use_tls=True,
                 use_ssl=False,

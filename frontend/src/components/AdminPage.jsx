@@ -49,6 +49,7 @@ import {
 import FamilyMemberManager from './admin/FamilyMemberManager';
 import Navbar from './Navbar';
 import MigrationManager from './admin/MigrationManager';
+import EmergencyTokenManager from './admin/EmergencyTokenManager';
 
 const AdminPage = () => {
   const { selectedUser } = useAppContext();
@@ -877,7 +878,7 @@ const AdminPage = () => {
                       value={emailSettings.smtp_port}
                       onChange={(e) => setEmailSettings({ ...emailSettings, smtp_port: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                      placeholder="587"
+                      placeholder="465"
                       disabled={isSaving}
                     />
                   </div>
@@ -1510,6 +1511,9 @@ const AdminPage = () => {
             )}
           </div>
         </AdminCard>
+
+        {/* Emergency Token Management */}
+        <EmergencyTokenManager />
       </div>
     );
   };

@@ -707,4 +707,17 @@ export const getDatabaseVersion = () => {
   return apiClient.get('/admin/system/database-version');
 };
 
+// --- Emergency Token Management ---
+export const getEmergencyTokenInfo = () => {
+  return apiClient.get('/admin/emergency-token/info');
+};
+
+export const updateEmergencyToken = (newToken) => {
+  return apiClient.put('/admin/emergency-token', { new_token: newToken });
+};
+
+export const generateNewEmergencyToken = () => {
+  return apiClient.post('/admin/emergency-token/generate');
+};
+
 export default apiClient;
