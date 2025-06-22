@@ -5,6 +5,7 @@ import secrets
 import string
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from passlib.context import CryptContext
 from .. import models, schemas, auth
 
@@ -31,8 +32,8 @@ class UserAuthService:
         Returns a tuple of (success, message, user_object)
         """
         try:
-            # Find user by username
-            user = db.query(models.FamilyMember).filter(models.FamilyMember.username == username).first()
+            # Find user by username (case insensitive)
+            user = db.query(models.FamilyMember).filter(func.lower(models.FamilyMember.username) == func.lower(username)).first()
             
             if not user:
                 return False, "Invalid username or password", None
@@ -62,12 +63,15 @@ class UserAuthService:
         Returns tuple of (success, message)
         """
         try:
-            # Find user by username or email
+            # Normalize input for case insensitive comparison
+            normalized_input = username_or_email.lower().strip()
+            
+            # Find user by username or email (case insensitive)
             user = (
                 db.query(models.FamilyMember)
                 .filter(
-                    (models.FamilyMember.username == username_or_email) |
-                    (models.FamilyMember.email == username_or_email)
+                    (func.lower(models.FamilyMember.username) == normalized_input) |
+                    (func.lower(models.FamilyMember.email) == normalized_input)
                 )
                 .first()
             )
@@ -154,23 +158,27 @@ class UserAuthService:
         Returns tuple of (success, message, user_object)
         """
         try:
-            # Check if username already exists
-            existing_user = db.query(models.FamilyMember).filter(models.FamilyMember.username == user_data.username).first()
+            # Normalize username to lowercase
+            normalized_username = user_data.username.lower().strip()
+            
+            # Check if username already exists (case insensitive)
+            existing_user = db.query(models.FamilyMember).filter(func.lower(models.FamilyMember.username) == normalized_username).first()
             if existing_user:
                 return False, "Username already exists", None
             
-            # Check if email already exists (if provided)
+            # Check if email already exists (if provided) - case insensitive
             if user_data.email:
-                existing_email = db.query(models.FamilyMember).filter(models.FamilyMember.email == user_data.email).first()
+                normalized_email = user_data.email.lower().strip()
+                existing_email = db.query(models.FamilyMember).filter(func.lower(models.FamilyMember.email) == normalized_email).first()
                 if existing_email:
                     return False, "Email already in use", None
             
-            # Create new user
+            # Create new user with normalized username
             new_user = models.FamilyMember(
                 name=user_data.name,
-                username=user_data.username,
+                username=normalized_username,  # Store username in lowercase
                 password_hash=UserAuthService.get_password_hash(user_data.password),
-                email=user_data.email,
+                email=user_data.email.lower().strip() if user_data.email else None,  # Store email in lowercase
                 birthday=user_data.birthday.isoformat() if user_data.birthday else None,
                 is_admin=False  # Regular users can't register as admin
             )

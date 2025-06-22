@@ -29,7 +29,7 @@ const FirstTimeSetupScreen = () => {
     }
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: name === 'admin_username' ? value.toLowerCase() : value
     }));
   };
   

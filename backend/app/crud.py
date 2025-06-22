@@ -1,6 +1,6 @@
 # backend/app/crud.py
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import text, exists
+from sqlalchemy import text, exists, func
 from . import models, schemas
 from typing import List, Optional, Tuple, Set
 from datetime import date, datetime, timedelta
@@ -39,23 +39,27 @@ def create_family_member_with_auth(db: Session, member: schemas.AdminUserCreateR
     """Create a family member with authentication details (admin only)"""
     from .services.user_auth_service import UserAuthService
     
-    # Check if username already exists
-    existing_user = db.query(models.FamilyMember).filter(models.FamilyMember.username == member.username).first()
+    # Normalize username to lowercase
+    normalized_username = member.username.lower().strip()
+    
+    # Check if username already exists (case insensitive)
+    existing_user = db.query(models.FamilyMember).filter(func.lower(models.FamilyMember.username) == normalized_username).first()
     if existing_user:
         raise ValueError("Username already exists")
     
-    # Check if email already exists (if provided)
+    # Check if email already exists (if provided) - case insensitive
     if member.email:
-        existing_email = db.query(models.FamilyMember).filter(models.FamilyMember.email == member.email).first()
+        normalized_email = member.email.lower().strip()
+        existing_email = db.query(models.FamilyMember).filter(func.lower(models.FamilyMember.email) == normalized_email).first()
         if existing_email:
             raise ValueError("Email already in use")
     
     # Create new user with authentication details
     db_member = models.FamilyMember(
         name=member.name,
-        username=member.username,
+        username=normalized_username,  # Store username in lowercase
         password_hash=UserAuthService.get_password_hash(member.password),
-        email=member.email,
+        email=member.email.lower().strip() if member.email else None,  # Store email in lowercase
         birthday=member.birthday.isoformat() if member.birthday else None,
         is_admin=member.is_admin
     )
@@ -73,20 +77,30 @@ def update_family_member_with_auth(db: Session, member_id: int, member_update: s
     if not db_member:
         return None
     
-    # Check if username already exists (if being updated)
-    if member_update.username and member_update.username != db_member.username:
-        existing_user = db.query(models.FamilyMember).filter(models.FamilyMember.username == member_update.username).first()
+    # Check if username already exists (if being updated) - case insensitive
+    if member_update.username and member_update.username.lower().strip() != db_member.username:
+        normalized_username = member_update.username.lower().strip()
+        existing_user = db.query(models.FamilyMember).filter(func.lower(models.FamilyMember.username) == normalized_username).first()
         if existing_user:
             raise ValueError("Username already exists")
     
-    # Check if email already exists (if being updated)
-    if member_update.email and member_update.email != db_member.email:
-        existing_email = db.query(models.FamilyMember).filter(models.FamilyMember.email == member_update.email).first()
+    # Check if email already exists (if being updated) - case insensitive
+    if member_update.email and member_update.email.lower().strip() != (db_member.email or "").lower():
+        normalized_email = member_update.email.lower().strip()
+        existing_email = db.query(models.FamilyMember).filter(func.lower(models.FamilyMember.email) == normalized_email).first()
         if existing_email:
             raise ValueError("Email already in use")
     
     # Update fields
     update_data = member_update.dict(exclude_unset=True)
+    
+    # Normalize username if being updated
+    if 'username' in update_data and update_data['username']:
+        update_data['username'] = update_data['username'].lower().strip()
+    
+    # Normalize email if being updated
+    if 'email' in update_data and update_data['email']:
+        update_data['email'] = update_data['email'].lower().strip()
     
     # Handle password update
     if 'password' in update_data and update_data['password']:
