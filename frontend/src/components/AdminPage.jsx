@@ -970,7 +970,7 @@ const AdminPage = () => {
                 {/* Test Email Section */}
                 <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
                   <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Test Email Settings</h4>
-                  <div className="flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-3">
+                  <div className="flex flex-col sm:flex-row gap-3">
                     <input
                       type="email"
                       value={testEmail}
@@ -981,18 +981,20 @@ const AdminPage = () => {
                     />
                     <button 
                       onClick={handleTestEmail}
-                      className="flex items-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+                      className="flex items-center justify-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors whitespace-nowrap"
                       disabled={isTestingEmail || !testEmail}
                     >
                       {isTestingEmail ? (
                         <>
                           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                          Testing...
+                          <span className="sm:hidden">Testing...</span>
+                          <span className="hidden sm:inline">Testing Email...</span>
                         </>
                       ) : (
                         <>
                           <TestTube className="w-4 h-4 mr-2" />
-                          Test Email
+                          <span className="sm:hidden">Test</span>
+                          <span className="hidden sm:inline">Test Email</span>
                         </>
                       )}
                     </button>
@@ -1468,20 +1470,11 @@ const AdminPage = () => {
               <h4 className="text-lg font-medium text-gray-900 dark:text-white">System Information</h4>
               <button 
                 onClick={handleRefreshStatus}
-                className="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                className="flex items-center justify-center w-8 h-8 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
                 disabled={isLoadingStatus}
+                title="Refresh status"
               >
-                {isLoadingStatus ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Refreshing...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Refresh Status
-                  </>
-                )}
+                <RefreshCw className={`w-5 h-5 ${isLoadingStatus ? 'animate-spin' : ''}`} />
               </button>
             </div>
 
@@ -1619,36 +1612,26 @@ const AdminPage = () => {
               <div className="flex gap-2">
                 <button 
                   onClick={() => setShowPurchaseStatus(!showPurchaseStatus)}
-                  className="flex items-center px-3 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                  className="flex items-center justify-center w-8 h-8 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 transition-colors"
                   title={showPurchaseStatus ? "Hide purchase status" : "Show purchase status"}
                 >
-                  <Eye className="w-4 h-4 mr-2" />
-                  {showPurchaseStatus ? "Hide Status" : "Show Status"}
+                  {showPurchaseStatus ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
                 <button 
                   onClick={fetchItems}
-                  className="flex items-center px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                  className="flex items-center justify-center w-8 h-8 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
                   disabled={isLoading}
+                  title="Refresh items"
                 >
-                  {isLoading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Loading...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      Refresh
-                    </>
-                  )}
+                  <RefreshCw size={20} className={isLoading ? 'animate-spin' : ''} />
                 </button>
                 <button 
                   onClick={() => setShowClearConfirm(true)}
-                  className="flex items-center px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                  className="flex items-center justify-center w-8 h-8 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors"
                   disabled={isLoading}
+                  title="Clear all wishlists"
                 >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Clear All
+                  <Trash2 size={20} />
                 </button>
               </div>
             </div>
@@ -1805,8 +1788,8 @@ const AdminPage = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-100 to-sky-100 dark:from-gray-900 dark:to-gray-800">
       <Navbar />
 
-      {/* Navigation Tabs */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+      {/* Navigation Tabs - Hidden on Mobile */}
+      <div className="hidden md:block bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <div className="container mx-auto px-6">
           <div className="flex items-center justify-between py-4">
             <div className="flex space-x-8 overflow-x-auto">
@@ -1815,7 +1798,10 @@ const AdminPage = () => {
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => {
+                      setActiveTab(tab.id);
+                      setIsMobileMenuOpen(false);
+                    }}
                     className={`flex items-center py-2 px-2 border-b-2 font-medium text-sm transition-colors ${
                       activeTab === tab.id
                         ? 'border-blue-500 text-blue-600 dark:text-blue-400'
@@ -1831,6 +1817,76 @@ const AdminPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Mobile Menu Button */}
+      <AnimatePresence>
+        {!isMobileMenuOpen && (
+          <motion.button
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="md:hidden fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg flex items-center justify-center z-50"
+          >
+            <Menu size={24} />
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile Navigation Menu */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="md:hidden fixed inset-0 bg-black/50 z-40"
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 100 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 100 }}
+              className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 rounded-t-xl shadow-xl z-50 max-h-[70vh] overflow-y-auto"
+            >
+              <div className="p-4">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Navigation</h3>
+                  <button
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {tabs.map((tab) => {
+                    const Icon = tab.icon;
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => {
+                          setActiveTab(tab.id);
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className={`flex items-center w-full p-3 rounded-lg transition-colors ${
+                          activeTab === tab.id
+                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                            : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300'
+                        }`}
+                      >
+                        <Icon className="w-5 h-5 mr-3" />
+                        <span className="font-medium">{tab.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Main Content */}
       <div className="container mx-auto px-6 py-8">
