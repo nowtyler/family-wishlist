@@ -180,7 +180,18 @@ async def startup_event():
 # Add rate limiting middleware
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
-    await rate_limiter.check_rate_limit(request)
+    try:
+        await rate_limiter.check_rate_limit(request)
+    except HTTPException as e:
+        if e.status_code == 429:
+            return JSONResponse(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                content={
+                    "detail": e.detail,
+                    "timestamp": get_est_timestamp_iso(),
+                }
+            )
+        raise
     response = await call_next(request)
     return response
 
@@ -3042,15 +3053,15 @@ def get_database_version(
 async def rate_limit_middleware(request: Request, call_next):
     try:
         await rate_limiter.check_rate_limit(request)
-    except RateLimitExceeded as e:
-        retry_after = e.retry_after
-        return JSONResponse(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            content={
-                "detail": "Too many requests",
-                "retry_after": retry_after,
-                "timestamp": get_est_timestamp_iso(),
-            }
-        )
+    except HTTPException as e:
+        if e.status_code == 429:
+            return JSONResponse(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                content={
+                    "detail": e.detail,
+                    "timestamp": get_est_timestamp_iso(),
+                }
+            )
+        raise
     response = await call_next(request)
     return response
