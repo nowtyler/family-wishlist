@@ -7,7 +7,6 @@ import { motion } from 'framer-motion';
 import EmergencyAccessModal from './EmergencyAccessModal';
 import { validatePassword, validatePasswordMatch } from '../utils/passwordValidation';
 import { toast } from 'react-toastify';
-import BirthdayPicker from './common/BirthdayPicker';
 
 const AuthScreen = () => {
   // Authentication states
@@ -360,10 +359,12 @@ const AuthScreen = () => {
               <label htmlFor="birthday" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Birthday (optional)
               </label>
-              <BirthdayPicker
+              <input
+                id="birthday"
+                type="date"
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
                 value={birthday}
-                onChange={setBirthday}
-                className="mt-1"
+                onChange={(e) => setBirthday(e.target.value)}
               />
             </div>
             {error && (
