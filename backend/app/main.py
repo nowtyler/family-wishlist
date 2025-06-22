@@ -1880,7 +1880,7 @@ async def login(
             detail=str(e)
         )
 
-@app.post("/api/auth/register
+@app.post("/api/auth/register", 
     response_model=schemas.AuthResponse,
     tags=["Authentication"],
     summary="Register a new user",
