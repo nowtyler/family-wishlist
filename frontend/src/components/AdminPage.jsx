@@ -6,7 +6,7 @@ import {
   Home, UserPlus, UserMinus, Lock, Unlock, Send, TestTube,
   Calendar, Gift, FileText, Archive, Download, Upload, Save, ArrowUp,
   CircleCheck, CircleX, Database, CircleAlert, Box, RotateCcw,
-  AlertOctagon
+  AlertOctagon, Menu
 } from 'lucide-react';
 import { useAppContext } from '../contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
@@ -51,6 +51,7 @@ import FamilyMemberManager from './admin/FamilyMemberManager';
 import Navbar from './Navbar';
 import MigrationManager from './admin/MigrationManager';
 import EmergencyTokenManager from './admin/EmergencyTokenManager';
+import EnhancedUpcomingEventsBanner from './EnhancedUpcomingEventsBanner';
 
 const AdminPage = () => {
   const { selectedUser } = useAppContext();
@@ -215,26 +216,35 @@ const AdminPage = () => {
   );
 
   const DashboardTab = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
-      <StatCard
-        title="System Status"
-        value={systemStatus?.status || "Unknown"}
-        icon={systemStatus?.status === "healthy" ? CircleCheck : CircleX}
-        color={systemStatus?.status === "healthy" ? "green" : "red"}
-      />
-      <StatCard
-        title="Last Backup"
-        value={systemStatus?.last_backup ? formatDateEST(systemStatus.last_backup) : "Never"}
-        icon={Archive}
-        color="blue"
-      />
-      <StatCard
-        title="Database Size"
-        value={`${systemStatus?.database_size_kb || 0} KB`}
-        icon={Database}
-        color="purple"
-      />
-      {/* Add more stat cards as needed */}
+    <div className="space-y-6">
+      {/* System Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <StatCard
+          title="System Status"
+          value={systemStatus?.status || "Unknown"}
+          icon={systemStatus?.status === "healthy" ? CircleCheck : CircleX}
+          color={systemStatus?.status === "healthy" ? "green" : "red"}
+        />
+        <StatCard
+          title="Last Backup"
+          value={systemStatus?.last_backup ? formatDateEST(systemStatus.last_backup) : "Never"}
+          icon={Archive}
+          color="blue"
+        />
+        <StatCard
+          title="Database Size"
+          value={`${systemStatus?.database_size_kb || 0} KB`}
+          icon={Database}
+          color="purple"
+        />
+      </div>
+
+      {/* Enhanced Upcoming Events Banner - Shows all users' events */}
+      {users.length > 0 && (
+        <div className="mt-8">
+          <EnhancedUpcomingEventsBanner familyMembers={users} />
+        </div>
+      )}
     </div>
   );
 
@@ -960,7 +970,7 @@ const AdminPage = () => {
                 {/* Test Email Section */}
                 <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
                   <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Test Email Settings</h4>
-                  <div className="flex space-x-3">
+                  <div className="flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-3">
                     <input
                       type="email"
                       value={testEmail}
