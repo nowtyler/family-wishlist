@@ -11,6 +11,7 @@ import {
 import { useAppContext } from '../contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import { formatDateEST } from '../utils/dateUtils';
 import { 
   getFamilyMembers,
   getHouseholds,
@@ -223,7 +224,7 @@ const AdminPage = () => {
       />
       <StatCard
         title="Last Backup"
-        value={systemStatus?.last_backup || "Never"}
+        value={systemStatus?.last_backup ? formatDateEST(systemStatus.last_backup) : "Never"}
         icon={Archive}
         color="blue"
       />

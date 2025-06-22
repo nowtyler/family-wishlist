@@ -5,6 +5,7 @@ import {
   Shield, Key, RotateCcw, Save, X
 } from 'lucide-react';
 import { toast } from 'react-toastify';
+import { formatDateESTFriendly } from '../../utils/dateUtils';
 import { 
   getEmergencyTokenInfo, 
   updateEmergencyToken, 
@@ -166,7 +167,7 @@ const EmergencyTokenManager = () => {
                   Created
                 </h4>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {formatDate(tokenInfo.created_at)}
+                  {formatDateESTFriendly(tokenInfo.created_at)}
                 </p>
               </div>
               <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
@@ -174,7 +175,7 @@ const EmergencyTokenManager = () => {
                   Last Updated
                 </h4>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {formatDate(tokenInfo.updated_at)}
+                  {formatDateESTFriendly(tokenInfo.updated_at)}
                 </p>
               </div>
             </div>

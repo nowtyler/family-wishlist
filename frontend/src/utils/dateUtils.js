@@ -44,6 +44,61 @@ export const getDaysUntilBirthday = (birthday) => {
 };
 
 /**
+ * Format a date to EST timezone for admin displays
+ * @param {string|Date} date - Date string or Date object
+ * @returns {string} Formatted date string in EST timezone
+ */
+export const formatDateEST = (date) => {
+  if (!date) return 'Never';
+  
+  try {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    
+    // Format in EST timezone
+    return dateObj.toLocaleString('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+  } catch (err) {
+    console.error('Error formatting date in EST:', err);
+    return 'Invalid Date';
+  }
+};
+
+/**
+ * Format a date to a user-friendly string in EST timezone
+ * @param {string|Date} date - Date string or Date object
+ * @returns {string} Formatted date string
+ */
+export const formatDateESTFriendly = (date) => {
+  if (!date) return 'Never';
+  
+  try {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    
+    // Format in EST timezone with friendly format
+    return dateObj.toLocaleString('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  } catch (err) {
+    console.error('Error formatting date in EST:', err);
+    return 'Invalid Date';
+  }
+};
+
+/**
  * Format a date to a user-friendly string
  * @param {Date} date - JavaScript Date object
  * @returns {string} Formatted date string

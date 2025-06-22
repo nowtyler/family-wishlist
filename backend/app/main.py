@@ -33,6 +33,7 @@ import secrets
 import psutil
 import json
 import time
+import pytz
 
 # Initialize the product scraper service
 product_scraper = ProductScraper()
@@ -2491,7 +2492,11 @@ def get_system_status(
                 if backup_files:
                     latest_backup = max(backup_files, key=lambda f: os.path.getctime(os.path.join(backup_dir, f)))
                     backup_time = os.path.getctime(os.path.join(backup_dir, latest_backup))
-                    last_backup = datetime.fromtimestamp(backup_time).strftime('%Y-%m-%d %H:%M:%S')
+                    # Use EST timezone for timestamps like backup_service
+                    eastern = pytz.timezone('US/Eastern')
+                    backup_datetime = datetime.fromtimestamp(backup_time)
+                    backup_datetime_est = eastern.localize(backup_datetime)
+                    last_backup = backup_datetime_est.strftime('%Y-%m-%d %H:%M:%S')
             except Exception as e:
                 logger.error(f"Failed to get last backup time: {e}")
         
