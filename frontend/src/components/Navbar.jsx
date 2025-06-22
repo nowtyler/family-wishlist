@@ -14,7 +14,7 @@ import FamilyMemberManager from './admin/FamilyMemberManager';
 import UserProfileModal from './UserProfileModal';
 import UserHouseholdManager from './UserHouseholdManager';
 
-const Navbar = ({ onClearWishlist, viewingMember }) => {
+const Navbar = ({ onClearWishlist, viewingMember, onHouseholdUpdate }) => {
   const { selectedUser, logout, setSelectedUser, setFamilyMembers } = useAppContext();
   const { darkMode, toggleDarkMode } = useTheme();
   const navigate = useNavigate();
@@ -175,6 +175,24 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
   const handleOpenFamilyManager = () => {
     setShowSettings(false); // Close settings menu
     setShowFamilyManager(true);
+  };
+
+  const handleHouseholdUpdateComplete = async () => {
+    // Close the modal
+    setShowUserHouseholdManager(false);
+    
+    // Refresh family members to reflect household changes
+    try {
+      const response = await getFamilyMembers();
+      setFamilyMembers(response.data);
+      
+      // Call the callback if provided (for dashboard refresh)
+      if (onHouseholdUpdate) {
+        onHouseholdUpdate();
+      }
+    } catch (error) {
+      console.error('Error refreshing family members after household update:', error);
+    }
   };
 
   return (
@@ -453,7 +471,7 @@ const Navbar = ({ onClearWishlist, viewingMember }) => {
           <UserHouseholdManager
             isOpen={showUserHouseholdManager}
             onClose={() => setShowUserHouseholdManager(false)}
-            onComplete={() => setShowUserHouseholdManager(false)}
+            onComplete={handleHouseholdUpdateComplete}
             title="Manage Your Households"
             subtitle="Join existing households, create new ones, or leave households you're in"
           />

@@ -315,10 +315,27 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
     }
   };
 
+  const handleHouseholdUpdate = async () => {
+    // Refresh family members and wishlist items after household changes
+    try {
+      const membersResponse = await getFamilyMembers();
+      setFamilyMembers(membersResponse.data);
+      
+      // Also refresh wishlist items as household changes might affect what's visible
+      await refreshWishlistItems();
+    } catch (error) {
+      console.error("Error refreshing data after household update:", error);
+    }
+  };
+
   return (
     <>
       {/* Add Navbar component */}
-      <Navbar onClearWishlist={refreshWishlistItems} viewingMember={viewingMember} />
+      <Navbar 
+        onClearWishlist={refreshWishlistItems} 
+        viewingMember={viewingMember}
+        onHouseholdUpdate={handleHouseholdUpdate}
+      />
       
       <div className="container mx-auto px-6 py-8">
         <motion.div 

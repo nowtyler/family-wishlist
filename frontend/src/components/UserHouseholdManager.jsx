@@ -206,9 +206,9 @@ const UserHouseholdManager = ({
                   <h3 className="font-medium text-green-900 dark:text-green-100">Create New Household</h3>
                   <button
                     onClick={() => setShowCreateForm(!showCreateForm)}
-                    className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"
+                    className="p-2 rounded-full text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/20 transition-colors"
                   >
-                    <Plus className="w-5 h-5" />
+                    <Plus size={18} />
                   </button>
                 </div>
                 
@@ -240,16 +240,26 @@ const UserHouseholdManager = ({
                         <button
                           type="submit"
                           disabled={isSubmitting}
-                          className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors disabled:opacity-50"
+                          className="flex-1 flex items-center justify-center py-2.5 px-4 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
                         >
-                          {isSubmitting ? <Loader className="w-4 h-4 animate-spin" /> : 'Create'}
+                          {isSubmitting ? (
+                            <>
+                              <Loader size={16} className="animate-spin mr-2" />
+                              Creating...
+                            </>
+                          ) : (
+                            <>
+                              <Plus size={16} className="mr-2" />
+                              Create
+                            </>
+                          )}
                         </button>
                         <button
                           type="button"
                           onClick={() => setShowCreateForm(false)}
-                          className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-md transition-colors"
+                          className="py-2.5 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg transition-colors"
                         >
-                          Cancel
+                          <X size={16} />
                         </button>
                       </div>
                     </motion.form>
@@ -338,7 +348,7 @@ const UserHouseholdManager = ({
 
         {/* Footer */}
         <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 border-t border-gray-200 dark:border-gray-600">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center mb-3">
             <div className="text-sm text-gray-600 dark:text-gray-400">
               {selectedHouseholds.size > 0 && (
                 <span className="text-green-600 dark:text-green-400">
@@ -351,37 +361,40 @@ const UserHouseholdManager = ({
                 </span>
               )}
             </div>
-            
-            <div className="flex gap-3">
-              {showSkipOption && (
-                <button
-                  onClick={onComplete}
-                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
-                >
-                  Skip for now
-                </button>
+          </div>
+          
+          <div className="flex gap-3">
+            {showSkipOption && (
+              <button
+                onClick={onComplete}
+                className="py-2.5 px-4 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors"
+              >
+                Skip for now
+              </button>
+            )}
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting || (selectedHouseholds.size === 0 && householdsToLeave.size === 0)}
+              className="flex-1 flex items-center justify-center py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader size={16} className="animate-spin mr-2" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Check size={16} className="mr-2" />
+                  Save Changes
+                </>
               )}
-              <button
-                onClick={onClose}
-                className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={isSubmitting || (selectedHouseholds.size === 0 && householdsToLeave.size === 0)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {isSubmitting ? (
-                  <Loader className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>
-                    <span>Save Changes</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </div>
+            </button>
+            <button
+              onClick={onClose}
+              className="py-2.5 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg transition-colors"
+            >
+              <X size={16} />
+            </button>
           </div>
         </div>
       </motion.div>
