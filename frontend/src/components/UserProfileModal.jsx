@@ -9,6 +9,7 @@ import {
 import { useAppContext } from '../contexts/AppContext';
 import { toast } from 'react-toastify';
 import { validatePassword, validatePasswordMatch } from '../utils/passwordValidation';
+import BirthdayPicker from './common/BirthdayPicker';
 
 const UserProfileModal = ({ isOpen, onClose }) => {
   const { selectedUser, refreshFamilyMembers } = useAppContext();
@@ -193,12 +194,10 @@ const UserProfileModal = ({ isOpen, onClose }) => {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Birthday (optional)
               </label>
-              <input
-                type="date"
-                name="birthday"
+              <BirthdayPicker
                 value={formData.birthday}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                onChange={(date) => handleInputChange({ target: { name: 'birthday', value: date } })}
+                disabled={isLoading}
               />
             </div>
 
