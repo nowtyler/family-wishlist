@@ -1,4 +1,3 @@
-// frontend/src/components/AuthScreen.jsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
@@ -10,8 +9,10 @@ import { validatePassword, validatePasswordMatch } from '../utils/passwordValida
 import { toast } from 'react-toastify';
 
 const AuthScreen = () => {
+  const navigate = useNavigate();
+  
   // Authentication states
-  const [authMode, setAuthMode] = useState('login'); // login, register, reset, householdSetup
+  const [authMode, setAuthMode] = useState('login'); // login, register, reset
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -20,7 +21,6 @@ const AuthScreen = () => {
   const [birthday, setBirthday] = useState('');
   const [resetEmail, setResetEmail] = useState('');
   const [emergencyToken, setEmergencyToken] = useState('');
-  const [registeredUser, setRegisteredUser] = useState(null);
 
   // UI states
   const [error, setError] = useState('');
@@ -30,7 +30,6 @@ const AuthScreen = () => {
   const [showHouseholdSetup, setShowHouseholdSetup] = useState(false);
   
   const { login, setSelectedUser } = useAppContext();
-  const navigate = useNavigate();
 
   const handleEmergencyAccess = async (e) => {
     e.preventDefault();
@@ -147,9 +146,25 @@ const AuthScreen = () => {
       
       const response = await registerUser(userData);
       if (response.data.success) {
-        toast.success('Registration successful! Now let\'s set up your households.');
-        setRegisteredUser({ username, password });
-        setShowHouseholdSetup(true);
+        // Auto-login the user after successful registration
+        try {
+          const loginResponse = await loginUser(username, password);
+          if (loginResponse.data.success && loginResponse.data.user) {
+            login(loginResponse.data.user.is_admin);
+            setSelectedUser(loginResponse.data.user);
+            toast.success('Registration successful! Now let\'s set up your households.');
+            setShowHouseholdSetup(true);
+          } else {
+            // If auto-login fails, just redirect to login
+            toast.success('Registration successful! Please log in to continue.');
+            setAuthMode('login');
+          }
+        } catch (loginErr) {
+          console.error('Auto-login error:', loginErr);
+          toast.success('Registration successful! Please log in to continue.');
+          setAuthMode('login');
+        }
+        
         // Clear form
         setUsername('');
         setPassword('');
@@ -157,22 +172,6 @@ const AuthScreen = () => {
         setName('');
         setEmail('');
         setBirthday('');
-        
-        // Set the registered user for household management
-        setRegisteredUser({
-          username,
-          name,
-          email: email || '',
-          birthday: birthday || '',
-          // Add any other default household fields if necessary
-        });
-        
-        // Automatically navigate to household manager after registration
-        setTimeout(() => {
-          setAuthMode('householdSetup');
-          setSuccess('');
-          setError('');
-        }, 1000);
       } else {
         setError(response.data.message || 'Registration failed');
       }
@@ -212,40 +211,16 @@ const AuthScreen = () => {
     }
   };
 
-  const handleHouseholdSetupComplete = async () => {
-    // After household setup, automatically log the user in
-    if (registeredUser) {
-      try {
-        setIsLoading(true);
-        const response = await loginUser(registeredUser.username, registeredUser.password);
-        if (response.data.success && response.data.user) {
-          login(response.data.user.is_admin);
-          setSelectedUser(response.data.user);
-          setShowHouseholdSetup(false);
-          navigate('/');
-        } else {
-          // If auto-login fails, redirect to login
-          setShowHouseholdSetup(false);
-          setAuthMode('login');
-          toast.info('Please log in to continue.');
-        }
-      } catch (err) {
-        console.error('Auto-login error:', err);
-        setShowHouseholdSetup(false);
-        setAuthMode('login');
-        toast.info('Please log in to continue.');
-      } finally {
-        setIsLoading(false);
-        setRegisteredUser(null);
-      }
-    }
+  const handleHouseholdSetupComplete = () => {
+    // After household setup, just close the modal and navigate to main app
+    setShowHouseholdSetup(false);
+    navigate('/');
   };
 
   const handleSkipHouseholdSetup = () => {
-    // If user skips household setup, just redirect to login
+    // If user skips household setup, just navigate to main app
     setShowHouseholdSetup(false);
-    setAuthMode('login');
-    setRegisteredUser(null);
+    navigate('/');
     toast.info('You can set up households later from your settings.');
   };
 
