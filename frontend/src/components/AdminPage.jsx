@@ -1495,6 +1495,9 @@ const AdminPage = () => {
                     } else if (key === 'database_size_kb') {
                       displayKey = 'Database Size';
                       displayValue = `${value} KB`;
+                    } else if (key === 'last_backup') {
+                      displayKey = 'Last Backup';
+                      displayValue = value ? formatDateEST(value) : 'Never';
                     }
                     
                     return (

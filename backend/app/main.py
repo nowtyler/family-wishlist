@@ -2492,10 +2492,8 @@ def get_system_status(
                 if backup_files:
                     latest_backup = max(backup_files, key=lambda f: os.path.getctime(os.path.join(backup_dir, f)))
                     backup_time = os.path.getctime(os.path.join(backup_dir, latest_backup))
-                    # Use EST timezone for timestamps like backup_service
                     eastern = pytz.timezone('US/Eastern')
-                    backup_datetime = datetime.fromtimestamp(backup_time)
-                    backup_datetime_est = eastern.localize(backup_datetime)
+                    backup_datetime_est = datetime.fromtimestamp(backup_time, tz=eastern)
                     last_backup = backup_datetime_est.strftime('%Y-%m-%d %H:%M:%S')
             except Exception as e:
                 logger.error(f"Failed to get last backup time: {e}")
