@@ -662,7 +662,7 @@ export const createEmailTemplate = (templateData) => {
 };
 
 export const testEmailSettings = (data) => {
-  return apiClient.post('/admin/email/test', data);
+  return apiClient.post('admin/email/test', data);
 };
 
 // --- Admin System Management ---

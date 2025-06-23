@@ -792,7 +792,10 @@ const AdminPage = () => {
       if (isTestingEmail || !testEmail) return;
       setIsTestingEmail(true);
       try {
-        const response = await testEmailSettings({ recipient_email: testEmail });
+        const response = await testEmailSettings({ 
+          recipient_email: testEmail,
+          template_name: 'test_email'  // Use the test email template
+        });
         toast.success(response.data.message || 'Test email sent successfully');
       } catch (err) {
         console.error('Failed to send test email:', err);
