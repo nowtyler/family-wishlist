@@ -258,7 +258,8 @@ class EmailService:
         """Send notification when password is changed"""
         template_vars = {
             "user_name": user.name,
-            "username": user.username
+            "username": user.username,
+            "timestamp": get_est_timestamp_strftime("%Y-%m-%d %H:%M:%S")
         }
         
         return self.send_template_email(
@@ -387,7 +388,7 @@ def create_default_templates(db: Session):
                                 <!-- Header with gradient -->
                                 <tr>
                                     <td style="background:linear-gradient(to right, #0ea5e9, #6366f1);padding:40px;text-align:center;">
-                                        <img src="https://cdn-icons-png.flaticon.com/512/2589/2589175.png" alt="Gift" width="60" height="60" style="margin-bottom:15px;filter:brightness(0) invert(1);">
+                                        <img src="https://cdn-icons-png.flaticon.com/512/2589/2589175.png" alt="Gift" width="70" height="70" style="margin-bottom:15px;filter:brightness(0) invert(1);">
                                         <h1 style="color:#ffffff;margin:0;font-weight:700;font-size:28px;">Welcome to Family Wishlist!</h1>
                                         <p style="color:#e0f2fe;margin:10px 0 0;font-size:16px;">Hello, {{user_name}}! We're excited to have you join us.</p>
                                     </td>
@@ -414,8 +415,8 @@ def create_default_templates(db: Session):
                                                             <tr>
                                                                 <td width="40" valign="top">
                                                                     <!-- Map icon -->
-                                                                    <div style="width:32px;height:32px;background-color:#3b82f6;border-radius:50%;display:inline-block;text-align:center;line-height:32px;">
-                                                                        <img src="https://cdn-icons-png.flaticon.com/512/5974/5974636.png" width="16" height="16" alt="Map" style="vertical-align:middle;filter:brightness(0) invert(1);">
+                                                                    <div style="margin-top:3px;">
+                                                                        <img src="https://cdn-icons-png.flaticon.com/512/5974/5974636.png" width="24" height="24" alt="Map" style="vertical-align:middle;filter:invert(40%) sepia(65%) saturate(4705%) hue-rotate(214deg) brightness(102%) contrast(101%);">
                                                                     </div>
                                                                 </td>
                                                                 <td style="padding-left:15px;">
@@ -448,8 +449,8 @@ def create_default_templates(db: Session):
                                                             <tr>
                                                                 <td width="40" valign="top">
                                                                     <!-- Star icon -->
-                                                                    <div style="width:32px;height:32px;background-color:#d946ef;border-radius:50%;display:inline-block;text-align:center;line-height:32px;">
-                                                                        <img src="https://cdn-icons-png.flaticon.com/512/1828/1828884.png" width="16" height="16" alt="Star" style="vertical-align:middle;filter:brightness(0) invert(1);">
+                                                                    <div style="margin-top:3px;">
+                                                                        <img src="https://cdn-icons-png.flaticon.com/512/1828/1828884.png" width="24" height="24" alt="Star" style="vertical-align:middle;filter:invert(28%) sepia(75%) saturate(7471%) hue-rotate(297deg) brightness(93%) contrast(92%);">
                                                                     </div>
                                                                 </td>
                                                                 <td style="padding-left:15px;">
@@ -482,8 +483,8 @@ def create_default_templates(db: Session):
                                                             <tr>
                                                                 <td width="40" valign="top">
                                                                     <!-- Heart icon -->
-                                                                    <div style="width:32px;height:32px;background-color:#ec4899;border-radius:50%;display:inline-block;text-align:center;line-height:32px;">
-                                                                        <img src="https://cdn-icons-png.flaticon.com/512/535/535285.png" width="16" height="16" alt="Heart" style="vertical-align:middle;filter:brightness(0) invert(1);">
+                                                                    <div style="margin-top:3px;">
+                                                                        <img src="https://cdn-icons-png.flaticon.com/512/535/535285.png" width="24" height="24" alt="Heart" style="vertical-align:middle;filter:invert(25%) sepia(70%) saturate(6127%) hue-rotate(324deg) brightness(92%) contrast(93%);">
                                                                     </div>
                                                                 </td>
                                                                 <td style="padding-left:15px;">
@@ -529,8 +530,8 @@ def create_default_templates(db: Session):
                                                             <tr>
                                                                 <td width="40" valign="top">
                                                                     <!-- User icon -->
-                                                                    <div style="width:32px;height:32px;background-color:#4f46e5;border-radius:50%;display:inline-block;text-align:center;line-height:32px;">
-                                                                        <img src="https://cdn-icons-png.flaticon.com/512/456/456283.png" width="16" height="16" alt="User" style="vertical-align:middle;filter:brightness(0) invert(1);">
+                                                                    <div style="margin-top:3px;">
+                                                                        <img src="https://cdn-icons-png.flaticon.com/512/456/456283.png" width="24" height="24" alt="User" style="vertical-align:middle;filter:invert(25%) sepia(19%) saturate(6396%) hue-rotate(234deg) brightness(94%) contrast(96%);">
                                                                     </div>
                                                                 </td>
                                                                 <td style="padding-left:15px;">
@@ -622,9 +623,9 @@ def create_default_templates(db: Session):
                                         <table width="100%" cellpadding="0" cellspacing="0" border="0">
                                             <tr>
                                                 <td style="text-align:center;">
-                                                    <!-- Check icon in circle -->
-                                                    <div style="width:80px;height:80px;background-color:#10b981;border-radius:50%;margin:0 auto 25px;display:flex;align-items:center;justify-content:center;">
-                                                        <img src="https://cdn-icons-png.flaticon.com/512/4436/4436481.png" width="40" height="40" alt="Success" style="filter:brightness(0) invert(1);">
+                                                    <!-- Check icon -->
+                                                    <div style="margin:0 auto 25px;">
+                                                        <img src="https://cdn-icons-png.flaticon.com/512/4436/4436481.png" width="60" height="60" alt="Success" style="filter:invert(57%) sepia(83%) saturate(1372%) hue-rotate(121deg) brightness(91%) contrast(101%);">
                                                     </div>
                                                     <h2 style="margin:0 0 15px;color:#334155;font-size:24px;font-weight:600;">Password Changed Successfully</h2>
                                                     <p style="margin:0 0 25px;color:#64748b;font-size:16px;line-height:1.6;">
@@ -641,8 +642,8 @@ def create_default_templates(db: Session):
                                                 <tr>
                                                     <td width="40" valign="top">
                                                         <!-- Alert icon -->
-                                                        <div style="width:32px;height:32px;background-color:#e11d48;border-radius:50%;display:inline-block;text-align:center;line-height:32px;">
-                                                            <img src="https://cdn-icons-png.flaticon.com/512/1828/1828843.png" width="16" height="16" alt="Alert" style="vertical-align:middle;filter:brightness(0) invert(1);">
+                                                        <div style="margin-top:3px;">
+                                                            <img src="https://cdn-icons-png.flaticon.com/512/1828/1828843.png" width="24" height="24" alt="Alert" style="vertical-align:middle;filter:invert(17%) sepia(99%) saturate(5266%) hue-rotate(335deg) brightness(83%) contrast(92%);">
                                                         </div>
                                                     </td>
                                                     <td style="padding-left:15px;">
@@ -712,8 +713,8 @@ def create_default_templates(db: Session):
                                             <tr>
                                                 <td style="text-align:center;">
                                                     <!-- Test icon -->
-                                                    <div style="width:80px;height:80px;background-color:#22c55e;border-radius:50%;margin:0 auto 25px;display:flex;align-items:center;justify-content:center;">
-                                                        <img src="https://cdn-icons-png.flaticon.com/512/471/471664.png" width="40" height="40" alt="Test" style="filter:brightness(0) invert(1);">
+                                                    <div style="margin:0 auto 25px;">
+                                                        <img src="https://cdn-icons-png.flaticon.com/512/471/471664.png" width="60" height="60" alt="Test" style="filter:invert(55%) sepia(70%) saturate(473%) hue-rotate(101deg) brightness(97%) contrast(94%);">
                                                     </div>
                                                     <h2 style="margin:0 0 15px;color:#334155;font-size:24px;font-weight:600;">Email Configuration Test</h2>
                                                     <p style="margin:0 0 25px;color:#64748b;font-size:16px;line-height:1.6;">
