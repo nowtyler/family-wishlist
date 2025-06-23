@@ -162,7 +162,7 @@ const AppContent = () => {
       <Routes>
         <Route path="/setup" element={<FirstTimeSetupScreen />} />
         <Route path="/auth" element={<AuthScreen />} />
-        <Route path="/reset-password" element={<PasswordResetScreen />} />
+        <Route path="/reset-password/:token" element={<PasswordResetScreen />} />
         <Route
           path="/admin/*"
           element={

@@ -33,6 +33,7 @@ import {
   getEmailTemplates,
   updateEmailTemplate,
   createEmailTemplate,
+  deleteEmailTemplate,
   resetMigrationState,
   hardResetMigrations,
   restoreBackup,

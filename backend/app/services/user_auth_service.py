@@ -9,6 +9,7 @@ from sqlalchemy import func, and_, or_
 from passlib.context import CryptContext
 from .. import models, schemas, auth
 from ..utils.timezone_utils import get_est_timestamp, get_est_timedelta
+from .email_service import EmailService
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,8 @@ class UserAuthService:
             # Normalize input for case insensitive comparison
             normalized_input = username_or_email.lower().strip()
             
+            logger.info(f"Attempting to create reset token for: {normalized_input}")
+            
             # Find user by username or email (case insensitive)
             user = (
                 db.query(models.FamilyMember)
@@ -79,21 +82,39 @@ class UserAuthService:
             
             if not user:
                 # Don't reveal if username/email exists
+                logger.info(f"No user found with username or email: {normalized_input}")
                 return True, "If an account with that username or email exists, a reset link has been sent"
             
+            logger.info(f"Found user: {user.username}, email: {user.email}")
+            
             if not user.email:
+                logger.warning(f"User {user.username} has no email for password reset")
                 return False, "This account doesn't have an email for password reset"
             
             # Generate token
             token = UserAuthService.generate_reset_token()
             user.reset_token = token
-            user.reset_token_expires = get_est_timedelta(hours=1)
+            user.reset_token_expires = get_est_timedelta(hours=24)
             
             db.commit()
+            logger.info(f"Created reset token for user {user.username}")
             
-            # In a real app, we'd send an email here
-            # For now, just log the token for demonstration
-            logger.info(f"Reset token generated for user {user.username} (not shown for security)")
+            # Generate reset URL
+            base_url = "https://dev-wishlist.ariahive.top" #Change to your actual base URL in production, this is okay for development
+            reset_url = f"{base_url}/reset-password/{token}"
+            logger.info(f"Reset URL: {reset_url}")
+            
+            # Send reset email
+            try:
+                email_service = EmailService(db)
+                email_log = email_service.send_password_reset_email(user, reset_url)
+                logger.info(f"Password reset email sent, status: {email_log.status}")
+                
+                if email_log.status != 'sent':
+                    logger.error(f"Email sending failed: {email_log.error_message}")
+            except Exception as email_err:
+                logger.exception(f"Error sending reset email: {str(email_err)}")
+                # Continue the process even if email fails - the token is still valid
             
             return True, "If an account with that username or email exists, a reset link has been sent"
                 
@@ -177,7 +198,7 @@ class UserAuthService:
             # Create new user with normalized username
             new_user = models.FamilyMember(
                 name=user_data.name,
-                username=normalized_username,  # Store username in lowercase
+                username=normalized_username  # Store username in lowercase
                 password_hash=UserAuthService.get_password_hash(user_data.password),
                 email=user_data.email.lower().strip() if user_data.email else None,  # Store email in lowercase
                 birthday=user_data.birthday.isoformat() if user_data.birthday else None,
