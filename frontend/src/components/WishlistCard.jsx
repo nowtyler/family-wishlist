@@ -1,8 +1,8 @@
 // WishlistCard.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, ExternalLink, MessageCircleHeart, Pencil, Check, X, ShoppingCart, Flag, MessageCircle, Send } from 'lucide-react';
-import { updateWishlistItem, addComment, deleteComment, getWishlistItems } from '../services/api';
+import { Trash2, ExternalLink, MessageCircleHeart, Pencil, Check, X, ShoppingCart, Flag, MessageCircle, Send, Download, Upload } from 'lucide-react';
+import { updateWishlistItem, addComment, deleteComment, getWishlistItems, exportWishlist, importWishlist } from '../services/api';
 
 // Constants
 const MAX_TITLE_LENGTH = 200;
@@ -69,6 +69,8 @@ function WishlistCard({
   const [showSizeFields, setShowSizeFields] = useState(false);
   const [pendingDeleteItemId, setPendingDeleteItemId] = useState(null); // Track item pending deletion
   const modalRef = useRef(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef(null);
 
   // Check for duplicate titles when editing
   useEffect(() => {
@@ -592,6 +594,74 @@ function WishlistCard({
     }
   };
 
+  const handleExport = async () => {
+    try {
+      const response = await exportWishlist(member.id);
+      
+      // Create a Blob from the response data
+      const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create a temporary link and trigger download
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `wishlist-${new Date().toISOString().split('T')[0]}-${member.name.toLowerCase()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Failed to export wishlist:', error);
+      alert('Failed to export wishlist. Please try again.');
+    }
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const wishlistData = JSON.parse(e.target.result);
+          const response = await importWishlist(member.id, wishlistData);
+          await onUpdateItems();
+          
+          // Show feedback about imported and skipped items
+          const { imported_items, skipped_items } = response.data;
+          if (imported_items.length === 0 && skipped_items.length > 0) {
+            alert('All items were already in your wishlist. No new items were imported.');
+          } else if (skipped_items.length > 0) {
+            alert(`Successfully imported ${imported_items.length} items.\n\nSkipped ${skipped_items.length} duplicate items:\n${skipped_items.join('\n')}`);
+          } else {
+            alert(`Successfully imported ${imported_items.length} items!`);
+          }
+        } catch (error) {
+          console.error('Failed to import wishlist:', error);
+          alert('Failed to import wishlist. Please check the file format and try again.');
+        }
+      };
+      reader.readAsText(file);
+    } catch (error) {
+      console.error('Failed to read file:', error);
+      alert('Failed to read file. Please try again.');
+    } finally {
+      setIsImporting(false);
+      // Reset the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   if (isLoading) {
     return <div className="animate-pulse p-4 bg-white rounded-lg shadow">Loading wishlist...</div>;
   }
@@ -599,6 +669,34 @@ function WishlistCard({
   return (
     <>
       <div className="bg-white dark:bg-gray-900 rounded-lg shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)] p-6">
+        {/* Add export/import buttons for own wishlist */}
+        {isOwnWishlist && (
+          <div className="flex justify-end gap-2 mb-4">
+            <button
+              onClick={handleExport}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 rounded-lg transition-colors duration-200"
+            >
+              <Download size={16} />
+              Export
+            </button>
+            <button
+              onClick={handleImportClick}
+              disabled={isImporting}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:bg-green-900/20 dark:hover:bg-green-900/30 rounded-lg transition-colors duration-200"
+            >
+              <Upload size={16} />
+              {isImporting ? 'Importing...' : 'Import'}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+          </div>
+        )}
+        
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {items.length === 0 ? (
             <p className="text-gray-500 dark:text-gray-400 col-span-full text-center py-4">

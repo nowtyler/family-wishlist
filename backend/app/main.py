@@ -732,6 +732,125 @@ def delete_all_items(
         detail="Not authorized to delete all items."
     )
 
+@app.get("/api/members/{owner_id}/export", response_model=schemas.WishlistExport)
+def export_wishlist(
+    owner_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Export a member's wishlist to a portable format"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required.")
+    
+    # Check if user is authorized (owner or admin)
+    if not check_admin_or_owner(db, current_user_id, owner_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only export your own wishlist unless you're an admin."
+        )
+    
+    # Get all items for the owner
+    items = crud.get_wishlist_items_by_owner(db, owner_id=owner_id, current_user_id=current_user_id)
+    
+    # Create export data
+    export_data = {
+        "items": [
+            {
+                "title": item.title,
+                "description": item.description,
+                "link": str(item.link) if item.link else None,
+                "image_url": str(item.image_url) if item.image_url else None,
+                "priority": item.priority,
+                "price": item.price
+            }
+            for item in items
+        ],
+        "export_date": datetime.utcnow().isoformat(),
+        "version": "1.0"
+    }
+    
+    return schemas.WishlistExport(**export_data)
+
+@app.post("/api/members/{owner_id}/import", response_model=schemas.WishlistImportResponse)
+def import_wishlist(
+    owner_id: int,
+    wishlist_data: schemas.WishlistExport,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Import items from a wishlist export file"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required.")
+    
+    # Check if user is authorized (owner or admin)
+    if not check_admin_or_owner(db, current_user_id, owner_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only import to your own wishlist unless you're an admin."
+        )
+    
+    # Validate version compatibility
+    if not wishlist_data.version.startswith("1."):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported wishlist format version: {wishlist_data.version}"
+        )
+    
+    # Get existing items for duplicate checking
+    existing_items = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == owner_id).all()
+    
+    imported_items = []
+    skipped_items = []
+    for item_data in wishlist_data.items:
+        try:
+            # Check for exact duplicate
+            is_duplicate = any(
+                existing_item.title == item_data.title and
+                existing_item.description == item_data.description and
+                str(existing_item.link) == (str(item_data.link) if item_data.link else None) and
+                str(existing_item.image_url) == (str(item_data.image_url) if item_data.image_url else None) and
+                existing_item.priority == item_data.priority and
+                existing_item.price == item_data.price
+                for existing_item in existing_items
+            )
+            
+            if is_duplicate:
+                skipped_items.append(item_data.title)
+                continue
+                
+            # Create item if not a duplicate
+            item_create = schemas.WishlistItemCreate(
+                title=item_data.title,
+                description=item_data.description,
+                link=item_data.link,
+                image_url=item_data.image_url,
+                priority=item_data.priority,
+                price=item_data.price
+            )
+            db_item = crud.create_wishlist_item(db=db, item=item_create, owner_id=owner_id)
+            
+            # Get the created item in the standard response format
+            items = crud.get_wishlist_items_by_owner(db, owner_id=owner_id, current_user_id=current_user_id)
+            created_item = next((i for i in items if i.id == db_item.id), None)
+            if created_item:
+                imported_items.append(created_item)
+                
+        except Exception as e:
+            logger.error(f"Failed to import item: {str(e)}")
+            # Continue with next item if one fails
+            continue
+    
+    if not imported_items and not skipped_items:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to import any items from the file."
+        )
+    
+    return schemas.WishlistImportResponse(
+        imported_items=imported_items,
+        skipped_items=skipped_items
+    )
+
 # --- Comments ---
 @app.post("/api/items/{item_id}/comments", 
     response_model=schemas.Comment,

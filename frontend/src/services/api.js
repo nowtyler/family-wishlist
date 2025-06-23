@@ -287,6 +287,30 @@ export const deleteWishlistItem = (itemId) => {
   return apiClient.delete(`/items/${itemId}`);
 };
 
+export const exportWishlist = async (ownerId) => {
+  try {
+    console.log('Exporting wishlist for owner:', ownerId);
+    const response = await apiClient.get(`/members/${ownerId}/export`);
+    console.log('Export response:', response.data);
+    return response;
+  } catch (error) {
+    console.error('Failed to export wishlist:', error?.response?.data || error);
+    throw error;
+  }
+};
+
+export const importWishlist = async (ownerId, wishlistData) => {
+  try {
+    console.log('Importing wishlist for owner:', ownerId);
+    const response = await apiClient.post(`/members/${ownerId}/import`, wishlistData);
+    console.log('Import response:', response.data);
+    return response;
+  } catch (error) {
+    console.error('Failed to import wishlist:', error?.response?.data || error);
+    throw error;
+  }
+};
+
 export const toggleThinkingAbout = (itemId) => {
   return apiClient.patch(`/items/${itemId}/toggle-thinking`);
 };

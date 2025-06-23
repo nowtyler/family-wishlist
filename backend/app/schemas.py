@@ -395,6 +395,26 @@ class WishlistItem(WishlistItemBase):
     class Config:
         from_attributes = True
 
+class WishlistExportItem(BaseModel):
+    """Schema for items in the export format"""
+    title: str
+    description: Optional[str] = None
+    link: Optional[HttpUrl] = None
+    image_url: Optional[HttpUrl] = None
+    priority: int = 0
+    price: Optional[int] = None
+
+class WishlistExport(BaseModel):
+    """Schema for the complete wishlist export format"""
+    items: List[WishlistExportItem]
+    export_date: str
+    version: str
+
+class WishlistImportResponse(BaseModel):
+    """Schema for the wishlist import response"""
+    imported_items: List[WishlistItem]
+    skipped_items: List[str]
+
 # --- Gift Reminder ---
 class GiftEvent(BaseModel):
     name: str # "Christmas" or "Tyler's Birthday"
