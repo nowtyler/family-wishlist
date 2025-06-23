@@ -150,7 +150,7 @@ class UserRegisterRequest(BaseModel):
     username: str
     password: str
     name: str
-    email: Optional[str] = None
+    email: EmailStr
     birthday: Optional[date] = None
 
 class AuthResponse(BaseResponse):
@@ -249,7 +249,7 @@ class FamilyMemberUpdate(BaseModel):
 # --- User Profile Management ---
 class UserProfileUpdate(BaseModel):
     username: Optional[str] = Field(None, min_length=3, max_length=20)
-    email: Optional[EmailStr] = None
+    email: EmailStr
     current_password: Optional[str] = None
     new_password: Optional[str] = Field(None, min_length=8, max_length=50)
     confirm_password: Optional[str] = None

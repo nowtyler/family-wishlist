@@ -182,39 +182,6 @@ class EmailService:
             template_vars
         )
     
-    def send_household_request_email(self, user: FamilyMember, household_name: str) -> EmailLog:
-        """Send notification when user requests to join household"""
-        template_vars = {
-            "user_name": user.name,
-            "username": user.username,
-            "household_name": household_name
-        }
-        
-        return self.send_template_email(
-            "household_request", 
-            user.email, 
-            user.name, 
-            template_vars
-        )
-    
-    def send_household_response_email(self, user: FamilyMember, household_name: str, 
-                                    approved: bool) -> EmailLog:
-        """Send notification when household request is approved/declined"""
-        template_vars = {
-            "user_name": user.name,
-            "username": user.username,
-            "household_name": household_name,
-            "status": "approved" if approved else "declined"
-        }
-        
-        template_name = "household_approved" if approved else "household_declined"
-        return self.send_template_email(
-            template_name, 
-            user.email, 
-            user.name, 
-            template_vars
-        )
-    
     def test_email_settings(self, test_email: str) -> EmailLog:
         """Test email settings by sending a test email"""
         subject = "Family Wishlist - Email Test"
@@ -260,17 +227,46 @@ def create_default_templates(db: Session):
             """
         },
         {
-            "name": "welcome",
-            "subject": "Welcome to Family Wishlist",
+            "name": "welcome_user",
+            "subject": "Welcome to Family Wishlist!",
             "body": """
-            Welcome {name}!
+            <html>
+            <body>
+                <h2>Welcome to Family Wishlist, {user_name}!</h2>
+                
+                <p>Thank you for joining Family Wishlist. We're excited to have you on board! Here's everything you need to know to get started:</p>
+                
+                <h3>Quick Start Guide:</h3>
+                <ul>
+                    <li>Access your wishlist anytime at: <a href="https://wishlist.ariahive.top">wishlist.ariahive.top</a></li>
+                    <li>Create your wishlist by adding items you'd love to receive</li>
+                    <li>Join or create a household to share wishlists with family members</li>
+                    <li>View others' wishlists and mark items as purchased</li>
+                    <li>Set your birthday and preferences in your profile</li>
+                </ul>
 
-            Thank you for joining Family Wishlist. We're excited to have you on board.
+                <h3>Key Features:</h3>
+                <ul>
+                    <li>Add items from any website or create custom items</li>
+                    <li>Set priority levels for your wishlist items</li>
+                    <li>Get notified of upcoming birthdays and events</li>
+                    <li>Keep gift purchases a surprise with our privacy features</li>
+                </ul>
 
-            You can now start creating your wishlist and sharing it with your family members.
+                <p>Your account details:</p>
+                <ul>
+                    <li>Username: {username}</li>
+                    <li>Email: {email}</li>
+                </ul>
 
-            Best regards,
-            Family Wishlist Team
+                <p>Need help? Click the help icon (?) in the top navigation bar for detailed instructions and tips.</p>
+
+                <p>We hope you enjoy using Family Wishlist to make gift-giving more meaningful and organized!</p>
+
+                <p>Best regards,<br>
+                The Family Wishlist Team</p>
+            </body>
+            </html>
             """
         },
         {
@@ -282,32 +278,6 @@ def create_default_templates(db: Session):
             Your password has been successfully changed.
 
             If you did not make this change, please contact the administrator immediately.
-
-            Best regards,
-            Family Wishlist Team
-            """
-        },
-        {
-            "name": "household_request",
-            "subject": "New Household Request",
-            "body": """
-            Hello {name},
-
-            You have been invited to join the household: {household_name}
-
-            Please log in to accept or decline this invitation.
-
-            Best regards,
-            Family Wishlist Team
-            """
-        },
-        {
-            "name": "household_response",
-            "subject": "Household Request {status}",
-            "body": """
-            Hello {name},
-
-            Your request to join the household {household_name} has been {status}.
 
             Best regards,
             Family Wishlist Team

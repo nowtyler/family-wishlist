@@ -437,6 +437,10 @@ def update_user_profile(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     
+    # Ensure email is provided
+    if user_update.email is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is required")
+    
     # Validate password strength if password is being updated
     if user_update.password and not validate_password_strength(user_update.password):
         raise HTTPException(
@@ -2040,6 +2044,14 @@ async def register(
         success, message, user = UserAuthService.register_new_user(db, user_data)
         
         if success and user:
+            # Send welcome email
+            try:
+                email_service = EmailService(db)
+                email_service.send_welcome_email(user)
+            except Exception as e:
+                logger.error(f"Failed to send welcome email: {e}")
+                # Don't fail registration if email fails
+            
             return {
                 "success": True,
                 "message": "Registration successful",
