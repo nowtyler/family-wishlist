@@ -377,11 +377,12 @@ const AuthScreen = () => {
             </div>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Email (optional, for password recovery)
+                Email (required, for password recovery) <span className="text-red-500">*</span>
               </label>
               <input
                 id="email"
                 type="email"
+                required
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
                 placeholder="your.email@example.com"
                 value={email}

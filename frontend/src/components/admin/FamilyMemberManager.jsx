@@ -439,7 +439,7 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
                                 </div>
                                 <div>
                                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Email (required)
+                                    Email (required) <span className="text-red-500">*</span>
                                   </label>
                                   <input
                                     type="email"
@@ -528,7 +528,7 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
 
                                 <div>
                                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Email (required)
+                                    Email (required) <span className="text-red-500">*</span>
                                   </label>
                                   <input
                                     type="email"
@@ -637,7 +637,7 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Email (required)
+                    Email (required) <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="email"
