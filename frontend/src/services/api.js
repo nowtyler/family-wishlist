@@ -69,8 +69,8 @@ apiClient.interceptors.response.use(
       error.userMessage = 'A server error occurred. Please try again later.';
     }
     
-    // Only handle rate limit errors (status code 429)
-    if (error.response && error.response.status === 429) {
+    // Only handle rate limit errors (status code 429) if not explicitly skipped
+    if (error.response?.status === 429 && !error.config.headers['X-Skip-Rate-Limit-Retry']) {
       const requestId = `${error.config.method}-${error.config.url}-${Date.now()}`;
       
       // Track retries for this request
@@ -676,7 +676,12 @@ export const clearSystemCache = () => {
 
 export const checkSetupStatus = async () => {
   try {
-    const response = await apiClient.get('/system/setup-status');
+    // Add a custom header to skip automatic retries for this specific endpoint
+    const response = await apiClient.get('/system/setup-status', {
+      headers: {
+        'X-Skip-Rate-Limit-Retry': 'true'
+      }
+    });
     return response.data;
   } catch (error) {
     console.error('Failed to check setup status:', error);

@@ -1,5 +1,5 @@
 // frontend/src/App.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppProvider, useAppContext } from './contexts/AppContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -47,45 +47,60 @@ const AppContent = () => {
   const [countdown, setCountdown] = useState(0);
   const location = useLocation();
   
-  useEffect(() => {
-    const checkStatus = async () => {
-      try {
-        const status = await checkSetupStatus();
-        setSetupStatus(status);
-        if (status.rate_limited) {
-          setRateLimitInfo({
-            retryAfter: status.retry_after,
-            message: status.error_message
-          });
-          setCountdown(status.retry_after);
-        } else {
-          setRateLimitInfo(null);
-          setCountdown(0);
-        }
-      } catch (error) {
-        console.error('Failed to check setup status:', error);
-        setSetupStatus(null);
-      } finally {
-        setIsLoading(false);
+  const checkStatus = useCallback(async () => {
+    try {
+      const status = await checkSetupStatus();
+      setSetupStatus(status);
+      if (status.rate_limited) {
+        setRateLimitInfo({
+          retryAfter: status.retry_after,
+          message: status.error_message
+        });
+        setCountdown(status.retry_after);
+      } else {
+        setRateLimitInfo(null);
+        setCountdown(0);
       }
-    };
-    
-    checkStatus();
+    } catch (error) {
+      console.error('Failed to check setup status:', error);
+      setSetupStatus(null);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  // Initial setup check
+  useEffect(() => {
+    checkStatus();
+  }, [checkStatus]);
 
   // Handle countdown timer
   useEffect(() => {
     let timer;
     if (countdown > 0) {
       timer = setInterval(() => {
-        setCountdown(prev => Math.max(0, prev - 1));
+        setCountdown(prev => {
+          const newCount = Math.max(0, prev - 1);
+          // When countdown reaches 0, check status again
+          if (newCount === 0 && rateLimitInfo) {
+            checkStatus();
+          }
+          return newCount;
+        });
       }, 1000);
     }
     return () => {
       if (timer) clearInterval(timer);
     };
-  }, [countdown]);
+  }, [countdown, rateLimitInfo, checkStatus]);
   
+  const handleRetryClick = useCallback(() => {
+    if (countdown === 0) {
+      setIsLoading(true);
+      checkStatus();
+    }
+  }, [countdown, checkStatus]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -112,7 +127,7 @@ const AppContent = () => {
             </div>
           </div>
           <button
-            onClick={() => window.location.reload()}
+            onClick={handleRetryClick}
             disabled={countdown > 0}
             className={`px-4 py-2 rounded transition-colors ${
               countdown > 0
