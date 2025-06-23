@@ -58,7 +58,7 @@ class RateLimiter:
                 remaining = int(self.blocked_ips[client_ip] - current_time)
                 raise HTTPException(
                     status_code=429,
-                    detail=f"Too many requests. Please try again in {remaining} seconds."
+                    detail=f"Too many requests. Please try again in a moment."
                 )
             else:
                 # Remove from blocked list if cooldown expired
