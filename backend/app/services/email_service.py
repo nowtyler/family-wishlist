@@ -243,23 +243,12 @@ class EmailService:
     
     def test_email_settings(self, test_email: str) -> EmailLog:
         """Test email settings by sending a test email"""
-        subject = "Family Wishlist - Email Test"
-        body = """
-        <html>
-        <body>
-            <h2>Email Test Successful</h2>
-            <p>This is a test email from your Family Wishlist application.</p>
-            <p>If you received this email, your SMTP settings are working correctly.</p>
-            <p>Sent at: {timestamp}</p>
-        </body>
-        </html>
-        """.format(timestamp=get_est_timestamp_strftime("%Y-%m-%d %H:%M:%S"))
-        
-        success = self._send_email(test_email, subject, body, "Test User")
-        
-        return self._create_email_log(
-            test_email, "Test User", subject, body, "test_email",
-            "sent" if success else "failed"
+        # Use the test_email template
+        return self.send_template_email(
+            "test_email",
+            test_email,
+            "Test User",
+            {"timestamp": get_est_timestamp_strftime("%Y-%m-%d %H:%M:%S")}
         )
 
 def generate_reset_token() -> str:
