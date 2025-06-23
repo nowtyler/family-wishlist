@@ -43,6 +43,7 @@ const AdminRoute = ({ children }) => {
 const AppContent = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [setupStatus, setSetupStatus] = useState(null);
+  const [isRateLimited, setIsRateLimited] = useState(false);
   const location = useLocation();
   
   useEffect(() => {
@@ -50,8 +51,17 @@ const AppContent = () => {
       try {
         const status = await checkSetupStatus();
         setSetupStatus(status);
+        setIsRateLimited(false);
       } catch (error) {
         console.error('Failed to check setup status:', error);
+        // If rate limited, don't show setup screen
+        if (error.response?.status === 429) {
+          setIsRateLimited(true);
+          // Keep the last known setup status
+          return;
+        }
+        // For other errors, clear setup status
+        setSetupStatus(null);
       } finally {
         setIsLoading(false);
       }
@@ -64,6 +74,26 @@ const AppContent = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-gray-600">Loading...</div>
+      </div>
+    );
+  }
+
+  // Show rate limit message instead of redirecting
+  if (isRateLimited) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center p-8 max-w-md">
+          <h2 className="text-2xl font-semibold text-red-600 mb-4">Rate Limit Reached</h2>
+          <p className="text-gray-600 mb-4">
+            You've made too many requests. Please wait a moment before trying again.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
       </div>
     );
   }

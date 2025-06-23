@@ -5,10 +5,10 @@ from typing import Dict, Tuple
 import asyncio
 
 class RateLimiter:
-    def __init__(self, requests_per_minute: int = 120, burst_allowance: int = 40):
-        # Increased from 60 to 120 requests per minute
+    def __init__(self, requests_per_minute: int = 300, burst_allowance: int = 100):
+        # Increased from 120 to 300 requests per minute
         self.requests_per_minute = requests_per_minute
-        # New parameter to allow short bursts of activity
+        # Increased burst allowance from 40 to 100
         self.burst_allowance = burst_allowance
         self.requests: Dict[str, list] = defaultdict(list)
         self._cleanup_task = None
@@ -16,6 +16,8 @@ class RateLimiter:
         self.blocked_ips: Dict[str, float] = {}
         # Keep track of API endpoints for smarter rate limiting
         self.endpoint_counts: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        # Track per-user requests to avoid penalizing shared IPs
+        self.user_requests: Dict[str, list] = defaultdict(list)
         # TODO: For production, consider using Redis or database-backed rate limiting
         # to support multiple server instances and persist rate limits across restarts
 
@@ -46,6 +48,10 @@ class RateLimiter:
         client_ip = request.client.host if request.client else "unknown"
         current_time = time.time()
         
+        # Get user ID from header if available
+        user_id = request.headers.get('X-Current-User-Id', None)
+        request_key = f"{client_ip}:{user_id}" if user_id else client_ip
+        
         # Check if IP is in cooldown period
         if client_ip in self.blocked_ips:
             if current_time < self.blocked_ips[client_ip]:
@@ -63,54 +69,54 @@ class RateLimiter:
         method = request.method
         
         # Remove requests older than 1 minute
-        self.requests[client_ip] = [req_time for req_time in self.requests[client_ip] 
+        self.requests[request_key] = [req_time for req_time in self.requests[request_key] 
                                   if current_time - req_time < 60]
         
         # Track endpoint usage
         endpoint_key = f"{method}:{path}"
-        self.endpoint_counts[client_ip][endpoint_key] += 1
+        self.endpoint_counts[request_key][endpoint_key] += 1
         
         # Apply special rules for API endpoints
-        request_count = len(self.requests[client_ip])
+        request_count = len(self.requests[request_key])
         
         # Check if this is a burst or sustained load
-        ten_sec_count = sum(1 for t in self.requests[client_ip] if current_time - t < 10)
+        ten_sec_count = sum(1 for t in self.requests[request_key] if current_time - t < 10)
         
         # More forgiving limit for read operations
         if method == "GET" and not path.startswith("/api/admin/"):
             # Allow higher rate for regular GET requests
             if request_count >= self.requests_per_minute + self.burst_allowance:
-                # Block for 30 seconds instead of a full minute
-                self.blocked_ips[client_ip] = current_time + 30
+                # Block for 15 seconds instead of 30
+                self.blocked_ips[client_ip] = current_time + 15
+                raise HTTPException(
+                    status_code=429,
+                    detail="Too many requests. Please try again after 15 seconds."
+                )
+        # More lenient for mutations
+        elif method in ("POST", "PUT", "DELETE", "PATCH"):
+            # If endpoint is getting hammered, apply stricter limits
+            endpoint_count = self.endpoint_counts[request_key][endpoint_key]
+            if endpoint_count > 60:  # Increased from 30 to 60 identical mutations in a minute
+                self.blocked_ips[client_ip] = current_time + 30  # Reduced from 60 to 30 seconds
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"Too many {method} requests to {path}. Please try again after 30 seconds."
+                )
+            # Standard rate limit check
+            elif request_count >= self.requests_per_minute:
+                self.blocked_ips[client_ip] = current_time + 30  # Reduced from 45 to 30 seconds
                 raise HTTPException(
                     status_code=429,
                     detail="Too many requests. Please try again after 30 seconds."
                 )
-        # More strict for mutations
-        elif method in ("POST", "PUT", "DELETE", "PATCH"):
-            # If endpoint is getting hammered, apply stricter limits
-            endpoint_count = self.endpoint_counts[client_ip][endpoint_key]
-            if endpoint_count > 30:  # More than 30 identical mutations in a minute
-                self.blocked_ips[client_ip] = current_time + 60
-                raise HTTPException(
-                    status_code=429,
-                    detail=f"Too many {method} requests to {path}. Please try again after a minute."
-                )
-            # Standard rate limit check
-            elif request_count >= self.requests_per_minute:
-                self.blocked_ips[client_ip] = current_time + 45
-                raise HTTPException(
-                    status_code=429,
-                    detail="Too many requests. Please try again after 45 seconds."
-                )
         # Admin endpoints get standard rate limiting
         else:
             if request_count >= self.requests_per_minute:
-                self.blocked_ips[client_ip] = current_time + 60
+                self.blocked_ips[client_ip] = current_time + 30  # Reduced from 60 to 30 seconds
                 raise HTTPException(
                     status_code=429,
-                    detail="Too many requests. Please try again in a minute."
+                    detail="Too many requests. Please try again in 30 seconds."
                 )
                 
         # Record this request
-        self.requests[client_ip].append(current_time)
+        self.requests[request_key].append(current_time)
