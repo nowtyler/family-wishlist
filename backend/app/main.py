@@ -807,8 +807,8 @@ def import_wishlist(
             is_duplicate = any(
                 existing_item.title == item_data.title and
                 existing_item.description == item_data.description and
-                str(existing_item.link) == (str(item_data.link) if item_data.link else None) and
-                str(existing_item.image_url) == (str(item_data.image_url) if item_data.image_url else None) and
+                (str(existing_item.link) if existing_item.link else None) == (str(item_data.link) if item_data.link else None) and
+                (str(existing_item.image_url) if existing_item.image_url else None) == (str(item_data.image_url) if item_data.image_url else None) and
                 existing_item.priority == item_data.priority and
                 existing_item.price == item_data.price
                 for existing_item in existing_items
