@@ -289,18 +289,81 @@ def create_default_templates(db: Session):
             "name": "password_reset",
             "subject": "Password Reset Request",
             "body": """
-            <html>
-            <body>
-                <p>Hello,</p>
-
-                <p>You have requested to reset your password. Please click the link below to reset your password:</p>
-
-                <p>{{reset_url}}</p>
-
-                <p>If you did not request this password reset, please ignore this email.</p>
-
-                <p>Best regards,<br>
-                Family Wishlist Team</p>
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Password Reset</title>
+            </head>
+            <body style="margin:0;padding:0;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#f5f7fa;color:#333333;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f5f7fa;">
+                    <tr>
+                        <td align="center" style="padding:40px 0;">
+                            <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1);max-width:90%;">
+                                <!-- Header -->
+                                <tr>
+                                    <td style="background:linear-gradient(to right, #0ea5e9, #6366f1);padding:30px 40px;text-align:center;">
+                                        <h1 style="color:#ffffff;margin:0;font-weight:700;font-size:28px;">Family Wishlist</h1>
+                                        <p style="color:#e0f2fe;margin:10px 0 0;font-size:16px;">Password Reset Request</p>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Content -->
+                                <tr>
+                                    <td style="padding:30px 40px;">
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                            <tr>
+                                                <td>
+                                                    <div style="background-color:#eff6ff;border:1px solid #bfdbfe;border-left:4px solid #3b82f6;border-radius:6px;padding:20px;margin-bottom:25px;">
+                                                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                                            <tr>
+                                                                <td width="40" valign="top">
+                                                                    <!-- Lock icon -->
+                                                                    <div style="width:32px;height:32px;background-color:#3b82f6;border-radius:50%;display:inline-block;text-align:center;line-height:32px;">
+                                                                        <img src="https://cdn-icons-png.flaticon.com/512/483/483408.png" width="16" height="16" alt="Lock" style="vertical-align:middle;filter:brightness(0) invert(1);">
+                                                                    </div>
+                                                                </td>
+                                                                <td style="padding-left:15px;">
+                                                                    <h3 style="margin:0;color:#1e40af;font-size:16px;font-weight:600;">Password Reset</h3>
+                                                                    <p style="margin:10px 0 0;color:#334155;font-size:14px;">
+                                                                        Hello,<br><br>
+                                                                        You have requested to reset your password. This link will expire in 24 hours.
+                                                                    </p>
+                                                                </td>
+                                                            </tr>
+                                                        </table>
+                                                    </div>
+                                                    
+                                                    <div style="text-align:center;margin:30px 0;">
+                                                        <a href="{{reset_url}}" style="background:linear-gradient(to right, #0ea5e9, #6366f1);color:#ffffff;text-decoration:none;padding:12px 30px;border-radius:6px;font-weight:600;display:inline-block;font-size:16px;">Reset Password</a>
+                                                    </div>
+                                                    
+                                                    <p style="margin:20px 0;color:#64748b;font-size:14px;">If you didn't request a password reset, you can safely ignore this email.</p>
+                                                    
+                                                    <p style="margin:25px 0 0;color:#64748b;font-size:14px;">Having trouble with the button above? Copy and paste the URL below into your web browser:</p>
+                                                    <p style="margin:10px 0 0;color:#334155;font-size:12px;word-break:break-all;background-color:#f8fafc;padding:10px;border-radius:4px;border:1px solid #e2e8f0;">{{reset_url}}</p>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Footer -->
+                                <tr>
+                                    <td style="background-color:#f1f5f9;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">
+                                        <p style="margin:0;color:#64748b;font-size:14px;">
+                                            &copy; 2025 Family Wishlist. All rights reserved.
+                                        </p>
+                                        <p style="margin:10px 0 0;color:#94a3b8;font-size:12px;">
+                                            This is an automated message, please do not reply.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
             </body>
             </html>
             """
@@ -309,41 +372,222 @@ def create_default_templates(db: Session):
             "name": "welcome_user",
             "subject": "Welcome to Family Wishlist!",
             "body": """
-            <html>
-            <body>
-                <h2>Welcome to Family Wishlist, {{user_name}}!</h2>
-                
-                <p>Thank you for joining Family Wishlist. We're excited to have you on board! Here's everything you need to know to get started:</p>
-                
-                <h3>Quick Start Guide:</h3>
-                <ul>
-                    <li>Access your wishlist anytime at: <a href="https://wishlist.ariahive.top">wishlist.ariahive.top</a></li>
-                    <li>Create your wishlist by adding items you'd love to receive</li>
-                    <li>Join or create a household to share wishlists with family members</li>
-                    <li>View others' wishlists and mark items as purchased</li>
-                    <li>Set your birthday and preferences in your profile</li>
-                </ul>
-
-                <h3>Key Features:</h3>
-                <ul>
-                    <li>Add items from any website or create custom items</li>
-                    <li>Set priority levels for your wishlist items</li>
-                    <li>Get notified of upcoming birthdays and events</li>
-                    <li>Keep gift purchases a surprise with our privacy features</li>
-                </ul>
-
-                <p>Your account details:</p>
-                <ul>
-                    <li>Username: {{username}}</li>
-                    <li>Email: {{email}}</li>
-                </ul>
-
-                <p>Need help? Click the help icon (?) in the top navigation bar for detailed instructions and tips.</p>
-
-                <p>We hope you enjoy using Family Wishlist to make gift-giving more meaningful and organized!</p>
-
-                <p>Best regards,<br>
-                The Family Wishlist Team</p>
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Welcome to Family Wishlist</title>
+            </head>
+            <body style="margin:0;padding:0;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#f5f7fa;color:#333333;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f5f7fa;">
+                    <tr>
+                        <td align="center" style="padding:40px 0;">
+                            <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1);max-width:90%;">
+                                <!-- Header with gradient -->
+                                <tr>
+                                    <td style="background:linear-gradient(to right, #0ea5e9, #6366f1);padding:40px;text-align:center;">
+                                        <img src="https://cdn-icons-png.flaticon.com/512/2589/2589175.png" alt="Gift" width="60" height="60" style="margin-bottom:15px;filter:brightness(0) invert(1);">
+                                        <h1 style="color:#ffffff;margin:0;font-weight:700;font-size:28px;">Welcome to Family Wishlist!</h1>
+                                        <p style="color:#e0f2fe;margin:10px 0 0;font-size:16px;">Hello, {{user_name}}! We're excited to have you join us.</p>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Introduction -->
+                                <tr>
+                                    <td style="padding:30px 40px;">
+                                        <p style="margin:0 0 20px;color:#334155;font-size:16px;line-height:1.6;">
+                                            Thank you for joining Family Wishlist! We're thrilled to have you on board. 
+                                            Below you'll find everything you need to know to get started with making gift-giving more meaningful and organized!
+                                        </p>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Quick Start Guide Section -->
+                                <tr>
+                                    <td style="padding:0 40px 30px;">
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                            <tr>
+                                                <td>
+                                                    <div style="background-color:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:25px;margin-bottom:25px;">
+                                                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                                            <tr>
+                                                                <td width="40" valign="top">
+                                                                    <!-- Map icon -->
+                                                                    <div style="width:32px;height:32px;background-color:#3b82f6;border-radius:50%;display:inline-block;text-align:center;line-height:32px;">
+                                                                        <img src="https://cdn-icons-png.flaticon.com/512/5974/5974636.png" width="16" height="16" alt="Map" style="vertical-align:middle;filter:brightness(0) invert(1);">
+                                                                    </div>
+                                                                </td>
+                                                                <td style="padding-left:15px;">
+                                                                    <h3 style="margin:0;color:#1e40af;font-size:18px;font-weight:600;">Quick Start Guide</h3>
+                                                                    <ul style="margin:15px 0 0;padding:0 0 0 20px;color:#334155;">
+                                                                        <li style="margin-bottom:10px;">Access your wishlist anytime at: <a href="https://wishlist.ariahive.top" style="color:#3b82f6;text-decoration:none;font-weight:500;">wishlist.ariahive.top</a></li>
+                                                                        <li style="margin-bottom:10px;">Create your wishlist by adding items you'd love to receive</li>
+                                                                        <li style="margin-bottom:10px;">Join or create a household to share wishlists with family members</li>
+                                                                        <li style="margin-bottom:10px;">View others' wishlists and mark items as purchased</li>
+                                                                        <li style="margin-bottom:10px;">Set your birthday and preferences in your profile</li>
+                                                                    </ul>
+                                                                </td>
+                                                            </tr>
+                                                        </table>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Key Features Section -->
+                                <tr>
+                                    <td style="padding:0 40px 30px;">
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                            <tr>
+                                                <td>
+                                                    <div style="background-color:#fdf4ff;border:1px solid #f5d0fe;border-radius:8px;padding:25px;margin-bottom:25px;">
+                                                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                                            <tr>
+                                                                <td width="40" valign="top">
+                                                                    <!-- Star icon -->
+                                                                    <div style="width:32px;height:32px;background-color:#d946ef;border-radius:50%;display:inline-block;text-align:center;line-height:32px;">
+                                                                        <img src="https://cdn-icons-png.flaticon.com/512/1828/1828884.png" width="16" height="16" alt="Star" style="vertical-align:middle;filter:brightness(0) invert(1);">
+                                                                    </div>
+                                                                </td>
+                                                                <td style="padding-left:15px;">
+                                                                    <h3 style="margin:0;color:#86198f;font-size:18px;font-weight:600;">Key Features</h3>
+                                                                    <ul style="margin:15px 0 0;padding:0 0 0 20px;color:#334155;">
+                                                                        <li style="margin-bottom:10px;"><span style="font-weight:600;color:#d946ef;">Smart Imports:</span> Add items from any website or create custom items</li>
+                                                                        <li style="margin-bottom:10px;"><span style="font-weight:600;color:#d946ef;">Priority Levels:</span> Set priority levels for your wishlist items</li>
+                                                                        <li style="margin-bottom:10px;"><span style="font-weight:600;color:#d946ef;">Event Notifications:</span> Get notified of upcoming birthdays and events</li>
+                                                                        <li style="margin-bottom:10px;"><span style="font-weight:600;color:#d946ef;">Gift Privacy:</span> Keep gift purchases a surprise with our privacy features</li>
+                                                                        <li style="margin-bottom:0;"><span style="font-weight:600;color:#d946ef;">Size Preferences:</span> Set your clothing and shoe sizes in your profile</li>
+                                                                    </ul>
+                                                                </td>
+                                                            </tr>
+                                                        </table>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Gift Coordination -->
+                                <tr>
+                                    <td style="padding:0 40px 30px;">
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                            <tr>
+                                                <td>
+                                                    <div style="background-color:#fdf2f8;border:1px solid #fbcfe8;border-radius:8px;padding:25px;margin-bottom:25px;">
+                                                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                                            <tr>
+                                                                <td width="40" valign="top">
+                                                                    <!-- Heart icon -->
+                                                                    <div style="width:32px;height:32px;background-color:#ec4899;border-radius:50%;display:inline-block;text-align:center;line-height:32px;">
+                                                                        <img src="https://cdn-icons-png.flaticon.com/512/535/535285.png" width="16" height="16" alt="Heart" style="vertical-align:middle;filter:brightness(0) invert(1);">
+                                                                    </div>
+                                                                </td>
+                                                                <td style="padding-left:15px;">
+                                                                    <h3 style="margin:0;color:#9d174d;font-size:18px;font-weight:600;">Gift Coordination</h3>
+                                                                    <p style="margin:10px 0 0;color:#334155;line-height:1.6;">
+                                                                        Express interest in items by clicking the heart icon, mark items as purchased using the shopping cart button, 
+                                                                        and add comments to coordinate gift plans with other family members!
+                                                                    </p>
+                                                                    <div style="margin-top:15px;">
+                                                                        <table cellpadding="0" cellspacing="0" border="0">
+                                                                            <tr>
+                                                                                <td>
+                                                                                    <div style="display:inline-block;background-color:#fecdd3;color:#be123c;padding:8px 15px;border-radius:30px;font-size:14px;font-weight:500;margin-right:10px;">
+                                                                                        ♥ Interested
+                                                                                    </div>
+                                                                                </td>
+                                                                                <td>
+                                                                                    <div style="display:inline-block;background-color:#bbf7d0;color:#166534;padding:8px 15px;border-radius:30px;font-size:14px;font-weight:500;">
+                                                                                        🛒 Purchased
+                                                                                    </div>
+                                                                                </td>
+                                                                            </tr>
+                                                                        </table>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        </table>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Account Details -->
+                                <tr>
+                                    <td style="padding:0 40px 30px;">
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                            <tr>
+                                                <td>
+                                                    <div style="background-color:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:25px;margin-bottom:25px;">
+                                                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                                            <tr>
+                                                                <td width="40" valign="top">
+                                                                    <!-- User icon -->
+                                                                    <div style="width:32px;height:32px;background-color:#4f46e5;border-radius:50%;display:inline-block;text-align:center;line-height:32px;">
+                                                                        <img src="https://cdn-icons-png.flaticon.com/512/456/456283.png" width="16" height="16" alt="User" style="vertical-align:middle;filter:brightness(0) invert(1);">
+                                                                    </div>
+                                                                </td>
+                                                                <td style="padding-left:15px;">
+                                                                    <h3 style="margin:0;color:#3730a3;font-size:18px;font-weight:600;">Your Account Details</h3>
+                                                                    <table cellpadding="0" cellspacing="0" border="0" style="margin-top:15px;">
+                                                                        <tr>
+                                                                            <td style="padding:8px 15px 8px 0;color:#6366f1;font-weight:500;">Username:</td>
+                                                                            <td style="padding:8px 0;color:#334155;">{{username}}</td>
+                                                                        </tr>
+                                                                        <tr>
+                                                                            <td style="padding:8px 15px 8px 0;color:#6366f1;font-weight:500;">Email:</td>
+                                                                            <td style="padding:8px 0;color:#334155;">{{email}}</td>
+                                                                        </tr>
+                                                                    </table>
+                                                                </td>
+                                                            </tr>
+                                                        </table>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Help Button -->
+                                <tr>
+                                    <td style="padding:0 40px 30px;text-align:center;">
+                                        <p style="margin:0 0 20px;color:#64748b;font-size:16px;">
+                                            Need help getting started?
+                                        </p>
+                                        <div>
+                                            <a href="https://wishlist.ariahive.top" style="display:inline-block;background-color:#64748b;color:#ffffff;text-decoration:none;padding:12px 25px;border-radius:6px;font-weight:600;font-size:14px;">
+                                                <img src="https://cdn-icons-png.flaticon.com/512/189/189665.png" alt="Question" width="14" height="14" style="vertical-align:middle;margin-right:8px;filter:brightness(0) invert(1);">
+                                                View Help & Tips
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Footer -->
+                                <tr>
+                                    <td style="background-color:#f1f5f9;padding:25px 40px;text-align:center;border-top:1px solid #e2e8f0;">
+                                        <p style="margin:0;color:#334155;font-size:16px;font-weight:500;">
+                                            We hope you enjoy using Family Wishlist!
+                                        </p>
+                                        <p style="margin:15px 0 0;color:#64748b;font-size:14px;">
+                                            &copy; 2025 Family Wishlist. All rights reserved.
+                                        </p>
+                                        <p style="margin:10px 0 0;color:#94a3b8;font-size:12px;">
+                                            This email was sent to {{email}}
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
             </body>
             </html>
             """
@@ -352,16 +596,87 @@ def create_default_templates(db: Session):
             "name": "password_changed",
             "subject": "Password Changed",
             "body": """
-            <html>
-            <body>
-                <h2>Hello {{user_name}},</h2>
-
-                <h2>Your password has been successfully changed.</h2>
-
-                <p>If you did not make this change, please contact the administrator immediately.</p>
-
-                <p>Best regards,<br>
-                Family Wishlist Team</p>
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Password Changed</title>
+            </head>
+            <body style="margin:0;padding:0;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#f5f7fa;color:#333333;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f5f7fa;">
+                    <tr>
+                        <td align="center" style="padding:40px 0;">
+                            <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1);max-width:90%;">
+                                <!-- Header -->
+                                <tr>
+                                    <td style="background:linear-gradient(to right, #0ea5e9, #6366f1);padding:30px 40px;text-align:center;">
+                                        <h1 style="color:#ffffff;margin:0;font-weight:700;font-size:28px;">Family Wishlist</h1>
+                                        <p style="color:#e0f2fe;margin:10px 0 0;font-size:16px;">Account Update</p>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Content -->
+                                <tr>
+                                    <td style="padding:40px;">
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                            <tr>
+                                                <td style="text-align:center;">
+                                                    <!-- Check icon in circle -->
+                                                    <div style="width:80px;height:80px;background-color:#10b981;border-radius:50%;margin:0 auto 25px;display:flex;align-items:center;justify-content:center;">
+                                                        <img src="https://cdn-icons-png.flaticon.com/512/4436/4436481.png" width="40" height="40" alt="Success" style="filter:brightness(0) invert(1);">
+                                                    </div>
+                                                    <h2 style="margin:0 0 15px;color:#334155;font-size:24px;font-weight:600;">Password Changed Successfully</h2>
+                                                    <p style="margin:0 0 25px;color:#64748b;font-size:16px;line-height:1.6;">
+                                                        Hello {{user_name}},<br>
+                                                        Your password was changed successfully on {{timestamp}}.
+                                                    </p>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        
+                                        <!-- Security Notice -->
+                                        <div style="background-color:#fff1f2;border:1px solid #fecdd3;border-left:4px solid #e11d48;border-radius:6px;padding:20px;margin:10px 0 25px;">
+                                            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                                <tr>
+                                                    <td width="40" valign="top">
+                                                        <!-- Alert icon -->
+                                                        <div style="width:32px;height:32px;background-color:#e11d48;border-radius:50%;display:inline-block;text-align:center;line-height:32px;">
+                                                            <img src="https://cdn-icons-png.flaticon.com/512/1828/1828843.png" width="16" height="16" alt="Alert" style="vertical-align:middle;filter:brightness(0) invert(1);">
+                                                        </div>
+                                                    </td>
+                                                    <td style="padding-left:15px;">
+                                                        <h3 style="margin:0;color:#be123c;font-size:16px;font-weight:600;">Security Alert</h3>
+                                                        <p style="margin:10px 0 0;color:#64748b;font-size:14px;">
+                                                            If you did not make this change, please contact the administrator immediately 
+                                                            as your account may have been compromised.
+                                                        </p>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </div>
+                                        
+                                        <div style="text-align:center;margin:30px 0 10px;">
+                                            <a href="https://wishlist.ariahive.top" style="background:linear-gradient(to right, #0ea5e9, #6366f1);color:#ffffff;text-decoration:none;padding:12px 30px;border-radius:6px;font-weight:600;display:inline-block;font-size:16px;">Go to Family Wishlist</a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Footer -->
+                                <tr>
+                                    <td style="background-color:#f1f5f9;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">
+                                        <p style="margin:0;color:#64748b;font-size:14px;">
+                                            &copy; 2025 Family Wishlist. All rights reserved.
+                                        </p>
+                                        <p style="margin:10px 0 0;color:#94a3b8;font-size:12px;">
+                                            This is an automated message, please do not reply.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
             </body>
             </html>
             """
@@ -370,16 +685,80 @@ def create_default_templates(db: Session):
             "name": "test_email",
             "subject": "Test Email",
             "body": """
-            <html>
-            <body>
-                <p>Hello,</p>
-
-            <h2>This is a test email to verify your email settings.</h2>
-
-            <p>If you received this email, your email settings are configured correctly.</p>
-
-            <p>Best regards,<br>
-            Family Wishlist Team</p>
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Test Email</title>
+            </head>
+            <body style="margin:0;padding:0;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#f5f7fa;color:#333333;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f5f7fa;">
+                    <tr>
+                        <td align="center" style="padding:40px 0;">
+                            <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1);max-width:90%;">
+                                <!-- Header -->
+                                <tr>
+                                    <td style="background:linear-gradient(to right, #0ea5e9, #6366f1);padding:30px 40px;text-align:center;">
+                                        <h1 style="color:#ffffff;margin:0;font-weight:700;font-size:28px;">Family Wishlist</h1>
+                                        <p style="color:#e0f2fe;margin:10px 0 0;font-size:16px;">Test Email</p>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Content -->
+                                <tr>
+                                    <td style="padding:40px;">
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                            <tr>
+                                                <td style="text-align:center;">
+                                                    <!-- Test icon -->
+                                                    <div style="width:80px;height:80px;background-color:#22c55e;border-radius:50%;margin:0 auto 25px;display:flex;align-items:center;justify-content:center;">
+                                                        <img src="https://cdn-icons-png.flaticon.com/512/471/471664.png" width="40" height="40" alt="Test" style="filter:brightness(0) invert(1);">
+                                                    </div>
+                                                    <h2 style="margin:0 0 15px;color:#334155;font-size:24px;font-weight:600;">Email Configuration Test</h2>
+                                                    <p style="margin:0 0 25px;color:#64748b;font-size:16px;line-height:1.6;">
+                                                        This is a test email to verify your email settings.<br>
+                                                        If you're seeing this, your email configuration is working correctly!
+                                                    </p>
+                                                    <div style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:15px;margin:25px 0;text-align:left;">
+                                                        <h4 style="margin:0 0 10px;color:#166534;font-size:16px;">Test Information:</h4>
+                                                        <table cellpadding="4" cellspacing="0" border="0" style="width:100%;font-size:14px;">
+                                                            <tr>
+                                                                <td style="color:#15803d;font-weight:500;width:120px;">Test Date:</td>
+                                                                <td style="color:#334155;">{{timestamp}}</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td style="color:#15803d;font-weight:500;width:120px;">Status:</td>
+                                                                <td style="color:#16a34a;font-weight:500;">Successful</td>
+                                                            </tr>
+                                                        </table>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        
+                                        <!-- Back to Admin Panel -->
+                                        <div style="text-align:center;margin:30px 0 10px;">
+                                            <a href="https://wishlist.ariahive.top/admin" style="background:linear-gradient(to right, #0ea5e9, #6366f1);color:#ffffff;text-decoration:none;padding:12px 30px;border-radius:6px;font-weight:600;display:inline-block;font-size:16px;">Go to Admin Panel</a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Footer -->
+                                <tr>
+                                    <td style="background-color:#f1f5f9;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">
+                                        <p style="margin:0;color:#64748b;font-size:14px;">
+                                            &copy; 2025 Family Wishlist. All rights reserved.
+                                        </p>
+                                        <p style="margin:10px 0 0;color:#94a3b8;font-size:12px;">
+                                            This is an automated message, please do not reply.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
             </body>
             </html>
             """
@@ -389,12 +768,11 @@ def create_default_templates(db: Session):
     for template in default_templates:
         existing = db.query(EmailTemplate).filter_by(name=template["name"]).first()
         if not existing:
-            new_template = EmailTemplate(
-                name=template["name"],
-                subject=template["subject"],
-                body=template["body"].strip(),
-                is_active=True
-            )
+            new_template = EmailTemplate()
+            new_template.name = template["name"]
+            new_template.subject = template["subject"]
+            new_template.body = template["body"].strip()
+            new_template.is_active = True
             db.add(new_template)
 
     try:
