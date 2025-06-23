@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
 from passlib.context import CryptContext
+import pytz
 from .. import models, schemas, auth
 from ..utils.timezone_utils import get_est_timestamp, get_est_timedelta
 from .email_service import EmailService
@@ -94,8 +95,14 @@ class UserAuthService:
             # Generate token
             token = UserAuthService.generate_reset_token()
             user.reset_token = token
-            user.reset_token_expires = get_est_timedelta(hours=24)
             
+            # Store expiry time - convert to naive datetime for storage in DB
+            expiry_time = get_est_timedelta(hours=24)
+            if expiry_time.tzinfo is not None:
+                user.reset_token_expires = expiry_time.replace(tzinfo=None)
+            else:
+                user.reset_token_expires = expiry_time
+                
             db.commit()
             logger.info(f"Created reset token for user {user.username}")
             
@@ -136,8 +143,20 @@ class UserAuthService:
             if not user:
                 return False, "Invalid or expired reset token", None
             
-            # Check if token is expired
-            if not user.reset_token_expires or user.reset_token_expires < get_est_timestamp():
+            # Check if token is expired - handle timezone aware comparison
+            if not user.reset_token_expires:
+                return False, "Reset token has expired", None
+                
+            # Convert naive datetime to aware datetime for comparison
+            current_time = get_est_timestamp()
+            if user.reset_token_expires.tzinfo is None:
+                # Make the naive datetime timezone-aware by assuming it's in EST
+                eastern = pytz.timezone('US/Eastern')
+                expiry_time = eastern.localize(user.reset_token_expires)
+            else:
+                expiry_time = user.reset_token_expires
+                
+            if expiry_time < current_time:
                 return False, "Reset token has expired", None
             
             return True, "Token is valid", user

@@ -291,7 +291,7 @@ def create_default_templates(db: Session):
             "body": """
             <html>
             <body>
-                <p>Hello {{name}},</p>
+                <p>Hello {{user_name}},</p>
 
                 <p>You have requested to reset your password. Please click the link below to reset your password:</p>
 
