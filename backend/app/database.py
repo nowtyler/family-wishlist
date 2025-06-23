@@ -38,6 +38,10 @@ def create_db_and_tables():
         is_fresh_install = True
         # Ensure directory exists
         os.makedirs(os.path.dirname(db_file), exist_ok=True)
+        
+        # Create the database file, ensuring it's owned by root for security
+        # The database will be created by SQLAlchemy
+        logger.info(f"Fresh installation detected, creating database file: {db_file}")
     
     # Create tables if they don't exist
     inspector = inspect(engine)
@@ -48,6 +52,14 @@ def create_db_and_tables():
         Base.metadata.create_all(bind=engine)
         logger.info("Created fresh database and tables")
         is_fresh_install = True
+        
+        # Set secure permissions for the database file - this should be root owned
+        try:
+            # The SQLite database should remain readable/writable by the app but stay owned by root
+            # This is already handled by the entrypoint script
+            pass
+        except Exception as e:
+            logger.warning(f"Could not set database file permissions: {str(e)}")
     else:
         logger.info("Database tables already exist, skipping creation")
 

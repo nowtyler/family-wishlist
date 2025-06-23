@@ -16,7 +16,24 @@ class BackupService:
         self.db_path = db_path
         # Always use /app/data/backups inside container
         self.backup_dir = "/app/data/backups"
+        
+        # Create backup directory with proper permissions
         os.makedirs(self.backup_dir, exist_ok=True)
+        
+        # Try to set appropriate permissions based on PUID/PGID if provided
+        # Permissions are mainly handled by the entrypoint script, but we do this as a fallback
+        try:
+            # Get PUID/PGID from environment, default to current process user/group
+            puid = int(os.environ.get("PUID", os.getuid()))
+            pgid = int(os.environ.get("PGID", os.getgid()))
+            
+            # Only change ownership if we're running as root and PUID/PGID are specified
+            if os.geteuid() == 0 and (puid != 0 or pgid != 0):
+                os.chown(self.backup_dir, puid, pgid)
+                logger.info(f"Set backup directory ownership to {puid}:{pgid}")
+        except Exception as e:
+            logger.warning(f"Could not set backup directory permissions: {e}")
+        
         logger.info(f"Using backup directory: {self.backup_dir}")
         self.engine = create_engine(f'sqlite:///{db_path}')
 

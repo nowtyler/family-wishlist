@@ -36,9 +36,18 @@ class EmergencyTokenService:
         if not os.path.exists(self.key_file):
             # Generate a new encryption key
             key = Fernet.generate_key()
+            
+            # Create the directory if it doesn't exist
+            os.makedirs(os.path.dirname(self.key_file), exist_ok=True)
+            
+            # Write the key file
             with open(self.key_file, 'wb') as f:
                 f.write(key)
+                
             logger.info("Created new emergency token encryption key")
+            
+            # Note: Permissions for this file are managed by the entrypoint script
+            # The file will be owned by root for security but still readable by the app
     
     def _get_encryption_key(self) -> bytes:
         """Get the encryption key from file"""
