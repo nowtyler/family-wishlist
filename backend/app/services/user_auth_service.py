@@ -198,7 +198,7 @@ class UserAuthService:
             # Create new user with normalized username
             new_user = models.FamilyMember(
                 name=user_data.name,
-                username=normalized_username  # Store username in lowercase
+                username=normalized_username,  # Store username in lowercase
                 password_hash=UserAuthService.get_password_hash(user_data.password),
                 email=user_data.email.lower().strip() if user_data.email else None,  # Store email in lowercase
                 birthday=user_data.birthday.isoformat() if user_data.birthday else None,
