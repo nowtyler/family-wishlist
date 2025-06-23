@@ -1220,10 +1220,628 @@ const AdminPage = () => {
   const DatabaseTab = () => {
     const [isProcessing, setIsProcessing] = useState(false);
     const [selectedBackup, setSelectedBackup] = useState(null);
+    const [backupAction, setBackupAction] = useState(null);
+    const [backupActionConfirm, setBackupActionConfirm] = useState(false);
+    const [backupActionLoading, setBackupActionLoading] = useState(false);
+    const [backupActionResult, setBackupActionResult] = useState(null);
+    const [isCreatingBackup, setIsCreatingBackup] = useState(false);
+    const [backupSuccess, setBackupSuccess] = useState(false);
+    const [backupError, setBackupError] = useState(false);
+    
+    const handleBackupItemClick = (backup) => {
+      setSelectedBackup(selectedBackup?.filename === backup.filename ? null : backup);
+      setBackupAction(null);
+      setBackupActionConfirm(false);
+      setBackupActionLoading(false);
+      setBackupActionResult(null);
+    };
+
+    const handleActionClick = (action) => {
+      if (!selectedBackup) return;
+      
+      // If action is already in progress or showing result, do nothing
+      if (backupActionLoading || backupActionResult) return;
+      
+      // If confirmation is already showing for this action type, execute it
+      if (backupAction === action && backupActionConfirm) {
+        handleActionConfirm();
+        return;
+      }
+      
+      // Otherwise show confirmation for this action type
+      setBackupAction(action);
+      setBackupActionConfirm(true);
+    };
+
+    const handleActionConfirm = async () => {
+      if (!selectedBackup || !backupAction || !backupActionConfirm) return;
+
+      try {
+        setBackupActionLoading(true);
+        setIsProcessing(true);
+        
+        if (backupAction === 'restore') {
+          const { restoreBackup } = await import('../services/api');
+          const response = await restoreBackup(selectedBackup.filename);
+          
+          if (response.data.requires_migration) {
+            setBackupActionResult('failure');
+            toast.error('This backup requires migration. Please upgrade the database first.');
+            return;
+          }
+
+          if (response.data.success) {
+            setBackupActionResult('success');
+            toast.success('Backup restored successfully');
+          } else {
+            setBackupActionResult('failure');
+            toast.error(response.data.message);
+          }
+        } else if (backupAction === 'delete') {
+          const { deleteBackup } = await import('../services/api');
+          await deleteBackup(selectedBackup.filename);
+          setBackupActionResult('success');
+          toast.success('Backup deleted successfully');
+        }
+        
+        // Refresh backups after action
+        if (window.refreshBackups) {
+          await window.refreshBackups();
+        }
+        
+        // Auto-dismiss success after 2 seconds
+        setTimeout(() => {
+          resetActionStates();
+        }, 2000);
+        
+      } catch (err) {
+        console.error(`Failed to ${backupAction} backup:`, err);
+        setBackupActionResult('failure');
+        toast.error(err.response?.data?.detail || `Failed to ${backupAction} backup`);
+        
+        // Don't reset after failure - user must manually dismiss
+      } finally {
+        setBackupActionLoading(false);
+        setIsProcessing(false);
+      }
+    };
+
+    const resetActionStates = (keepSelection = false) => {
+      setBackupAction(null);
+      setBackupActionConfirm(false);
+      setBackupActionLoading(false);
+      setBackupActionResult(null);
+      setBackupError(false);
+      
+      if (!keepSelection) {
+        setSelectedBackup(null);
+      }
+    };
+
+    const handleCreateBackup = async () => {
+      if (isCreatingBackup || backupSuccess) return;
+      
+      try {
+        setIsCreatingBackup(true);
+        setIsProcessing(true);
+        setBackupSuccess(false);
+        setBackupError(false);
+        
+        const { createBackup } = await import('../services/api');
+        await createBackup();
+        
+        setBackupSuccess(true);
+        toast.success('Backup created successfully');
+        
+        if (window.refreshBackups) {
+          await window.refreshBackups();
+        }
+        
+        setTimeout(() => {
+          setBackupSuccess(false);
+        }, 2000);
+      } catch (err) {
+        console.error('Failed to create backup:', err);
+        setBackupSuccess(false);
+        setBackupError(true);
+        toast.error(err.response?.data?.detail || 'Failed to create backup');
+      } finally {
+        setIsCreatingBackup(false);
+        setIsProcessing(false);
+      }
+    };
+
+    // Get button styles and text based on current state (copied from MigrationModal)
+    const getBackupButtonStyles = () => {
+      if (isCreatingBackup) {
+        return "bg-blue-500 hover:bg-blue-500";
+      } else if (backupSuccess) {
+        return "bg-green-500 hover:bg-green-500";
+      } else if (backupError) {
+        return "bg-orange-500 hover:bg-orange-600";
+      } else {
+        return "bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700";
+      }
+    };
+    
+    // Get action button styles (copied from MigrationModal)
+    const getActionButtonStyles = (type) => {
+      if (backupActionLoading) {
+        return "bg-gray-500";
+      }
+      
+      if (backupActionResult === 'success') {
+        return "bg-green-500";
+      }
+      
+      if (backupActionResult === 'failure') {
+        return "bg-orange-500";
+      }
+      
+      if (type === 'restore') {
+        return backupActionConfirm && backupAction === 'restore'
+          ? "bg-blue-600 hover:bg-blue-700" 
+          : "bg-blue-500 hover:bg-blue-600";
+      }
+      
+      if (type === 'delete') {
+        return backupActionConfirm && backupAction === 'delete'
+          ? "bg-red-600 hover:bg-red-700"
+          : "bg-red-500 hover:bg-red-600";
+      }
+      
+      return "bg-gray-500";
+    };
+
+    // Get text for the button based on state (copied from MigrationModal)
+    const getActionButtonText = (type) => {
+      if (backupActionLoading && backupAction === type) {
+        return "Processing...";
+      }
+      
+      if (backupActionResult === 'success' && backupAction === type) {
+        return "Success!";
+      }
+      
+      if (backupActionResult === 'failure' && backupAction === type) {
+        return "Failed!";
+      }
+      
+      if (backupActionConfirm && backupAction === type) {
+        return "Confirm?";
+      }
+      
+      return type === 'restore' ? "Restore" : "Delete";
+    };
+    
+    return (
+      <div className="space-y-6">
+        <AdminCard title="Database Management" icon={Database}>
+          <MigrationManager 
+            setProcessingStatus={setIsProcessing}
+            selectedBackup={selectedBackup}
+            setSelectedBackup={setSelectedBackup}
+          />
+          
+          {/* Backup Action Buttons */}
+          <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex gap-3">
+              {selectedBackup ? (
+                <>
+                  {/* Show different layouts depending on action state */}
+                  {backupActionResult ? (
+                    // Success or Failure state - show only the relevant button at full width
+                    <button
+                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 
+                        ${backupActionResult === 'success' ? 'bg-green-500' : 'bg-orange-500'} 
+                        text-white rounded-lg shadow-sm transition-all duration-300`}
+                      onClick={() => backupActionResult === 'success' ? resetActionStates() : resetActionStates(true)}
+                    >
+                      {backupActionResult === 'success' ? (
+                        <>
+                          <Check size={18} />
+                          <span>{backupAction === 'restore' ? 'Restored Successfully!' : 'Deleted Successfully!'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <TriangleAlert size={18} />
+                          <span>Operation Failed - Click to dismiss</span>
+                        </>
+                      )}
+                    </button>
+                  ) : backupActionLoading ? (
+                    // Loading state - show only the loading button at full width
+                    <button
+                      disabled
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 
+                        bg-blue-500 text-white rounded-lg shadow-sm"
+                    >
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      <span>Processing {backupAction}...</span>
+                    </button>
+                  ) : (
+                    // Normal state with both buttons
+                    <>
+                      {/* Restore Button */}
+                      <button
+                        onClick={() => handleActionClick('restore')}
+                        disabled={backupActionLoading}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 
+                          ${getActionButtonStyles('restore')} 
+                          text-white rounded-lg shadow-sm transition-all duration-300`}
+                      >
+                        <RotateCcw size={18} />
+                        <span>{getActionButtonText('restore')}</span>
+                      </button>
+                      
+                      {/* Delete Button */}
+                      <button
+                        onClick={() => handleActionClick('delete')}
+                        disabled={backupActionLoading}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 
+                          ${getActionButtonStyles('delete')} 
+                          text-white rounded-lg shadow-sm transition-all duration-300`}
+                      >
+                        <Trash2 size={18} />
+                        <span>{getActionButtonText('delete')}</span>
+                      </button>
+                    </>
+                  )}
+                </>
+              ) : (
+                <button
+                  onClick={handleCreateBackup}
+                  disabled={isProcessing}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 
+                    ${getBackupButtonStyles()}
+                    text-white rounded-lg shadow-sm
+                    transition-all duration-300
+                    ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {isCreatingBackup ? (
+                    <span className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      Creating Backup...
+                    </span>
+                  ) : backupSuccess ? (
+                    <span className="flex items-center gap-2">
+                      <Check size={18} />
+                      <span className="font-medium">Backup Created!</span>
+                    </span>
+                  ) : backupError ? (
+                    <span className="flex items-center gap-2" onClick={() => setBackupError(false)}>
+                      <TriangleAlert size={18} />
+                      <span className="font-medium">Backup Failed - Try Again</span>
+                    </span>
+                  ) : (
+                    <>
+                      <Archive size={18} />
+                      <span className="font-medium">Create Backup</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        </AdminCard>
+      </div>
+    );
+  };
+
+  const SystemTab = () => {
+    const [isLoadingStatus, setIsLoadingStatus] = useState(false);
+
+    const handleRefreshStatus = async () => {
+      setIsLoadingStatus(true);
+      try {
+        const [statusRes, versionRes] = await Promise.all([
+          getSystemStatus(),
+          getDatabaseVersion()
+        ]);
+        setSystemStatus(statusRes.data || {});
+        setDatabaseVersion(versionRes.data?.current_version || 'unknown');
+        toast.success('System status refreshed');
+      } catch (err) {
+        console.error('Failed to fetch system info:', err);
+        toast.error('Failed to load system information');
+      } finally {
+        setIsLoadingStatus(false);
+      }
+    };
 
     return (
       <div className="space-y-6">
-        {/* Database Tab Content */}
+        <AdminCard title="System Status" icon={Settings}>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h4 className="text-lg font-medium text-gray-900 dark:text-white">System Information</h4>
+              <button 
+                onClick={handleRefreshStatus}
+                className="flex items-center justify-center w-8 h-8 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+                disabled={isLoadingStatus}
+                title="Refresh status"
+              >
+                <RefreshCw className={`w-5 h-5 ${isLoadingStatus ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+
+            {isLoadingStatus ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-2 text-gray-600 dark:text-gray-400">Loading system status...</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.entries(systemStatus)
+                  .filter(([key, value]) => key !== 'debug_mode') // Remove debug mode
+                  .map(([key, value]) => {
+                    // Custom display for specific fields
+                    let displayKey = key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+                    let displayValue = typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value.toString();
+                    
+                    // Custom formatting for specific fields
+                    if (key === 'uptime') {
+                      displayKey = 'Server Uptime';
+                    } else if (key === 'database_size_kb') {
+                      displayKey = 'Database Size';
+                      displayValue = `${value} KB`;
+                    } else if (key === 'last_backup') {
+                      displayKey = 'Last Backup';
+                      displayValue = value ? formatDateEST(value) : 'Never';
+                    }
+                    
+                    return (
+                      <div key={key} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <h5 className="font-medium text-gray-900 dark:text-white mb-2">
+                          {displayKey}
+                        </h5>
+                        <p className="text-gray-600 dark:text-gray-400">
+                          {displayValue}
+                        </p>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+        </AdminCard>
+
+        {/* Emergency Token Management */}
+        <EmergencyTokenManager />
+      </div>
+    );
+  };
+
+  const ItemsTab = () => {
+    const [items, setItems] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [selectedItem, setSelectedItem] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [showPurchaseStatus, setShowPurchaseStatus] = useState(false);
+    const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+    const fetchItems = async () => {
+      setIsLoading(true);
+      try {
+        const response = await getAllItems();
+        setItems(response.data || []);
+      } catch (err) {
+        console.error('Failed to fetch items:', err);
+        toast.error('Failed to load items');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    useEffect(() => {
+      fetchItems();
+    }, []);
+
+    const handleDeleteItem = async (itemId) => {
+      if (!confirm('Are you sure you want to delete this item?')) return;
+      
+      setIsDeleting(true);
+      try {
+        await deleteItemAsAdmin(itemId);
+        setItems(prevItems => prevItems.filter(item => item.id !== itemId));
+        toast.success('Item deleted successfully');
+      } catch (err) {
+        console.error('Failed to delete item:', err);
+        toast.error(err.response?.data?.detail || 'Failed to delete item');
+      } finally {
+        setIsDeleting(false);
+      }
+    };
+
+    const handleClearAllWishlists = async () => {
+      if (!confirm('Are you sure you want to delete ALL wishlists for ALL users? This action cannot be undone.')) return;
+      
+      setIsLoading(true);
+      try {
+        await clearAllWishlists();
+        setItems([]);
+        toast.success('All wishlists cleared successfully');
+        setShowClearConfirm(false);
+      } catch (err) {
+        console.error('Failed to clear all wishlists:', err);
+        toast.error(err.response?.data?.detail || 'Failed to clear all wishlists');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Group items by owner
+    const groupedItems = items.reduce((acc, item) => {
+      const ownerName = item.owner_name || 'Unknown';
+      if (!acc[ownerName]) {
+        acc[ownerName] = [];
+      }
+      acc[ownerName].push(item);
+      return acc;
+    }, {});
+
+    // Get households for a specific user
+    const getUserHouseholds = (ownerId) => {
+      const user = users.find(u => u.id === ownerId);
+      if (!user) return [];
+      
+      return households.filter(household => 
+        household.members?.some(member => member.id === ownerId)
+      );
+    };
+
+    return (
+      <div className="space-y-6">
+        <AdminCard title="All Wishlist Items" icon={Gift}>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h4 className="text-lg font-medium text-gray-900 dark:text-white">Items</h4>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setShowPurchaseStatus(!showPurchaseStatus)}
+                  className="flex items-center justify-center w-8 h-8 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 transition-colors"
+                  title={showPurchaseStatus ? "Hide purchase status" : "Show purchase status"}
+                >
+                  {showPurchaseStatus ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+                <button 
+                  onClick={fetchItems}
+                  className="flex items-center justify-center w-8 h-8 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+                  disabled={isLoading}
+                  title="Refresh items"
+                >
+                  <RefreshCw size={20} className={isLoading ? 'animate-spin' : ''} />
+                </button>
+                <button 
+                  onClick={() => setShowClearConfirm(true)}
+                  className="flex items-center justify-center w-8 h-8 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors"
+                  disabled={isLoading}
+                  title="Clear all wishlists"
+                >
+                  <Trash2 size={20} />
+                </button>
+              </div>
+            </div>
+            
+            {isLoading && !items.length ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-2 text-gray-600 dark:text-gray-400">Loading items...</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {Object.entries(groupedItems).map(([ownerName, ownerItems]) => {
+                  const ownerItem = ownerItems[0];
+                  const ownerHouseholds = getUserHouseholds(ownerItem.owner_id);
+                  
+                  return (
+                    <div key={ownerName} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                      {/* Owner Header */}
+                      <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 border-b border-gray-200 dark:border-gray-600">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h5 className="font-medium text-gray-900 dark:text-white">{ownerName}</h5>
+                            {ownerHouseholds.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {ownerHouseholds.map(household => (
+                                  <span key={household.id} className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 px-2 py-0.5 rounded">
+                                    {household.name}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">
+                            {ownerItems.length} item{ownerItems.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {/* Items List */}
+                      <div className="divide-y divide-gray-200 dark:divide-gray-600">
+                        {ownerItems.map(item => (
+                          <div key={item.id} className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <h6 className="font-medium text-gray-900 dark:text-white truncate">
+                                    {item.title}
+                                  </h6>
+                                  {showPurchaseStatus && (
+                                    <span className={`text-xs px-2 py-0.5 rounded ${
+                                      item.is_purchased 
+                                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                                        : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
+                                    }`}>
+                                      {item.is_purchased ? 'Purchased' : 'Available'}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
+                                  {item.description || 'No description'}
+                                </p>
+                                <div className="flex items-center gap-4 mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                  <span>Priority: {item.priority}</span>
+                                  {item.price && (
+                                    <span>Price: ${(item.price / 100).toFixed(2)}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <button 
+                                onClick={() => handleDeleteItem(item.id)}
+                                className="ml-3 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                                disabled={isDeleting}
+                                title="Delete item"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+                
+                {!items.length && !isLoading && (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    No items available
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </AdminCard>
+
+        {/* Clear All Confirmation Modal */}
+        {showClearConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+              <div className="flex items-center gap-3 text-red-500 mb-4">
+                <AlertOctagon className="w-6 h-6" />
+                <h3 className="text-xl font-bold">Clear All Wishlists</h3>
+              </div>
+              <p className="text-gray-600 dark:text-gray-300 mb-6">
+                Are you sure you want to delete ALL wishlists for ALL users? This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowClearConfirm(false)}
+                  className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleClearAllWishlists}
+                  className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                  disabled={isLoading}
+                >
+                  {isLoading ? 'Clearing...' : 'Clear All'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
