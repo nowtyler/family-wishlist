@@ -381,7 +381,14 @@ class WishlistItemCreate(BaseModel):
         # Use price_in_cents if provided, otherwise use the converted price
         if values.price_in_cents is not None:
             values.price = values.price_in_cents
+        # Remove price_in_cents as it's not needed in the final model
+        values.price_in_cents = None
         return values
+
+    def model_dump(self, *args, **kwargs):
+        # Exclude price_in_cents from the output
+        kwargs.setdefault("exclude", set()).add("price_in_cents")
+        return super().model_dump(*args, **kwargs)
 
     class Config:
         json_schema_extra = {
