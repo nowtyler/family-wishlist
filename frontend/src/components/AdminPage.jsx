@@ -976,26 +976,19 @@ const AdminPage = () => {
                       value={testEmail}
                       onChange={(e) => setTestEmail(e.target.value)}
                       placeholder="Enter email address to test"
-                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       disabled={isTestingEmail}
                     />
                     <button 
                       onClick={handleTestEmail}
-                      className="flex items-center justify-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors whitespace-nowrap"
+                      className="flex items-center justify-center w-10 h-10 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
                       disabled={isTestingEmail || !testEmail}
+                      title="Send test email"
                     >
                       {isTestingEmail ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                          <span className="sm:hidden">Testing...</span>
-                          <span className="hidden sm:inline">Testing Email...</span>
-                        </>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
                       ) : (
-                        <>
-                          <TestTube className="w-4 h-4 mr-2" />
-                          <span className="sm:hidden">Test</span>
-                          <span className="hidden sm:inline">Test Email</span>
-                        </>
+                        <Send className="w-4 h-4" />
                       )}
                     </button>
                   </div>
@@ -1011,11 +1004,11 @@ const AdminPage = () => {
               <h4 className="text-lg font-medium text-gray-900 dark:text-white">Templates</h4>
               <button 
                 onClick={handleAddTemplate}
-                className="flex items-center px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
                 disabled={isSaving}
+                title="Add template"
               >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Template
+                <Plus className="w-6 h-6" />
               </button>
             </div>
             
@@ -1068,7 +1061,7 @@ const AdminPage = () => {
                     type="text"
                     value={templateForm.name}
                     onChange={(e) => setTemplateForm({ ...templateForm, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                     disabled={isSaving}
                   />
                 </div>
@@ -1080,7 +1073,7 @@ const AdminPage = () => {
                     type="text"
                     value={templateForm.subject}
                     onChange={(e) => setTemplateForm({ ...templateForm, subject: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                     disabled={isSaving}
                   />
                 </div>
@@ -1091,7 +1084,7 @@ const AdminPage = () => {
                   <textarea
                     value={templateForm.body}
                     onChange={(e) => setTemplateForm({ ...templateForm, body: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md font-mono"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono focus:ring-2 focus:ring-blue-500"
                     rows={15}
                     disabled={isSaving}
                   />

@@ -2395,8 +2395,8 @@ def get_email_settings(
                 smtp_password="",
                 from_email="your-email@gmail.com",
                 from_name="Family Wishlist",
-                use_tls=True,
-                use_ssl=False,
+                use_tls=False,  # Port 465 uses SSL, not TLS
+                use_ssl=True,   # Enable SSL for port 465
                 is_active=True,
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow()
@@ -2572,20 +2572,42 @@ def test_email_settings(
     current_user_id: int = Depends(get_current_user_id_from_header)
 ):
     """Test email settings by sending a test email."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
     try:
-        # Verify admin
-        member = crud.get_family_member(db, current_user_id)
-        if not member or not member.is_admin:
-            raise HTTPException(status_code=403, detail="Admin access required")
-
         # Get email service
         email_service = EmailService(db)
-
+        
+        # Check if settings exist and are configured
+        if not email_service.settings:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email settings not configured. Please configure email settings first."
+            )
+        
         # Send test email
         log = email_service.test_email_settings(test_request.recipient_email)
+        if not log or log.status == "failed":
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=log.error_message if log else "Failed to send test email"
+            )
+        
         return log
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Failed to send test email: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to send test email: {str(e)}"
+        )
 
 @app.get("/api/admin/system/status")
 def get_system_status(

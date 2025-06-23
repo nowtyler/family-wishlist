@@ -82,13 +82,26 @@ class EmailService:
             # Add body
             msg.attach(MIMEText(body, 'html'))
             
-            # Create SMTP session
-            if self.settings.use_ssl:
-                server = smtplib.SMTP_SSL(self.settings.smtp_server, self.settings.smtp_port)
+            # Create SMTP session with timeout
+            context = ssl.create_default_context()
+            
+            # For port 465, use SMTP_SSL
+            if self.settings.smtp_port == 465:
+                server = smtplib.SMTP_SSL(
+                    self.settings.smtp_server, 
+                    self.settings.smtp_port,
+                    context=context,
+                    timeout=30  # 30 second timeout
+                )
             else:
-                server = smtplib.SMTP(self.settings.smtp_server, self.settings.smtp_port)
+                # For other ports (587, 25, etc)
+                server = smtplib.SMTP(
+                    self.settings.smtp_server, 
+                    self.settings.smtp_port,
+                    timeout=30  # 30 second timeout
+                )
                 if self.settings.use_tls:
-                    server.starttls()
+                    server.starttls(context=context)
             
             # Login
             server.login(self.settings.smtp_username, self.settings.smtp_password)
