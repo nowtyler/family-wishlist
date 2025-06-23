@@ -1,5 +1,5 @@
 # backend/app/schemas.py
-from pydantic import BaseModel, Field, HttpUrl, validator, EmailStr, root_validator
+from pydantic import BaseModel, Field, HttpUrl, validator, EmailStr, model_validator
 from typing import List, Optional, Union, Dict, Any
 from datetime import date, datetime
 from enum import Enum
@@ -376,11 +376,11 @@ class WishlistItemCreate(BaseModel):
             return v
         return None
 
-    @root_validator
+    @model_validator(mode='after')
     def set_final_price(cls, values):
         # Use price_in_cents if provided, otherwise use the converted price
-        if values.get('price_in_cents') is not None:
-            values['price'] = values['price_in_cents']
+        if values.price_in_cents is not None:
+            values.price = values.price_in_cents
         return values
 
     class Config:
