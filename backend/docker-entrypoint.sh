@@ -25,13 +25,6 @@ setup_permissions() {
     chown -R ${PUID}:${PGID} /app/app/migrations/versions
   fi
 
-  # Create necessary security directories/files with root ownership
-  if [ ! -f "/app/data/emergency_key.key" ]; then
-    mkdir -p "$(dirname /app/data/emergency_key.key)"
-    touch /app/data/emergency_key.key
-    chmod 600 /app/data/emergency_key.key
-  fi
-
   # Make sensitive files root-owned for security
   # Database files
   find /app/data -name "*.db" -exec chown root:root {} \; -exec chmod 644 {} \; 2>/dev/null || true
