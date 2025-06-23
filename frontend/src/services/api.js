@@ -661,8 +661,8 @@ export const createEmailTemplate = (templateData) => {
   return apiClient.post('/admin/email/templates', templateData);
 };
 
-export const testEmailSettings = () => {
-  return apiClient.post('/admin/email/test');
+export const testEmailSettings = (data) => {
+  return apiClient.post('/admin/email/test', data);
 };
 
 // --- Admin System Management ---

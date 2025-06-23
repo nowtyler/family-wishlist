@@ -2466,7 +2466,14 @@ def get_email_templates(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
     
     try:
+        # First check if we have any templates
         templates = db.query(models.EmailTemplate).all()
+        if not templates:
+            # Create default templates if none exist
+            from .services.email_service import create_default_templates
+            create_default_templates(db)
+            templates = db.query(models.EmailTemplate).all()
+        
         return [schemas.EmailTemplate.from_orm(t) for t in templates]
     except Exception as e:
         logger.error(f"Failed to get email templates: {e}")

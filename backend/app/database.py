@@ -53,36 +53,17 @@ def create_db_and_tables():
 
     # If this is a fresh install, set up system settings
     if is_fresh_install:
+        # Create a session to use for initialization
+        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
         db = SessionLocal()
         try:
-            # Check if we need to insert initial system_settings record
-            result = db.execute(text("SELECT COUNT(*) FROM system_settings")).scalar()
-            if result == 0:
-                # Get current schema hash
-                from .services.migration_service import MigrationService
-                migration_service = MigrationService(SQLALCHEMY_DATABASE_URL)
-                initial_hash = migration_service.get_schema_hash()
-                
-                db.execute(text("""
-                    INSERT INTO system_settings 
-                    (version, schema_hash, last_updated) 
-                    VALUES 
-                    (:version, :hash, CURRENT_DATE)
-                """), {"version": "1.0.0", "hash": initial_hash})
-                
-                db.commit()
-                logger.info(f"Initialized system settings with hash: {initial_hash[:8]}...")
-            
-                # Initialize alembic_version table for fresh install
-                db.execute(text("DROP TABLE IF EXISTS alembic_version"))
-                db.execute(text(
-                    "CREATE TABLE alembic_version (version_num VARCHAR(32))"
-                ))
-                db.execute(text("INSERT INTO alembic_version (version_num) VALUES ('base')"))
-                db.commit()
-                logger.info("Initialized alembic_version table")
+            # Create default email templates
+            from .services.email_service import create_default_templates
+            create_default_templates(db)
+            logger.info("Created default email templates")
+            db.commit()
         except Exception as e:
-            logger.error(f"Error initializing system settings: {e}")
+            logger.error(f"Error creating default templates: {e}")
             db.rollback()
         finally:
             db.close()
