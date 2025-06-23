@@ -802,45 +802,43 @@ def import_wishlist(
     imported_items = []
     skipped_items = []
     for item_data in wishlist_data.items:
-        try:
-            # Check for exact duplicate
-            is_duplicate = any(
-                existing_item.title == item_data.title and
-                existing_item.description == item_data.description and
-                str(existing_item.link) == (str(item_data.link) if item_data.link else None) and
-                str(existing_item.image_url) == (str(item_data.image_url) if item_data.image_url else None) and
-                existing_item.priority == item_data.priority and
-                existing_item.price == item_data.price
-                for existing_item in existing_items
-            )
+        # Convert to dict and create a new item
+        item_dict = item_data.dict()
+        if 'price_in_cents' in item_dict:
+            del item_dict['price_in_cents']  # Remove price_in_cents before creating WishlistItem
             
-            if is_duplicate:
-                skipped_items.append(item_data.title)
-                continue
-                
-            # Create item if not a duplicate
-            # Note: price is already in cents from the export file, so we use WishlistItemCreate's fields directly
-            item_create = schemas.WishlistItemCreate(
-                title=item_data.title,
-                description=item_data.description,
-                link=item_data.link,
-                image_url=item_data.image_url,
-                priority=item_data.priority,
-                price_in_cents=item_data.price  # Use a new field that bypasses the dollars-to-cents conversion
-            )
-            db_item = crud.create_wishlist_item(db=db, item=item_create, owner_id=owner_id)
-            
-            # Get the created item in the standard response format
-            items = crud.get_wishlist_items_by_owner(db, owner_id=owner_id, current_user_id=current_user_id)
-            created_item = next((i for i in items if i.id == db_item.id), None)
-            if created_item:
-                imported_items.append(created_item)
-                
-        except Exception as e:
-            logger.error(f"Failed to import item: {str(e)}")
-            # Continue with next item if one fails
+        is_duplicate = any(
+            existing_item.title == item_data.title and
+            existing_item.description == item_data.description and
+            existing_item.link == item_data.link and
+            existing_item.image_url == item_data.image_url and
+            existing_item.priority == item_data.priority and
+            existing_item.price == item_data.price
+            for existing_item in existing_items
+        )
+        
+        if is_duplicate:
+            skipped_items.append(item_data.title)
             continue
-    
+            
+        # Create item if not a duplicate
+        # Note: price is already in cents from the export file, so we use WishlistItemCreate's fields directly
+        item_create = schemas.WishlistItemCreate(
+            title=item_data.title,
+            description=item_data.description,
+            link=item_data.link,
+            image_url=item_data.image_url,
+            priority=item_data.priority,
+            price_in_cents=item_data.price  # Use a new field that bypasses the dollars-to-cents conversion
+        )
+        db_item = crud.create_wishlist_item(db=db, item=item_create, owner_id=owner_id)
+        
+        # Get the created item in the standard response format
+        items = crud.get_wishlist_items_by_owner(db, owner_id=owner_id, current_user_id=current_user_id)
+        created_item = next((i for i in items if i.id == db_item.id), None)
+        if created_item:
+            imported_items.append(created_item)
+            
     if not imported_items and not skipped_items:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
