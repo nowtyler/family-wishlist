@@ -334,6 +334,12 @@ class WishlistItemCreate(BaseModel):
         le=1000000,
         description="Price of the item in dollars (will be converted to cents)"
     )
+    price_in_cents: Optional[int] = Field(
+        None,
+        ge=0,
+        le=100000000,
+        description="Price of the item in cents (bypasses dollar-to-cents conversion)"
+    )
 
     @validator('title')
     def validate_title(cls, v):
@@ -350,13 +356,32 @@ class WishlistItemCreate(BaseModel):
         return v.strip() if v else None
 
     @validator('price')
-    def validate_price(cls, v):
+    def validate_price(cls, v, values):
         if v is not None:
+            if 'price_in_cents' in values and values['price_in_cents'] is not None:
+                raise ValueError('Cannot specify both price and price_in_cents')
             if v < 0:
                 raise ValueError('Price cannot be negative')
             # Convert dollars to cents and ensure it's an integer
             return int(round(v * 100))
         return None
+
+    @validator('price_in_cents')
+    def validate_price_in_cents(cls, v, values):
+        if v is not None:
+            if 'price' in values and values['price'] is not None:
+                raise ValueError('Cannot specify both price and price_in_cents')
+            if v < 0:
+                raise ValueError('Price cannot be negative')
+            return v
+        return None
+
+    @root_validator
+    def set_final_price(cls, values):
+        # Use price_in_cents if provided, otherwise use the converted price
+        if values.get('price_in_cents') is not None:
+            values['price'] = values['price_in_cents']
+        return values
 
     class Config:
         json_schema_extra = {

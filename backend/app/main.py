@@ -752,7 +752,7 @@ def export_wishlist(
     # Get all items for the owner
     items = crud.get_wishlist_items_by_owner(db, owner_id=owner_id, current_user_id=current_user_id)
     
-    # Create export data - convert price from cents to dollars for export
+    # Create export data
     export_data = {
         "items": [
             {
@@ -761,7 +761,7 @@ def export_wishlist(
                 "link": str(item.link) if item.link else None,
                 "image_url": str(item.image_url) if item.image_url else None,
                 "priority": item.priority,
-                "price": float(item.price) / 100 if item.price is not None else None
+                "price": item.price
             }
             for item in items
         ],
@@ -803,17 +803,14 @@ def import_wishlist(
     skipped_items = []
     for item_data in wishlist_data.items:
         try:
-            # Convert price to cents for comparison and storage
-            import_price_cents = int(float(item_data.price) * 100) if item_data.price is not None else None
-            
-            # Check for exact duplicate - compare with price in cents
+            # Check for exact duplicate
             is_duplicate = any(
                 existing_item.title == item_data.title and
                 existing_item.description == item_data.description and
                 str(existing_item.link) == (str(item_data.link) if item_data.link else None) and
                 str(existing_item.image_url) == (str(item_data.image_url) if item_data.image_url else None) and
                 existing_item.priority == item_data.priority and
-                existing_item.price == import_price_cents
+                existing_item.price == item_data.price
                 for existing_item in existing_items
             )
             
@@ -821,14 +818,15 @@ def import_wishlist(
                 skipped_items.append(item_data.title)
                 continue
                 
-            # Create item if not a duplicate - price is already in cents
+            # Create item if not a duplicate
+            # Note: price is already in cents from the export file, so we use WishlistItemCreate's fields directly
             item_create = schemas.WishlistItemCreate(
                 title=item_data.title,
                 description=item_data.description,
                 link=item_data.link,
                 image_url=item_data.image_url,
                 priority=item_data.priority,
-                price=import_price_cents
+                price_in_cents=item_data.price  # Use a new field that bypasses the dollars-to-cents conversion
             )
             db_item = crud.create_wishlist_item(db=db, item=item_create, owner_id=owner_id)
             
