@@ -1,5 +1,5 @@
 # backend/app/schemas.py
-from pydantic import BaseModel, Field, HttpUrl, validator, EmailStr
+from pydantic import BaseModel, Field, HttpUrl, validator, EmailStr, root_validator
 from typing import List, Optional, Union, Dict, Any
 from datetime import date, datetime
 from enum import Enum
