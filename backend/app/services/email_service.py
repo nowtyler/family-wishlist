@@ -65,11 +65,38 @@ class EmailService:
             self.db.rollback()
             return None
     
+    def _validate_gmail_settings(self):
+        """Validate Gmail-specific settings"""
+        if not self.settings:
+            return False
+            
+        if 'gmail.com' in self.settings.smtp_server.lower():
+            # Validate Gmail requirements
+            if self.settings.smtp_port not in [465, 587]:
+                logger.error("Gmail requires port 465 (SSL) or 587 (TLS)")
+                return False
+                
+            # Ensure username is a full email address
+            if '@' not in self.settings.smtp_username:
+                logger.error("Gmail requires the full email address as username")
+                return False
+                
+            # Validate TLS settings
+            if self.settings.smtp_port == 587 and not self.settings.use_tls:
+                logger.error("Gmail port 587 requires TLS to be enabled")
+                return False
+                
+        return True
+    
     def _send_email(self, to_email: str, subject: str, body: str, 
                    recipient_name: str = None) -> bool:
         """Send email using SMTP"""
         if not self.settings:
             logger.error("No active email settings found")
+            return False
+            
+        # Add Gmail validation
+        if not self._validate_gmail_settings():
             return False
         
         try:
@@ -136,7 +163,7 @@ class EmailService:
             except smtplib.SMTPAuthenticationError as auth_error:
                 logger.error(f"SMTP Authentication failed: {auth_error}")
                 if "Application-specific password required" in str(auth_error):
-                    logger.error("Gmail requires an App Password for this connection. Please generate one from your Google Account settings.")
+                    logger.error("Gmail requires an App Password. Please generate one from Google Account settings -> Security -> 2-Step Verification -> App passwords")
                 return False
                 
             except smtplib.SMTPConnectError as conn_error:

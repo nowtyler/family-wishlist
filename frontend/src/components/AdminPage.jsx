@@ -885,16 +885,41 @@ const AdminPage = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      SMTP Port
+                      Connection Settings
                     </label>
-                    <input
-                      type="number"
-                      value={emailSettings.smtp_port}
-                      onChange={(e) => setEmailSettings({ ...emailSettings, smtp_port: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                      placeholder="465"
-                      disabled={isSaving}
-                    />
+                    <div className="flex gap-3 items-start">
+                      <div className="w-1/3">
+                        <input
+                          type="number"
+                          value={emailSettings.smtp_port}
+                          onChange={(e) => setEmailSettings({ ...emailSettings, smtp_port: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                          placeholder="465"
+                          disabled={isSaving}
+                        />
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">SMTP Port</p>
+                      </div>
+                      <div className="w-2/3">
+                        <select
+                          value={emailSettings.smtp_port === 465 ? 'ssl' : 'tls'}
+                          onChange={(e) => {
+                            const useSSL = e.target.value === 'ssl';
+                            setEmailSettings({
+                              ...emailSettings,
+                              smtp_port: useSSL ? 465 : 587,
+                              use_ssl: useSSL,
+                              use_tls: !useSSL
+                            });
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                          disabled={isSaving}
+                        >
+                          <option value="ssl">SSL (Port 465)</option>
+                          <option value="tls">TLS (Port 587)</option>
+                        </select>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Encryption Type</p>
+                      </div>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
