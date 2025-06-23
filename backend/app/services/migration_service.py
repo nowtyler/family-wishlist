@@ -136,10 +136,61 @@ class MigrationService:
                     except Exception:
                         logger.debug("Could not get hash from system_settings table")
                 
-                # If we still don't have a stored hash, consider it a change
-                if not stored_hash:
-                    logger.debug(f"No stored schema hash found - Current: {current_hash}")
-                    return True
+                # If we still don't have a stored hash or it's explicitly "null", this is likely first-time setup
+                # Initialize the hash to match current schema to avoid unnecessary migrations
+                if not stored_hash or stored_hash == "null":
+                    logger.info(f"No stored schema hash found or hash is 'null' - Initializing with current hash: {current_hash[:8]}...")
+                    
+                    # Initialize system_settings table if needed
+                    try:
+                        # Check if system_settings table exists
+                        result = conn.execute(text(
+                            "SELECT name FROM sqlite_master WHERE type='table' AND name='system_settings'"
+                        ))
+                        
+                        if not result.fetchone():
+                            # Create system_settings table if it doesn't exist
+                            conn.execute(text("""
+                                CREATE TABLE system_settings (
+                                    id INTEGER PRIMARY KEY,
+                                    version TEXT,
+                                    schema_hash TEXT,
+                                    last_updated DATE,
+                                    is_foundation BOOLEAN DEFAULT 0,
+                                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                                )
+                            """))
+                            # Insert initial row
+                            conn.execute(text("""
+                                INSERT INTO system_settings (id, version, schema_hash, last_updated, is_foundation)
+                                VALUES (1, 'initial', :hash, CURRENT_DATE, 1)
+                            """), {"hash": current_hash})
+                        else:
+                            # Update existing row
+                            conn.execute(text("UPDATE system_settings SET schema_hash = :hash WHERE id = 1"), {"hash": current_hash})
+                    
+                        # Also create and initialize schema_version table 
+                        conn.execute(text(
+                            "CREATE TABLE IF NOT EXISTS schema_version (hash TEXT, updated_at TIMESTAMP)"
+                        ))
+                        conn.execute(text(
+                            "INSERT INTO schema_version (hash, updated_at) VALUES (:hash, :updated_at)"
+                        ), {"hash": current_hash, "updated_at": get_est_timestamp()})
+                        
+                        # Since we've now initialized the hash, we can return False (no changes)
+                        return False
+                    
+                    except Exception as e:
+                        logger.error(f"Failed to initialize schema hash: {e}")
+                        # If we couldn't initialize, report changes needed
+                        return True
+                
+                # If the stored hash is literally the string "null", initialize it
+                # This can happen during first-time setup or after certain database operations
+                if stored_hash == "null":
+                    logger.info(f"Found 'null' as schema hash - Initializing with current hash: {current_hash[:8]}...")
+                    self.reset_schema_hash()
+                    return False
                 
                 # Compare hashes
                 if stored_hash == current_hash:
@@ -368,10 +419,38 @@ class MigrationService:
     def upgrade(self, target: str = "head") -> str:
         """Upgrades database to target version with SQLite compatibility"""
         try:
-            # Create backup before upgrading
-            backup_path = self.backup_service.create_backup()
-            logger.info(f"Created backup at {backup_path}")
+            # Get current version before starting
+            current_version = self.get_current_version()
+            logger.info(f"Starting database upgrade from {current_version} to {target}")
             
+            # Check if this is a first-time setup by looking for schema hash
+            try:
+                engine = create_engine(self.db_url)
+                stored_hash = None
+                
+                with engine.connect() as conn:
+                    # Check if the hash is null in system_settings
+                    try:
+                        result = conn.execute(text("SELECT schema_hash FROM system_settings WHERE id = 1"))
+                        row = result.fetchone()
+                        if row and (not row[0] or row[0] == "null"):
+                            # Initialize with current hash
+                            current_hash = self.get_schema_hash()
+                            conn.execute(text("UPDATE system_settings SET schema_hash = :hash WHERE id = 1"), {"hash": current_hash})
+                            logger.info(f"Initialized null schema_hash in system_settings with: {current_hash[:8]}...")
+                    except Exception:
+                        logger.debug("Could not check system_settings table for null hash")
+            except Exception as e:
+                logger.debug(f"Error during first-time hash check: {e}")
+            
+            # Create backup before migration
+            try:
+                backup_path = self.backup_service.create_backup(suffix="pre-migration")
+                logger.info(f"Created pre-migration backup: {backup_path}")
+            except Exception as e:
+                logger.warning(f"Failed to create backup before migration: {e}")
+                backup_path = "failed_backup"
+
             current_version = self.get_current_version()
             logger.info(f"Current version before upgrade: {current_version}")
             
@@ -390,7 +469,7 @@ class MigrationService:
                         logger.warning("Merge didn't resolve multiple heads, trying direct database fix")
                         with self.engine.begin() as connection:
                             # Get the latest revision
-                            latest_rev = new_current.split(',')[0]  # Just take the first one
+                            latest_rev = new_current.split(',')[0] # Just take the first one
                             # Update the alembic_version table to use only this revision
                             connection.execute(text("DELETE FROM alembic_version"))
                             connection.execute(
@@ -696,4 +775,87 @@ class MigrationService:
                 
         except Exception as e:
             logger.error(f"Error resetting schema hash: {e}")
+            return False
+
+    def initialize_system_settings_if_needed(self) -> bool:
+        """
+        Check if system_settings table exists, and create it if needed.
+        Initialize the schema_hash in the system_settings table if it doesn't exist
+        or if its value is null.
+        
+        Returns True if initialization occurred, False otherwise.
+        """
+        try:
+            # Get the current hash
+            current_hash = self.get_schema_hash()
+            
+            # Connect to database
+            engine = create_engine(self.db_url)
+            conn = engine.connect()
+            transaction = conn.begin()
+            
+            try:
+                # Check if system_settings table exists
+                result = conn.execute(text(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='system_settings'"
+                ))
+                
+                if not result.fetchone():
+                    # Create system_settings table
+                    logger.info("Creating system_settings table for first-time setup")
+                    conn.execute(text("""
+                        CREATE TABLE system_settings (
+                            id INTEGER PRIMARY KEY,
+                            version TEXT,
+                            schema_hash TEXT,
+                            last_updated DATE,
+                            is_foundation BOOLEAN DEFAULT 0,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """))
+                    # Insert initial row with current schema hash
+                    conn.execute(text("""
+                        INSERT INTO system_settings (id, version, schema_hash, last_updated, is_foundation)
+                        VALUES (1, 'initial', :hash, CURRENT_DATE, 1)
+                    """), {"hash": current_hash})
+                    
+                    logger.info(f"Initialized system_settings with schema hash: {current_hash[:8]}...")
+                    transaction.commit()
+                    return True
+                else:
+                    # Check if schema_hash is null or missing
+                    try:
+                        result = conn.execute(text("SELECT schema_hash FROM system_settings WHERE id = 1"))
+                        row = result.fetchone()
+                        
+                        if not row:
+                            # No row exists, insert one
+                            conn.execute(text("""
+                                INSERT INTO system_settings (id, version, schema_hash, last_updated)
+                                VALUES (1, 'initial', :hash, CURRENT_DATE)
+                            """), {"hash": current_hash})
+                            logger.info(f"Added missing system_settings row with hash: {current_hash[:8]}...")
+                            transaction.commit()
+                            return True
+                        elif not row[0] or row[0] == "null":
+                            # Hash is null, update it
+                            conn.execute(text("UPDATE system_settings SET schema_hash = :hash WHERE id = 1"), {"hash": current_hash})
+                            logger.info(f"Updated null schema_hash to: {current_hash[:8]}...")
+                            transaction.commit()
+                            return True
+                    except Exception as e:
+                        logger.error(f"Error checking schema_hash: {e}")
+                
+                # No initialization needed
+                transaction.rollback()
+                return False
+            except Exception as e:
+                transaction.rollback()
+                logger.error(f"Failed to initialize system_settings: {e}")
+                return False
+            finally:
+                conn.close()
+                
+        except Exception as e:
+            logger.error(f"Error in initialize_system_settings_if_needed: {e}")
             return False
