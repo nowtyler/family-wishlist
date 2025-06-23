@@ -18,7 +18,7 @@ const apiClient = axios.create({
     timeout: 60000, // Increased from 10000 to 60000 (1 minute)
     withCredentials: true, // Important for CORS
     validateStatus: (status) => {
-        return status >= 200 && status < 500;
+        return status >= 200 && status < 400; // Only treat 2xx and 3xx as success
     },
 });
 
@@ -680,6 +680,15 @@ export const checkSetupStatus = async () => {
     return response.data;
   } catch (error) {
     console.error('Failed to check setup status:', error);
+    if (error.response?.status === 429) {
+      // For rate limit errors, return a special response
+      return {
+        is_setup_complete: true, // Assume setup is complete when rate limited
+        rate_limited: true,
+        retry_after: parseInt(error.response.headers['retry-after']) || 30,
+        error_message: error.response.data.detail || 'Too many requests. Please try again later.'
+      };
+    }
     throw error;
   }
 };

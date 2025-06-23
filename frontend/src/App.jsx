@@ -43,7 +43,8 @@ const AdminRoute = ({ children }) => {
 const AppContent = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [setupStatus, setSetupStatus] = useState(null);
-  const [isRateLimited, setIsRateLimited] = useState(false);
+  const [rateLimitInfo, setRateLimitInfo] = useState(null);
+  const [countdown, setCountdown] = useState(0);
   const location = useLocation();
   
   useEffect(() => {
@@ -51,16 +52,18 @@ const AppContent = () => {
       try {
         const status = await checkSetupStatus();
         setSetupStatus(status);
-        setIsRateLimited(false);
+        if (status.rate_limited) {
+          setRateLimitInfo({
+            retryAfter: status.retry_after,
+            message: status.error_message
+          });
+          setCountdown(status.retry_after);
+        } else {
+          setRateLimitInfo(null);
+          setCountdown(0);
+        }
       } catch (error) {
         console.error('Failed to check setup status:', error);
-        // If rate limited, don't show setup screen
-        if (error.response?.status === 429) {
-          setIsRateLimited(true);
-          // Keep the last known setup status
-          return;
-        }
-        // For other errors, clear setup status
         setSetupStatus(null);
       } finally {
         setIsLoading(false);
@@ -69,6 +72,19 @@ const AppContent = () => {
     
     checkStatus();
   }, []);
+
+  // Handle countdown timer
+  useEffect(() => {
+    let timer;
+    if (countdown > 0) {
+      timer = setInterval(() => {
+        setCountdown(prev => Math.max(0, prev - 1));
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [countdown]);
   
   if (isLoading) {
     return (
@@ -78,21 +94,39 @@ const AppContent = () => {
     );
   }
 
-  // Show rate limit message instead of redirecting
-  if (isRateLimited) {
+  // Show rate limit message if we're rate limited
+  if (rateLimitInfo) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center p-8 max-w-md">
           <h2 className="text-2xl font-semibold text-red-600 mb-4">Rate Limit Reached</h2>
           <p className="text-gray-600 mb-4">
-            You've made too many requests. Please wait a moment before trying again.
+            {rateLimitInfo.message}
           </p>
+          <div className="mb-6">
+            <div className="text-sm text-gray-500">
+              Time remaining:
+            </div>
+            <div className="text-2xl font-mono text-gray-700">
+              {countdown} seconds
+            </div>
+          </div>
           <button
             onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+            disabled={countdown > 0}
+            className={`px-4 py-2 rounded transition-colors ${
+              countdown > 0
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-blue-500 hover:bg-blue-600 text-white'
+            }`}
           >
-            Try Again
+            {countdown > 0 ? 'Please wait...' : 'Try Again'}
           </button>
+          {countdown > 0 && (
+            <p className="text-xs text-gray-500 mt-2">
+              The button will be enabled when the countdown reaches zero
+            </p>
+          )}
         </div>
       </div>
     );
