@@ -73,6 +73,10 @@ class EmailService:
             return False
         
         try:
+            # Log connection attempt
+            logger.info(f"Attempting to connect to SMTP server: {self.settings.smtp_server}:{self.settings.smtp_port}")
+            logger.info(f"Using SSL: {self.settings.smtp_port == 465}, Using TLS: {self.settings.use_tls}")
+            
             # Create message
             msg = MIMEMultipart()
             msg['From'] = f"{self.settings.from_name} <{self.settings.from_email}>"
@@ -85,36 +89,78 @@ class EmailService:
             # Create SMTP session with timeout
             context = ssl.create_default_context()
             
-            # For port 465, use SMTP_SSL
-            if self.settings.smtp_port == 465:
-                server = smtplib.SMTP_SSL(
-                    self.settings.smtp_server, 
-                    self.settings.smtp_port,
-                    context=context,
-                    timeout=30  # 30 second timeout
-                )
-            else:
-                # For other ports (587, 25, etc)
-                server = smtplib.SMTP(
-                    self.settings.smtp_server, 
-                    self.settings.smtp_port,
-                    timeout=30  # 30 second timeout
-                )
-                if self.settings.use_tls:
-                    server.starttls(context=context)
-            
-            # Login
-            server.login(self.settings.smtp_username, self.settings.smtp_password)
-            
-            # Send email
-            server.send_message(msg)
-            server.quit()
-            
-            logger.info(f"Email sent successfully to {to_email}")
-            return True
+            try:
+                # For Gmail's port 465, use SMTP_SSL
+                if self.settings.smtp_port == 465:
+                    logger.info("Using SMTP_SSL for port 465")
+                    server = smtplib.SMTP_SSL(
+                        self.settings.smtp_server, 
+                        self.settings.smtp_port,
+                        context=context,
+                        timeout=30  # 30 second timeout
+                    )
+                else:
+                    # For Gmail's port 587
+                    logger.info("Using standard SMTP with STARTTLS")
+                    server = smtplib.SMTP(
+                        self.settings.smtp_server, 
+                        self.settings.smtp_port,
+                        timeout=30  # 30 second timeout
+                    )
+                    if self.settings.use_tls:
+                        logger.info("Starting TLS")
+                        server.starttls(context=context)
+                
+                logger.info("SMTP connection established successfully")
+                
+                # Gmail requires the username to be the full email address
+                username = self.settings.smtp_username
+                if '@' not in username and 'gmail.com' in self.settings.smtp_server:
+                    username = f"{username}@gmail.com"
+                    logger.info("Adjusted username for Gmail authentication")
+                
+                # Attempt login
+                logger.info(f"Attempting login with username: {username}")
+                server.login(username, self.settings.smtp_password)
+                logger.info("Login successful")
+                
+                # Send email
+                logger.info(f"Attempting to send email to: {to_email}")
+                server.send_message(msg)
+                logger.info("Email sent successfully")
+                
+                # Cleanup
+                server.quit()
+                return True
+                
+            except smtplib.SMTPAuthenticationError as auth_error:
+                logger.error(f"SMTP Authentication failed: {auth_error}")
+                if "Application-specific password required" in str(auth_error):
+                    logger.error("Gmail requires an App Password for this connection. Please generate one from your Google Account settings.")
+                return False
+                
+            except smtplib.SMTPConnectError as conn_error:
+                logger.error(f"Failed to connect to SMTP server: {conn_error}")
+                return False
+                
+            except smtplib.SMTPServerDisconnected as disc_error:
+                logger.error(f"Server disconnected unexpectedly: {disc_error}")
+                return False
+                
+            except smtplib.SMTPException as smtp_error:
+                logger.error(f"SMTP error occurred: {smtp_error}")
+                return False
+                
+            except ssl.SSLError as ssl_error:
+                logger.error(f"SSL/TLS error occurred: {ssl_error}")
+                return False
+                
+            except TimeoutError as timeout_error:
+                logger.error(f"Connection timed out: {timeout_error}")
+                return False
             
         except Exception as e:
-            logger.error(f"Failed to send email to {to_email}: {e}")
+            logger.error(f"Unexpected error while sending email: {str(e)}")
             return False
     
     def send_template_email(self, template_name: str, recipient_email: str, 
