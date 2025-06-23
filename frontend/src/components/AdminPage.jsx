@@ -90,7 +90,7 @@ const AdminPage = () => {
     backup_retention_days: 30
   });
 
-  // Check if user is admin
+  // Check if user is admin or not
   useEffect(() => {
     if (!selectedUser || !selectedUser.is_admin) {
       navigate('/');
