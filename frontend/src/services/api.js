@@ -665,6 +665,10 @@ export const testEmailSettings = (data) => {
   return apiClient.post('/admin/email/test', data);
 };
 
+export const deleteEmailTemplate = (templateId) => {
+  return apiClient.delete(`/admin/email/templates/${templateId}`);
+};
+
 // --- Admin System Management ---
 export const getSystemStats = () => {
   return apiClient.get('/admin/stats');

@@ -289,16 +289,20 @@ def create_default_templates(db: Session):
             "name": "password_reset",
             "subject": "Password Reset Request",
             "body": """
-            Hello {name},
+            <html>
+            <body>
+                <p>Hello {{name}},</p>
 
-            You have requested to reset your password. Please click the link below to reset your password:
+                <p>You have requested to reset your password. Please click the link below to reset your password:</p>
 
-            {reset_url}
+                <p>{{reset_url}}</p>
 
-            If you did not request this password reset, please ignore this email.
+                <p>If you did not request this password reset, please ignore this email.</p>
 
-            Best regards,
-            Family Wishlist Team
+                <p>Best regards,<br>
+                Family Wishlist Team</p>
+            </body>
+            </html>
             """
         },
         {
@@ -307,7 +311,7 @@ def create_default_templates(db: Session):
             "body": """
             <html>
             <body>
-                <h2>Welcome to Family Wishlist, {user_name}!</h2>
+                <h2>Welcome to Family Wishlist, {{user_name}}!</h2>
                 
                 <p>Thank you for joining Family Wishlist. We're excited to have you on board! Here's everything you need to know to get started:</p>
                 
@@ -330,8 +334,8 @@ def create_default_templates(db: Session):
 
                 <p>Your account details:</p>
                 <ul>
-                    <li>Username: {username}</li>
-                    <li>Email: {email}</li>
+                    <li>Username: {{username}}</li>
+                    <li>Email: {{email}}</li>
                 </ul>
 
                 <p>Need help? Click the help icon (?) in the top navigation bar for detailed instructions and tips.</p>
@@ -348,28 +352,34 @@ def create_default_templates(db: Session):
             "name": "password_changed",
             "subject": "Password Changed",
             "body": """
-            Hello {name},
+            <html>
+            <body>
+                <h2>Hello {{name}},</h2>
 
-            Your password has been successfully changed.
+            <h2>Your password has been successfully changed.</h2>
 
-            If you did not make this change, please contact the administrator immediately.
+            <p>If you did not make this change, please contact the administrator immediately.</p>
 
-            Best regards,
-            Family Wishlist Team
+            <p>Best regards,<br>
+            Family Wishlist Team</p>
             """
         },
         {
             "name": "test_email",
             "subject": "Test Email",
             "body": """
-            Hello,
+            <html>
+            <body>
+                <p>Hello,</p>
 
-            This is a test email to verify your email settings.
+            <h2>This is a test email to verify your email settings.</h2>
 
-            If you received this email, your email settings are configured correctly.
+            <p>If you received this email, your email settings are configured correctly.</p>
 
-            Best regards,
-            Family Wishlist Team
+            <p>Best regards,<br>
+            Family Wishlist Team</p>
+            </body>
+            </html>
             """
         }
     ]

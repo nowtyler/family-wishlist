@@ -3487,3 +3487,38 @@ def leave_household(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to leave household: {str(e)}"
         )
+
+@app.delete("/api/admin/email/templates/{template_id}", response_model=schemas.EmailResponse)
+def delete_email_template(
+    template_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Delete an email template (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    try:
+        template = db.query(models.EmailTemplate).filter(models.EmailTemplate.id == template_id).first()
+        if not template:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+        
+        # Delete the template
+        db.delete(template)
+        db.commit()
+        
+        return {"success": True, "message": "Template deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to delete email template: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete email template: {str(e)}"
+        )
