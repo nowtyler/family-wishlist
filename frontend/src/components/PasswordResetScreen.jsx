@@ -46,7 +46,7 @@ const PasswordResetScreen = () => {
       if (response.data.success) {
         toast.success('Your password has been reset successfully.');
         setTimeout(() => {
-          navigate('/login');
+          navigate('/auth');
         }, 3000);
       } else {
         setError(response.data.message || 'Failed to reset password.');

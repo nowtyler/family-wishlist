@@ -255,7 +255,7 @@ class EmailService:
         )
     
     def send_password_changed_email(self, user: FamilyMember) -> EmailLog:
-        """Send notification when password is changed by admin"""
+        """Send notification when password is changed"""
         template_vars = {
             "user_name": user.name,
             "username": user.username
@@ -354,14 +354,16 @@ def create_default_templates(db: Session):
             "body": """
             <html>
             <body>
-                <h2>Hello {{name}},</h2>
+                <h2>Hello {{user_name}},</h2>
 
-            <h2>Your password has been successfully changed.</h2>
+                <h2>Your password has been successfully changed.</h2>
 
-            <p>If you did not make this change, please contact the administrator immediately.</p>
+                <p>If you did not make this change, please contact the administrator immediately.</p>
 
-            <p>Best regards,<br>
-            Family Wishlist Team</p>
+                <p>Best regards,<br>
+                Family Wishlist Team</p>
+            </body>
+            </html>
             """
         },
         {
@@ -400,4 +402,4 @@ def create_default_templates(db: Session):
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to create default templates: {e}")
-        raise 
+        raise

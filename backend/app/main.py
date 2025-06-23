@@ -399,6 +399,16 @@ def update_user_with_auth(
         if not db_member:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         
+        # Send password changed notification email if password was updated and user has email
+        if user_update.password and db_member.email:
+            try:
+                email_service = EmailService(db)
+                email_service.send_password_changed_email(db_member)
+                logger.info(f"Password change notification email sent to {db_member.email}")
+            except Exception as email_err:
+                logger.error(f"Failed to send password change email: {str(email_err)}")
+                # Continue even if email fails
+        
         count = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == db_member.id).count()
         member_schema = schemas.FamilyMember.from_orm(db_member)
         member_schema.wishlist_item_count = count
@@ -453,6 +463,16 @@ def update_user_profile(
         db_member = crud.update_family_member_with_auth(db, member_id, user_update)
         if not db_member:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        
+        # Send password changed notification email if password was updated
+        if user_update.password and db_member.email:
+            try:
+                email_service = EmailService(db)
+                email_service.send_password_changed_email(db_member)
+                logger.info(f"Password change notification email sent to {db_member.email}")
+            except Exception as email_err:
+                logger.error(f"Failed to send password change email: {str(email_err)}")
+                # Continue even if email fails
         
         count = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == db_member.id).count()
         member_schema = schemas.FamilyMember.from_orm(db_member)
