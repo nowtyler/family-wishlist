@@ -81,14 +81,24 @@ def update_family_member_with_auth(db: Session, member_id: int, member_update: s
     # Check if username already exists (if being updated) - case insensitive
     if member_update.username and member_update.username.lower().strip() != db_member.username:
         normalized_username = member_update.username.lower().strip()
-        existing_user = db.query(models.FamilyMember).filter(func.lower(models.FamilyMember.username) == normalized_username).first()
+        existing_user = db.query(models.FamilyMember).filter(
+            and_(
+                func.lower(models.FamilyMember.username) == normalized_username,
+                models.FamilyMember.id != member_id  # Exclude the current member being updated
+            )
+        ).first()
         if existing_user:
             raise ValueError("Username already exists")
     
     # Check if email already exists (if being updated) - case insensitive
     if member_update.email and member_update.email.lower().strip() != (db_member.email or "").lower():
         normalized_email = member_update.email.lower().strip()
-        existing_email = db.query(models.FamilyMember).filter(func.lower(models.FamilyMember.email) == normalized_email).first()
+        existing_email = db.query(models.FamilyMember).filter(
+            and_(
+                func.lower(models.FamilyMember.email) == normalized_email,
+                models.FamilyMember.id != member_id  # Exclude the current member being updated
+            )
+        ).first()
         if existing_email:
             raise ValueError("Email already in use")
     
