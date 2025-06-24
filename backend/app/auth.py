@@ -10,33 +10,84 @@ import re
 from typing import Optional, Dict
 from .utils.timezone_utils import get_est_timestamp, get_est_timedelta
 
-# Configure logging with more security
-log_path = '/app/data/auth.log'
-log_dir = os.path.dirname(log_path)
+# Load environment variables early
+load_dotenv()
 
-# Create log directory if it doesn't exist
-if not os.path.exists(log_dir):
-    try:
-        os.makedirs(log_dir, exist_ok=True)
-    except Exception:
-        # Fallback to current directory if /app/data isn't writable
-        log_path = 'auth.log'
-
-# Use rotating file handler with backup files for 30 days
-logging.basicConfig(
-    level=logging.INFO,  # Changed from DEBUG to INFO for production use
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        RotatingFileHandler(
-            filename=log_path,
-            maxBytes=1024*1024,  # 1MB per file
-            backupCount=30,      # Keep 30 backup files (roughly 30 days)
-            encoding='utf-8'
-        ),
-        logging.StreamHandler()
+# Configure logging with more security and Docker compatibility
+def setup_logging():
+    """Setup logging with Docker-compatible configuration"""
+    global log_path, logger
+    
+    # Try multiple log paths in order of preference
+    log_paths = [
+        '/app/data/auth.log',  # Primary Docker path
+        './data/auth.log',     # Relative path fallback
+        'auth.log',           # Current directory fallback
+        '/tmp/auth.log'       # System temp fallback
     ]
-)
-logger = logging.getLogger(__name__)
+    
+    log_path = None
+    log_dir = None
+    
+    # Find the first writable log path
+    for path in log_paths:
+        try:
+            log_dir = os.path.dirname(path)
+            if not os.path.exists(log_dir):
+                os.makedirs(log_dir, exist_ok=True)
+            
+            # Test if we can write to the file
+            with open(path, 'a') as f:
+                f.write('')  # Test write
+            
+            log_path = path
+            print(f"Using log path: {log_path}")
+            break
+        except (OSError, PermissionError) as e:
+            print(f"Could not use log path {path}: {e}")
+            continue
+    
+    if not log_path:
+        print("WARNING: Could not create log file, falling back to console only")
+        log_path = None
+    
+    # Configure logging handlers
+    handlers = []
+    
+    # Add file handler if we have a valid log path
+    if log_path:
+        try:
+            file_handler = RotatingFileHandler(
+                filename=log_path,
+                maxBytes=1024*1024,  # 1MB per file
+                backupCount=30,      # Keep 30 backup files (roughly 30 days)
+                encoding='utf-8'
+            )
+            handlers.append(file_handler)
+            print(f"File logging enabled: {log_path}")
+        except Exception as e:
+            print(f"Failed to setup file logging: {e}")
+    
+    # Always add console handler for Docker logs
+    console_handler = logging.StreamHandler()
+    handlers.append(console_handler)
+    
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=handlers
+    )
+    
+    logger = logging.getLogger(__name__)
+    
+    # Log the setup
+    logger.info(f"Logging setup completed. File logging: {'enabled' if log_path else 'disabled'}")
+    if log_path:
+        logger.info(f"Log file: {log_path}")
+
+# Initialize logging
+setup_logging()
 
 # Function to sanitize hash values in logs
 def sanitize_hash(hash_value):
@@ -65,24 +116,27 @@ def log_auth_event(event_type, username=None, success=True, ip_address=None, det
         ip_address (str, optional): IP address of the client
         details (str, optional): Additional details about the event
     """
-    status = "SUCCESS" if success else "FAILED"
-    log_message = f"AUTH {status} - {event_type}"
-    
-    if username:
-        log_message += f" - User: {username}"
-    
-    if ip_address:
-        log_message += f" - IP: {ip_address}"
-    
-    if details:
-        log_message += f" - Details: {details}"
-    
-    if success:
-        logger.info(log_message)
-    else:
-        logger.warning(log_message)
-
-load_dotenv()
+    try:
+        status = "SUCCESS" if success else "FAILED"
+        log_message = f"AUTH {status} - {event_type}"
+        
+        if username:
+            log_message += f" - User: {username}"
+        
+        if ip_address:
+            log_message += f" - IP: {ip_address}"
+        
+        if details:
+            log_message += f" - Details: {details}"
+        
+        if success:
+            logger.info(log_message)
+        else:
+            logger.warning(log_message)
+    except Exception as e:
+        # Fallback to print if logging fails
+        print(f"Logging failed: {e}")
+        print(f"Auth event: {event_type} - {('SUCCESS' if success else 'FAILED')} - User: {username} - IP: {ip_address}")
 
 # Configure password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

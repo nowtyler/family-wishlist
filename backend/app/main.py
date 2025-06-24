@@ -3341,26 +3341,51 @@ def get_auth_logs(
         if not user or not user.is_admin:
             raise HTTPException(status_code=403, detail="Admin access required")
         
-        # Define log file path
-        log_path = '/app/data/auth.log'
-        if not os.path.exists(log_path):
-            log_path = 'auth.log'  # Fallback
+        # Define possible log file paths (Docker-compatible)
+        log_paths = [
+            '/app/data/auth.log',  # Primary Docker path
+            './data/auth.log',     # Relative path fallback
+            'auth.log',           # Current directory fallback
+            '/tmp/auth.log'       # System temp fallback
+        ]
         
-        if not os.path.exists(log_path):
+        log_path = None
+        log_content = ""
+        
+        # Try to find and read the log file
+        for path in log_paths:
+            try:
+                if os.path.exists(path) and os.path.getsize(path) > 0:
+                    with open(path, 'r', encoding='utf-8') as f:
+                        log_content = f.read()
+                    log_path = path
+                    logger.info(f"Reading logs from: {log_path}")
+                    break
+            except Exception as e:
+                logger.warning(f"Could not read log file {path}: {e}")
+                continue
+        
+        if not log_path or not log_content.strip():
+            # Return empty result with helpful message
             return {
                 "logs": [],
                 "total": 0,
                 "limit": limit,
                 "offset": offset,
-                "message": "No log file found"
+                "message": "No log file found or log file is empty. Authentication events may be logged to console only.",
+                "log_paths_tried": log_paths,
+                "docker_info": {
+                    "environment": os.getenv("ENVIRONMENT", "unknown"),
+                    "puid": os.getenv("PUID", "unknown"),
+                    "pgid": os.getenv("PGID", "unknown")
+                }
             }
         
         # Read and parse log file
         logs = []
         try:
-            with open(log_path, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-                
+            lines = log_content.splitlines()
+            
             # Parse each line and apply filters
             for line in lines:
                 line = line.strip()
@@ -3404,6 +3429,7 @@ def get_auth_logs(
                             })
                 except Exception as e:
                     # Skip malformed lines
+                    logger.debug(f"Skipping malformed log line: {line[:100]}... Error: {e}")
                     continue
             
             # Sort by timestamp (newest first)
@@ -3418,12 +3444,14 @@ def get_auth_logs(
                 "total": total,
                 "limit": limit,
                 "offset": offset,
-                "has_more": offset + limit < total
+                "has_more": offset + limit < total,
+                "log_path": log_path,
+                "file_size": os.path.getsize(log_path) if log_path else 0
             }
             
         except Exception as e:
-            logger.error(f"Failed to read log file: {e}")
-            raise HTTPException(status_code=500, detail="Failed to read log file")
+            logger.error(f"Failed to parse log file: {e}")
+            raise HTTPException(status_code=500, detail="Failed to parse log file")
             
     except HTTPException:
         raise

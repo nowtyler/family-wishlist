@@ -90,7 +90,7 @@ The system logs authentication events in the following format:
 ### Backend
 - **Endpoint**: `GET /api/admin/system/auth-logs`
 - **Authentication**: Requires admin privileges
-- **Log File**: Reads from `/app/data/auth.log`
+- **Log File**: Reads from `/app/data/auth.log` (Docker-compatible)
 - **Parsing**: Custom parser for AUTH event messages
 - **Filtering**: Server-side filtering for performance
 
@@ -99,6 +99,26 @@ The system logs authentication events in the following format:
 - **API Integration**: Uses `getAuthLogs()` function
 - **State Management**: React hooks for filters and pagination
 - **UI Framework**: Tailwind CSS with Framer Motion animations
+
+## Docker Environment
+
+### Log File Configuration
+The system is configured to work in Docker environments with the following log file paths (in order of preference):
+1. `/app/data/auth.log` - Primary Docker path
+2. `./data/auth.log` - Relative path fallback
+3. `auth.log` - Current directory fallback
+4. `/tmp/auth.log` - System temp fallback
+
+### Permissions
+The Docker entrypoint script automatically:
+- Creates the `/app/data/auth.log` file if it doesn't exist
+- Sets proper ownership using `PUID` and `PGID` environment variables
+- Sets appropriate file permissions (644)
+
+### Environment Variables
+- `PUID` - User ID for file permissions (default: 1000)
+- `PGID` - Group ID for file permissions (default: 1000)
+- `ENVIRONMENT` - Environment type (prod/dev)
 
 ## Usage
 
@@ -112,9 +132,41 @@ The system logs authentication events in the following format:
 ## Troubleshooting
 
 ### No Logs Displayed
-- Check if the log file exists at `/app/data/auth.log`
-- Verify admin privileges
-- Check browser console for API errors
+
+#### Check Log File Status
+1. **Verify log file exists**: Check if `/app/data/auth.log` exists in the container
+2. **Check file permissions**: Ensure the file is owned by the correct user (PUID/PGID)
+3. **Check file size**: Verify the log file has content (not 0 bytes)
+
+#### Docker Container Debugging
+```bash
+# Check if log file exists and has content
+docker exec wishlist-backend ls -la /app/data/auth.log
+
+# Check file permissions
+docker exec wishlist-backend stat /app/data/auth.log
+
+# View log file content
+docker exec wishlist-backend cat /app/data/auth.log
+
+# Check container logs for authentication events
+docker logs wishlist-backend | grep "AUTH"
+
+# Test logging functionality
+docker exec wishlist-backend python test_logging.py
+```
+
+#### Environment Variables
+Verify these environment variables are set correctly:
+- `PUID` - Should match your host user ID
+- `PGID` - Should match your host group ID
+- `ENVIRONMENT` - Should be set to `prod` or `dev`
+
+#### Manual Testing
+Run the test script inside the container:
+```bash
+docker exec wishlist-backend python test_logging.py
+```
 
 ### Performance Issues
 - Reduce the number of logs loaded (default: 50)
@@ -125,6 +177,30 @@ The system logs authentication events in the following format:
 - Ensure authentication events are being logged properly
 - Check log file permissions
 - Verify log rotation settings
+- Check Docker container logs for console output
+
+### Common Issues
+
+#### Empty Log File (0 bytes)
+**Cause**: Log file exists but has no content
+**Solution**: 
+1. Perform some authentication actions (login, logout, register)
+2. Check if logs are being written to console instead of file
+3. Verify the application has write permissions to the log file
+
+#### Permission Denied Errors
+**Cause**: Incorrect file ownership or permissions
+**Solution**:
+1. Restart the container to trigger the entrypoint script
+2. Manually set permissions: `chown PUID:PGID /app/data/auth.log`
+3. Check that PUID/PGID environment variables are set correctly
+
+#### Logs Only in Console
+**Cause**: File logging failed, falling back to console
+**Solution**:
+1. Check Docker container logs: `docker logs wishlist-backend`
+2. Verify volume mounts are correct
+3. Ensure data directory is writable
 
 ## Future Enhancements
 
@@ -132,4 +208,6 @@ The system logs authentication events in the following format:
 - **Real-time Updates**: WebSocket integration for live log updates
 - **Advanced Analytics**: Charts and statistics for authentication patterns
 - **Alert System**: Notifications for suspicious authentication patterns
-- **Log Retention**: Configurable log retention policies 
+- **Log Retention**: Configurable log retention policies
+- **Multiple Log Sources**: Support for reading from multiple log files
+- **Log Rotation**: Automatic log rotation and cleanup 

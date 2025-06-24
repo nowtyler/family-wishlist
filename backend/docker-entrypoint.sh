@@ -20,6 +20,18 @@ setup_permissions() {
   # Set permissions for data directory
   chown -R ${PUID}:${PGID} /app/data
 
+  # Create auth.log file if it doesn't exist and set proper permissions
+  if [ ! -f "/app/data/auth.log" ]; then
+    echo "Creating auth.log file..."
+    touch /app/data/auth.log
+  fi
+  
+  # Set permissions for auth.log file
+  chown ${PUID}:${PGID} /app/data/auth.log
+  chmod 644 /app/data/auth.log
+  
+  echo "Auth log file permissions set: $(ls -la /app/data/auth.log)"
+
   # Set permissions for migrations directory
   if [ -d "/app/app/migrations/versions" ]; then
     chown -R ${PUID}:${PGID} /app/app/migrations/versions

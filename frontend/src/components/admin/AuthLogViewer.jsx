@@ -57,6 +57,14 @@ const AuthLogViewer = () => {
 
       setTotal(data.total || 0);
       setHasMore(data.has_more || false);
+      
+      // Show helpful message if no logs found
+      if (data.message && data.logs && data.logs.length === 0) {
+        console.log('Auth logs response:', data);
+        if (data.docker_info) {
+          console.log('Docker info:', data.docker_info);
+        }
+      }
     } catch (error) {
       console.error('Failed to fetch auth logs:', error);
       toast.error('Failed to load authentication logs');
@@ -251,7 +259,24 @@ const AuthLogViewer = () => {
         ) : filteredLogs.length === 0 ? (
           <div className="text-center py-8">
             <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600 dark:text-gray-400">No logs found</p>
+            <p className="text-gray-600 dark:text-gray-400 mb-2">No logs found</p>
+            <p className="text-sm text-gray-500 dark:text-gray-500">
+              This could mean:
+            </p>
+            <ul className="text-sm text-gray-500 dark:text-gray-500 mt-2 space-y-1">
+              <li>• No authentication events have occurred yet</li>
+              <li>• Logs are being written to console instead of file</li>
+              <li>• Log file permissions need to be configured</li>
+              <li>• Check Docker container logs for authentication events</li>
+            </ul>
+            <div className="mt-4">
+              <button
+                onClick={() => fetchLogs()}
+                className="px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+              >
+                Refresh Logs
+              </button>
+            </div>
           </div>
         ) : (
           <>
