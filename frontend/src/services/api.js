@@ -140,6 +140,23 @@ export const verifyPassword = async (password) => {
     }
 };
 
+// New function to get complete user data including preferences
+export const getUserProfile = async (userId) => {
+  try {
+    // Use a fresh request with cache busting to ensure we get the latest data
+    const response = await apiClient.get(`/family-members/${userId}`, {
+      params: {
+        _t: new Date().getTime()
+      }
+    });
+    console.log('Got user profile with complete preferences:', response.data);
+    return response;
+  } catch (error) {
+    console.error('Failed to get user profile:', error);
+    throw error;
+  }
+};
+
 export const loginUser = async (username, password) => {
     try {
         const response = await apiClient.post('/auth/login', { username, password });

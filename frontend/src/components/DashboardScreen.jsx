@@ -1,7 +1,17 @@
 // frontend/src/components/DashboardScreen.jsx
 import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { useAppContext } from '../contexts/AppContext';
-import { getFamilyMembers, getWishlistItems, getUpcomingEvent, createWishlistItem, deleteWishlistItem, toggleThinkingAbout, markPurchased, getMigrations } from '../services/api'; 
+import { 
+  getFamilyMembers, 
+  getWishlistItems, 
+  getUpcomingEvent, 
+  createWishlistItem, 
+  deleteWishlistItem, 
+  toggleThinkingAbout, 
+  markPurchased, 
+  getMigrations,
+  getUserProfile 
+} from '../services/api'; 
 import WishlistCard from './WishlistCard';
 import EnhancedUpcomingEventsBanner from './EnhancedUpcomingEventsBanner';
 import AddItemForm from './AddItemForm';
@@ -45,10 +55,31 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
           const membersResponse = await getFamilyMembers();
           if (!mounted) return;
           setFamilyMembers(membersResponse.data);
+          
+          // If this is first load, set viewingMember from the fresh data instead of using selectedUser directly
+          // This ensures complete preference data is available
+          if (!viewingMember && selectedUser?.id) {
+            const freshUserData = membersResponse.data.find(m => m.id === selectedUser.id);
+            if (freshUserData) {
+              setViewingMember(freshUserData);
+            } else {
+              // If we can't find the user in family members, get their profile directly
+              try {
+                const userResponse = await getUserProfile(selectedUser.id);
+                if (userResponse?.data) {
+                  setViewingMember(userResponse.data);
+                } else {
+                  setViewingMember(selectedUser); // Last resort fallback
+                }
+              } catch (err) {
+                console.error('Error getting user profile:', err);
+                setViewingMember(selectedUser); // Fallback
+              }
+            }
+          }
         }
-
-        // Ensure viewingMember is set
-        if (!viewingMember) {
+        // Ensure viewingMember is set (only use this as a fallback)
+        else if (!viewingMember) {
           if (!mounted) return;
           setViewingMember(selectedUser);
         }
@@ -107,6 +138,18 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
       onViewingMemberChange(viewingMember);
     }
   }, [viewingMember?.id, onViewingMemberChange]);
+
+  // Ensure viewing member has the most up-to-date information from family members
+  useEffect(() => {
+    if (viewingMember?.id && familyMembers.length > 0) {
+      // Find the current viewing member in the fresh family members data
+      const freshMemberData = familyMembers.find(m => m.id === viewingMember.id);
+      if (freshMemberData && JSON.stringify(freshMemberData) !== JSON.stringify(viewingMember)) {
+        console.log('Updating viewingMember with fresh data from familyMembers');
+        setViewingMember(freshMemberData);
+      }
+    }
+  }, [familyMembers, viewingMember?.id]);
 
   const handleAddItem = async (newItem) => {
     if (viewingMember?.id === selectedUser?.id || isAdmin) {
