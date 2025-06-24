@@ -39,18 +39,22 @@ class UserAuthService:
             user = db.query(models.FamilyMember).filter(func.lower(models.FamilyMember.username) == func.lower(username)).first()
             
             if not user:
+                logger.info(f"Authentication failure: Username not found - {username}")
                 return False, "Invalid username or password", None
                 
             if not user.password_hash:
+                logger.warning(f"Authentication failure: No password hash for user {username}")
                 return False, "User account is not set up for password authentication", None
                 
             if not UserAuthService.verify_password(password, user.password_hash):
+                logger.warning(f"Authentication failure: Invalid password for user {username}")
                 return False, "Invalid username or password", None
             
+            logger.info(f"Authentication successful: User {username}")
             return True, "Authentication successful", user
                 
         except Exception as e:
-            logger.exception("User authentication failed")
+            logger.exception(f"User authentication failed for {username}")
             return False, f"Authentication error: {str(e)}", None
     
     @staticmethod

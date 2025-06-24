@@ -121,6 +121,18 @@ export const clearApiCache = () => {
   return Promise.resolve();
 };
 
+// Function to record logout on the server for audit logging
+export const logoutUser = async (username) => {
+  try {
+    await apiClient.post('/auth/logout', { username });
+    return true;
+  } catch (error) {
+    console.error('Failed to record logout:', error);
+    // Don't throw, as this is just for logging
+    return false;
+  }
+};
+
 // --- Auth ---
 export const verifyPassword = async (password) => {
     try {

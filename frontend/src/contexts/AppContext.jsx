@@ -1,6 +1,6 @@
 // frontend/src/contexts/AppContext.jsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { setCurrentUserHeader, getAdminAccess, getFamilyMembers, clearApiCache } from '../services/api';
+import { setCurrentUserHeader, getAdminAccess, getFamilyMembers, clearApiCache, logoutUser } from '../services/api';
 
 const AppContext = createContext();
 
@@ -85,6 +85,9 @@ export const AppProvider = ({ children }) => {
   };
 
   const logout = () => {
+    // Get the username before clearing state
+    const username = selectedUser?.username;
+    
     setIsAuthenticated(false);
     // Clear all cached data to prevent it from showing to the next user
     setFamilyMembers([]);
@@ -99,6 +102,13 @@ export const AppProvider = ({ children }) => {
     
     // Clear API cache to ensure fresh data for next user
     clearApiCache();
+    
+    // Record the logout on the server (for audit logging)
+    if (username) {
+      logoutUser(username).catch(error => {
+        console.error('Failed to record logout:', error);
+      });
+    }
   };
 
   // Add a function to refresh family members data

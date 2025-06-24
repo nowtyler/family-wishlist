@@ -1,4 +1,4 @@
-from fastapi import Header, HTTPException, status
+from fastapi import Header, HTTPException, status, Request
 from typing import Optional
 from sqlalchemy.orm import Session
 from .database import SessionLocal
@@ -32,3 +32,14 @@ def validate_password_strength(password: str) -> bool:
     if not re.search(r"\d", password):
         return False
     return True
+
+def get_client_ip(request: Request) -> str:
+    """
+    Extract client IP from request headers.
+    Handles X-Forwarded-For for proxy setups.
+    """
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        # Get the first IP in the chain (client IP)
+        return forwarded_for.split(',')[0].strip()
+    return request.client.host if request.client else "unknown"

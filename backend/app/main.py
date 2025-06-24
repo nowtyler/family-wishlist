@@ -20,6 +20,7 @@ from .database import (
     SessionLocal, 
     SQLALCHEMY_DATABASE_URL
 )
+from .deps import get_client_ip, validate_password_strength
 from .services.auth_service import AuthenticationService
 from .services.migration_service import MigrationService
 from .services.backup_service import BackupService
@@ -1911,7 +1912,7 @@ def create_external_wishlist_for_member(
     if not is_admin and current_user_id != owner_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only add external wishlists to your own profile unless you're an admin."
+            detail="Admin privileges required"
         )
     
     db_member = crud.get_family_member(db, member_id=owner_id)
@@ -2011,19 +2012,30 @@ def update_member_preferences(
 @app.post("/api/auth/login", response_model=schemas.LoginResponse)
 async def login(
     request: schemas.LoginRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    client_ip: str = Depends(get_client_ip)
 ):
     """
     Authenticate a user with username and password.
     """
     try:
+        # Log the login attempt
+        auth.log_auth_event("LOGIN_ATTEMPT", request.username, True, client_ip)
+        
         success, message, user = UserAuthService.authenticate_user(db, request.username, request.password)
         
         if not success:
+            # Log failed login
+            auth.log_auth_event("LOGIN", request.username, False, client_ip, message)
+            
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=message
             )
+        
+        # Log successful login
+        auth.log_auth_event("LOGIN", user.username, True, client_ip, 
+                            f"User ID: {user.id}, Admin: {user.is_admin}")
         
         return schemas.LoginResponse(
             success=True,
@@ -2041,6 +2053,7 @@ async def login(
         raise
     except Exception as e:
         logger.error(f"Login error: {e}")
+        auth.log_auth_event("LOGIN_ERROR", request.username, False, client_ip, str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
@@ -2057,14 +2070,20 @@ async def login(
 )
 async def register(
     user_data: schemas.UserRegisterRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    client_ip: str = Depends(get_client_ip)
 ):
     """
     Register a new user with username, password, etc.
     """
     try:
+        # Log registration attempt
+        auth.log_auth_event("REGISTER_ATTEMPT", user_data.username, True, client_ip)
+        
         # Validate password strength
         if not validate_password_strength(user_data.password):
+            auth.log_auth_event("REGISTER", user_data.username, False, client_ip, 
+                              "Password strength validation failed")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Password must be at least 8 characters and include uppercase, lowercase, and numbers"
@@ -2073,12 +2092,18 @@ async def register(
         success, message, user = UserAuthService.register_new_user(db, user_data)
         
         if success and user:
+            # Log successful registration
+            auth.log_auth_event("REGISTER", user.username, True, client_ip, 
+                               f"User ID: {user.id}, Name: {user.name}")
+            
             # Send welcome email
             try:
                 email_service = EmailService(db)
                 email_service.send_welcome_email(user)
             except Exception as e:
                 logger.error(f"Failed to send welcome email: {e}")
+                auth.log_auth_event("EMAIL_SEND", user.username, False, client_ip, 
+                                  f"Failed to send welcome email: {str(e)}")
                 # Don't fail registration if email fails
             
             return {
@@ -2088,6 +2113,9 @@ async def register(
                 "is_admin": user.is_admin
             }
         else:
+            # Log failed registration
+            auth.log_auth_event("REGISTER", user_data.username, False, client_ip, message)
+            
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=message
@@ -2096,6 +2124,7 @@ async def register(
         raise
     except Exception as e:
         logger.error(f"Registration error: {str(e)}")
+        auth.log_auth_event("REGISTER_ERROR", user_data.username, False, client_ip, str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred during registration"
@@ -2112,13 +2141,21 @@ async def register(
 )
 async def request_password_reset(
     request: schemas.PasswordResetRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    client_ip: str = Depends(get_client_ip)
 ):
     """
     Request a password reset by username or email.
     """
     try:
+        # Log password reset request
+        auth.log_auth_event("PASSWORD_RESET_REQUEST", request.username_or_email, True, client_ip)
+        
         success, message = UserAuthService.create_reset_token(db, request.username_or_email)
+        
+        # Log result
+        status_msg = "Token generated and email sent" if success else "Failed to generate token"
+        auth.log_auth_event("PASSWORD_RESET_TOKEN", request.username_or_email, success, client_ip, status_msg)
         
         return {
             "success": success,
@@ -2126,6 +2163,7 @@ async def request_password_reset(
         }
     except Exception as e:
         logger.error(f"Password reset request error: {str(e)}")
+        auth.log_auth_event("PASSWORD_RESET_ERROR", request.username_or_email, False, client_ip, str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred during password reset request"
@@ -2142,20 +2180,35 @@ async def request_password_reset(
 )
 async def confirm_password_reset(
     request: schemas.PasswordResetConfirmRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    client_ip: str = Depends(get_client_ip)
 ):
     """
     Complete the password reset with token and new password.
     """
     try:
+        # We don't have the username yet, but we'll get it during validation
+        auth.log_auth_event("PASSWORD_RESET_CONFIRM", "unknown", True, client_ip, 
+                           "Password reset confirmation with token")
+        
         # Validate password strength
         if not validate_password_strength(request.new_password):
+            auth.log_auth_event("PASSWORD_RESET_CONFIRM", "unknown", False, client_ip, 
+                              "Password strength validation failed")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Password must be at least 8 characters and include uppercase, lowercase, and numbers"
             )
         
+        # First validate the token to get the username
+        valid, _, user = UserAuthService.validate_reset_token(db, request.token)
+        username = user.username if valid and user else "unknown"
+        
+        # Now reset the password
         success, message = UserAuthService.reset_password(db, request.token, request.new_password)
+        
+        # Log the outcome
+        auth.log_auth_event("PASSWORD_RESET_COMPLETE", username, success, client_ip, message)
         
         if success:
             return {
@@ -3564,3 +3617,41 @@ def delete_email_template(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete email template: {str(e)}"
         )
+
+@app.post("/api/auth/logout", 
+    response_model=schemas.AuthResponse,
+    tags=["Authentication"],
+    summary="Log user logout for audit purposes",
+    responses={
+        200: {"description": "Logout recorded"}
+    }
+)
+async def log_logout(
+    request: Request,
+    db: Session = Depends(get_db),
+    client_ip: str = Depends(get_client_ip)
+):
+    """
+    Record a user logout event for auditing purposes.
+    The actual logout happens client-side; this endpoint is just for logging.
+    """
+    try:
+        # Try to get username from request
+        username = "unknown"
+        user_info = {}
+        
+        try:
+            user_info = await request.json()
+            if 'username' in user_info:
+                username = user_info['username']
+        except:
+            # If we can't parse JSON, just continue with unknown username
+            pass
+            
+        # Log the logout
+        auth.log_auth_event("LOGOUT", username, True, client_ip)
+        
+        return {"success": True, "message": "Logout recorded"}
+    except Exception as e:
+        logger.error(f"Error recording logout: {str(e)}")
+        return {"success": False, "message": "Error recording logout"}

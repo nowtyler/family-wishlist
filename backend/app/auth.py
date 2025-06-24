@@ -22,7 +22,7 @@ if not os.path.exists(log_dir):
         # Fallback to current directory if /app/data isn't writable
         log_path = 'auth.log'
 
-# Use rotating file handler with max 5 backups of 1MB each
+# Use rotating file handler with backup files for 30 days
 logging.basicConfig(
     level=logging.INFO,  # Changed from DEBUG to INFO for production use
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -30,7 +30,7 @@ logging.basicConfig(
         RotatingFileHandler(
             filename=log_path,
             maxBytes=1024*1024,  # 1MB per file
-            backupCount=5,       # Keep 5 backup files max
+            backupCount=30,      # Keep 30 backup files (roughly 30 days)
             encoding='utf-8'
         ),
         logging.StreamHandler()
@@ -54,6 +54,34 @@ def sanitize_hash(hash_value):
     # without exposing the actual hash value
     return f"{hash_type}:...{hash_value[-4:]}"
 
+def log_auth_event(event_type, username=None, success=True, ip_address=None, details=None):
+    """
+    Log authentication events in a standardized format.
+    
+    Args:
+        event_type (str): Type of event (login, logout, register, etc.)
+        username (str, optional): Username associated with the event
+        success (bool): Whether the event was successful
+        ip_address (str, optional): IP address of the client
+        details (str, optional): Additional details about the event
+    """
+    status = "SUCCESS" if success else "FAILED"
+    log_message = f"AUTH {status} - {event_type}"
+    
+    if username:
+        log_message += f" - User: {username}"
+    
+    if ip_address:
+        log_message += f" - IP: {ip_address}"
+    
+    if details:
+        log_message += f" - Details: {details}"
+    
+    if success:
+        logger.info(log_message)
+    else:
+        logger.warning(log_message)
+
 load_dotenv()
 
 # Configure password hashing
@@ -71,16 +99,33 @@ class AuthState:
     def __init__(self):
         self.failed_attempts = 0
         self.lockout_until = None
+        self.ip_address = None
+        self.username = None
 
-    def record_failure(self):
+    def record_failure(self, username=None, ip_address=None):
         self.failed_attempts += 1
+        self.ip_address = ip_address
+        self.username = username
+        
+        # Log the failure
+        details = f"Failed attempt {self.failed_attempts}"
         if self.failed_attempts >= 5:
             self.lockout_until = get_est_timedelta(minutes=5)
-            logger.warning(f"Account locked until {self.lockout_until}")
+            details += f", account locked until {self.lockout_until}"
+            log_auth_event("LOCKOUT", username, False, ip_address, details)
+        else:
+            log_auth_event("AUTH_FAILURE", username, False, ip_address, details)
 
-    def record_success(self):
+    def record_success(self, username=None, ip_address=None):
+        if self.failed_attempts > 0:
+            # If there were previous failures, log that we're resetting
+            log_auth_event("AUTH_RESET", username, True, ip_address, 
+                          f"Reset after {self.failed_attempts} failed attempts")
+        
         self.failed_attempts = 0
         self.lockout_until = None
+        self.username = username
+        self.ip_address = ip_address
 
     def is_locked_out(self) -> bool:
         """Check if the IP is currently locked out"""
