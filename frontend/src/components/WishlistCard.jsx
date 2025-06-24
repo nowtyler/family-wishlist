@@ -7,6 +7,7 @@ import { updateWishlistItem, addComment, deleteComment, getWishlistItems, export
 // Constants
 const MAX_TITLE_LENGTH = 200;
 const MAX_TITLE_DISPLAY_LENGTH = 100; // Length at which to truncate title in modal view
+const MAX_DESCRIPTION_DISPLAY_LENGTH = 300; // Length at which to truncate description in modal view
 
 // Add size options for item-specific sizing to the top of the file
 const sizeOptions = {
@@ -63,6 +64,7 @@ function WishlistCard({
   const [commentError, setCommentError] = useState('');
   const [isDuplicateTitle, setIsDuplicateTitle] = useState(false);
   const [showFullTitle, setShowFullTitle] = useState(false);
+  const [showFullDescription, setShowFullDescription] = useState(false);
   const [sizeType, setSizeType] = useState('');
   const [sizeValue, setSizeValue] = useState('');
   const [sizeGender, setSizeGender] = useState('unspecified');
@@ -95,6 +97,7 @@ function WishlistCard({
 
   const handleCloseModal = () => {
     setInternalSelectedItem(null);
+    setShowFullDescription(false);
     if (onItemModalClose) onItemModalClose();
   };
 
@@ -860,9 +863,35 @@ function WishlistCard({
 
               {/* More spacing around description for readability */}
               {selectedItem.description && (
-                <p className="text-gray-600 dark:text-gray-300 mb-5 whitespace-pre-wrap break-words">
-                  {selectedItem.description}
-                </p>
+                <div className="mb-5">
+                  {selectedItem.description.length > MAX_DESCRIPTION_DISPLAY_LENGTH && !showFullDescription ? (
+                    <>
+                      <p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap break-words">
+                        {selectedItem.description.substring(0, MAX_DESCRIPTION_DISPLAY_LENGTH)}...
+                      </p>
+                      <button 
+                        onClick={() => setShowFullDescription(true)} 
+                        className="text-sm text-primary hover:text-primary-dark dark:text-primary-400 mt-1"
+                      >
+                        Show full description
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap break-words">
+                        {selectedItem.description}
+                      </p>
+                      {showFullDescription && selectedItem.description.length > MAX_DESCRIPTION_DISPLAY_LENGTH && (
+                        <button 
+                          onClick={() => setShowFullDescription(false)} 
+                          className="text-sm text-primary hover:text-primary-dark dark:text-primary-400 mt-1"
+                        >
+                          Show less
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
               )}
 
               {/* Set max-height for image and optimize for mobile */}
