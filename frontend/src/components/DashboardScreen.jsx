@@ -210,24 +210,69 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
 
   const handleThinkingAbout = async (itemId) => {
     try {
-      await toggleThinkingAbout(itemId);
-      refreshWishlistItems();
+      // Find the item index and optimistically update UI
+      const itemIndex = wishlistItems.findIndex(item => item.id === itemId);
+      if (itemIndex !== -1) {
+        // Create a copy of the wishlist items array
+        const updatedItems = [...wishlistItems];
+        // Toggle the thinking_about status optimistically
+        updatedItems[itemIndex] = {
+          ...updatedItems[itemIndex],
+          thinking_about: !updatedItems[itemIndex].thinking_about
+        };
+        // Update the state immediately
+        setWishlistItems(updatedItems);
+      }
+      
+      // Send the request to the server
+      const response = await toggleThinkingAbout(itemId);
+      
+      // Only refresh if response doesn't match our optimistic update
+      if (response?.data && itemIndex !== -1) {
+        const updatedItems = [...wishlistItems];
+        updatedItems[itemIndex] = response.data;
+        setWishlistItems(updatedItems);
+      }
     } catch (error) {
       console.error("Error toggling thinking about:", error);
       toast.error("Failed to update thinking about status.");
+      // Revert optimistic update by refreshing
+      refreshWishlistItems(true);
     }
   };
 
   const handleMarkPurchased = async (itemId) => {
     try {
-      await markPurchased(itemId);
-      refreshWishlistItems();
-      // Refresh family members to update count
+      // Find the item index and optimistically update UI
+      const itemIndex = wishlistItems.findIndex(item => item.id === itemId);
+      if (itemIndex !== -1) {
+        // Create a copy of the wishlist items array
+        const updatedItems = [...wishlistItems];
+        // Toggle the purchased status optimistically
+        updatedItems[itemIndex] = {
+          ...updatedItems[itemIndex],
+          purchased: !updatedItems[itemIndex].purchased,
+          purchased_by: updatedItems[itemIndex].purchased ? null : selectedUser.id
+        };
+        // Update the state immediately
+        setWishlistItems(updatedItems);
+      }
+      
+      // Send the request to the server
+      const response = await markPurchased(itemId);
+      
+      // Update with server response data if available
+      if (response?.data && itemIndex !== -1) {
+        const updatedItems = [...wishlistItems];
+        updatedItems[itemIndex] = response.data;
+        setWishlistItems(updatedItems);
+      }
+      
+      // Refresh family members to update count (do this in background)
       const membersResponse = await getFamilyMembers();
       setFamilyMembers(membersResponse.data);
     } catch (error) {
       console.error("Error marking as purchased:", error);
-      
       // Check if the error is because the item is already purchased
       if (error.response?.status === 404) {
         toast.info("Only one person can mark an item as purchased");

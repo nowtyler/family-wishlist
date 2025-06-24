@@ -53,6 +53,21 @@ const UserPreferencesDropdown = ({ member, isOwner, currentUserId, onUpdateSucce
   const [error, setError] = useState('');
   const dropdownRef = useRef(null);
 
+  // Update preferences when member changes
+  useEffect(() => {
+    setPreferences({
+      tshirtSize: member?.preferences?.tshirtSize || '',
+      hoodieSize: member?.preferences?.hoodieSize || '',
+      pantsSize: member?.preferences?.pantsSize || '',
+      dressSize: member?.preferences?.dressSize || '',
+      shoeSize: member?.preferences?.shoeSize || '',
+      wristSize: member?.preferences?.wristSize || '',
+      neckSize: member?.preferences?.neckSize || '',
+      additionalPreferences: member?.preferences?.additionalPreferences || ''
+    });
+    setGender(member?.preferences?.gender || 'unspecified');
+  }, [member]);
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {

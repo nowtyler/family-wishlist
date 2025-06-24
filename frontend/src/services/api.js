@@ -315,14 +315,22 @@ export const importWishlist = async (ownerId, wishlistData) => {
   }
 };
 
-export const toggleThinkingAbout = (itemId) => {
-  return apiClient.patch(`/items/${itemId}/toggle-thinking`);
+export const toggleThinkingAbout = async (itemId) => {
+  try {
+    const response = await apiClient.patch(`/items/${itemId}/toggle-thinking`);
+    console.log('Toggle thinking_about response:', response.data);
+    return response;
+  } catch (error) {
+    console.error('Failed to toggle thinking_about status:', error?.response?.data || error);
+    throw error;
+  }
 };
 
 export const markPurchased = async (itemId) => {
   try {
-    // Change to just toggle like the thinking_about endpoint
-    return await apiClient.patch(`/items/${itemId}/toggle-purchased`);
+    const response = await apiClient.patch(`/items/${itemId}/toggle-purchased`);
+    console.log('Toggle purchased response:', response.data);
+    return response;
   } catch (error) {
     console.error('Failed to toggle purchase status:', error?.response?.data || error);
     throw error;
