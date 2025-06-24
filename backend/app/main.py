@@ -3251,3 +3251,316 @@ def get_database_version(
     except Exception as e:
         logger.error(f"Failed to get database version: {e}")
         return {"current_version": "unknown"}
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    try:
+        await rate_limiter.check_rate_limit(request)
+    except HTTPException as e:
+        if e.status_code == 429:
+            return JSONResponse(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                content={
+                    "detail": e.detail,
+                    "timestamp": get_est_timestamp_iso(),
+                }
+            )
+        raise
+    response = await call_next(request)
+    return response
+
+# --- User Household Management (Non-Admin) ---
+
+@app.get("/api/households", response_model=List[schemas.Household])
+def get_households_for_user(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get all households that a user can see/join"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    try:
+        # Get all households with member count
+        households = []
+        for h in db.query(models.Household).all():
+            member_count = db.query(models.user_household_association).filter(
+                models.user_household_association.c.household_id == h.id
+            ).count()
+            household_dict = {
+                "id": h.id,
+                "name": h.name,
+                "description": h.description,
+                "created_at": h.created_at,
+                "created_by": h.created_by,
+                "member_count": member_count
+            }
+            households.append(schemas.Household(**household_dict))
+        return households
+    except Exception as e:
+        logger.error(f"Failed to get households: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get households: {str(e)}"
+        )
+
+@app.get("/api/user/households", response_model=schemas.UserHouseholdsResponse)
+def get_user_households(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get current user's households"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    try:
+        # Get user's households
+        user_households = db.query(models.Household).join(
+            models.user_household_association,
+            models.Household.id == models.user_household_association.c.household_id
+        ).filter(
+            models.user_household_association.c.user_id == current_user_id,
+            models.user_household_association.c.status == 'active'
+        ).all()
+        
+        households = []
+        for h in user_households:
+            member_count = db.query(models.user_household_association).filter(
+                models.user_household_association.c.household_id == h.id
+            ).count()
+            household_dict = {
+                "id": h.id,
+                "name": h.name,
+                "description": h.description,
+                "created_at": h.created_at,
+                "created_by": h.created_by,
+                "member_count": member_count
+            }
+            households.append(schemas.Household(**household_dict))
+        
+        return schemas.UserHouseholdsResponse(
+            success=True,
+            message=f"Found {len(households)} households",
+            households=households
+        )
+    except Exception as e:
+        logger.error(f"Failed to get user households: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get user households: {str(e)}"
+        )
+
+@app.post("/api/households", response_model=schemas.UserHouseholdResponse)
+def create_household_by_user(
+    household: schemas.HouseholdCreate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Create a new household (any user can create)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    try:
+        # Create new household
+        new_household = models.Household(
+            name=household.name,
+            description=household.description,
+            created_by=current_user_id
+        )
+        db.add(new_household)
+        db.commit()
+        db.refresh(new_household)
+        
+        # Automatically add the creator to the household
+        db.execute(models.user_household_association.insert().values(
+            user_id=current_user_id,
+            household_id=new_household.id,
+            joined_at=get_est_timestamp(),
+            requested_at=get_est_timestamp(),
+            status='active'
+        ))
+        db.commit()
+        
+        # Get member count (should be 1)
+        member_count = db.query(models.user_household_association).filter(
+            models.user_household_association.c.household_id == new_household.id
+        ).count()
+        
+        household_response = schemas.Household(
+            id=new_household.id,
+            name=new_household.name,
+            description=new_household.description,
+            created_at=new_household.created_at,
+            created_by=new_household.created_by,
+            member_count=member_count
+        )
+        
+        return schemas.UserHouseholdResponse(
+            success=True,
+            message="Household created successfully",
+            household=household_response
+        )
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to create household: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create household: {str(e)}"
+        )
+
+@app.post("/api/households/{household_id}/join", response_model=schemas.UserHouseholdResponse)
+def join_household(
+    household_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Join a household"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    try:
+        # Check if household exists
+        household = db.query(models.Household).filter(models.Household.id == household_id).first()
+        if not household:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Household not found")
+        
+        # Check if user is already in household
+        existing = db.query(models.user_household_association).filter(
+            models.user_household_association.c.user_id == current_user_id,
+            models.user_household_association.c.household_id == household_id
+        ).first()
+        
+        if existing:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You are already in this household")
+        
+        # Add user to household
+        db.execute(models.user_household_association.insert().values(
+            user_id=current_user_id,
+            household_id=household_id,
+            joined_at=get_est_timestamp(),
+            requested_at=get_est_timestamp(),
+            status='active'
+        ))
+        db.commit()
+        
+        # Get updated member count
+        member_count = db.query(models.user_household_association).filter(
+            models.user_household_association.c.household_id == household_id
+        ).count()
+        
+        household_response = schemas.Household(
+            id=household.id,
+            name=household.name,
+            description=household.description,
+            created_at=household.created_at,
+            created_by=household.created_by,
+            member_count=member_count
+        )
+        
+        return schemas.UserHouseholdResponse(
+            success=True,
+            message=f"Successfully joined household '{household.name}'",
+            household=household_response
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to join household: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to join household: {str(e)}"
+        )
+
+@app.delete("/api/households/{household_id}/leave", response_model=schemas.UserHouseholdResponse)
+def leave_household(
+    household_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Leave a household"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    try:
+        # Check if household exists
+        household = db.query(models.Household).filter(models.Household.id == household_id).first()
+        if not household:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Household not found")
+        
+        # Remove user from household
+        result = db.execute(
+            models.user_household_association.delete().where(
+                models.user_household_association.c.user_id == current_user_id,
+                models.user_household_association.c.household_id == household_id
+            )
+        )
+        
+        if result.rowcount == 0:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="You are not a member of this household")
+        
+        db.commit()
+        
+        # Get updated member count
+        member_count = db.query(models.user_household_association).filter(
+            models.user_household_association.c.household_id == household_id
+        ).count()
+        
+        household_response = schemas.Household(
+            id=household.id,
+            name=household.name,
+            description=household.description,
+            created_at=household.created_at,
+            created_by=household.created_by,
+            member_count=member_count
+        )
+        
+        return schemas.UserHouseholdResponse(
+            success=True,
+            message=f"Successfully left household '{household.name}'",
+            household=household_response
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to leave household: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to leave household: {str(e)}"
+        )
+
+@app.delete("/api/admin/email/templates/{template_id}", response_model=schemas.EmailResponse)
+def delete_email_template(
+    template_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Delete an email template (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    
+    # Check admin privileges
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    
+    try:
+        template = db.query(models.EmailTemplate).filter(models.EmailTemplate.id == template_id).first()
+        if not template:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+        
+        # Delete the template
+        db.delete(template)
+        db.commit()
+        
+        return {"success": True, "message": "Template deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to delete email template: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete email template: {str(e)}"
+        )
