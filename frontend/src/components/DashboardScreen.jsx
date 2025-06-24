@@ -6,11 +6,12 @@ import WishlistCard from './WishlistCard';
 import EnhancedUpcomingEventsBanner from './EnhancedUpcomingEventsBanner';
 import AddItemForm from './AddItemForm';
 import SchemaAlertModal from './SchemaAlertModal';
-import ExternalWishlistsButton from './ExternalWishlistsButton'; // Confirm this import exists
+import ExternalWishlistsButton from './ExternalWishlistsButton';
 import UserPreferencesDropdown from './UserPreferencesDropdown';
 import Navbar from './Navbar';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, ChevronDown, Gift, TriangleAlert, Home, Calendar } from 'lucide-react';
+import { toast } from 'react-toastify';
 
 const DashboardScreen = ({ onViewingMemberChange }) => {
   const { selectedUser, familyMembers, setFamilyMembers } = useAppContext();
@@ -18,7 +19,6 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
   const [viewingMember, setViewingMember] = useState(null);
   const [wishlistItems, setWishlistItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [upcomingEvent, setUpcomingEvent] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
   const [needsUpgrade, setNeedsUpgrade] = useState(false);
@@ -38,7 +38,6 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
       if (!selectedUser?.id) return;
       
       setIsLoading(true);
-      setError(null);
 
       try {
         // Load family members first if needed - with improved pattern to avoid multiple calls
@@ -76,9 +75,9 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
         
         // Check for rate limit error
         if (err.response?.status === 429) {
-          setError('Rate limit exceeded. Please wait a moment before refreshing the page.');
+          toast.error('Rate limit exceeded. Please wait a moment before refreshing the page.');
         } else {
-          setError('Failed to load dashboard data. Please refresh the page.');
+          toast.error('Failed to load dashboard data. Please refresh the page.');
         }
         setIsFetchingInProgress(false);
       } finally {
@@ -121,15 +120,14 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
         const membersResponse = await getFamilyMembers();
         setFamilyMembers(membersResponse.data);
         setIsAddingItem(false);
-        setError(null);
       } catch (error) {
         console.error("Error adding item:", error);
-        setError("Failed to add item.");
+        toast.error("Failed to add item.");
       } finally {
         setIsLoading(false);
       }
     } else {
-      setError("Cannot add items to another user's wishlist.");
+      toast.error("Cannot add items to another user's wishlist.");
     }
   };
 
@@ -163,14 +161,13 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
       
       const response = await getWishlistItems(viewingMember.id);
       setWishlistItems(Array.isArray(response.data) ? response.data : []);
-      setError(null);
     } catch (err) {
       console.error("Error refreshing wishlist items:", err);
       
       if (err.response?.status === 429) {
-        setError("Rate limit exceeded. Please wait a moment before trying again.");
+        toast.error("Rate limit exceeded. Please wait a moment before trying again.");
       } else {
-        setError("Failed to refresh items.");
+        toast.error("Failed to refresh items.");
       }
       setWishlistItems([]); // Ensure empty array on error
     } finally {
@@ -204,10 +201,10 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
         setFamilyMembers(membersResponse.data);
       } catch (error) {
         console.error("Error deleting item:", error);
-        setError("Failed to delete item.");
+        toast.error("Failed to delete item.");
       }
     } else {
-      setError("Cannot delete items from another user's wishlist.");
+      toast.error("Cannot delete items from another user's wishlist.");
     }
   };
 
@@ -217,7 +214,7 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
       refreshWishlistItems();
     } catch (error) {
       console.error("Error toggling thinking about:", error);
-      setError("Failed to update thinking about status.");
+      toast.error("Failed to update thinking about status.");
     }
   };
 
@@ -230,7 +227,13 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
       setFamilyMembers(membersResponse.data);
     } catch (error) {
       console.error("Error marking as purchased:", error);
-      setError("Failed to mark item as purchased.");
+      
+      // Check if the error is because the item is already purchased
+      if (error.response?.status === 404) {
+        toast.info("Only one person can mark an item as purchased");
+      } else {
+        toast.error("Failed to mark item as purchased.");
+      }
     }
   };
 
@@ -310,6 +313,14 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
     try {
       const membersResponse = await getFamilyMembers();
       setFamilyMembers(membersResponse.data);
+      
+      // Update the current viewing member with refreshed data
+      if (viewingMember?.id) {
+        const updatedMember = membersResponse.data.find(m => m.id === viewingMember.id);
+        if (updatedMember) {
+          setViewingMember(updatedMember);
+        }
+      }
     } catch (error) {
       console.error("Error refreshing family members:", error);
     }
@@ -399,8 +410,6 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
               <ExternalWishlistsButton member={viewingMember} />
             </div>}
           </div>
-
-          {error && <p className="text-red-500 bg-red-100 p-3 rounded-md text-center">{error}</p>}
 
           {/* Collapsible Browse Wishlist Section - Enhanced with gradient styling */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)] overflow-hidden">

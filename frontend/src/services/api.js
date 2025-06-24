@@ -194,7 +194,11 @@ export const confirmPasswordReset = async (token, newPassword) => {
 
 // --- Family Members ---
 export const getFamilyMembers = () => {
-  return apiClient.get('/family-members');
+  return apiClient.get('/family-members', {
+    params: {
+      _t: new Date().getTime() // Add cache-busting timestamp for fresh data
+    }
+  });
 };
 
 export const updateFamilyMemberPreferences = (memberId, preferences) => {
