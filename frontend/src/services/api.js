@@ -790,6 +790,10 @@ export const getDatabaseVersion = () => {
   return apiClient.get('/admin/system/database-version');
 };
 
+export const getAuthLogs = (params = {}) => {
+    return apiClient.get('/admin/system/auth-logs', { params });
+};
+
 // --- Emergency Token Management ---
 export const getEmergencyTokenInfo = () => {
   return apiClient.get('/admin/emergency-token/info');

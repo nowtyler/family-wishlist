@@ -52,6 +52,7 @@ import FamilyMemberManager from './admin/FamilyMemberManager';
 import Navbar from './Navbar';
 import MigrationManager from './admin/MigrationManager';
 import EmergencyTokenManager from './admin/EmergencyTokenManager';
+import AuthLogViewer from './admin/AuthLogViewer';
 import EnhancedUpcomingEventsBanner from './EnhancedUpcomingEventsBanner';
 
 const AdminPage = () => {
@@ -1611,6 +1612,9 @@ const AdminPage = () => {
 
         {/* Emergency Token Management */}
         <EmergencyTokenManager />
+
+        {/* Auth Log Viewer */}
+        <AuthLogViewer />
       </div>
     );
   };

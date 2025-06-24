@@ -3287,23 +3287,191 @@ def get_database_version(
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id_from_header)
 ):
-    """Get current database version from migrations (admin only)"""
-    if current_user_id is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
-    
-    # Check admin privileges
-    user = crud.get_family_member(db, current_user_id)
-    if not user or not user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
-    
+    """Get the current database version and migration status"""
     try:
-        # Get migrations to find current version
-        from .services.migration_service import get_current_version
-        current_version = get_current_version(db)
-        return {"current_version": current_version}
+        # Check if user is admin
+        user = db.query(models.FamilyMember).filter(models.FamilyMember.id == current_user_id).first()
+        if not user or not user.is_admin:
+            raise HTTPException(status_code=403, detail="Admin access required")
+        
+        # Get current version from alembic
+        try:
+            from alembic import command
+            from alembic.config import Config
+            from alembic.script import ScriptDirectory
+            
+            # Create alembic config
+            alembic_cfg = Config("alembic.ini")
+            script = ScriptDirectory.from_config(alembic_cfg)
+            
+            # Get current version
+            with engine.connect() as connection:
+                context = command.Context(alembic_cfg, script, connection)
+                current_version = context.get_current_revision()
+            
+            return {
+                "current_version": current_version,
+                "database_path": DATABASE_PATH
+            }
+        except Exception as e:
+            logger.error(f"Failed to get database version: {e}")
+            return {
+                "current_version": "unknown",
+                "database_path": DATABASE_PATH,
+                "error": str(e)
+            }
     except Exception as e:
-        logger.error(f"Failed to get database version: {e}")
-        return {"current_version": "unknown"}
+        logger.error(f"Database version check failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get database version")
+
+@app.get("/api/admin/system/auth-logs")
+def get_auth_logs(
+    limit: int = Query(100, ge=1, le=1000, description="Number of log entries to return"),
+    offset: int = Query(0, ge=0, description="Number of log entries to skip"),
+    event_type: Optional[str] = Query(None, description="Filter by event type (LOGIN, LOGOUT, REGISTER, etc.)"),
+    username: Optional[str] = Query(None, description="Filter by username"),
+    success_only: Optional[bool] = Query(None, description="Filter by success status"),
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get authentication logs with filtering and pagination"""
+    try:
+        # Check if user is admin
+        user = db.query(models.FamilyMember).filter(models.FamilyMember.id == current_user_id).first()
+        if not user or not user.is_admin:
+            raise HTTPException(status_code=403, detail="Admin access required")
+        
+        # Define log file path
+        log_path = '/app/data/auth.log'
+        if not os.path.exists(log_path):
+            log_path = 'auth.log'  # Fallback
+        
+        if not os.path.exists(log_path):
+            return {
+                "logs": [],
+                "total": 0,
+                "limit": limit,
+                "offset": offset,
+                "message": "No log file found"
+            }
+        
+        # Read and parse log file
+        logs = []
+        try:
+            with open(log_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                
+            # Parse each line and apply filters
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                
+                # Parse log line (format: timestamp - module - level - message)
+                try:
+                    # Split by " - " to separate timestamp, module, level, and message
+                    parts = line.split(" - ", 3)
+                    if len(parts) >= 4:
+                        timestamp_str, module, level, message = parts
+                        
+                        # Parse timestamp
+                        try:
+                            timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                        except:
+                            timestamp = None
+                        
+                        # Parse AUTH event from message
+                        auth_info = parse_auth_message(message)
+                        
+                        if auth_info:
+                            # Apply filters
+                            if event_type and auth_info.get('event_type') != event_type:
+                                continue
+                            if username and auth_info.get('username') != username:
+                                continue
+                            if success_only is not None and auth_info.get('success') != success_only:
+                                continue
+                            
+                            logs.append({
+                                "timestamp": timestamp.isoformat() if timestamp else timestamp_str,
+                                "level": level,
+                                "event_type": auth_info.get('event_type'),
+                                "username": auth_info.get('username'),
+                                "success": auth_info.get('success'),
+                                "ip_address": auth_info.get('ip_address'),
+                                "details": auth_info.get('details'),
+                                "raw_message": message
+                            })
+                except Exception as e:
+                    # Skip malformed lines
+                    continue
+            
+            # Sort by timestamp (newest first)
+            logs.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+            
+            # Apply pagination
+            total = len(logs)
+            paginated_logs = logs[offset:offset + limit]
+            
+            return {
+                "logs": paginated_logs,
+                "total": total,
+                "limit": limit,
+                "offset": offset,
+                "has_more": offset + limit < total
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to read log file: {e}")
+            raise HTTPException(status_code=500, detail="Failed to read log file")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Auth logs fetch failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch authentication logs")
+
+def parse_auth_message(message):
+    """Parse AUTH event information from log message"""
+    try:
+        # Look for AUTH pattern: "AUTH SUCCESS/FAILED - EVENT_TYPE - User: username - IP: ip - Details: details"
+        if not message.startswith('AUTH '):
+            return None
+        
+        parts = message.split(' - ')
+        if len(parts) < 2:
+            return None
+        
+        # Extract status and event type
+        auth_part = parts[0]  # "AUTH SUCCESS - LOGIN"
+        auth_parts = auth_part.split(' ', 2)
+        if len(auth_parts) < 3:
+            return None
+        
+        status = auth_parts[1]  # "SUCCESS" or "FAILED"
+        event_type = auth_parts[2]  # "LOGIN", "LOGOUT", etc.
+        
+        result = {
+            "event_type": event_type,
+            "success": status == "SUCCESS",
+            "username": None,
+            "ip_address": None,
+            "details": None
+        }
+        
+        # Parse additional parts
+        for part in parts[1:]:
+            if part.startswith('User: '):
+                result["username"] = part[6:]
+            elif part.startswith('IP: '):
+                result["ip_address"] = part[4:]
+            elif part.startswith('Details: '):
+                result["details"] = part[9:]
+        
+        return result
+        
+    except Exception:
+        return None
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
