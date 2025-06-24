@@ -234,13 +234,9 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
       // Refresh the list
       await fetchMembers();
       
-      // Try to update the global state but don't fail if it's not available
-      try {
-        if (typeof refreshFamilyMembers === 'function') {
-          await refreshFamilyMembers();
-        }
-      } catch (refreshErr) {
-        console.error("Note: Global family member refresh failed, but local data is updated");
+      // Update the global state with the latest family members data
+      if (typeof refreshFamilyMembers === 'function') {
+        await refreshFamilyMembers();
       }
       
       // Reset form state
@@ -287,13 +283,9 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
       // Refresh the list
       await fetchMembers();
       
-      // Try to update the global state but don't fail if it's not available
-      try {
-        if (typeof refreshFamilyMembers === 'function') {
-          await refreshFamilyMembers();
-        }
-      } catch (refreshErr) {
-        console.error("Note: Global family member refresh failed, but local data is updated");
+      // Update the global state with the latest family members data
+      if (typeof refreshFamilyMembers === 'function') {
+        await refreshFamilyMembers();
       }
       
       // Reset states

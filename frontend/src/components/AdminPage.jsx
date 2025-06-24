@@ -251,6 +251,7 @@ const AdminPage = () => {
 
   const UsersTab = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const { refreshFamilyMembers } = useAppContext();
 
     const handleAddUser = () => {
       setIsModalOpen(true);
@@ -258,11 +259,13 @@ const AdminPage = () => {
 
     const handleCloseModal = () => {
       setIsModalOpen(false);
-      // Simple refresh after modal closes - no race condition
+      // Refresh both local state and global family members data
       const fetchData = async () => {
         try {
           const response = await getFamilyMembers();
           setUsers(response.data || []);
+          // Also refresh the global family members state
+          await refreshFamilyMembers();
         } catch (err) {
           console.error('Failed to fetch users:', err);
           toast.error('Failed to load users');
