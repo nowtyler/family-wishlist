@@ -61,6 +61,7 @@ const FirstTimeSetupScreen = () => {
         admin_name: formData.admin_name
       });
       setEmergencyKey(response.emergency_access_key);
+      setSuccess('System setup completed successfully! Please save your emergency access key.');
       toast.success('System setup completed successfully! Please save your emergency access key.');
       login(true);
       setSelectedUser(response.admin_user);
@@ -235,7 +236,7 @@ const FirstTimeSetupScreen = () => {
                     <li>Enter "bypass" as the username</li>
                     <li>Enter your emergency access key as the password</li>
                   </ul>
-                  <p className="mt-2 text-red-600 dark:text-red-400 font-medium">Important: This key cannot be recovered if lost!</p>
+                  <p className="mt-2 text-red-600 dark:text-red-400 font-medium">Important: This current key cannot be recovered if lost!</p>
                 </div>
               </div>
 
