@@ -3411,7 +3411,7 @@ def get_application_logs(
                         except Exception:
                             timestamp = timestamp_str
                         
-                        # Apply filters
+                                                # Apply filters
                         if module and module_name != module:
                             continue
                         if level and level.upper() != level.upper():
@@ -3419,7 +3419,13 @@ def get_application_logs(
                         if search and search.lower() not in message.lower():
                             continue
                             
-                            logs.append({
+                        # Add the log entry
+                        logs.append({
+                            "timestamp": timestamp.isoformat() if hasattr(timestamp, 'isoformat') else timestamp,
+                            "module": module_name,
+                            "level": level,
+                            "message": message
+                        })
                                 "timestamp": timestamp.isoformat() if hasattr(timestamp, 'isoformat') else timestamp,
                                 "module": module_name,
                                 "level": level,
