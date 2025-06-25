@@ -828,4 +828,8 @@ export const leaveHousehold = (householdId) => {
   return apiClient.delete(`/households/${householdId}/leave`);
 };
 
+export const getApplicationLogs = (params = {}) => {
+    return apiClient.get('/admin/system/logs', { params });
+};
+
 export default apiClient;

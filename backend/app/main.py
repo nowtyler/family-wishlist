@@ -3324,13 +3324,13 @@ def get_database_version(
         logger.error(f"Database version check failed: {e}")
         raise HTTPException(status_code=500, detail="Failed to get database version")
 
-@app.get("/api/admin/system/auth-logs")
-def get_auth_logs(
+@app.get("/api/admin/system/logs")
+def get_application_logs(
     limit: int = Query(100, ge=1, le=1000, description="Number of log entries to return"),
     offset: int = Query(0, ge=0, description="Number of log entries to skip"),
-    event_type: Optional[str] = Query(None, description="Filter by event type (LOGIN, LOGOUT, REGISTER, etc.)"),
-    username: Optional[str] = Query(None, description="Filter by username"),
-    success_only: Optional[bool] = Query(None, description="Filter by success status"),
+    module: Optional[str] = Query(None, description="Filter by module name"),
+    level: Optional[str] = Query(None, description="Filter by log level (INFO, WARNING, ERROR, etc.)"),
+    search: Optional[str] = Query(None, description="Search in log messages"),
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id_from_header)
 ):
@@ -3397,7 +3397,7 @@ def get_auth_logs(
                     # Split by " - " to separate timestamp, module, level, and message
                     parts = line.split(" - ", 3)
                     if len(parts) >= 4:
-                        timestamp_str, module, level, message = parts
+                        timestamp_str, module_name, level, message = parts
                         
                         # Parse timestamp (support both ISO and 'YYYY-MM-DD HH:MM:SS,mmm')
                         try:
@@ -3411,65 +3411,19 @@ def get_auth_logs(
                         except Exception:
                             timestamp = timestamp_str
                         
-                        # Try to parse both standard AUTH format and alternative formats
-                        auth_info = None
-                        
-                        # First try standard AUTH format
-                        if 'AUTH' in message:
-                            auth_info = parse_auth_message(message)
-                        
-                        # If that fails, try to parse alternative formats
-                        if not auth_info:
-                            # Handle "Authentication successful/failed" format
-                            if "Authentication " in message:
-                                success = "successful" in message.lower()
-                                username = None
-                                if "User " in message:
-                                    username = message.split("User ")[-1].strip()
-                                auth_info = {
-                                    "event_type": "LOGIN",
-                                    "success": success,
-                                    "username": username,
-                                    "ip_address": None,
-                                    "details": message
-                                }
-                            # Handle migration messages
-                            elif "Schema status" in message:
-                                auth_info = {
-                                    "event_type": "SYSTEM",
-                                    "success": True,
-                                    "username": "SYSTEM",
-                                    "ip_address": None,
-                                    "details": message
-                                }
-                            # Handle alembic messages
-                            elif "alembic" in module:
-                                auth_info = {
-                                    "event_type": "MIGRATION",
-                                    "success": True,
-                                    "username": "SYSTEM",
-                                    "ip_address": None,
-                                    "details": message
-                                }
-                        
-                        if auth_info:
-                            # Apply filters
-                            if event_type and auth_info.get('event_type') != event_type:
-                                continue
-                            if username and auth_info.get('username') != username:
-                                continue
-                            if success_only is not None and auth_info.get('success') != success_only:
-                                continue
+                        # Apply filters
+                        if module and module_name != module:
+                            continue
+                        if level and level.upper() != level.upper():
+                            continue
+                        if search and search.lower() not in message.lower():
+                            continue
                             
                             logs.append({
                                 "timestamp": timestamp.isoformat() if hasattr(timestamp, 'isoformat') else timestamp,
+                                "module": module_name,
                                 "level": level,
-                                "event_type": auth_info.get('event_type'),
-                                "username": auth_info.get('username'),
-                                "success": auth_info.get('success'),
-                                "ip_address": auth_info.get('ip_address'),
-                                "details": auth_info.get('details'),
-                                "raw_message": message
+                                "message": message
                             })
                 except Exception as e:
                     logger.debug(f"Skipping malformed log line: {line[:100]}... Error: {e}")
