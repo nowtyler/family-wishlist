@@ -3389,7 +3389,7 @@ def get_auth_logs(
             # Parse each line and apply filters
             for line in lines:
                 line = line.strip()
-                if not line:
+                if not line or 'AUTH' not in line:
                     continue
                 
                 # Parse log line (format: timestamp - module - level - message)
@@ -3399,11 +3399,17 @@ def get_auth_logs(
                     if len(parts) >= 4:
                         timestamp_str, module, level, message = parts
                         
-                        # Parse timestamp
+                        # Parse timestamp (support both ISO and 'YYYY-MM-DD HH:MM:SS,mmm')
                         try:
-                            timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-                        except:
-                            timestamp = None
+                            # Try ISO first
+                            from datetime import datetime
+                            if 'T' in timestamp_str:
+                                timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                            else:
+                                # Parse 'YYYY-MM-DD HH:MM:SS,mmm'
+                                timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S,%f")
+                        except Exception:
+                            timestamp = timestamp_str
                         
                         # Parse AUTH event from message
                         auth_info = parse_auth_message(message)
@@ -3418,7 +3424,7 @@ def get_auth_logs(
                                 continue
                             
                             logs.append({
-                                "timestamp": timestamp.isoformat() if timestamp else timestamp_str,
+                                "timestamp": timestamp.isoformat() if hasattr(timestamp, 'isoformat') else timestamp,
                                 "level": level,
                                 "event_type": auth_info.get('event_type'),
                                 "username": auth_info.get('username'),
@@ -3428,7 +3434,6 @@ def get_auth_logs(
                                 "raw_message": message
                             })
                 except Exception as e:
-                    # Skip malformed lines
                     logger.debug(f"Skipping malformed log line: {line[:100]}... Error: {e}")
                     continue
             
