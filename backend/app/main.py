@@ -3426,11 +3426,6 @@ def get_application_logs(
                             "level": level,
                             "message": message
                         })
-                                "timestamp": timestamp.isoformat() if hasattr(timestamp, 'isoformat') else timestamp,
-                                "module": module_name,
-                                "level": level,
-                                "message": message
-                            })
                 except Exception as e:
                     logger.debug(f"Skipping malformed log line: {line[:100]}... Error: {e}")
                     continue
