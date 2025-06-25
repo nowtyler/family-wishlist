@@ -3389,7 +3389,7 @@ def get_auth_logs(
             # Parse each line and apply filters
             for line in lines:
                 line = line.strip()
-                if not line or 'AUTH' not in line:
+                if not line:
                     continue
                 
                 # Parse log line (format: timestamp - module - level - message)
@@ -3411,8 +3411,46 @@ def get_auth_logs(
                         except Exception:
                             timestamp = timestamp_str
                         
-                        # Parse AUTH event from message
-                        auth_info = parse_auth_message(message)
+                        # Try to parse both standard AUTH format and alternative formats
+                        auth_info = None
+                        
+                        # First try standard AUTH format
+                        if 'AUTH' in message:
+                            auth_info = parse_auth_message(message)
+                        
+                        # If that fails, try to parse alternative formats
+                        if not auth_info:
+                            # Handle "Authentication successful/failed" format
+                            if "Authentication " in message:
+                                success = "successful" in message.lower()
+                                username = None
+                                if "User " in message:
+                                    username = message.split("User ")[-1].strip()
+                                auth_info = {
+                                    "event_type": "LOGIN",
+                                    "success": success,
+                                    "username": username,
+                                    "ip_address": None,
+                                    "details": message
+                                }
+                            # Handle migration messages
+                            elif "Schema status" in message:
+                                auth_info = {
+                                    "event_type": "SYSTEM",
+                                    "success": True,
+                                    "username": "SYSTEM",
+                                    "ip_address": None,
+                                    "details": message
+                                }
+                            # Handle alembic messages
+                            elif "alembic" in module:
+                                auth_info = {
+                                    "event_type": "MIGRATION",
+                                    "success": True,
+                                    "username": "SYSTEM",
+                                    "ip_address": None,
+                                    "details": message
+                                }
                         
                         if auth_info:
                             # Apply filters
