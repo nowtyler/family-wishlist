@@ -1076,6 +1076,7 @@ const AdminPage = () => {
                     />
                   </div>
                   <button
+                    type="button"
                     onClick={async () => {
                       setIsBroadcasting(true);
                       try {
