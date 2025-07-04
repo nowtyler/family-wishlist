@@ -46,7 +46,8 @@ import {
   clearSystemCache,
   getAllItems,
   deleteItemAsAdmin,
-  clearAllWishlists
+  clearAllWishlists,
+  broadcastMaintenanceNotice
 } from '../services/api';
 import FamilyMemberManager from './admin/FamilyMemberManager';
 import Navbar from './Navbar';
@@ -743,6 +744,7 @@ const AdminPage = () => {
     const [testEmail, setTestEmail] = useState('');
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [templateToDelete, setTemplateToDelete] = useState(null);
+    const [isBroadcasting, setIsBroadcasting] = useState(false);
 
     const fetchEmailData = async () => {
       setIsLoadingSettings(true);
@@ -1047,6 +1049,42 @@ const AdminPage = () => {
                       )}
                     </button>
                   </div>
+                </div>
+
+                {/* Broadcast Maintenance Notice */}
+                <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                  <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Broadcast Maintenance Notice</h4>
+                  <button
+                    onClick={async () => {
+                      setIsBroadcasting(true);
+                      try {
+                        const response = await broadcastMaintenanceNotice();
+                        toast.success(response.data.message || 'Maintenance notice sent!');
+                      } catch (err) {
+                        console.error('Failed to send maintenance notice:', err);
+                        toast.error(err.response?.data?.detail || 'Failed to send maintenance notice');
+                      } finally {
+                        setIsBroadcasting(false);
+                      }
+                    }}
+                    className="flex items-center px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg transition-colors"
+                    disabled={isBroadcasting}
+                  >
+                    {isBroadcasting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4 mr-2" />
+                        Send Maintenance Notice to All Users
+                      </>
+                    )}
+                  </button>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    This will send the current maintenance notice template to all users. You can edit the template below.
+                  </p>
                 </div>
               </>
             )}

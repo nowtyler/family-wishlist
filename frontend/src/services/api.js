@@ -832,4 +832,8 @@ export const getApplicationLogs = (params = {}) => {
     return apiClient.get('/admin/system/logs', { params });
 };
 
+export const broadcastMaintenanceNotice = (maintenance_time) => {
+  return apiClient.post('/admin/email/broadcast-maintenance', { maintenance_time });
+};
+
 export default apiClient;

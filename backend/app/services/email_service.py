@@ -278,6 +278,30 @@ class EmailService:
             "Test User",
             {"timestamp": get_est_timestamp_strftime("%Y-%m-%d %H:%M:%S")}
         )
+    
+    def send_maintenance_notice_to_all_users(self, maintenance_time: str = None) -> int:
+        """Send maintenance notice email to all users with an email address. Returns number of emails sent."""
+        users = self.db.query(FamilyMember).filter(FamilyMember.email != None).all()
+        if not users:
+            logger.warning("No users with email addresses found for maintenance notice.")
+            return 0
+        # Compose template vars
+        template_vars = {
+            "maintenance_time": maintenance_time or "soon"
+        }
+        sent_count = 0
+        for user in users:
+            vars_for_user = template_vars.copy()
+            vars_for_user["user_name"] = user.name or "User"
+            log = self.send_template_email(
+                "maintenance_notice",
+                user.email,
+                user.name,
+                vars_for_user
+            )
+            if log and getattr(log, 'status', None) == "sent":
+                sent_count += 1
+        return sent_count
 
 def generate_reset_token() -> str:
     """Generate a secure reset token"""
@@ -745,6 +769,67 @@ def create_default_templates(db: Session):
                                     </td>
                                 </tr>
                                 
+                                <!-- Footer -->
+                                <tr>
+                                    <td style="background-color:#f1f5f9;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">
+                                        <p style="margin:0;color:#64748b;font-size:14px;">
+                                            &copy; 2025 Family Wishlist. All rights reserved.
+                                        </p>
+                                        <p style="margin:10px 0 0;color:#94a3b8;font-size:12px;">
+                                            This is an automated message, please do not reply.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+            </body>
+            </html>
+            """
+        },
+        {
+            "name": "maintenance_notice",
+            "subject": "Scheduled Maintenance Notice",
+            "body": """
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Maintenance Notice</title>
+            </head>
+            <body style="margin:0;padding:0;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#f5f7fa;color:#333333;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f5f7fa;">
+                    <tr>
+                        <td align="center" style="padding:40px 0;">
+                            <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1);max-width:90%;">
+                                <!-- Header -->
+                                <tr>
+                                    <td style="background:linear-gradient(to right, #0ea5e9, #6366f1);padding:30px 40px;text-align:center;">
+                                        <h1 style="color:#ffffff;margin:0;font-weight:700;font-size:28px;">Family Wishlist</h1>
+                                        <p style="color:#e0f2fe;margin:10px 0 0;font-size:16px;">Scheduled Maintenance</p>
+                                    </td>
+                                </tr>
+                                <!-- Content -->
+                                <tr>
+                                    <td style="padding:40px;">
+                                        <h2 style="margin:0 0 15px;color:#334155;font-size:24px;font-weight:600;">Dear {{user_name}},</h2>
+                                        <p style="margin:0 0 25px;color:#64748b;font-size:16px;line-height:1.6;">
+                                            Family Wishlist will be offline for scheduled maintenance on <b>{{maintenance_time}}</b>.<br>
+                                            Please save your work and plan accordingly.<br>
+                                            We apologize for any inconvenience and appreciate your understanding.
+                                        </p>
+                                        <div style="background-color:#fef9c3;border:1px solid #fde68a;border-radius:6px;padding:15px;margin:25px 0;text-align:left;">
+                                            <h4 style="margin:0 0 10px;color:#b45309;font-size:16px;">Maintenance Details:</h4>
+                                            <ul style="margin:0;padding-left:20px;">
+                                                <li><b>Date/Time:</b> {{maintenance_time}}</li>
+                                                <li><b>Expected Downtime:</b> 1-2 hours</li>
+                                            </ul>
+                                        </div>
+                                        <p style="margin:30px 0 0;color:#64748b;font-size:14px;">Thank you for your patience and support!</p>
+                                    </td>
+                                </tr>
                                 <!-- Footer -->
                                 <tr>
                                     <td style="background-color:#f1f5f9;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">

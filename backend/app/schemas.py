@@ -569,3 +569,6 @@ class FirstTimeSetupResponse(BaseModel):
     message: str
     emergency_access_key: str
     admin_user: FamilyMember
+
+class MaintenanceBroadcastRequest(BaseModel):
+    maintenance_time: Optional[str] = None
