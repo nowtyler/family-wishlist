@@ -890,6 +890,30 @@ const AdminPage = () => {
       setShowDeleteConfirm(true);
     };
 
+    const handleBroadcastMaintenanceNotice = async () => {
+      if (isBroadcasting) return; // Prevent double-clicks
+      if (!maintenanceTime.trim() || !expectedDowntime.trim()) {
+        toast.error("Please fill out both the maintenance time and expected downtime.");
+        return;
+      }
+    
+      setIsBroadcasting(true);
+      try {
+        const response = await broadcastMaintenanceNotice(
+          maintenanceTime.trim(),
+          expectedDowntime.trim()
+        );
+        toast.success(response.data?.message || "Maintenance notice sent successfully!");
+        setMaintenanceTime('');
+        setExpectedDowntime('');
+      } catch (err) {
+        console.error("Broadcast failed:", err);
+        toast.error(err.response?.data?.detail || "Failed to send maintenance notice.");
+      } finally {
+        setIsBroadcasting(false);
+      }
+    };
+
     return (
       <div className="space-y-6">
         <AdminCard title="Email Configuration" icon={Mail}>
@@ -1077,21 +1101,7 @@ const AdminPage = () => {
                   </div>
                   <button
                     type="button"
-                    onClick={async () => {
-                      setIsBroadcasting(true);
-                      try {
-                        const response = await broadcastMaintenanceNotice(
-                          maintenanceTime || undefined,
-                          expectedDowntime || undefined
-                        );
-                        toast.success(response.data.message || 'Maintenance notice sent!');
-                      } catch (err) {
-                        console.error('Failed to send maintenance notice:', err);
-                        toast.error(err.response?.data?.detail || 'Failed to send maintenance notice');
-                      } finally {
-                        setIsBroadcasting(false);
-                      }
-                    }}
+                    onClick={handleBroadcastMaintenanceNotice}
                     className="flex items-center px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded transition-colors text-sm font-medium w-fit"
                     disabled={isBroadcasting}
                   >
