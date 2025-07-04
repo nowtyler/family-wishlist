@@ -42,8 +42,6 @@ import {
   getSystemStatus,
   getDatabaseVersion,
   updateSystemSettings,
-  setMaintenanceMode,
-  clearSystemCache,
   getAllItems,
   deleteItemAsAdmin,
   clearAllWishlists,
@@ -70,7 +68,6 @@ const AdminPage = () => {
     totalItems: 0,
     systemStatus: 'Loading...'
   });
-  const [recentActivity, setRecentActivity] = useState([]);
   const [users, setUsers] = useState([]);
   const [households, setHouseholds] = useState([]);
   const [systemStatus, setSystemStatus] = useState({
@@ -85,12 +82,6 @@ const AdminPage = () => {
     database_size_kb: 0
   });
   const [databaseVersion, setDatabaseVersion] = useState('unknown');
-  const [systemSettings, setSystemSettings] = useState({
-    maintenance_mode: false,
-    max_upload_size: '5MB',
-    session_timeout: '24h',
-    backup_retention_days: 30
-  });
 
   const [maintenanceTime, setMaintenanceTime] = useState('');
   const [expectedDowntime, setExpectedDowntime] = useState('');
@@ -130,10 +121,6 @@ const AdminPage = () => {
         setHouseholds(householdsResponse.data || []);
         setDatabaseVersion(databaseVersionResponse.data?.current_version || 'unknown');
 
-        // Set recent activity if available
-        if (statsResponse.data?.recent_activity) {
-          setRecentActivity(statsResponse.data.recent_activity);
-        }
       } catch (err) {
         console.error('Failed to fetch admin data:', err);
         toast.error('Failed to load admin dashboard data');
@@ -144,42 +131,6 @@ const AdminPage = () => {
 
     fetchData();
   }, []);
-
-  const handleQuickAction = async (action) => {
-    setIsLoading(true);
-
-    try {
-      switch (action) {
-        case 'addUser':
-          navigate('/admin?tab=users&action=add');
-          break;
-        case 'createHousehold':
-          const newHousehold = await createHousehold({ name: 'New Household' });
-          if (newHousehold.data) {
-            toast.success('Household created successfully');
-            setHouseholds([...households, newHousehold.data]);
-          }
-          break;
-        case 'testEmail':
-          const emailTest = await testEmailSettings();
-          toast.success(emailTest.data.message || 'Test email sent successfully');
-          break;
-        case 'createBackup':
-          const backup = await createBackup();
-          toast.success('Backup created successfully');
-          const backupsRes = await getBackups();
-          setBackups(backupsRes.data || []);
-          break;
-        default:
-          break;
-      }
-    } catch (err) {
-      console.error('Quick action failed:', err);
-      toast.error(err.response?.data?.detail || 'Action failed. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
@@ -1085,7 +1036,7 @@ const AdminPage = () => {
                     <input
                       type="text"
                       value={maintenanceTime}
-                      onChange={e => setMaintenanceTime(e.target.value)}
+                      onChange={(e) => setMaintenanceTime(e.target.value)}
                       placeholder="Maintenance Date/Time (e.g. June 10, 2:00 AM EST)"
                       className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       disabled={isBroadcasting}
@@ -1093,7 +1044,7 @@ const AdminPage = () => {
                     <input
                       type="text"
                       value={expectedDowntime}
-                      onChange={e => setExpectedDowntime(e.target.value)}
+                      onChange={(e) => setExpectedDowntime(e.target.value)}
                       placeholder="Expected Downtime (e.g. 1-2 hours)"
                       className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       disabled={isBroadcasting}
