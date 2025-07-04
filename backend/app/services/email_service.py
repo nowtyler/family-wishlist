@@ -279,7 +279,7 @@ class EmailService:
             {"timestamp": get_est_timestamp_strftime("%Y-%m-%d %H:%M:%S")}
         )
     
-    def send_maintenance_notice_to_all_users(self, maintenance_time: str = None) -> int:
+    def send_maintenance_notice_to_all_users(self, maintenance_time: str = None, expected_downtime: str = None) -> int:
         """Send maintenance notice email to all users with an email address. Returns number of emails sent."""
         users = self.db.query(FamilyMember).filter(FamilyMember.email != None).all()
         if not users:
@@ -287,7 +287,8 @@ class EmailService:
             return 0
         # Compose template vars
         template_vars = {
-            "maintenance_time": maintenance_time or "soon"
+            "maintenance_time": maintenance_time or "soon",
+            "expected_downtime": expected_downtime or "1-2 hours"
         }
         sent_count = 0
         for user in users:
@@ -817,14 +818,14 @@ def create_default_templates(db: Session):
                                         <h2 style="margin:0 0 15px;color:#334155;font-size:24px;font-weight:600;">Dear {{user_name}},</h2>
                                         <p style="margin:0 0 25px;color:#64748b;font-size:16px;line-height:1.6;">
                                             Family Wishlist will be offline for scheduled maintenance on <b>{{maintenance_time}}</b>.<br>
-                                            Please save your work and plan accordingly.<br>
+                                            During maintenance, you will not be able to access the application.<br>
                                             We apologize for any inconvenience and appreciate your understanding.
                                         </p>
                                         <div style="background-color:#fef9c3;border:1px solid #fde68a;border-radius:6px;padding:15px;margin:25px 0;text-align:left;">
                                             <h4 style="margin:0 0 10px;color:#b45309;font-size:16px;">Maintenance Details:</h4>
                                             <ul style="margin:0;padding-left:20px;">
                                                 <li><b>Date/Time:</b> {{maintenance_time}}</li>
-                                                <li><b>Expected Downtime:</b> 1-2 hours</li>
+                                                <li><b>Expected Downtime:</b> {{expected_downtime}}</li>
                                             </ul>
                                         </div>
                                         <p style="margin:30px 0 0;color:#64748b;font-size:14px;">Thank you for your patience and support!</p>

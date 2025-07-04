@@ -92,6 +92,9 @@ const AdminPage = () => {
     backup_retention_days: 30
   });
 
+  const [maintenanceTime, setMaintenanceTime] = useState('');
+  const [expectedDowntime, setExpectedDowntime] = useState('');
+
   // Check if user is admin or not
   useEffect(() => {
     if (!selectedUser || !selectedUser.is_admin) {
@@ -1054,11 +1057,32 @@ const AdminPage = () => {
                 {/* Broadcast Maintenance Notice */}
                 <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
                   <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Broadcast Maintenance Notice</h4>
+                  <div className="flex flex-col sm:flex-row gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={maintenanceTime}
+                      onChange={e => setMaintenanceTime(e.target.value)}
+                      placeholder="Maintenance Date/Time (e.g. June 10, 2:00 AM EST)"
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      disabled={isBroadcasting}
+                    />
+                    <input
+                      type="text"
+                      value={expectedDowntime}
+                      onChange={e => setExpectedDowntime(e.target.value)}
+                      placeholder="Expected Downtime (e.g. 1-2 hours)"
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      disabled={isBroadcasting}
+                    />
+                  </div>
                   <button
                     onClick={async () => {
                       setIsBroadcasting(true);
                       try {
-                        const response = await broadcastMaintenanceNotice();
+                        const response = await broadcastMaintenanceNotice(
+                          maintenanceTime || undefined,
+                          expectedDowntime || undefined
+                        );
                         toast.success(response.data.message || 'Maintenance notice sent!');
                       } catch (err) {
                         console.error('Failed to send maintenance notice:', err);
@@ -1067,7 +1091,7 @@ const AdminPage = () => {
                         setIsBroadcasting(false);
                       }
                     }}
-                    className="flex items-center px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg transition-colors"
+                    className="flex items-center px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded transition-colors text-sm font-medium w-fit"
                     disabled={isBroadcasting}
                   >
                     {isBroadcasting ? (
@@ -1077,8 +1101,8 @@ const AdminPage = () => {
                       </>
                     ) : (
                       <>
-                        <Send className="w-4 h-4 mr-2" />
-                        Send Maintenance Notice to All Users
+                        <Send className="w-4 h-4 mr-1" />
+                        Send Notice
                       </>
                     )}
                   </button>

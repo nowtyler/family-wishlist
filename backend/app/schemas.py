@@ -572,3 +572,4 @@ class FirstTimeSetupResponse(BaseModel):
 
 class MaintenanceBroadcastRequest(BaseModel):
     maintenance_time: Optional[str] = None
+    expected_downtime: Optional[str] = None

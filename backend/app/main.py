@@ -3862,18 +3862,10 @@ def broadcast_maintenance_email(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
     user = crud.get_family_member(db, current_user_id)
     if not user or not user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
-    try:
-        email_service = EmailService(db)
-        sent_count = email_service.send_maintenance_notice_to_all_users(request.maintenance_time)
-        return schemas.EmailResponse(
-            success=True,
-            message=f"Maintenance notice sent to {sent_count} users.",
-            email_log=None
-        )
-    except Exception as e:
-        logger.error(f"Failed to send maintenance notice: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to send maintenance notice: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    email_service = EmailService(db)
+    sent_count = email_service.send_maintenance_notice_to_all_users(
+        maintenance_time=request.maintenance_time,
+        expected_downtime=getattr(request, 'expected_downtime', None)
+    )
+    return schemas.EmailResponse(message=f"Maintenance notice sent to {sent_count} users.")
