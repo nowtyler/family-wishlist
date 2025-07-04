@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, MessageCircleHeart, ShoppingCart, MessageCircle, Trash2, Plus, Pencil, 
   Gift, Moon, Sun, Settings, User, Database, RotateCcw, TriangleAlert,
-  RefreshCw, Archive, Home, Ruler, LogOut, Lock, AlertOctagon, Mail
+  RefreshCw, Archive, Home, Ruler, LogOut, Lock, AlertOctagon, Mail,
+  Download, Upload
 } from 'lucide-react';
 
 const HelpModal = ({ isOpen, onClose, isAdmin }) => {
@@ -211,6 +212,40 @@ const HelpModal = ({ isOpen, onClose, isAdmin }) => {
                 color="red"
               >
                 <p>Click the trash icon on any item to remove it from your wishlist.</p>
+              </Feature>
+              
+              <Feature 
+                icon={<Download size={18} />} 
+                title="Exporting Your Wishlist" 
+                color="indigo"
+              >
+                <p>Click the settings gear icon in the top navigation bar, then select "Export Wishlist" to download your wishlist as a JSON file. 
+                This creates a backup of all your items that you can save for later.</p>
+                <div className="mt-1">
+                  <ActionButton icon={<Download size={14} />} color="indigo">
+                    Export Wishlist
+                  </ActionButton>
+                </div>
+              </Feature>
+              
+              <Feature 
+                icon={<Upload size={18} />} 
+                title="Importing Wishlists" 
+                color="green"
+              >
+                <p>Click the settings gear icon, then select "Import Wishlist" to add items from a previously exported wishlist file. 
+                This is useful for restoring your wishlist from a backup.</p>
+                <p className="mt-1">The system will automatically skip any duplicate items that already exist in your wishlist. 
+                You'll receive a summary showing how many items were imported and how many were skipped as duplicates.</p>
+                <p className="mt-1 text-amber-600 dark:text-amber-400">
+                  <TriangleAlert size={14} className="inline mr-1" />
+                  Only JSON files exported from this application can be imported. Make sure the file format is correct.
+                </p>
+                <div className="mt-1">
+                  <ActionButton icon={<Upload size={14} />} color="green">
+                    Import Wishlist
+                  </ActionButton>
+                </div>
               </Feature>
             </HelpSection>
 

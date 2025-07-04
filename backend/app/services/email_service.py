@@ -452,6 +452,7 @@ def create_default_templates(db: Session):
                                                                         <li style="margin-bottom:10px;">Join or create a household to share wishlists with family members</li>
                                                                         <li style="margin-bottom:10px;">View others' wishlists and mark items as purchased</li>
                                                                         <li style="margin-bottom:10px;">Set your birthday and preferences in your profile</li>
+                                                                        <li style="margin-bottom:10px;">Export/import your wishlist for backup or sharing</li>
                                                                     </ul>
                                                                 </td>
                                                             </tr>
@@ -791,7 +792,7 @@ def create_default_templates(db: Session):
         },
         {
             "name": "maintenance_notice",
-            "subject": "Scheduled Maintenance Notice",
+            "subject": "Family Wishlist Maintenance Notice",
             "body": """
             <!DOCTYPE html>
             <html lang="en">
@@ -818,8 +819,7 @@ def create_default_templates(db: Session):
                                         <h2 style="margin:0 0 15px;color:#334155;font-size:24px;font-weight:600;">Dear {{user_name}},</h2>
                                         <p style="margin:0 0 25px;color:#64748b;font-size:16px;line-height:1.6;">
                                             Family Wishlist will be offline for maintenance on <b>{{maintenance_time}}</b>.<br>
-                                            During maintenance, you will not be able to access the website.<br>
-                                            We apologize for any inconvenience and appreciate your understanding.
+                                            During maintenance, you will not be able to access the website. We apologize for any inconvenience and appreciate your understanding.
                                         </p>
                                         <div style="background-color:#fef9c3;border:1px solid #fde68a;border-radius:6px;padding:15px;margin:25px 0;text-align:left;">
                                             <h4 style="margin:0 0 10px;color:#b45309;font-size:16px;">Maintenance Details:</h4>
