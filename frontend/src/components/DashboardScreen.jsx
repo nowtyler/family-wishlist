@@ -470,96 +470,127 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
             </div>
           )}
           
-          {/* Header section - with user preferences dropdown */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)]">
-            <div className="w-full md:w-auto">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-white">
-                  {viewingMember?.id === selectedUser.id ? "Your Wishlist" : `${viewingMember?.name || ''}'s Wishlist`}
-                </h1>
-                
-                {/* Replace birthday badge with preferences dropdown */}
-                {viewingMember && (
-                  <UserPreferencesDropdown 
-                    member={viewingMember}
-                    isOwner={viewingMember.id === selectedUser.id || isAdmin}
-                    currentUserId={selectedUser.id}
-                    onUpdateSuccess={handlePreferencesUpdate}
-                  />
-                )}
-              </div>
-              <p className="text-gray-600 dark:text-gray-300 mt-1">
-                {viewingMember?.id === selectedUser.id ? "Manage your wishes or " : "Browse wishes and "}
-                see what others are hoping for!
-              </p>
-            </div>
-            
-            {/* External Wishlists Button - full width on mobile, auto width on larger screens */}
-            {viewingMember && <div className="w-full md:w-auto">
-              <ExternalWishlistsButton member={viewingMember} />
-            </div>}
-          </div>
-
-          {/* Collapsible Browse Wishlist Section - Enhanced with gradient styling */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)] overflow-hidden">
-            <button
-              onClick={() => setBrowserExpanded(!isBrowserExpanded)}
-              className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-sky-50 to-indigo-50 dark:from-sky-900/20 dark:to-indigo-900/20 hover:from-sky-100 hover:to-indigo-100 dark:hover:from-sky-900/30 dark:hover:to-indigo-900/30 transition-colors duration-200"
+          {/* Redesigned Top Section: Header, Preferences, External Wishlists, Browse Wishlists */}
+          <div className="relative flex flex-col gap-2 md:gap-0 md:flex-row md:items-center md:justify-between bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)] px-4 py-3 md:py-2 md:px-6 mb-2 animate-fade-in">
+            {/* Left: Wishlist Title & Preferences */}
+            <motion.div 
+              initial={{ x: -20, opacity: 0 }} 
+              animate={{ x: 0, opacity: 1 }} 
+              transition={{ duration: 0.4 }}
+              className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 min-w-0"
             >
-              <div className="flex items-center gap-2">
-                <Gift className="w-4 h-4 text-primary dark:text-primary-400" />
-                <span className="font-semibold text-gray-800 dark:text-white">
-                  Browse Wishlists
-                </span>
-                {Array.isArray(familyMembers) && (
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                    ({familyMembers.filter(m => !m.is_admin).length})
-                  </span>
-                )}
-                <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full">
-                  View Others
-                </span>
-              </div>
-              <ChevronDown
-                className={`w-4 h-4 text-gray-500 dark:text-gray-400 transform transition-transform duration-200 ${
-                  isBrowserExpanded ? 'rotate-180' : ''
-                }`}
-              />
-            </button>
+              <h1 className="truncate text-xl md:text-2xl font-bold text-gray-800 dark:text-white flex-shrink-0">
+                {viewingMember?.id === selectedUser.id ? "Your Wishlist" : `${viewingMember?.name || ''}'s Wishlist`}
+              </h1>
+              {viewingMember && (
+                <UserPreferencesDropdown 
+                  member={viewingMember}
+                  isOwner={viewingMember.id === selectedUser.id || isAdmin}
+                  currentUserId={selectedUser.id}
+                  onUpdateSuccess={handlePreferencesUpdate}
+                  className="ml-0 sm:ml-2"
+                />
+              )}
+            </motion.div>
 
-            <motion.div
-              initial={false}
-              animate={{
-                height: isBrowserExpanded ? 'auto' : 0,
-                opacity: isBrowserExpanded ? 1 : 0
-              }}
-              transition={{ duration: 0.2 }}
-              className="overflow-hidden border-t border-gray-100 dark:border-gray-700"
+            {/* Center: External Wishlists Button (inline on desktop, below on mobile) */}
+            {viewingMember && (
+              <motion.div 
+                initial={{ scale: 0.95, opacity: 0 }} 
+                animate={{ scale: 1, opacity: 1 }} 
+                transition={{ duration: 0.3, delay: 0.1 }}
+                className="order-3 md:order-none w-full md:w-auto mt-1 md:mt-0 flex-shrink-0"
+              >
+                <ExternalWishlistsButton member={viewingMember} />
+              </motion.div>
+            )}
+
+            {/* Right: Browse Wishlists (as pill selector on mobile, dropdown on desktop) */}
+            <motion.div 
+              initial={{ x: 20, opacity: 0 }} 
+              animate={{ x: 0, opacity: 1 }} 
+              transition={{ duration: 0.4 }}
+              className="flex-1 flex flex-col md:flex-row md:justify-end md:items-center gap-2 md:gap-0 min-w-0"
             >
-              <div className="p-4 grid gap-2">
-                {Array.isArray(familyMembers) && familyMembers
-                  .filter(member => !member.is_admin)
-                  .map(member => (
-                    <motion.button
-                      key={member.id}
-                      onClick={() => handleSelectViewingMember(member)}
-                      className={`w-full flex items-center justify-between px-4 py-2.5 rounded-lg transition-all duration-200
-                        ${viewingMember?.id === member.id
-                          ? 'bg-gradient-to-r from-sky-500 to-indigo-500 dark:from-sky-400 dark:to-indigo-400 text-white shadow-sm'
-                          : 'bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'
-                        }`}
-                    >
-                      <span className="font-medium">{member.name}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full
-                        ${viewingMember?.id === member.id
-                          ? 'bg-white/20'
-                          : 'bg-white dark:bg-gray-600'
-                        }`}
+              {/* On mobile: horizontal scroll pill selector; on desktop: dropdown */}
+              <div className="w-full md:w-auto">
+                <div className="block md:hidden overflow-x-auto pb-1 -mx-2 px-2">
+                  <div className="flex gap-2">
+                    {Array.isArray(familyMembers) && familyMembers.filter(m => !m.is_admin).map(member => (
+                      <motion.button
+                        key={member.id}
+                        onClick={() => handleSelectViewingMember(member)}
+                        whileTap={{ scale: 0.97 }}
+                        className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 whitespace-nowrap shadow-sm
+                          ${viewingMember?.id === member.id
+                            ? 'bg-gradient-to-r from-sky-500 to-indigo-500 text-white'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          }`}
+                        aria-current={viewingMember?.id === member.id ? 'true' : undefined}
                       >
-                        {member.wishlist_item_count}
+                        {member.name}
+                        <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-semibold
+                          ${viewingMember?.id === member.id ? 'bg-white/30' : 'bg-white dark:bg-gray-600'}`}
+                        >
+                          {member.wishlist_item_count}
+                        </span>
+                      </motion.button>
+                    ))}
+                  </div>
+                </div>
+                <div className="hidden md:block">
+                  <button
+                    onClick={() => setBrowserExpanded(!isBrowserExpanded)}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-sky-50 to-indigo-50 dark:from-sky-900/20 dark:to-indigo-900/20 hover:from-sky-100 hover:to-indigo-100 dark:hover:from-sky-900/30 dark:hover:to-indigo-900/30 transition-colors duration-200 font-semibold text-gray-800 dark:text-white shadow-sm"
+                  >
+                    <Gift className="w-4 h-4 text-primary dark:text-primary-400" />
+                    Browse Wishlists
+                    {Array.isArray(familyMembers) && (
+                      <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full">
+                        {familyMembers.filter(m => !m.is_admin).length}
                       </span>
-                    </motion.button>
-                ))}
+                    )}
+                    <ChevronDown
+                      className={`w-4 h-4 text-gray-500 dark:text-gray-400 transform transition-transform duration-200 ${isBrowserExpanded ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+                  <motion.div
+                    initial={false}
+                    animate={{
+                      height: isBrowserExpanded ? 'auto' : 0,
+                      opacity: isBrowserExpanded ? 1 : 0
+                    }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden border-t border-gray-100 dark:border-gray-700"
+                  >
+                    <div className="p-2 grid gap-1">
+                      {Array.isArray(familyMembers) && familyMembers
+                        .filter(member => !member.is_admin)
+                        .map(member => (
+                          <motion.button
+                            key={member.id}
+                            onClick={() => handleSelectViewingMember(member)}
+                            whileTap={{ scale: 0.97 }}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all duration-200
+                              ${viewingMember?.id === member.id
+                                ? 'bg-gradient-to-r from-sky-500 to-indigo-500 text-white shadow-sm'
+                                : 'bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'
+                              }`}
+                          >
+                            <span className="font-medium truncate">{member.name}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full
+                              ${viewingMember?.id === member.id
+                                ? 'bg-white/20'
+                                : 'bg-white dark:bg-gray-600'
+                              }`}
+                            >
+                              {member.wishlist_item_count}
+                            </span>
+                          </motion.button>
+                      ))}
+                    </div>
+                  </motion.div>
+                </div>
               </div>
             </motion.div>
           </div>
