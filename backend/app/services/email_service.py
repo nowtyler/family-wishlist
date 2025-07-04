@@ -817,8 +817,8 @@ def create_default_templates(db: Session):
                                     <td style="padding:40px;">
                                         <h2 style="margin:0 0 15px;color:#334155;font-size:24px;font-weight:600;">Dear {{user_name}},</h2>
                                         <p style="margin:0 0 25px;color:#64748b;font-size:16px;line-height:1.6;">
-                                            Family Wishlist will be offline for scheduled maintenance on <b>{{maintenance_time}}</b>.<br>
-                                            During maintenance, you will not be able to access the application.<br>
+                                            Family Wishlist will be offline for maintenance on <b>{{maintenance_time}}</b>.<br>
+                                            During maintenance, you will not be able to access the website.<br>
                                             We apologize for any inconvenience and appreciate your understanding.
                                         </p>
                                         <div style="background-color:#fef9c3;border:1px solid #fde68a;border-radius:6px;padding:15px;margin:25px 0;text-align:left;">

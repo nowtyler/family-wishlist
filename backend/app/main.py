@@ -3868,4 +3868,7 @@ def broadcast_maintenance_email(
         maintenance_time=request.maintenance_time,
         expected_downtime=getattr(request, 'expected_downtime', None)
     )
-    return schemas.EmailResponse(message=f"Maintenance notice sent to {sent_count} users.")
+    return schemas.EmailResponse(
+        success=True,
+        message=f"Maintenance notice sent to {sent_count} users."
+    )
