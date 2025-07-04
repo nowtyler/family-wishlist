@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Users, Settings, Mail, Shield, Trash2, Plus, 
@@ -54,6 +54,85 @@ import EmergencyTokenManager from './admin/EmergencyTokenManager';
 import ApplicationLogViewer from './admin/ApplicationLogViewer';
 import EnhancedUpcomingEventsBanner from './EnhancedUpcomingEventsBanner';
 
+// Memoized Maintenance Notice Broadcaster Component
+const MaintenanceNoticeBroadcaster = memo(({ isBroadcasting, setIsBroadcasting }) => {
+  const [maintenanceTime, setMaintenanceTime] = useState('');
+  const [expectedDowntime, setExpectedDowntime] = useState('');
+
+  const handleBroadcastMaintenanceNotice = useCallback(async () => {
+    if (isBroadcasting) return; // Prevent double-clicks
+    if (!maintenanceTime.trim() || !expectedDowntime.trim()) {
+      toast.error("Please fill out both the maintenance time and expected downtime.");
+      return;
+    }
+  
+    setIsBroadcasting(true);
+    try {
+      const response = await broadcastMaintenanceNotice(
+        maintenanceTime.trim(),
+        expectedDowntime.trim()
+      );
+      toast.success(response.data?.message || "Maintenance notice sent successfully!");
+      // Only clear fields if the response is successful
+      setMaintenanceTime('');
+      setExpectedDowntime('');
+    } catch (err) {
+      console.error("Broadcast failed:", err);
+      toast.error(err.response?.data?.detail || "Failed to send maintenance notice.");
+      // Do NOT clear fields here - let user retry or edit
+    } finally {
+      setIsBroadcasting(false);
+    }
+  }, [maintenanceTime, expectedDowntime, isBroadcasting, setIsBroadcasting]);
+
+  return (
+    <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+      <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Broadcast Maintenance Notice</h4>
+      <div className="flex flex-col sm:flex-row gap-2 mb-2">
+        <input
+          type="text"
+          value={maintenanceTime}
+          onChange={(e) => setMaintenanceTime(e.target.value)}
+          placeholder="Maintenance Date/Time (e.g. June 10, 2:00 AM EST)"
+          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          disabled={isBroadcasting}
+        />
+        <input
+          type="text"
+          value={expectedDowntime}
+          onChange={(e) => setExpectedDowntime(e.target.value)}
+          placeholder="Expected Downtime (e.g. 1-2 hours)"
+          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          disabled={isBroadcasting}
+        />
+      </div>
+      <button
+        type="button"
+        onClick={handleBroadcastMaintenanceNotice}
+        className="flex items-center px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded transition-colors text-sm font-medium w-fit"
+        disabled={isBroadcasting}
+      >
+        {isBroadcasting ? (
+          <>
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+            Sending...
+          </>
+        ) : (
+          <>
+            <Send className="w-4 h-4 mr-1" />
+            Send Notice
+          </>
+        )}
+      </button>
+      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+        This will send the current maintenance notice template to all users. You can edit the template below.
+      </p>
+    </div>
+  );
+});
+
+MaintenanceNoticeBroadcaster.displayName = 'MaintenanceNoticeBroadcaster';
+
 const AdminPage = () => {
   const { selectedUser } = useAppContext();
   const navigate = useNavigate();
@@ -82,9 +161,6 @@ const AdminPage = () => {
     database_size_kb: 0
   });
   const [databaseVersion, setDatabaseVersion] = useState('unknown');
-
-  const [maintenanceTime, setMaintenanceTime] = useState('');
-  const [expectedDowntime, setExpectedDowntime] = useState('');
 
   // Check if user is admin or not
   useEffect(() => {
@@ -841,30 +917,6 @@ const AdminPage = () => {
       setShowDeleteConfirm(true);
     };
 
-    const handleBroadcastMaintenanceNotice = async () => {
-      if (isBroadcasting) return; // Prevent double-clicks
-      if (!maintenanceTime.trim() || !expectedDowntime.trim()) {
-        toast.error("Please fill out both the maintenance time and expected downtime.");
-        return;
-      }
-    
-      setIsBroadcasting(true);
-      try {
-        const response = await broadcastMaintenanceNotice(
-          maintenanceTime.trim(),
-          expectedDowntime.trim()
-        );
-        toast.success(response.data?.message || "Maintenance notice sent successfully!");
-        setMaintenanceTime('');
-        setExpectedDowntime('');
-      } catch (err) {
-        console.error("Broadcast failed:", err);
-        toast.error(err.response?.data?.detail || "Failed to send maintenance notice.");
-      } finally {
-        setIsBroadcasting(false);
-      }
-    };
-
     return (
       <div className="space-y-6">
         <AdminCard title="Email Configuration" icon={Mail}>
@@ -1030,48 +1082,7 @@ const AdminPage = () => {
                 </div>
 
                 {/* Broadcast Maintenance Notice */}
-                <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-                  <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Broadcast Maintenance Notice</h4>
-                  <div className="flex flex-col sm:flex-row gap-2 mb-2">
-                    <input
-                      type="text"
-                      value={maintenanceTime}
-                      onChange={(e) => setMaintenanceTime(e.target.value)}
-                      placeholder="Maintenance Date/Time (e.g. June 10, 2:00 AM EST)"
-                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      disabled={isBroadcasting}
-                    />
-                    <input
-                      type="text"
-                      value={expectedDowntime}
-                      onChange={(e) => setExpectedDowntime(e.target.value)}
-                      placeholder="Expected Downtime (e.g. 1-2 hours)"
-                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      disabled={isBroadcasting}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleBroadcastMaintenanceNotice}
-                    className="flex items-center px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded transition-colors text-sm font-medium w-fit"
-                    disabled={isBroadcasting}
-                  >
-                    {isBroadcasting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Sending...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4 mr-1" />
-                        Send Notice
-                      </>
-                    )}
-                  </button>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    This will send the current maintenance notice template to all users. You can edit the template below.
-                  </p>
-                </div>
+                <MaintenanceNoticeBroadcaster isBroadcasting={isBroadcasting} setIsBroadcasting={setIsBroadcasting} />
               </>
             )}
           </div>
