@@ -672,34 +672,6 @@ function WishlistCard({
   return (
     <>
       <div className="bg-white dark:bg-gray-900 rounded-lg shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)] p-6">
-        {/* Add export/import buttons for own wishlist */}
-        {isOwnWishlist && (
-          <div className="flex justify-end gap-2 mb-4">
-            <button
-              onClick={handleExport}
-              className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 rounded-lg transition-colors duration-200"
-            >
-              <Download size={16} />
-              Export
-            </button>
-            <button
-              onClick={handleImportClick}
-              disabled={isImporting}
-              className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:bg-green-900/20 dark:hover:bg-green-900/30 rounded-lg transition-colors duration-200"
-            >
-              <Upload size={16} />
-              {isImporting ? 'Importing...' : 'Import'}
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".json"
-              onChange={handleFileSelect}
-              className="hidden"
-            />
-          </div>
-        )}
-        
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {items.length === 0 ? (
             <p className="text-gray-500 dark:text-gray-400 col-span-full text-center py-4">

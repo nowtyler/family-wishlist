@@ -3,10 +3,10 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
 import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPlus, 
-         Trash2, AlertOctagon, Database, HelpCircle, UserRound, User, Home } from 'lucide-react';
+         Trash2, AlertOctagon, Database, HelpCircle, UserRound, User, Home, Download, Upload } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems, 
-         getFamilyMembers, clearAllWishlists, getAdminAccess } from '../services/api';
+         getFamilyMembers, clearAllWishlists, getAdminAccess, exportWishlist, importWishlist } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import MigrationModal from './admin/MigrationModal';
 import HelpModal from './HelpModal';
@@ -14,7 +14,7 @@ import FamilyMemberManager from './admin/FamilyMemberManager';
 import UserProfileModal from './UserProfileModal';
 import UserHouseholdManager from './UserHouseholdManager';
 
-const Navbar = ({ onClearWishlist, viewingMember, onHouseholdUpdate }) => {
+const Navbar = ({ onClearWishlist, viewingMember, onHouseholdUpdate, onRefreshWishlist }) => {
   const { selectedUser, logout, setSelectedUser, setFamilyMembers } = useAppContext();
   const { darkMode, toggleDarkMode } = useTheme();
   const navigate = useNavigate();
@@ -33,6 +33,8 @@ const Navbar = ({ onClearWishlist, viewingMember, onHouseholdUpdate }) => {
   const [showUserHouseholdManager, setShowUserHouseholdManager] = useState(false);
   const settingsRef = useRef(null);
   const isAdmin = selectedUser?.is_admin;
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     const loadVersion = async () => {
@@ -195,6 +197,65 @@ const Navbar = ({ onClearWishlist, viewingMember, onHouseholdUpdate }) => {
     }
   };
 
+  // Export wishlist handler
+  const handleExport = async () => {
+    if (!viewingMember?.id) return;
+    try {
+      const response = await exportWishlist(viewingMember.id);
+      const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `wishlist-${new Date().toISOString().split('T')[0]}-${viewingMember.name?.toLowerCase() || 'user'}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Failed to export wishlist:', error);
+      alert('Failed to export wishlist. Please try again.');
+    }
+  };
+
+  // Import wishlist handlers
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file || !viewingMember?.id) return;
+    setIsImporting(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const wishlistData = JSON.parse(e.target.result);
+          const response = await importWishlist(viewingMember.id, wishlistData);
+          if (onRefreshWishlist) await onRefreshWishlist();
+          const { imported_items, skipped_items } = response.data;
+          if (imported_items.length === 0 && skipped_items.length > 0) {
+            alert('All items were already in your wishlist. No new items were imported.');
+          } else if (skipped_items.length > 0) {
+            alert(`Successfully imported ${imported_items.length} items.\n\nSkipped ${skipped_items.length} duplicate items:\n${skipped_items.join('\n')}`);
+          } else {
+            alert(`Successfully imported ${imported_items.length} items!`);
+          }
+        } catch (error) {
+          console.error('Failed to import wishlist:', error);
+          alert('Failed to import wishlist. Please check the file format and try again.');
+        }
+      };
+      reader.readAsText(file);
+    } catch (error) {
+      console.error('Failed to read file:', error);
+      alert('Failed to read file. Please try again.');
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   return (
     <>
       <nav className="bg-white dark:bg-gray-800 shadow-md sticky top-0 z-50">
@@ -309,6 +370,34 @@ const Navbar = ({ onClearWishlist, viewingMember, onHouseholdUpdate }) => {
                             </div>
                           </div>
                         </div>
+                      </div>
+                    )}
+                    
+                    {/* Import/Export Buttons for own wishlist only */}
+                    {viewingMember && selectedUser && viewingMember.id === selectedUser.id && (
+                      <div className="flex gap-2 px-4 py-2 border-b border-gray-200 dark:border-gray-600 justify-end">
+                        <button
+                          onClick={handleExport}
+                          className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 rounded-lg transition-colors duration-200"
+                        >
+                          <Download size={16} />
+                          Export
+                        </button>
+                        <button
+                          onClick={handleImportClick}
+                          disabled={isImporting}
+                          className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:bg-green-900/20 dark:hover:bg-green-900/30 rounded-lg transition-colors duration-200"
+                        >
+                          <Upload size={16} />
+                          {isImporting ? 'Importing...' : 'Import'}
+                        </button>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept=".json"
+                          onChange={handleFileSelect}
+                          className="hidden"
+                        />
                       </div>
                     )}
                     

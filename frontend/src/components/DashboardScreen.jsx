@@ -434,6 +434,7 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
         onClearWishlist={refreshWishlistItems} 
         viewingMember={viewingMember}
         onHouseholdUpdate={handleHouseholdUpdate}
+        onRefreshWishlist={refreshWishlistItems}
       />
       
       <div className="container mx-auto px-6 py-8">
