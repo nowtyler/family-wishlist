@@ -375,21 +375,21 @@ const Navbar = ({ onClearWishlist, viewingMember, onHouseholdUpdate, onRefreshWi
                     
                     {/* Import/Export Buttons for own wishlist only */}
                     {viewingMember && selectedUser && viewingMember.id === selectedUser.id && (
-                      <div className="flex gap-2 px-4 py-2 border-b border-gray-200 dark:border-gray-600 justify-end">
+                      <>
                         <button
                           onClick={handleExport}
-                          className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 rounded-lg transition-colors duration-200"
+                          className="flex items-center w-full px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-600"
                         >
-                          <Download size={16} />
-                          Export
+                          <Download className="w-4 h-4 mr-2" />
+                          Export Wishlist
                         </button>
                         <button
                           onClick={handleImportClick}
                           disabled={isImporting}
-                          className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:bg-green-900/20 dark:hover:bg-green-900/30 rounded-lg transition-colors duration-200"
+                          className="flex items-center w-full px-4 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-gray-100 dark:hover:bg-gray-600"
                         >
-                          <Upload size={16} />
-                          {isImporting ? 'Importing...' : 'Import'}
+                          <Upload className="w-4 h-4 mr-2" />
+                          {isImporting ? 'Importing...' : 'Import Wishlist'}
                         </button>
                         <input
                           ref={fileInputRef}
@@ -398,7 +398,7 @@ const Navbar = ({ onClearWishlist, viewingMember, onHouseholdUpdate, onRefreshWi
                           onChange={handleFileSelect}
                           className="hidden"
                         />
-                      </div>
+                      </>
                     )}
                     
                     {/* User Profile Management for non-admin users */}
