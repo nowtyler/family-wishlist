@@ -4,7 +4,7 @@ import { Link2, ExternalLink, Plus, Edit2, Trash2, Check, X } from 'lucide-react
 import { useAppContext } from '../contexts/AppContext';
 import { getExternalWishlists, createExternalWishlist, updateExternalWishlist, deleteExternalWishlist } from '../services/api';
 
-const ExternalWishlistsButton = ({ member, small = false }) => {
+const ExternalWishlistsButton = ({ member }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [wishlists, setWishlists] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -291,12 +291,12 @@ const ExternalWishlistsButton = ({ member, small = false }) => {
   return (
     <>
       <button
-        className={`flex items-center gap-2 ${small ? 'px-2 py-1 text-xs rounded-md' : 'px-4 py-2 rounded-lg text-base'} bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900/20 dark:to-indigo-900/20 text-blue-700 dark:text-blue-300 font-semibold shadow hover:from-blue-200 hover:to-indigo-200 dark:hover:from-blue-900/30 dark:hover:to-indigo-900/30 transition-colors duration-200`}
         onClick={() => setIsOpen(true)}
-        title="View external wishlists"
+        className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg shadow-sm hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 sm:w-auto w-full justify-center"
+        title="External Wishlists"
       >
-        <ExternalLink className={small ? 'w-3 h-3' : 'w-4 h-4'} />
-        <span className={small ? 'hidden sm:inline' : ''}>External Wishlists</span>
+        <Link2 size={18} className="text-white" />
+        <span className="font-medium">External Wishlists</span>
       </button>
       
       <AnimatePresence>
