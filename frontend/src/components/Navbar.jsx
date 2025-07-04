@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
 import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPlus, 
-         Trash2, AlertOctagon, Database, HelpCircle, UserRound, User, Home, Download, Upload, Gift, ChevronDown } from 'lucide-react';
+         Trash2, AlertOctagon, Database, HelpCircle, UserRound, User, Home, Download, Upload } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems, 
          getFamilyMembers, clearAllWishlists, getAdminAccess, exportWishlist, importWishlist } from '../services/api';
@@ -13,18 +13,8 @@ import HelpModal from './HelpModal';
 import FamilyMemberManager from './admin/FamilyMemberManager';
 import UserProfileModal from './UserProfileModal';
 import UserHouseholdManager from './UserHouseholdManager';
-import UserPreferencesDropdown from './UserPreferencesDropdown';
-import ExternalWishlistsButton from './ExternalWishlistsButton';
 
-const Navbar = ({
-  onClearWishlist,
-  viewingMember,
-  onHouseholdUpdate,
-  onRefreshWishlist,
-  familyMembers = [],
-  onSelectViewingMember,
-  upcomingEvent
-}) => {
+const Navbar = ({ onClearWishlist, viewingMember, onHouseholdUpdate, onRefreshWishlist }) => {
   const { selectedUser, logout, setSelectedUser, setFamilyMembers } = useAppContext();
   const { darkMode, toggleDarkMode } = useTheme();
   const navigate = useNavigate();
@@ -45,7 +35,6 @@ const Navbar = ({
   const isAdmin = selectedUser?.is_admin;
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef(null);
-  const [showBrowseDropdown, setShowBrowseDropdown] = useState(false);
 
   useEffect(() => {
     const loadVersion = async () => {
@@ -577,72 +566,6 @@ const Navbar = ({
           />
         )}
       </AnimatePresence>
-
-      {/* New content after logo/brand, before theme/settings/help */}
-      <div className="flex flex-1 items-center gap-2 md:gap-4 overflow-x-auto">
-        {/* Wishlist Title and Preferences */}
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="font-semibold text-base md:text-lg truncate">
-            {viewingMember?.id === selectedUser?.id ? "Your Wishlist" : `${viewingMember?.name || ''}'s Wishlist`}
-          </span>
-          {viewingMember && (
-            <UserPreferencesDropdown
-              member={viewingMember}
-              isOwner={viewingMember.id === selectedUser?.id || isAdmin}
-              currentUserId={selectedUser?.id}
-              onUpdateSuccess={onRefreshWishlist}
-            />
-          )}
-        </div>
-        {/* Browse Wishlists Dropdown */}
-        <div className="relative">
-          <button
-            className="flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-sm font-medium"
-            onClick={() => setShowBrowseDropdown((v) => !v)}
-            aria-label="Browse Wishlists"
-          >
-            <Gift className="w-4 h-4 text-primary dark:text-primary-400" />
-            <span className="hidden sm:inline">Browse</span>
-            <ChevronDown className="w-3 h-3" />
-          </button>
-          <AnimatePresence>
-            {showBrowseDropdown && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                className="absolute left-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded shadow-lg z-50 border border-gray-100 dark:border-gray-700"
-              >
-                <div className="py-1">
-                  {familyMembers.filter(m => !m.is_admin).map(member => (
-                    <button
-                      key={member.id}
-                      onClick={() => {
-                        setShowBrowseDropdown(false);
-                        if (onSelectViewingMember) onSelectViewingMember(member);
-                      }}
-                      className={`w-full text-left px-4 py-2 text-sm rounded hover:bg-gray-100 dark:hover:bg-gray-700 ${viewingMember?.id === member.id ? 'bg-gradient-to-r from-sky-500 to-indigo-500 text-white' : ''}`}
-                    >
-                      {member.name} <span className="ml-2 text-xs">({member.wishlist_item_count})</span>
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-        {/* External Wishlists Button */}
-        {viewingMember && (
-          <ExternalWishlistsButton member={viewingMember} />
-        )}
-        {/* Always-visible Upcoming Event pill/banner */}
-        {upcomingEvent && (
-          <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-gradient-to-r from-pink-100 to-rose-100 dark:from-pink-900/30 dark:to-rose-900/30 text-pink-700 dark:text-pink-200 text-xs font-medium shadow-sm ml-2 min-w-0 truncate">
-            <Gift className="w-4 h-4 mr-1 text-pink-500 dark:text-pink-300" />
-            <span className="truncate">{upcomingEvent.name}: {upcomingEvent.daysUntil === 0 ? 'Today!' : upcomingEvent.daysUntil === 1 ? 'Tomorrow!' : `${upcomingEvent.daysUntil}d`}</span>
-          </div>
-        )}
-      </div>
     </>
   );
 };
