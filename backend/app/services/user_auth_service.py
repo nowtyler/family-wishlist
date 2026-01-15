@@ -20,13 +20,24 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 class UserAuthService:
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str) -> bool:
-        """Verify a password against a hash."""
-        return pwd_context.verify(plain_password, hashed_password)
+        """Verify a password against a hash.
+
+        Note: Passwords are truncated to 72 bytes to match the hashing behavior.
+        """
+        # Truncate password to 72 bytes (bcrypt's limit) to match hashing
+        password_bytes = plain_password.encode('utf-8')[:72]
+        return pwd_context.verify(password_bytes.decode('utf-8', errors='ignore'), hashed_password)
     
     @staticmethod
     def get_password_hash(password: str) -> str:
-        """Generate a hash of the password."""
-        return pwd_context.hash(password)
+        """Generate a hash of the password.
+
+        Note: bcrypt has a maximum password length of 72 bytes.
+        Passwords longer than 72 bytes are truncated to prevent errors.
+        """
+        # Truncate password to 72 bytes (bcrypt's limit)
+        password_bytes = password.encode('utf-8')[:72]
+        return pwd_context.hash(password_bytes.decode('utf-8', errors='ignore'))
     
     @staticmethod
     def authenticate_user(db: Session, username: str, password: str) -> Tuple[bool, str, Optional[models.FamilyMember]]:

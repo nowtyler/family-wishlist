@@ -5,21 +5,31 @@ import react from '@vitejs/plugin-react'
 // Load environment variables
 const environment = process.env.ENVIRONMENT || 'prod';
 const isDev = environment === 'dev';
+const isLocal = process.env.LOCAL === 'true';
 
-console.log(`Building for environment: ${environment}`);
+console.log(`Building for environment: ${environment}${isLocal ? ' (local)' : ''}`);
+
+// Determine backend target based on environment
+const getBackendTarget = () => {
+  if (isLocal) {
+    return 'http://localhost:8001';  // Dev backend port
+  }
+  return isDev ? 'http://dev-backend:8000' : 'http://backend:8000';
+};
 
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 5173, // Default Vite port
-    host: '0.0.0.0', // Changed for Docker compatibility
+    port: 5175, // Dev port (avoids conflict with production on 5173)
+    host: '0.0.0.0', // Allow external connections
+    allowedHosts: 'all',
     proxy: {
-      // Proxy API requests to the correct backend container based on environment
+      // Proxy API requests to the correct backend based on environment
       '/api': {
-        target: isDev ? 'http://dev-backend:8000' : 'http://backend:8000',
+        target: getBackendTarget(),
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path.replace(/^\/api/, ''), // Remove /api prefix before forwarding
+        // Don't rewrite - backend routes already include /api prefix
         configure: (proxy, options) => {
           proxy.on('error', (err, req, res) => {
             console.error('proxy error', err);

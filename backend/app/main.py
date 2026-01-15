@@ -107,9 +107,12 @@ app = FastAPI(
 origins = [
     "http://localhost",
     "http://localhost:5173",
+    "http://localhost:5175",  # Vite dev server alternate port
     "http://localhost:3000",
     "http://localhost:8000",
+    "http://localhost:8001",  # Dev backend port
     "http://localhost:8888",  # Add local Docker testing port
+    "http://192.168.50.48:5175",  # Local network dev access
     "https://wishlist.ariahive.top",
     "http://wishlist.ariahive.top",
 ]

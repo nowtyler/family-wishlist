@@ -559,10 +559,10 @@ class SystemConfig(BaseModel):
         from_attributes = True
 
 class FirstTimeSetupRequest(BaseModel):
-    admin_username: str
-    admin_password: str
-    admin_email: str
-    admin_name: str = "Admin"
+    admin_username: str = Field(..., min_length=3, max_length=20)
+    admin_password: str = Field(..., min_length=8, max_length=72)
+    admin_email: EmailStr
+    admin_name: str = Field(default="Admin", min_length=1, max_length=100)
 
 class FirstTimeSetupResponse(BaseModel):
     success: bool

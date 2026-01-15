@@ -14,8 +14,11 @@ logger = logging.getLogger(__name__)
 class BackupService:
     def __init__(self, db_path: str):
         self.db_path = db_path
-        # Always use /app/data/backups inside container
-        self.backup_dir = "/app/data/backups"
+        # Use /app/data/backups in Docker, ./data/backups locally
+        if os.path.exists('/app/data'):
+            self.backup_dir = "/app/data/backups"
+        else:
+            self.backup_dir = "./data/backups"
         
         # Create backup directory with proper permissions
         os.makedirs(self.backup_dir, exist_ok=True)

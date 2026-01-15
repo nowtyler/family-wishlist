@@ -164,6 +164,15 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
       return;
     }
 
+    // Build description with size info if specified
+    const buildDescription = () => {
+      if (formData.sizeType && formData.sizeValue) {
+        const sizeLabel = formData.sizeType.charAt(0).toUpperCase() + formData.sizeType.slice(1);
+        return `${formData.description || ''}\n\nSize: ${sizeLabel} - ${formData.sizeValue}`.trim();
+      }
+      return formData.description || null;
+    };
+
     // Convert form data to API format
     const apiData = {
       ...formData,
@@ -171,12 +180,8 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
       priority: PRIORITY_MAP[formData.priority],
       link: formData.link || null,
       image_url: formData.image_url || null,
-      description: formData.description || null,
-      price: formData.price ? parseFloat(formData.price) : null,  // Pass raw dollar amount
-      // Add size information to the description if specified
-      description: formData.sizeType && formData.sizeValue ? 
-        `${formData.description || ''}\n\nSize: ${formData.sizeType.charAt(0).toUpperCase() + formData.sizeType.slice(1)} - ${formData.sizeValue}`.trim() : 
-        (formData.description || null)
+      description: buildDescription(),
+      price: formData.price ? parseFloat(formData.price) : null
     };
 
     try {
