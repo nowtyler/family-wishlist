@@ -1,0 +1,74 @@
+version: '3.8'
+
+####### Production Environment #######
+services:
+  wishlist-frontend:
+    image: tylernow/family-wishlist:latest-frontend
+    container_name: wishlist-frontend
+    restart: unless-stopped
+    depends_on:
+      - wishlist-backend
+    environment:
+      - ENVIRONMENT=prod
+      - VITE_API_BASE_URL=/api
+    ports:
+      - "80:80"  # Map to port 80 for production
+    networks:
+      - wishlist-network
+
+  wishlist-backend:
+    image: tylernow/family-wishlist:latest-backend
+    container_name: wishlist-backend
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=prod
+      - WISHLIST_DATABASE_URL=sqlite:///./data/wishlist.db
+      - DOMAIN_NAME=your_domain.com
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+      - CHRISTMAS_MONTH=12
+      - CHRISTMAS_DAY=25
+    volumes:
+      - ./data:/app/data  # Store data in ./data
+    networks:
+      - wishlist-network
+    expose:
+      - 8000
+
+####### Development Environment #######
+  dev-wishlist-frontend:
+    image: tylernow/family-wishlist:dev-frontend
+    container_name: dev-wishlist-frontend
+    restart: unless-stopped
+    depends_on:
+      - dev-wishlist-backend
+    environment:
+      - ENVIRONMENT=dev
+      - VITE_API_BASE_URL=/api
+    ports:
+      - "8081:80"  # Map to port 8081 for development
+    networks:
+      - dev-wishlist-network
+
+  dev-wishlist-backend:
+    image: tylernow/family-wishlist:dev-backend
+    container_name: dev-wishlist-backend
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=dev
+      - WISHLIST_DATABASE_URL=sqlite:///./data/wishlist.db
+      - DOMAIN_NAME=localhost
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+      - CHRISTMAS_MONTH=12
+      - CHRISTMAS_DAY=25
+    volumes:
+      - ./dev-data:/app/data  # Store development data in ./dev-data
+    networks:
+      - dev-wishlist-network
+
+networks:
+  wishlist-network:
+  dev-wishlist-network:

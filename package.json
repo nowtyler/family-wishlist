@@ -1,5 +1,26 @@
 {
-  "dependencies": {
-    "lucide-react": "^0.519.0"
+  "name": "family-wishlist",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Family Wishlist Application - Full Stack",
+  "scripts": {
+    "install:frontend": "cd frontend && npm install",
+    "install:backend": "cd backend && python3 -m venv venv && ./venv/bin/pip install -r requirements.txt",
+    "install:all": "npm run install:frontend && npm run install:backend",
+    "dev": "concurrently -n \"backend,frontend\" -c \"yellow,cyan\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && ./venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8001",
+    "build": "cd frontend && npm run build",
+    "lint": "cd frontend && npm run lint",
+    "type-check": "cd frontend && npm run type-check",
+    "preview": "cd frontend && npm run preview",
+    "docker:dev": "./run-dev.sh",
+    "docker:local": "docker-compose -f docker-compose.local.yml up -d"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
