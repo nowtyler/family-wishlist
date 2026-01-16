@@ -174,15 +174,8 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
     }
   };
 
-  // Add effect to refresh items when viewingMember changes
-  useEffect(() => {
-    if (viewingMember?.id) {
-      refreshWishlistItems();
-    }
-  }, [viewingMember?.id]);
-
   // Add this function to refresh wishlist items with rate limiting
-  const refreshWishlistItems = async (force = false) => {
+  const refreshWishlistItems = useCallback(async (force = false) => {
     if (!viewingMember?.id) return;
     
     // Prevent too frequent refreshes unless forced
@@ -217,14 +210,21 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
       setIsFetchingInProgress(false);
       setIsLoading(false);
     }
-  };
+  }, [viewingMember?.id, lastRefreshTimestamp, minRefreshInterval, isFetchingInProgress]);
+
+  // Add effect to refresh items when viewingMember changes
+  useEffect(() => {
+    if (viewingMember?.id) {
+      refreshWishlistItems();
+    }
+  }, [viewingMember?.id, refreshWishlistItems]);
 
   // Make it available to the props passed from parent
   React.useEffect(() => {
     if (window.refreshWishlistItems !== refreshWishlistItems) {
       window.refreshWishlistItems = refreshWishlistItems;
     }
-  }, [viewingMember]);
+  }, [refreshWishlistItems]);
 
   const handleOpenAddItemForm = () => {
     setIsAddingItem(true);

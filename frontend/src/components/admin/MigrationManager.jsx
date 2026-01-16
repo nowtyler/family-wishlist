@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getMigrations, upgradeMigration, getBackups, restoreBackup, deleteBackup, getSchemaHash, deleteMigration, resetMigrationState, hardResetMigrations, resetSchemaHash } from '../../services/api';
 import { CircleAlert, Database, Archive, Download, RotateCcw, Plus, Trash2, ArrowUp, X, GitMerge, TriangleAlert, Check, RefreshCw } from 'lucide-react';
@@ -122,7 +122,7 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
     };
 
     // Updated fetchBackups to be more resilient
-    const fetchBackups = async (isRetry = false) => {
+    const fetchBackups = useCallback(async (isRetry = false) => {
         try {
             setProcessingStatus(true);
             setBackupLoading(true);
@@ -163,7 +163,7 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
             setProcessingStatus(false);
             setIsRetryingBackups(false);
         }
-    };
+    }, [backupFetchAttempts, selectedBackup, setProcessingStatus, setSelectedBackup]);
 
     // Modified to separate migrations and backups initialization
     useEffect(() => {
@@ -187,7 +187,7 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
         return () => {
             window.refreshBackups = null;
         };
-    }, []);
+    }, [fetchBackups]);
 
     const handleBackupItemClick = (backup) => {
         // Toggle selection or select new backup
