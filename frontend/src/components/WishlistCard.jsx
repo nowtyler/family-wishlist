@@ -39,27 +39,65 @@ const sizeOptions = {
   }
 };
 
-function WishlistCard({ 
-  member, 
-  items, 
-  isLoading, 
-  isOwnWishlist, 
-  currentUserId, 
-  onUpdateItems, 
-  onDeleteItem, 
-  onThinkingAbout, 
-  onMarkPurchased,
-  onItemClick,
-  onItemModalClose,
-  selectedItem: externalSelectedItem
-}) {
+/**
+ * @typedef {{ id: number|string, author_id?: number|string, author_name?: string, text?: string, created_at?: string }} WishlistComment
+ * @typedef {{
+ *   id: number|string,
+ *   title: string,
+ *   description?: string,
+ *   link?: string,
+ *   image_url?: string,
+ *   price?: number|string|null,
+ *   priority?: number,
+ *   comments?: WishlistComment[],
+ *   purchased_by?: number|string|null,
+ *   thinking_about?: boolean,
+ *   size_type?: string,
+ *   size_value?: string,
+ *   size_gender?: string,
+ *   created_at?: string
+ * }} WishlistItem
+ * @typedef {{
+ *   member: { id: number|string, name: string },
+ *   items: WishlistItem[],
+ *   isLoading?: boolean,
+ *   isOwnWishlist?: boolean,
+ *   currentUserId?: number|string,
+ *   onUpdateItems?: () => void | Promise<void>,
+ *   onDeleteItem?: (itemId: number|string) => void,
+ *   onThinkingAbout?: (itemId: number|string) => void,
+ *   onMarkPurchased?: (itemId: number|string) => void,
+ *   onItemClick?: (item: WishlistItem) => void,
+ *   onItemModalClose?: () => void,
+ *   selectedItem?: WishlistItem|null
+ * }} WishlistCardProps
+ */
+
+/** @type {import('react').FC<WishlistCardProps>} */
+const WishlistCard = (props) => {
+  const {
+    member,
+    items,
+    isLoading,
+    isOwnWishlist,
+    currentUserId,
+    onUpdateItems,
+    onDeleteItem,
+    onThinkingAbout,
+    onMarkPurchased,
+    onItemClick,
+    onItemModalClose,
+    selectedItem: externalSelectedItem
+  } = props;
+  /** @type {WishlistItem[]} */
+  const safeItems = Array.isArray(items) ? items : [];
   // Change this from useState to use the passed-in value if available
   const [internalSelectedItem, setInternalSelectedItem] = useState(null);
   // Use the external value if provided, otherwise use internal state
   const selectedItem = externalSelectedItem || internalSelectedItem;
   
   const [editingItemId, setEditingItemId] = useState(null);
-  const [editForm, setEditForm] = useState({});
+  const [editForm, setEditForm] = useState(/** @type {WishlistItem} */ ({}));
   const [newComment, setNewComment] = useState('');
   const [commentError, setCommentError] = useState('');
   const [isDuplicateTitle, setIsDuplicateTitle] = useState(false);
@@ -76,19 +114,19 @@ function WishlistCard({
 
   // Check for duplicate titles when editing
   useEffect(() => {
-    if (!editingItemId || !editForm.title || !items || items.length === 0) {
+    if (!editingItemId || !editForm.title || !safeItems.length) {
       setIsDuplicateTitle(false);
       return;
     }
 
     const normalizedTitle = editForm.title.trim().toLowerCase();
-    const isDuplicate = items.some(item => 
+    const isDuplicate = safeItems.some(item => 
       item.id !== editingItemId && 
       item.title.toLowerCase() === normalizedTitle
     );
     
     setIsDuplicateTitle(isDuplicate);
-  }, [editForm.title, editingItemId, items]);
+  }, [editForm.title, editingItemId, safeItems]);
 
   const handleItemClick = (item) => {
     setInternalSelectedItem(item);
@@ -121,7 +159,7 @@ function WishlistCard({
   const handleCancelEdit = (e) => {
     e.stopPropagation();
     setEditingItemId(null);
-    setEditForm({});
+    setEditForm(/** @type {WishlistItem} */ ({}));
   };
 
   const handleSaveEdit = async (e, itemId) => {
@@ -139,7 +177,7 @@ function WishlistCard({
       // Improved price handling for edit
       let processedPrice = null;
       if (editForm.price !== undefined && editForm.price !== null && editForm.price !== '') {
-        const floatPrice = parseFloat(editForm.price);
+        const floatPrice = parseFloat(String(editForm.price));
         if (isNaN(floatPrice) || floatPrice < 0) {
           throw new Error('Price must be a valid positive number');
         }
@@ -179,7 +217,7 @@ function WishlistCard({
       await updateWishlistItem(itemId, updatedData);
       await onUpdateItems();
       setEditingItemId(null);
-      setEditForm({});
+      setEditForm(/** @type {WishlistItem} */ ({}));
       // Reset size fields
       setSizeType('');
       setSizeValue('');
@@ -205,7 +243,7 @@ function WishlistCard({
       
       // Re-fetch the updated item to show the new comment immediately
       if (selectedItem && selectedItem.id === itemId) {
-        const updatedItems = await getWishlistItems(member.id);
+        const updatedItems = await getWishlistItems(Number(member.id));
         const updatedItem = updatedItems.data.find(item => item.id === itemId);
         
         // Update the selected item with the latest data
@@ -238,7 +276,7 @@ function WishlistCard({
       
       // Re-fetch the updated item to reflect the deleted comment immediately
       if (selectedItem) {
-        const updatedItems = await getWishlistItems(member.id);
+        const updatedItems = await getWishlistItems(Number(member.id));
         const updatedItem = updatedItems.data.find(item => item.id === selectedItem.id);
         
         // Update the selected item with the latest data
@@ -407,7 +445,7 @@ function WishlistCard({
           value={editForm.description}
           onChange={e => setEditForm({ ...editForm, description: e.target.value })}
           className="w-full px-2 py-1 border rounded dark:bg-gray-600 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary"
-          rows="2"
+          rows={2}
         />
       </div>
       <div className="flex flex-col">
@@ -436,8 +474,11 @@ function WishlistCard({
           type="number"
           step="0.01"
           min="0"
-          value={editForm.price !== null ? editForm.price : ''}
-          onChange={e => setEditForm({ ...editForm, price: e.target.value ? e.target.value : null })}
+          value={editForm.price !== null && editForm.price !== undefined ? editForm.price : ''}
+          onChange={e => {
+            const nextValue = e.target.value === '' ? null : Number(e.target.value);
+            setEditForm({ ...editForm, price: Number.isNaN(nextValue) ? null : nextValue });
+          }}
           className="w-full px-2 py-1 border rounded dark:bg-gray-600 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary"
         />
       </div>
@@ -576,9 +617,9 @@ function WishlistCard({
     if (!timestamp) return '';
     
     try {
-      const commentDate = new Date(timestamp + 'Z'); // Add 'Z' to handle UTC time properly
-      const now = new Date();
-      const diffMinutes = Math.floor((now - commentDate) / (1000 * 60));
+    const commentDate = new Date(timestamp + 'Z'); // Add 'Z' to handle UTC time properly
+    const now = new Date();
+    const diffMinutes = Math.floor((now.getTime() - commentDate.getTime()) / (1000 * 60));
       const diffHours = Math.floor(diffMinutes / 60);
       const diffDays = Math.floor(diffHours / 24);
 
@@ -634,7 +675,11 @@ function WishlistCard({
       const reader = new FileReader();
       reader.onload = async (e) => {
         try {
-          const wishlistData = JSON.parse(e.target.result);
+          const { result } = e.target || {};
+          if (typeof result !== 'string') {
+            throw new Error('Invalid wishlist file');
+          }
+          const wishlistData = JSON.parse(result);
           const response = await importWishlist(member.id, wishlistData);
           await onUpdateItems();
           
@@ -713,9 +758,9 @@ function WishlistCard({
                           <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-2 line-clamp-2 break-words overflow-hidden">{item.title}</h3>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          {item.price !== null && (
+                          {item.price !== null && item.price !== undefined && !Number.isNaN(Number(item.price)) && (
                             <span className="inline-flex text-sm font-medium px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
-                              ${(item.price / 100).toFixed(2)}
+                              ${(Number(item.price) / 100).toFixed(2)}
                             </span>
                           )}
                           {isOwnWishlist && (
@@ -927,7 +972,7 @@ function WishlistCard({
                   <div className="space-y-2 mb-3 max-h-[25vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
                     {selectedItem.comments
                       ?.slice() // Create a copy so we don't mutate the original array
-                      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) // Oldest first
+                      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) // Oldest first
                       .map((comment) => (
                         <div key={comment.id} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2">
                           <div className="flex justify-between items-center text-xs">
@@ -1085,6 +1130,6 @@ function WishlistCard({
       )}
     </>
   );
-}
+};
 
 export default WishlistCard;

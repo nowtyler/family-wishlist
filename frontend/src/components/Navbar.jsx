@@ -14,7 +14,12 @@ import FamilyMemberManager from './admin/FamilyMemberManager';
 import UserProfileModal from './UserProfileModal';
 import UserHouseholdManager from './UserHouseholdManager';
 
-const Navbar = ({ onClearWishlist, viewingMember, onHouseholdUpdate, onRefreshWishlist }) => {
+const Navbar = ({
+  onClearWishlist = () => {},
+  viewingMember = null,
+  onHouseholdUpdate = () => {},
+  onRefreshWishlist = () => {}
+} = {}) => {
   const { selectedUser, logout, setSelectedUser, setFamilyMembers } = useAppContext();
   const { darkMode, toggleDarkMode } = useTheme();
   const navigate = useNavigate();
@@ -230,7 +235,11 @@ const Navbar = ({ onClearWishlist, viewingMember, onHouseholdUpdate, onRefreshWi
       const reader = new FileReader();
       reader.onload = async (e) => {
         try {
-          const wishlistData = JSON.parse(e.target.result);
+          const { result } = e.target || {};
+          if (typeof result !== 'string') {
+            throw new Error('Invalid wishlist file');
+          }
+          const wishlistData = JSON.parse(result);
           const response = await importWishlist(viewingMember.id, wishlistData);
           if (onRefreshWishlist) await onRefreshWishlist();
           const { imported_items, skipped_items } = response.data;

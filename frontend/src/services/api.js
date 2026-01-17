@@ -263,7 +263,7 @@ export const updateUserProfile = (memberId, userData) => {
 // --- Wishlist Items ---
 /**
  * Get wishlist items for a specific user
- * @param {number} userId - The user ID
+ * @param {number} ownerId - The user ID
  * @returns {Promise} API response with wishlist items
  */
 export const getWishlistItems = (ownerId) => {

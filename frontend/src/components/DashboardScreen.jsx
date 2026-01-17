@@ -1,5 +1,6 @@
 // frontend/src/components/DashboardScreen.jsx
 import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
 import { 
   getFamilyMembers, 
@@ -23,9 +24,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, ChevronDown, Gift, TriangleAlert, Home, Calendar } from 'lucide-react';
 import { toast } from 'react-toastify';
 
-const DashboardScreen = ({ onViewingMemberChange }) => {
+/**
+ * @param {{ onViewingMemberChange?: (member: any) => void }} props
+ */
+const DashboardScreen = (props = {}) => {
+  const { onViewingMemberChange } = props;
   const { selectedUser, familyMembers, setFamilyMembers } = useAppContext();
   const isAdmin = selectedUser?.is_admin;
+  const [searchParams, setSearchParams] = useSearchParams();
   const [viewingMember, setViewingMember] = useState(null);
   const [wishlistItems, setWishlistItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -39,6 +45,22 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
   const [lastRefreshTimestamp, setLastRefreshTimestamp] = useState(0); // Add refresh timestamp to prevent too frequent refreshes
   const [isFetchingInProgress, setIsFetchingInProgress] = useState(false); // Track ongoing fetches
   const minRefreshInterval = 2000; // Minimum 2 seconds between refreshes
+  const memberIdFromParams = searchParams.get('memberId');
+  const itemIdFromParams = searchParams.get('itemId');
+
+  const updateSearchParams = useCallback((updates, options = {}) => {
+    const nextParams = new URLSearchParams(searchParams);
+
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null || value === undefined || value === '') {
+        nextParams.delete(key);
+      } else {
+        nextParams.set(key, String(value));
+      }
+    });
+
+    setSearchParams(nextParams, options);
+  }, [searchParams, setSearchParams]);
 
   // Replace the initialization effect with a more robust version
   useEffect(() => {
@@ -126,6 +148,10 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
     setViewingMember(member);
     setBrowserExpanded(false); // Collapse after selection
     setIsAddingItem(false);
+    updateSearchParams(
+      { memberId: member?.id === selectedUser?.id ? null : member?.id },
+      { replace: false }
+    );
     // Notify parent about the viewing member change
     if (onViewingMemberChange) {
       onViewingMemberChange(member);
@@ -138,6 +164,37 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
       onViewingMemberChange(viewingMember);
     }
   }, [viewingMember?.id, onViewingMemberChange]);
+
+  // Sync viewing member with URL state so browser back/forward works as expected.
+  useEffect(() => {
+    if (!selectedUser?.id) return;
+
+    const targetId = memberIdFromParams ? Number(memberIdFromParams) : selectedUser.id;
+
+    if (!familyMembers.length) {
+      if (targetId === selectedUser.id && viewingMember?.id !== selectedUser.id) {
+        setViewingMember(selectedUser);
+      }
+      return;
+    }
+
+    const matchedMember = familyMembers.find(m => String(m.id) === String(targetId))
+      || (selectedUser.id === targetId ? selectedUser : null);
+
+    if (!matchedMember) {
+      if (memberIdFromParams) {
+        updateSearchParams({ memberId: null }, { replace: true });
+      }
+      if (viewingMember?.id !== selectedUser.id) {
+        setViewingMember(selectedUser);
+      }
+      return;
+    }
+
+    if (viewingMember?.id !== matchedMember.id) {
+      setViewingMember(matchedMember);
+    }
+  }, [memberIdFromParams, familyMembers, selectedUser?.id, viewingMember?.id, updateSearchParams]);
 
   // Ensure viewing member has the most up-to-date information from family members
   useEffect(() => {
@@ -175,37 +232,46 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
   };
 
   // Add this function to refresh wishlist items with rate limiting
-  const refreshWishlistItems = useCallback(async (force = false) => {
-    if (!viewingMember?.id) return;
-    
+  const refreshWishlistItems = useCallback(async (force = false, memberId = null) => {
+    const targetMemberId = memberId || viewingMember?.id;
+    if (!targetMemberId) return;
+
     // Prevent too frequent refreshes unless forced
     const now = Date.now();
     if (!force && now - lastRefreshTimestamp < minRefreshInterval) {
       console.log('Refresh throttled. Try again in a moment.');
       return;
     }
-    
-    // Prevent concurrent fetches
-    if (isFetchingInProgress) {
+
+    // For member changes, allow overriding the concurrent fetch check
+    if (!force && isFetchingInProgress) {
       console.log('Fetch already in progress. Skipping redundant refresh.');
       return;
     }
-    
+
     try {
       setIsFetchingInProgress(true);
       setLastRefreshTimestamp(now);
-      
-      const response = await getWishlistItems(viewingMember.id);
-      setWishlistItems(Array.isArray(response.data) ? response.data : []);
+
+      const response = await getWishlistItems(targetMemberId);
+
+      // Only update if we're still viewing the same member (prevent stale updates)
+      if (targetMemberId === viewingMember?.id) {
+        setWishlistItems(Array.isArray(response.data) ? response.data : []);
+      }
     } catch (err) {
       console.error("Error refreshing wishlist items:", err);
-      
+
       if (err.response?.status === 429) {
         toast.error("Rate limit exceeded. Please wait a moment before trying again.");
       } else {
         toast.error("Failed to refresh items.");
       }
-      setWishlistItems([]); // Ensure empty array on error
+
+      // Only clear items if we're still viewing the same member
+      if (targetMemberId === viewingMember?.id) {
+        setWishlistItems([]); // Ensure empty array on error
+      }
     } finally {
       setIsFetchingInProgress(false);
       setIsLoading(false);
@@ -215,9 +281,13 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
   // Add effect to refresh items when viewingMember changes
   useEffect(() => {
     if (viewingMember?.id) {
-      refreshWishlistItems();
+      // Clear items immediately to show we're loading new data
+      setWishlistItems([]);
+      setIsLoading(true);
+      // Force refresh and pass the specific member ID
+      refreshWishlistItems(true, viewingMember.id);
     }
-  }, [viewingMember?.id, refreshWishlistItems]);
+  }, [viewingMember?.id]);
 
   // Make it available to the props passed from parent
   React.useEffect(() => {
@@ -363,7 +433,7 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
         thisYearBirthday.setFullYear(today.getFullYear() + 1);
       }
       
-      const diffTime = thisYearBirthday - today;
+      const diffTime = thisYearBirthday.getTime() - today.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       
       return diffDays;
@@ -390,11 +460,35 @@ const DashboardScreen = ({ onViewingMemberChange }) => {
 
   const handleItemClick = (item) => {
     setSelectedItem(item);
+    updateSearchParams({ itemId: item?.id }, { replace: true });
   };
 
   const handleItemModalClose = () => {
     setSelectedItem(null);
+    updateSearchParams({ itemId: null }, { replace: true });
   };
+
+  // Sync item modal with URL state for back/forward behavior.
+  useEffect(() => {
+    if (!itemIdFromParams) {
+      if (selectedItem) {
+        setSelectedItem(null);
+      }
+      return;
+    }
+
+    if (!wishlistItems.length) return;
+
+    const matchedItem = wishlistItems.find(item => String(item.id) === String(itemIdFromParams));
+    if (!matchedItem) {
+      updateSearchParams({ itemId: null }, { replace: true });
+      return;
+    }
+
+    if (!selectedItem || selectedItem.id !== matchedItem.id) {
+      setSelectedItem(matchedItem);
+    }
+  }, [itemIdFromParams, wishlistItems, selectedItem, updateSearchParams]);
 
   const handlePreferencesUpdate = async () => {
     // Refresh family members to get updated preferences

@@ -3,6 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getMigrations, upgradeMigration, getBackups, restoreBackup, deleteBackup, getSchemaHash, deleteMigration, resetMigrationState, hardResetMigrations, resetSchemaHash } from '../../services/api';
 import { CircleAlert, Database, Archive, Download, RotateCcw, Plus, Trash2, ArrowUp, X, GitMerge, TriangleAlert, Check, RefreshCw } from 'lucide-react';
 
+/**
+ * @param {{
+ *   setProcessingStatus?: (isProcessing: boolean) => void,
+ *   selectedBackup: any,
+ *   setSelectedBackup: (backup: any) => void
+ * }} props
+ */
 const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setSelectedBackup }) => {
     const [migrations, setMigrations] = useState([]);
     const [currentVersion, setCurrentVersion] = useState('');

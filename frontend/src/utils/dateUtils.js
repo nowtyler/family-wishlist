@@ -27,7 +27,7 @@ export const getDaysUntilBirthday = (birthday) => {
     }
     
     // Calculate difference in days
-    const diffTime = Math.abs(birthdayThisYear - today);
+    const diffTime = Math.abs(birthdayThisYear.getTime() - today.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
     return {
@@ -156,7 +156,7 @@ export const getChristmasInfo = () => {
   }
   
   // Calculate difference in days
-  const diffTime = Math.abs(christmasThisYear - today);
+  const diffTime = Math.abs(christmasThisYear.getTime() - today.getTime());
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   
   return {

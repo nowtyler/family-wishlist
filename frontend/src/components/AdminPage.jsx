@@ -55,7 +55,9 @@ import ApplicationLogViewer from './admin/ApplicationLogViewer';
 import EnhancedUpcomingEventsBanner from './EnhancedUpcomingEventsBanner';
 
 // Memoized Maintenance Notice Broadcaster Component
-const MaintenanceNoticeBroadcaster = memo(({ isBroadcasting, setIsBroadcasting }) => {
+/** @type {import('react').FC<{ isBroadcasting: boolean, setIsBroadcasting: (value: boolean) => void }>} */
+const MaintenanceNoticeBroadcaster = memo((props) => {
+  const { isBroadcasting, setIsBroadcasting } = props;
   const [maintenanceTime, setMaintenanceTime] = useState('');
   const [expectedDowntime, setExpectedDowntime] = useState('');
 
@@ -150,6 +152,7 @@ const AdminPage = () => {
   const [users, setUsers] = useState([]);
   const [households, setHouseholds] = useState([]);
   const [systemStatus, setSystemStatus] = useState({
+    status: '',
     version: '',
     uptime: '',
     memory_usage: '',
@@ -749,15 +752,17 @@ const AdminPage = () => {
   };
 
   const EmailTab = () => {
-    const [emailSettings, setEmailSettings] = useState({
+    const defaultEmailSettings = {
       smtp_server: '',
-      smtp_port: '',
+      smtp_port: 465,
       smtp_username: '',
       smtp_password: '',
+      use_ssl: false,
       use_tls: true,
       from_email: '',
       from_name: ''
-    });
+    };
+    const [emailSettings, setEmailSettings] = useState(defaultEmailSettings);
     const [emailTemplates, setEmailTemplates] = useState([]);
     const [selectedTemplate, setSelectedTemplate] = useState(null);
     const [isEditingTemplate, setIsEditingTemplate] = useState(false);
@@ -781,19 +786,18 @@ const AdminPage = () => {
       setIsLoadingTemplates(true);
       try {
         const settingsRes = await getEmailSettings();
-        setEmailSettings(settingsRes.data || {});
+        const settingsData = settingsRes.data || {};
+        setEmailSettings({
+          ...defaultEmailSettings,
+          ...settingsData,
+          use_ssl: Boolean(settingsData.use_ssl),
+          use_tls: settingsData.use_tls !== undefined ? Boolean(settingsData.use_tls) : defaultEmailSettings.use_tls,
+          smtp_port: Number(settingsData.smtp_port || defaultEmailSettings.smtp_port)
+        });
       } catch (err) {
         console.error('Failed to fetch email settings:', err);
         // Create default settings if none exist
-        setEmailSettings({
-          smtp_server: '',
-          smtp_port: '',
-          smtp_username: '',
-          smtp_password: '',
-          use_tls: true,
-          from_email: '',
-          from_name: ''
-        });
+        setEmailSettings(defaultEmailSettings);
       } finally {
         setIsLoadingSettings(false);
       }
@@ -951,7 +955,7 @@ const AdminPage = () => {
                         <input
                           type="number"
                           value={emailSettings.smtp_port}
-                          onChange={(e) => setEmailSettings({ ...emailSettings, smtp_port: e.target.value })}
+                          onChange={(e) => setEmailSettings({ ...emailSettings, smtp_port: Number(e.target.value) || 0 })}
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                           placeholder="465"
                           disabled={isSaving}
@@ -1626,7 +1630,12 @@ const AdminPage = () => {
                       displayValue = `${value} KB`;
                     } else if (key === 'last_backup') {
                       displayKey = 'Last Backup';
-                      displayValue = value ? formatDateEST(value) : 'Never';
+                      if (value) {
+                        const lastBackupValue = typeof value === 'string' ? value : String(value);
+                        displayValue = formatDateEST(lastBackupValue);
+                      } else {
+                        displayValue = 'Never';
+                      }
                     }
                     
                     return (

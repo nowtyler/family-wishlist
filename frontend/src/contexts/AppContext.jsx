@@ -2,7 +2,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { setCurrentUserHeader, getAdminAccess, getFamilyMembers, clearApiCache, logoutUser } from '../services/api';
 
-const AppContext = createContext();
+const AppContext = createContext(null);
 
 export const useAppContext = () => useContext(AppContext);
 

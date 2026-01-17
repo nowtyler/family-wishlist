@@ -627,9 +627,10 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
                     alt="Preview" 
                     className="max-h-32 max-w-full object-contain" 
                     onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgZmlsbC1ydWxlPSJldmVub2RkIiBjbGlwLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0yNCAxMmMwIDYuNjIzLTUuMzc3IDEyLTEyIDEycy0xMi01LjM3Ny0xMi0xMiA1LjM3Ny0xMiAxMi0xMiAxMiA1LjM3NyAxMiAxMnptLTExIDVoLTJ2LTdoMnY3em0wLThoLTJ2LTJoMnYyeiIvPjwvc3ZnPg==';
-                      e.target.alt = 'Error loading image';
+                      const img = e.currentTarget;
+                      img.onerror = null;
+                      img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgZmlsbC1ydWxlPSJldmVub2RkIiBjbGlwLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0yNCAxMmMwIDYuNjIzLTUuMzc3IDEyLTEyIDEycy0xMi01LjM3Ny0xMi0xMiA1LjM3Ny0xMiAxMi0xMiAxMiA1LjM3NyAxMiAxMnptLTExIDVoLTJ2LTdoMnY3em0wLThoLTJ2LTJoMnYyeiIvPjwvc3ZnPg==';
+                      img.alt = 'Error loading image';
                     }}
                   />
                 </div>
