@@ -298,9 +298,14 @@ def read_family_members(
         household_count = db.query(models.user_household_association).filter(
             models.user_household_association.c.user_id == member.id
         ).count()
+        # Get external wishlist count for this member
+        external_wishlist_count = db.query(models.ExternalWishlist).filter(
+            models.ExternalWishlist.owner_id == member.id
+        ).count()
         # Ensure birthday is correctly formatted if present
         member_schema = schemas.FamilyMember.from_orm(member)
         member_schema.wishlist_item_count = count
+        member_schema.external_wishlist_count = external_wishlist_count
         member_schema.household_count = household_count
         members_with_counts.append(member_schema)
     return members_with_counts
@@ -312,8 +317,10 @@ def read_family_member(member_id: int, db: Session = Depends(get_db)):
     if db_member is None:
         raise HTTPException(status_code=404, detail="Family member not found")
     count = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == db_member.id).count()
+    external_wishlist_count = db.query(models.ExternalWishlist).filter(models.ExternalWishlist.owner_id == db_member.id).count()
     member_schema = schemas.FamilyMember.from_orm(db_member)
     member_schema.wishlist_item_count = count
+    member_schema.external_wishlist_count = external_wishlist_count
     return member_schema
 
 

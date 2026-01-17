@@ -1,7 +1,7 @@
 // WishlistCard.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, ExternalLink, MessageCircleHeart, Pencil, Check, X, ShoppingCart, Flag, MessageCircle, Send, Download, Upload } from 'lucide-react';
+import { Trash2, ExternalLink, MessageCircleHeart, Pencil, Check, X, ShoppingCart, Flag, MessageCircle, Send, Download, Upload, Link2 } from 'lucide-react';
 import { updateWishlistItem, addComment, deleteComment, getWishlistItems, exportWishlist, importWishlist } from '../services/api';
 
 // Constants
@@ -58,7 +58,7 @@ const sizeOptions = {
  *   created_at?: string
  * }} WishlistItem
  * @typedef {{
- *   member: { id: number|string, name: string },
+ *   member: { id: number|string, name: string, external_wishlist_count?: number },
  *   items: WishlistItem[],
  *   isLoading?: boolean,
  *   isOwnWishlist?: boolean,
@@ -719,9 +719,21 @@ const WishlistCard = (props) => {
       <div className="bg-white dark:bg-gray-900 rounded-lg shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)] p-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {items.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400 col-span-full text-center py-4">
-              No items in this wishlist yet.
-            </p>
+            <div className="col-span-full text-center py-8">
+              <p className="text-gray-500 dark:text-gray-400 mb-2">
+                No items in this wishlist yet.
+              </p>
+
+              {/* Show external wishlist prompt if they exist */}
+              {!isOwnWishlist && member.external_wishlist_count > 0 && (
+                <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <Link2 className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <span className="text-sm text-amber-700 dark:text-amber-300">
+                    {member.name} has {member.external_wishlist_count} external wishlist{member.external_wishlist_count === 1 ? '' : 's'}
+                  </span>
+                </div>
+              )}
+            </div>
           ) : (
             items.map(item => (
               <motion.div

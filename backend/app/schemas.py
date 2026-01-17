@@ -31,6 +31,7 @@ class HouseholdBase(BaseModel):
 class FamilyMember(FamilyMemberBase):
     id: int
     wishlist_item_count: Optional[int] = 0
+    external_wishlist_count: Optional[int] = 0
     household_count: Optional[int] = 0
 
     class Config:

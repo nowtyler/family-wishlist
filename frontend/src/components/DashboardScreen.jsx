@@ -21,7 +21,7 @@ import ExternalWishlistsButton from './ExternalWishlistsButton';
 import UserPreferencesDropdown from './UserPreferencesDropdown';
 import Navbar from './Navbar';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, ChevronDown, Gift, TriangleAlert, Home, Calendar } from 'lucide-react';
+import { Plus, ChevronDown, Gift, TriangleAlert, Home, Calendar, Link2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 
 /**
@@ -588,10 +588,36 @@ const DashboardScreen = (props = {}) => {
               </p>
             </div>
             
-            {/* External Wishlists Button - full width on mobile, auto width on larger screens */}
-            {viewingMember && <div className="w-full md:w-auto">
-              <ExternalWishlistsButton member={viewingMember} />
-            </div>}
+            {/* External Wishlists Section - full width on mobile, auto width on larger screens */}
+            {viewingMember && (
+              <div className="w-full md:w-auto">
+                {viewingMember.external_wishlist_count > 0 && viewingMember.id !== selectedUser.id ? (
+                  // Shopping mode: Show reminder banner with button
+                  <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Link2 className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                      <span className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                        Don't forget: {viewingMember.name} has {viewingMember.external_wishlist_count} external wishlist{viewingMember.external_wishlist_count === 1 ? '' : 's'}!
+                      </span>
+                    </div>
+                    <ExternalWishlistsButton member={viewingMember} />
+                  </div>
+                ) : (
+                  // Own wishlist or no external wishlists: Show simple button with optional badge
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    {viewingMember.external_wishlist_count > 0 && (
+                      <div className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                        <Link2 className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                        <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                          {viewingMember.external_wishlist_count} external {viewingMember.external_wishlist_count === 1 ? 'link' : 'links'}
+                        </span>
+                      </div>
+                    )}
+                    <ExternalWishlistsButton member={viewingMember} />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Collapsible Browse Wishlist Section - Enhanced with gradient styling */}
@@ -644,14 +670,29 @@ const DashboardScreen = (props = {}) => {
                         }`}
                     >
                       <span className="font-medium">{member.name}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full
-                        ${viewingMember?.id === member.id
-                          ? 'bg-white/20'
-                          : 'bg-white dark:bg-gray-600'
-                        }`}
-                      >
-                        {member.wishlist_item_count}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <span className={`text-xs px-2 py-0.5 rounded-full
+                          ${viewingMember?.id === member.id
+                            ? 'bg-white/20'
+                            : 'bg-white dark:bg-gray-600'
+                          }`}
+                        >
+                          {member.wishlist_item_count}
+                        </span>
+
+                        {/* External wishlist indicator */}
+                        {member.external_wishlist_count > 0 && (
+                          <span className={`flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full
+                            ${viewingMember?.id === member.id
+                              ? 'bg-white/20'
+                              : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                            }`}
+                          >
+                            <Link2 className="w-3 h-3" />
+                            {member.external_wishlist_count}
+                          </span>
+                        )}
+                      </div>
                     </motion.button>
                 ))}
               </div>

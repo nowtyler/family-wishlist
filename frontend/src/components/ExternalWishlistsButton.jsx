@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Link2, ExternalLink, Plus, Edit2, Trash2, Check, X } from 'lucide-react';
+import { Link2, ExternalLink, Plus, Edit2, Trash2, Check, X, Info } from 'lucide-react';
 import { useAppContext } from '../contexts/AppContext';
 import { getExternalWishlists, createExternalWishlist, updateExternalWishlist, deleteExternalWishlist } from '../services/api';
 
@@ -505,7 +505,25 @@ const ExternalWishlistsButton = ({ member }) => {
                     ))}
                   </div>
                 )}
-                
+
+                {/* Migration Helper Messaging */}
+                {wishlists && wishlists.length > 0 && canEdit && (
+                  <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                      <div className="text-xs text-blue-700 dark:text-blue-300">
+                        <p className="font-medium mb-1">Pro tip: Manage all your wishes in one place!</p>
+                        <p className="mb-2">You can add items from these external wishlists directly to your app wishlist for easier tracking.</p>
+                        <ol className="list-decimal list-inside space-y-0.5 ml-1">
+                          <li>Copy item URLs from your external wishlists</li>
+                          <li>Use the + button to add items here</li>
+                          <li>Paste the URL - we'll fetch the details automatically!</li>
+                        </ol>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Add sticky Close button at the bottom */}
                 <div className="sticky bottom-0 left-0 right-0 pt-4 mt-6 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 pb-2">
                   <button
