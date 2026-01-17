@@ -51,6 +51,7 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
     image_url: '',
     priority: 'Medium',
     price: '',
+    priceNote: '',
     // Add size related fields
     sizeType: '', // 'tshirt', 'dress', 'shoes', 'pants', etc.
     sizeValue: '',
@@ -175,7 +176,6 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
 
     // Convert form data to API format
     const apiData = {
-      ...formData,
       title: truncateTitle(formData.title.trim()), // Truncate title to 200 chars
       priority: PRIORITY_MAP[formData.priority],
       link: formData.link || null,
@@ -261,18 +261,19 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
           description: productDetails.description || formData.description,
           link: productDetails.url || urlToImport,
           image_url: productDetails.image_url || '',
-          price: productDetails.price ? productDetails.price.toString() : ''
+          price: productDetails.price ? productDetails.price.toString() : '',
+          priceNote: productDetails.price_note || ''
         };
-        
+
         setFormData(updatedFormData);
         setImportSuccess(true);
         setIsAddMode(false);
         setUrlImportVisible(false);
         setShowAdvancedFields(true);
-        
+
         // Check for duplicates explicitly after import
         const normalizedTitle = updatedFormData.title.trim().toLowerCase();
-        const isDuplicate = existingItems.some(item => 
+        const isDuplicate = existingItems.some(item =>
           item.title.toLowerCase() === normalizedTitle
         );
         setIsDuplicateTitle(isDuplicate);
@@ -440,6 +441,11 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
             }}
             placeholder="0.00"
           />
+          {formData.priceNote && (
+            <p className="mt-2 p-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/30 rounded">
+              {formData.priceNote}
+            </p>
+          )}
         </div>
 
         <div>
