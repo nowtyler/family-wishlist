@@ -323,10 +323,6 @@ class ProductScraper:
         """Fetch product details from a URL."""
         original_url = url
         try:
-            # Parse the URL to determine the website
-            parsed_url = urlparse(url)
-            domain = parsed_url.netloc.lower()
-
             # Use more robust headers that look more like a real browser
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36',
@@ -337,28 +333,36 @@ class ProductScraper:
                 'DNT': '1',
                 'Upgrade-Insecure-Requests': '1',
             }
-            
+
             # Attempt to get the page content with longer timeout
-            response = requests.get(url, headers=headers, timeout=15)
+            # allow_redirects=True is default, but being explicit for short URL support
+            response = requests.get(url, headers=headers, timeout=15, allow_redirects=True)
             response.raise_for_status()
-            
+
+            # Use the final URL after redirects (important for short URLs like a.co, amzn.to)
+            final_url = response.url
+            parsed_url = urlparse(final_url)
+            domain = parsed_url.netloc.lower()
+
+            logger.debug(f"Original URL: {original_url}, Final URL: {final_url}, Domain: {domain}")
+
             # Parse using Beautiful Soup
             soup = BeautifulSoup(response.content, 'html.parser')
-            
-            # Extract data based on the website
+
+            # Extract data based on the website (using final URL after redirects)
             if 'amazon' in domain:
-                return self._extract_amazon(soup, url)
+                return self._extract_amazon(soup, final_url)
             elif 'etsy' in domain:
-                return self._extract_etsy(soup, url)
+                return self._extract_etsy(soup, final_url)
             elif 'walmart' in domain:
-                return self._extract_walmart(soup, url)
+                return self._extract_walmart(soup, final_url)
             elif 'target' in domain:
-                return self._extract_target(soup, url)
+                return self._extract_target(soup, final_url)
             elif 'ebay' in domain:
-                return self._extract_ebay(soup, url)
+                return self._extract_ebay(soup, final_url)
             else:
                 # Generic extraction for unknown sites
-                return self._extract_generic(soup, url)
+                return self._extract_generic(soup, final_url)
                 
         except requests.exceptions.RequestException as e:
             logger.error(f"Request error fetching product details: {str(e)}")
