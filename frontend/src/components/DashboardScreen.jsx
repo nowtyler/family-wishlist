@@ -593,7 +593,7 @@ const DashboardScreen = (props = {}) => {
               <div className="w-full md:w-auto">
                 {viewingMember.external_wishlist_count > 0 && viewingMember.id !== selectedUser.id ? (
                   // Shopping mode: Show reminder banner with button
-                  <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center sm:justify-between gap-3 px-4 py-2.5 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
                     <div className="flex items-center gap-2">
                       <Link2 className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
                       <span className="text-sm font-medium text-amber-900 dark:text-amber-100">
