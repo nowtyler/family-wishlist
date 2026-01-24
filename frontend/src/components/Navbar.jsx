@@ -499,7 +499,7 @@ const Navbar = ({
             <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
                 <div className="w-full md:w-auto">
-                  <h2 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white">
+                  <h2 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white drop-shadow-lg">
                     {viewingMember.id === selectedUser.id ? "Your Wishlist" : `${viewingMember.name || ''}'s Wishlist`}
                   </h2>
                   <p className="hidden sm:block text-gray-600 dark:text-gray-300 text-sm">
