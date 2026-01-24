@@ -135,6 +135,23 @@ const FloatingActionMenu = ({
   // Get non-admin family members for the submenu
   const browsableMembers = familyMembers.filter(m => !m.is_admin);
 
+  // Color palette for member avatars
+  const memberColors = [
+    { bg: 'bg-blue-500', hover: 'hover:bg-blue-600', ring: 'ring-blue-400' },
+    { bg: 'bg-emerald-500', hover: 'hover:bg-emerald-600', ring: 'ring-emerald-400' },
+    { bg: 'bg-purple-500', hover: 'hover:bg-purple-600', ring: 'ring-purple-400' },
+    { bg: 'bg-rose-500', hover: 'hover:bg-rose-600', ring: 'ring-rose-400' },
+    { bg: 'bg-amber-500', hover: 'hover:bg-amber-600', ring: 'ring-amber-400' },
+    { bg: 'bg-cyan-500', hover: 'hover:bg-cyan-600', ring: 'ring-cyan-400' },
+    { bg: 'bg-pink-500', hover: 'hover:bg-pink-600', ring: 'ring-pink-400' },
+    { bg: 'bg-indigo-500', hover: 'hover:bg-indigo-600', ring: 'ring-indigo-400' },
+    { bg: 'bg-teal-500', hover: 'hover:bg-teal-600', ring: 'ring-teal-400' },
+    { bg: 'bg-orange-500', hover: 'hover:bg-orange-600', ring: 'ring-orange-400' },
+  ];
+
+  // Get color for a member based on their index
+  const getMemberColor = (index) => memberColors[index % memberColors.length];
+
   const menuItems = getMenuItems();
 
   // Animation variants
@@ -309,8 +326,11 @@ const FloatingActionMenu = ({
               </motion.div>
 
               {/* Member list */}
-              {browsableMembers.map((member) => {
+              {browsableMembers.map((member, index) => {
                 const isCurrentMember = viewingMember?.id === member.id;
+                const memberColor = getMemberColor(index);
+                const initial = member.name.charAt(0).toUpperCase();
+
                 return (
                   <motion.div
                     key={member.id}
@@ -321,33 +341,16 @@ const FloatingActionMenu = ({
                     {/* Member name label */}
                     <motion.span
                       variants={labelVariants}
-                      className={`px-3 py-1.5 text-sm font-medium rounded-lg shadow-lg whitespace-nowrap flex items-center gap-2 ${
+                      className={`px-3 py-1.5 text-sm font-medium rounded-lg shadow-lg whitespace-nowrap ${
                         isCurrentMember
                           ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white'
                           : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200'
                       }`}
                     >
                       {member.name}
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                        isCurrentMember
-                          ? 'bg-white/20'
-                          : 'bg-gray-100 dark:bg-gray-700'
-                      }`}>
-                        {member.wishlist_item_count}
-                      </span>
-                      {member.external_wishlist_count > 0 && (
-                        <span className={`flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full ${
-                          isCurrentMember
-                            ? 'bg-white/20'
-                            : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
-                        }`}>
-                          <Link2 className="w-3 h-3" />
-                          {member.external_wishlist_count}
-                        </span>
-                      )}
                     </motion.span>
 
-                    {/* Select button */}
+                    {/* Select button with initial and badge */}
                     <motion.button
                       onClick={() => {
                         setIsOpen(false);
@@ -358,13 +361,17 @@ const FloatingActionMenu = ({
                       whileTap={{ scale: 0.95 }}
                       whileFocus={{ scale: 1.1 }}
                       aria-label={`View ${member.name}'s wishlist`}
-                      className={`w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 ${
+                      className={`relative w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 text-white font-semibold text-base ${
                         isCurrentMember
-                          ? 'bg-gradient-to-r from-pink-500 to-rose-500 dark:from-pink-400 dark:to-rose-400 text-white ring-2 ring-white dark:ring-gray-900'
-                          : 'bg-gradient-to-r from-pink-500 to-rose-500 dark:from-pink-400 dark:to-rose-400 hover:from-pink-600 hover:to-rose-600 dark:hover:from-pink-500 dark:hover:to-rose-500 text-white'
+                          ? `${memberColor.bg} ring-2 ring-white dark:ring-gray-900`
+                          : `${memberColor.bg} ${memberColor.hover}`
                       }`}
                     >
-                      <User size={16} />
+                      {initial}
+                      {/* Item count badge */}
+                      <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[20px] h-[20px] px-1 text-xs font-bold text-white bg-gray-700 dark:bg-gray-800 rounded-full shadow-md border-2 border-white dark:border-gray-900">
+                        {member.wishlist_item_count}
+                      </span>
                     </motion.button>
                   </motion.div>
                 );
