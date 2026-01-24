@@ -369,23 +369,6 @@ const FloatingActionMenu = ({
                   </motion.div>
                 );
               })}
-
-              {/* Submenu header */}
-              <motion.div
-                variants={itemVariants}
-                layout="position"
-                className="flex items-center gap-3"
-              >
-                <motion.span
-                  variants={labelVariants}
-                  className="px-3 py-1.5 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-sm font-semibold rounded-lg shadow-lg whitespace-nowrap"
-                >
-                  Browse Wishlists
-                </motion.span>
-                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 dark:from-pink-400 dark:to-rose-400 text-white shadow-lg flex items-center justify-center">
-                  <Users size={18} />
-                </div>
-              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
