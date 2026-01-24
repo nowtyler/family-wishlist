@@ -1,11 +1,24 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link2, ExternalLink, Plus, Edit2, Trash2, Check, X, Info } from 'lucide-react';
 import { useAppContext } from '../contexts/AppContext';
 import { getExternalWishlists, createExternalWishlist, updateExternalWishlist, deleteExternalWishlist } from '../services/api';
 
-const ExternalWishlistsButton = ({ member }) => {
+const ExternalWishlistsButton = ({ member, variant = "default", externalOpen = false, onExternalClose }) => {
   const [isOpen, setIsOpen] = useState(false);
+
+  // Support external control of the modal
+  useEffect(() => {
+    if (externalOpen && !isOpen) {
+      setIsOpen(true);
+    }
+  }, [externalOpen]);
+
+  const handleClose = useCallback(() => {
+    setIsOpen(false);
+    onExternalClose?.();
+  }, [onExternalClose]);
+
   const [wishlists, setWishlists] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -29,13 +42,13 @@ const ExternalWishlistsButton = ({ member }) => {
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (modalRef.current && !modalRef.current.contains(event.target)) {
-        setIsOpen(false);
+        handleClose();
       }
     };
-    
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [handleClose]);
   
   // Fetch external wishlists when modal is opened
   useEffect(() => {
@@ -288,16 +301,24 @@ const ExternalWishlistsButton = ({ member }) => {
     setUrlError('');
   };
   
+  const isFloating = variant === "floating";
+  const isHidden = variant === "hidden";
+
   return (
     <>
-      <button
-        onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg shadow-sm hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 sm:w-auto w-full justify-center"
-        title="External Wishlists"
-      >
-        <Link2 size={18} className="text-white" />
-        <span className="font-medium">External Wishlists</span>
-      </button>
+      {!isHidden && (
+        <button
+          onClick={() => setIsOpen(true)}
+          className={isFloating
+            ? "w-14 h-14 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 dark:from-amber-400 dark:to-orange-400 text-white shadow-lg hover:from-amber-600 hover:to-orange-600 dark:hover:from-amber-500 dark:hover:to-orange-500 flex items-center justify-center transition-all duration-200"
+            : "flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg shadow-sm hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 sm:w-auto w-full justify-center"
+          }
+          title="External Wishlists"
+        >
+          <Link2 size={isFloating ? 24 : 18} className="text-white" />
+          {!isFloating && <span className="font-medium">External Wishlists</span>}
+        </button>
+      )}
       
       <AnimatePresence>
         {isOpen && (
@@ -527,7 +548,7 @@ const ExternalWishlistsButton = ({ member }) => {
                 {/* Add sticky Close button at the bottom */}
                 <div className="sticky bottom-0 left-0 right-0 pt-4 mt-6 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 pb-2">
                   <button
-                    onClick={() => setIsOpen(false)}
+                    onClick={handleClose}
                     className="w-full py-2.5 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg text-gray-800 dark:text-gray-200 font-medium transition-colors duration-200"
                   >
                     Close

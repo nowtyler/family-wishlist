@@ -19,6 +19,7 @@ import AddItemForm from './AddItemForm';
 import SchemaAlertModal from './SchemaAlertModal';
 import ExternalWishlistsButton from './ExternalWishlistsButton';
 import UserPreferencesDropdown from './UserPreferencesDropdown';
+import FloatingActionMenu from './FloatingActionMenu';
 import Navbar from './Navbar';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, ChevronDown, Gift, TriangleAlert, Home, Calendar, Link2 } from 'lucide-react';
@@ -42,11 +43,14 @@ const DashboardScreen = (props = {}) => {
   const [isBrowserExpanded, setBrowserExpanded] = useState(false);
   const [isDragging, setIsDragging] = useState(false); // Track drag operations
   const [isAddingItem, setIsAddingItem] = useState(false); // State to control AddItemForm visibility
+  const [isExternalWishlistsOpen, setIsExternalWishlistsOpen] = useState(false); // State for external wishlists modal
+  const [isPreferencesOpen, setIsPreferencesOpen] = useState(false); // State for preferences modal
   const [lastRefreshTimestamp, setLastRefreshTimestamp] = useState(0); // Add refresh timestamp to prevent too frequent refreshes
   const [isFetchingInProgress, setIsFetchingInProgress] = useState(false); // Track ongoing fetches
   const minRefreshInterval = 2000; // Minimum 2 seconds between refreshes
   const memberIdFromParams = searchParams.get('memberId');
   const itemIdFromParams = searchParams.get('itemId');
+  const browseWishlistsRef = useRef(null);
 
   const updateSearchParams = useCallback((updates, options = {}) => {
     const nextParams = new URLSearchParams(searchParams);
@@ -148,6 +152,7 @@ const DashboardScreen = (props = {}) => {
     setViewingMember(member);
     setBrowserExpanded(false); // Collapse after selection
     setIsAddingItem(false);
+    setIsPreferencesOpen(false);
     updateSearchParams(
       { memberId: member?.id === selectedUser?.id ? null : member?.id },
       { replace: false }
@@ -531,12 +536,12 @@ const DashboardScreen = (props = {}) => {
         onRefreshWishlist={refreshWishlistItems}
       />
       
-      <div className="container mx-auto px-6 py-8">
-        <motion.div 
+      <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5 }}
-          className="space-y-6"
+          className="space-y-4 sm:space-y-6"
         >
           <AnimatePresence>
             {showUpgradeAlert && (
@@ -564,71 +569,31 @@ const DashboardScreen = (props = {}) => {
             </div>
           )}
           
-          {/* Header section - with user preferences dropdown */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)]">
+          {/* Header section */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4 p-4 sm:p-6 bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)]">
             <div className="w-full md:w-auto">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-white">
+              <div className="flex flex-row items-center gap-2">
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 dark:text-white">
                   {viewingMember?.id === selectedUser.id ? "Your Wishlist" : `${viewingMember?.name || ''}'s Wishlist`}
                 </h1>
-                
-                {/* Replace birthday badge with preferences dropdown */}
-                {viewingMember && (
-                  <UserPreferencesDropdown 
-                    member={viewingMember}
-                    isOwner={viewingMember.id === selectedUser.id || isAdmin}
-                    currentUserId={selectedUser.id}
-                    onUpdateSuccess={handlePreferencesUpdate}
-                  />
-                )}
               </div>
-              <p className="text-gray-600 dark:text-gray-300 mt-1">
+              <p className="hidden sm:block text-gray-600 dark:text-gray-300 mt-1 text-sm sm:text-base">
                 {viewingMember?.id === selectedUser.id ? "Manage your wishes or " : "Browse wishes and "}
                 see what others are hoping for!
               </p>
             </div>
             
-            {/* External Wishlists Section - full width on mobile, auto width on larger screens */}
-            {viewingMember && (
-              <div className="w-full md:w-auto">
-                {viewingMember.external_wishlist_count > 0 && viewingMember.id !== selectedUser.id ? (
-                  // Shopping mode: Show reminder banner with button
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center sm:justify-between gap-3 px-4 py-2.5 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <Link2 className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-                      <span className="text-sm font-medium text-amber-900 dark:text-amber-100">
-                        Don't forget: {viewingMember.name} has {viewingMember.external_wishlist_count} external wishlist{viewingMember.external_wishlist_count === 1 ? '' : 's'}!
-                      </span>
-                    </div>
-                    <ExternalWishlistsButton member={viewingMember} />
-                  </div>
-                ) : (
-                  // Own wishlist or no external wishlists: Show simple button with optional badge
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                    {viewingMember.external_wishlist_count > 0 && (
-                      <div className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                        <Link2 className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                        <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
-                          {viewingMember.external_wishlist_count} external {viewingMember.external_wishlist_count === 1 ? 'link' : 'links'}
-                        </span>
-                      </div>
-                    )}
-                    <ExternalWishlistsButton member={viewingMember} />
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Collapsible Browse Wishlist Section - Enhanced with gradient styling */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)] overflow-hidden">
+          <div ref={browseWishlistsRef} className="bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)] overflow-hidden">
             <button
               onClick={() => setBrowserExpanded(!isBrowserExpanded)}
-              className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-sky-50 to-indigo-50 dark:from-sky-900/20 dark:to-indigo-900/20 hover:from-sky-100 hover:to-indigo-100 dark:hover:from-sky-900/30 dark:hover:to-indigo-900/30 transition-colors duration-200"
+              className="w-full flex items-center justify-between px-3 py-2.5 sm:p-4 bg-gradient-to-r from-sky-50 to-indigo-50 dark:from-sky-900/20 dark:to-indigo-900/20 hover:from-sky-100 hover:to-indigo-100 dark:hover:from-sky-900/30 dark:hover:to-indigo-900/30 transition-colors duration-200"
             >
               <div className="flex items-center gap-2">
                 <Gift className="w-4 h-4 text-primary dark:text-primary-400" />
-                <span className="font-semibold text-gray-800 dark:text-white">
+                <span className="font-semibold text-gray-800 dark:text-white text-sm sm:text-base">
                   Browse Wishlists
                 </span>
                 {Array.isArray(familyMembers) && (
@@ -719,39 +684,45 @@ const DashboardScreen = (props = {}) => {
             </div>
           )}
 
-          {/* Floating Add Button - Updated to hide when modal is open */}
-          <AnimatePresence>
-            {(viewingMember?.id === selectedUser?.id || isAdmin) && !isAddingItem && !selectedItem && (
-              <motion.button
-                onClick={handleOpenAddItemForm}
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0, opacity: 0 }}
-                className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 dark:from-sky-400 dark:to-indigo-400 text-white shadow-lg hover:from-sky-600 hover:to-indigo-600 dark:hover:from-sky-500 dark:hover:to-indigo-500 flex items-center justify-center transition-all duration-200 z-10"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-                title="Add new item"
-              >
-                <Plus size={24} />
-              </motion.button>
-            )}
-            
-            {/* Floating Home Button - Only shows when viewing someone else's wishlist */}
-            {viewingMember?.id !== selectedUser?.id && !isAdmin && !selectedItem && (
-              <motion.button
-                onClick={() => handleSelectViewingMember(selectedUser)}
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0, opacity: 0 }}
-                className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 dark:from-emerald-400 dark:to-teal-400 text-white shadow-lg hover:from-emerald-600 hover:to-teal-600 dark:hover:from-emerald-500 dark:hover:to-teal-500 flex items-center justify-center transition-all duration-200 z-10"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-                title="Return to your wishlist"
-              >
-                <Home size={24} />
-              </motion.button>
-            )}
-          </AnimatePresence>
+          {/* Floating Action Menu - Unified menu for all quick actions */}
+          {viewingMember && (
+            <>
+              <FloatingActionMenu
+                isOwnWishlist={viewingMember?.id === selectedUser?.id || isAdmin}
+                viewingMember={viewingMember}
+                onAddItem={handleOpenAddItemForm}
+                onReturnHome={() => handleSelectViewingMember(selectedUser)}
+                onOpenExternalWishlists={() => setIsExternalWishlistsOpen(true)}
+                onOpenPreferences={() => setIsPreferencesOpen(true)}
+                onBrowseWishlists={() => {
+                  setBrowserExpanded(true);
+                  // Scroll to the browse section after a short delay for the expansion animation
+                  setTimeout(() => {
+                    browseWishlistsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }, 100);
+                }}
+                isHidden={isAddingItem || selectedItem}
+              />
+
+              {/* Hidden External Wishlists Button - Only renders modal, triggered from FloatingActionMenu */}
+              <ExternalWishlistsButton
+                member={viewingMember}
+                variant="hidden"
+                externalOpen={isExternalWishlistsOpen}
+                onExternalClose={() => setIsExternalWishlistsOpen(false)}
+              />
+
+              <UserPreferencesDropdown
+                member={viewingMember}
+                isOwner={viewingMember.id === selectedUser.id || isAdmin}
+                currentUserId={selectedUser.id}
+                onUpdateSuccess={handlePreferencesUpdate}
+                isOpen={isPreferencesOpen}
+                onOpenChange={setIsPreferencesOpen}
+                hideTrigger
+              />
+            </>
+          )}
 
           {/* Add Item Form Modal */}
           <AnimatePresence>

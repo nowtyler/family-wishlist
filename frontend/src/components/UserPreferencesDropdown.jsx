@@ -35,8 +35,24 @@ const sizeOptions = {
   neck: ["13-13.5", "14-14.5", "15-15.5", "16-16.5", "17-17.5", "18-18.5", "19-19.5"]
 };
 
-const UserPreferencesDropdown = ({ member, isOwner, currentUserId, onUpdateSuccess = () => {} }) => {
+const UserPreferencesDropdown = ({
+  member,
+  isOwner,
+  currentUserId,
+  onUpdateSuccess = () => {},
+  isOpen,
+  onOpenChange,
+  hideTrigger = false,
+}) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownOpen = typeof isOpen === 'boolean' ? isOpen : isDropdownOpen;
+  const setDropdownOpen = (nextOpen) => {
+    if (typeof isOpen === 'boolean') {
+      onOpenChange?.(nextOpen);
+    } else {
+      setIsDropdownOpen(nextOpen);
+    }
+  };
   const [isEditing, setIsEditing] = useState(false);
   const [preferences, setPreferences] = useState({
     tshirtSize: member?.preferences?.tshirtSize || '',
@@ -72,7 +88,7 @@ const UserPreferencesDropdown = ({ member, isOwner, currentUserId, onUpdateSucce
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsDropdownOpen(false);
+        setDropdownOpen(false);
         if (isEditing) {
           setIsEditing(false);
           // Reset form state to current preferences
@@ -197,9 +213,9 @@ const UserPreferencesDropdown = ({ member, isOwner, currentUserId, onUpdateSucce
   };
 
   const toggleDropdown = () => {
-    setIsDropdownOpen(!isDropdownOpen);
+    setDropdownOpen(!dropdownOpen);
     // Exit edit mode when closing dropdown
-    if (isDropdownOpen && isEditing) {
+    if (dropdownOpen && isEditing) {
       setIsEditing(false);
     }
   };
@@ -244,65 +260,87 @@ const UserPreferencesDropdown = ({ member, isOwner, currentUserId, onUpdateSucce
 
   return (
     <div className="relative" ref={dropdownRef}>
-      <button 
-        onClick={toggleDropdown}
-        className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-600/50 text-gray-700 dark:text-gray-300 rounded-full text-sm transition-colors"
-        title="User preferences"
-      >
-        <Shirt size={14} className="text-indigo-500 dark:text-indigo-400" />
-        <span>Sizes & Preferences</span>
-        <ChevronDown 
-          size={14} 
-          className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
-        />
-      </button>
+      {!hideTrigger && (
+        <button
+          onClick={toggleDropdown}
+          className="flex items-center gap-1 px-2 py-1.5 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-600/50 text-gray-700 dark:text-gray-300 rounded-full text-sm transition-colors"
+          title="Sizes & Preferences"
+        >
+          <Shirt size={16} className="text-indigo-500 dark:text-indigo-400" />
+          <ChevronDown
+            size={12}
+            className={`transition-transform ${dropdownOpen ? 'rotate-180' : ''}`}
+          />
+        </button>
+      )}
 
       <AnimatePresence>
-        {isDropdownOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
-            className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 shadow-lg rounded-lg overflow-hidden z-20"
-          >
+        {dropdownOpen && (
+          <>
+            {/* Modal wrapper - full screen centered when hideTrigger is true, dropdown style otherwise */}
+            <div className={`fixed inset-0 z-40 flex items-center justify-center p-4 ${!hideTrigger ? 'sm:contents' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) setDropdownOpen(false); }}>
+              {/* Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className={`absolute inset-0 bg-black/50 ${!hideTrigger ? 'sm:hidden' : ''}`}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                className={`relative w-full max-w-sm bg-white dark:bg-gray-800 shadow-lg rounded-lg overflow-hidden z-50 ${!hideTrigger ? 'sm:absolute sm:w-80 sm:right-0 sm:mt-2' : ''}`}
+              >
             {/* Header with Birthday Info */}
             <div className="p-4 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/30 dark:to-blue-900/30 border-b border-gray-200 dark:border-gray-700">
               <div className="flex justify-between items-center">
                 <h3 className="font-semibold text-gray-800 dark:text-gray-100">
                   {member.name}'s Preferences
                 </h3>
-                {isOwner && (
-                  <div>
-                    {isEditing ? (
-                      <div className="flex items-center gap-3">
-                        <button 
-                          onClick={handleCancel} 
-                          className="p-2 rounded-full text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                          aria-label="Cancel editing"
+                <div className="flex items-center gap-2">
+                  {isOwner && (
+                    <>
+                      {isEditing ? (
+                        <>
+                          <button
+                            onClick={handleCancel}
+                            className="p-2 rounded-full text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            aria-label="Cancel editing"
+                          >
+                            <X size={20} />
+                          </button>
+                          <button
+                            onClick={handleEditSave}
+                            className="p-2 rounded-full text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+                            disabled={isLoading}
+                            aria-label="Save preferences"
+                          >
+                            <Save size={20} />
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={handleEditSave}
+                          className="p-2 rounded-full text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                          aria-label="Edit preferences"
                         >
-                          <X size={20} />
+                          <Pencil size={20} />
                         </button>
-                        <button 
-                          onClick={handleEditSave} 
-                          className="p-2 rounded-full text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
-                          disabled={isLoading}
-                          aria-label="Save preferences"
-                        >
-                          <Save size={20} />
-                        </button>
-                      </div>
-                    ) : (
-                      <button 
-                        onClick={handleEditSave} 
-                        className="p-2 rounded-full text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                        aria-label="Edit preferences"
-                      >
-                        <Pencil size={20} />
-                      </button>
-                    )}
-                  </div>
-                )}
+                      )}
+                    </>
+                  )}
+                      {!isEditing && (
+                        <button
+                      onClick={() => setDropdownOpen(false)}
+                      className="p-2 rounded-full text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      aria-label="Close"
+                    >
+                      <X size={20} />
+                    </button>
+                  )}
+                </div>
               </div>
               {birthdayInfo && (
                 <div className="flex items-center gap-1.5 mt-2 text-gray-700 dark:text-gray-300 text-sm bg-white dark:bg-gray-700 px-2 py-1 rounded-md">
@@ -474,7 +512,9 @@ const UserPreferencesDropdown = ({ member, isOwner, currentUserId, onUpdateSucce
                 </div>
               )}
             </div>
-          </motion.div>
+              </motion.div>
+            </div>
+          </>
         )}
       </AnimatePresence>
     </div>

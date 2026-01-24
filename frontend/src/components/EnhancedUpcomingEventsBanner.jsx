@@ -21,11 +21,11 @@ const EnhancedUpcomingEventsBanner = ({ familyMembers }) => {
     <motion.div
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="w-full mb-6 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden"
+      className="w-full mb-4 sm:mb-6 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden"
     >
       {/* Main Banner - Always Visible */}
-      <div 
-        className={`p-3 sm:p-4 cursor-pointer transition-all duration-200 ${
+      <div
+        className={`px-3 py-2 sm:p-4 cursor-pointer transition-all duration-200 ${
           isChristmas 
             ? 'bg-gradient-to-r from-red-50 to-red-50/50 dark:from-red-900/10 dark:to-red-900/5 hover:from-red-100/70 dark:hover:from-red-900/20'
             : 'bg-gradient-to-r from-pink-50 to-rose-50 dark:from-pink-900/20 dark:to-rose-900/20 hover:from-pink-100/70 dark:hover:from-pink-900/30'
@@ -51,15 +51,15 @@ const EnhancedUpcomingEventsBanner = ({ familyMembers }) => {
                 <h3 className="font-semibold text-gray-800 dark:text-gray-100 text-sm sm:text-base truncate">
                   {nextEvent.name}
                 </h3>
-                <span className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 bg-pink-500/20 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 rounded-full font-medium shrink-0">
+                <span className="hidden sm:inline text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 bg-pink-500/20 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 rounded-full font-medium shrink-0">
                   Next
                 </span>
               </div>
-              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate">
-                {isChristmas ? 'Dec 25' : nextEvent.date.toLocaleDateString('en-US', { 
-                  weekday: 'short', 
-                  month: 'short', 
-                  day: 'numeric' 
+              <p className="hidden sm:block text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate">
+                {isChristmas ? 'Dec 25' : nextEvent.date.toLocaleDateString('en-US', {
+                  weekday: 'short',
+                  month: 'short',
+                  day: 'numeric'
                 })}
               </p>
             </div>
