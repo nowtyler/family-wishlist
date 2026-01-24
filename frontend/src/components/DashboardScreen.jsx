@@ -21,6 +21,7 @@ import ExternalWishlistsButton from './ExternalWishlistsButton';
 import UserPreferencesDropdown from './UserPreferencesDropdown';
 import FloatingActionMenu from './FloatingActionMenu';
 import Navbar from './Navbar';
+import { useTutorial } from '../contexts/TutorialContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, TriangleAlert } from 'lucide-react';
 import { toast } from 'react-toastify';
@@ -31,6 +32,7 @@ import { toast } from 'react-toastify';
 const DashboardScreen = (props = {}) => {
   const { onViewingMemberChange } = props;
   const { selectedUser, familyMembers, setFamilyMembers } = useAppContext();
+  const tutorial = useTutorial();
   const isAdmin = selectedUser?.is_admin;
   const [searchParams, setSearchParams] = useSearchParams();
   const [viewingMember, setViewingMember] = useState(null);
@@ -145,6 +147,13 @@ const DashboardScreen = (props = {}) => {
     initializeDashboard();
     return () => { mounted = false; };
   }, [selectedUser?.id, viewingMember?.id, familyMembers.length]);
+
+  // Start tutorial for first-time users after dashboard loads
+  useEffect(() => {
+    if (!isLoading && viewingMember && tutorial?.startTutorialForNewUser) {
+      tutorial.startTutorialForNewUser();
+    }
+  }, [isLoading, viewingMember, tutorial]);
 
   const handleSelectViewingMember = (member) => {
     setViewingMember(member);

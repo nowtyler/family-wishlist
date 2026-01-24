@@ -1,6 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, Plus, Home, Link2, Users, User, ChevronLeft } from 'lucide-react';
+import { useTutorial } from '../contexts/TutorialContext';
+
+const MENU_TUTORIAL_TARGETS = [
+  '#tutorial-add-item',
+  '#tutorial-browse-wishlists',
+  '#tutorial-external-wishlists',
+  '#tutorial-preferences',
+];
 
 const FloatingActionMenu = ({
   isOwnWishlist,
@@ -17,10 +25,35 @@ const FloatingActionMenu = ({
   const [isOpen, setIsOpen] = useState(false);
   const [showMemberSubmenu, setShowMemberSubmenu] = useState(false);
   const menuRef = useRef(null);
+  const tutorial = useTutorial();
+  const tutorialTarget = tutorial?.currentStep?.target;
+  const isTutorialMenuStep =
+    tutorial?.run && typeof tutorialTarget === 'string' && MENU_TUTORIAL_TARGETS.includes(tutorialTarget);
+
+  useEffect(() => {
+    if (!tutorial?.run) {
+      return;
+    }
+
+    if (isTutorialMenuStep) {
+      setIsOpen(true);
+      setShowMemberSubmenu(false);
+      return;
+    }
+
+    if (tutorialTarget && tutorialTarget !== '#tutorial-fab-button') {
+      setIsOpen(false);
+      setShowMemberSubmenu(false);
+    }
+  }, [tutorial?.run, tutorialTarget, isTutorialMenuStep]);
 
   // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
+      if (isTutorialMenuStep) {
+        return;
+      }
+
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setIsOpen(false);
         setShowMemberSubmenu(false);
@@ -36,7 +69,7 @@ const FloatingActionMenu = ({
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('touchstart', handleClickOutside);
     };
-  }, [isOpen]);
+  }, [isOpen, isTutorialMenuStep]);
 
   // Close on escape key
   useEffect(() => {
@@ -62,6 +95,7 @@ const FloatingActionMenu = ({
       // Own wishlist context
       items.push({
         id: 'add',
+        tutorialId: 'tutorial-add-item',
         icon: Plus,
         label: 'Add Item',
         onClick: () => {
@@ -90,6 +124,7 @@ const FloatingActionMenu = ({
     if (viewingMember && (isOwnWishlist || viewingMember.external_wishlist_count > 0)) {
       items.push({
         id: 'external',
+        tutorialId: 'tutorial-external-wishlists',
         icon: Link2,
         label: 'External Wishlists',
         badge: viewingMember.external_wishlist_count > 0 ? viewingMember.external_wishlist_count : null,
@@ -106,6 +141,7 @@ const FloatingActionMenu = ({
     if (onOpenPreferences) {
       items.push({
         id: 'preferences',
+        tutorialId: 'tutorial-preferences',
         icon: User,
         label: 'Size & Preferences',
         onClick: () => {
@@ -120,6 +156,7 @@ const FloatingActionMenu = ({
     // Browse wishlists (always available) - opens submenu
     items.push({
       id: 'browse',
+      tutorialId: 'tutorial-browse-wishlists',
       icon: Users,
       label: 'Browse Wishlists',
       onClick: () => {
@@ -233,7 +270,11 @@ const FloatingActionMenu = ({
             animate="visible"
             exit="exit"
             className="fixed inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-sm z-40"
-            onClick={() => setIsOpen(false)}
+            onClick={() => {
+              if (!isTutorialMenuStep) {
+                setIsOpen(false);
+              }
+            }}
           />
         )}
       </AnimatePresence>
@@ -270,6 +311,7 @@ const FloatingActionMenu = ({
 
                   {/* Action Button */}
                   <motion.button
+                    id={item.tutorialId}
                     onClick={item.onClick}
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.95 }}
@@ -382,6 +424,7 @@ const FloatingActionMenu = ({
 
         {/* Main FAB Button */}
         <motion.button
+          id="tutorial-fab-button"
           onClick={() => {
             if (isOpen) {
               setShowMemberSubmenu(false);

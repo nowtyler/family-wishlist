@@ -3,7 +3,8 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
 import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPlus,
-         Trash2, AlertOctagon, Database, UserRound, User, Home, Download, Upload } from 'lucide-react';
+         Trash2, AlertOctagon, Database, UserRound, User, Home, Download, Upload, HelpCircle } from 'lucide-react';
+import { useTutorial } from '../contexts/TutorialContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems, 
          getFamilyMembers, clearAllWishlists, getAdminAccess, exportWishlist, importWishlist } from '../services/api';
@@ -21,6 +22,7 @@ const Navbar = ({
 } = {}) => {
   const { selectedUser, logout, setSelectedUser, setFamilyMembers } = useAppContext();
   const { darkMode, toggleDarkMode } = useTheme();
+  const tutorial = useTutorial();
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [version, setVersion] = useState('');
@@ -330,6 +332,7 @@ const Navbar = ({
             {/* Right side with theme toggle and settings */}
             <div className="flex items-center space-x-4">
               <button
+                id="tutorial-theme-toggle"
                 onClick={toggleDarkMode}
                 className="p-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white transition-colors"
                 aria-label="Toggle theme"
@@ -340,6 +343,7 @@ const Navbar = ({
               {/* Settings Menu */}
               <div className="relative" ref={settingsRef}>
                 <button
+                  id="tutorial-settings"
                   onClick={() => setShowSettings(!showSettings)}
                   className="p-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white transition-colors"
                   aria-label="Settings"
@@ -463,6 +467,20 @@ const Navbar = ({
                         </button>
                       </>
                     )}
+                    {/* Tutorial Button */}
+                    {tutorial && (
+                      <button
+                        onClick={() => {
+                          setShowSettings(false);
+                          tutorial.startTutorial();
+                        }}
+                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                      >
+                        <HelpCircle className="w-4 h-4 mr-2" />
+                        App Tutorial
+                      </button>
+                    )}
+
                     <button
                       onClick={handleLogout}
                       className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
