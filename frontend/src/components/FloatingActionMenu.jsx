@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Plus, Home, Link2, Users, User } from 'lucide-react';
+import { Menu, X, Plus, Home, Link2, Users, User, ChevronLeft } from 'lucide-react';
 
 const FloatingActionMenu = ({
   isOwnWishlist,
@@ -9,10 +9,13 @@ const FloatingActionMenu = ({
   onReturnHome,
   onOpenExternalWishlists,
   onOpenPreferences = null,
-  onBrowseWishlists,
+  onSelectMember,
+  familyMembers = [],
+  selectedUser = null,
   isHidden = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [showMemberSubmenu, setShowMemberSubmenu] = useState(false);
   const menuRef = useRef(null);
 
   // Close menu when clicking outside
@@ -20,6 +23,7 @@ const FloatingActionMenu = ({
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setIsOpen(false);
+        setShowMemberSubmenu(false);
       }
     };
 
@@ -38,13 +42,17 @@ const FloatingActionMenu = ({
   useEffect(() => {
     const handleEscape = (event) => {
       if (event.key === 'Escape') {
-        setIsOpen(false);
+        if (showMemberSubmenu) {
+          setShowMemberSubmenu(false);
+        } else {
+          setIsOpen(false);
+        }
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, []);
+  }, [showMemberSubmenu]);
 
   // Build menu items based on context
   const getMenuItems = () => {
@@ -109,14 +117,13 @@ const FloatingActionMenu = ({
       });
     }
 
-    // Browse wishlists (always available)
+    // Browse wishlists (always available) - opens submenu
     items.push({
       id: 'browse',
       icon: Users,
       label: 'Browse Wishlists',
       onClick: () => {
-        setIsOpen(false);
-        onBrowseWishlists?.();
+        setShowMemberSubmenu(true);
       },
       gradient: 'from-pink-500 to-rose-500 dark:from-pink-400 dark:to-rose-400',
       hoverGradient: 'hover:from-pink-600 hover:to-rose-600 dark:hover:from-pink-500 dark:hover:to-rose-500',
@@ -124,6 +131,9 @@ const FloatingActionMenu = ({
 
     return items;
   };
+
+  // Get non-admin family members for the submenu
+  const browsableMembers = familyMembers.filter(m => !m.is_admin);
 
   const menuItems = getMenuItems();
 
@@ -218,7 +228,7 @@ const FloatingActionMenu = ({
       >
         {/* Action Items */}
         <AnimatePresence mode="popLayout">
-          {isOpen && (
+          {isOpen && !showMemberSubmenu && (
             <motion.div
               variants={containerVariants}
               initial="hidden"
@@ -246,7 +256,9 @@ const FloatingActionMenu = ({
                     onClick={item.onClick}
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.95 }}
-                    className={`relative w-12 h-12 rounded-full bg-gradient-to-r ${item.gradient} ${item.hoverGradient} text-white shadow-lg flex items-center justify-center transition-all duration-200`}
+                    whileFocus={{ scale: 1.1 }}
+                    aria-label={item.label}
+                    className={`relative w-12 h-12 rounded-full bg-gradient-to-r ${item.gradient} ${item.hoverGradient} text-white shadow-lg flex items-center justify-center transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900`}
                   >
                     <item.icon size={20} />
                     {/* Badge */}
@@ -262,14 +274,138 @@ const FloatingActionMenu = ({
           )}
         </AnimatePresence>
 
+        {/* Member Submenu */}
+        <AnimatePresence mode="popLayout">
+          {isOpen && showMemberSubmenu && (
+            <motion.div
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="flex flex-col-reverse items-end gap-2 mb-2"
+            >
+              {/* Back button */}
+              <motion.div
+                variants={itemVariants}
+                layout="position"
+                className="flex items-center gap-3"
+              >
+                <motion.span
+                  variants={labelVariants}
+                  className="px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-lg shadow-lg whitespace-nowrap"
+                >
+                  Back
+                </motion.span>
+                <motion.button
+                  onClick={() => setShowMemberSubmenu(false)}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.95 }}
+                  whileFocus={{ scale: 1.1 }}
+                  aria-label="Back to main menu"
+                  className="w-10 h-10 rounded-full bg-gray-500 dark:bg-gray-600 hover:bg-gray-600 dark:hover:bg-gray-500 text-white shadow-lg flex items-center justify-center transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
+                >
+                  <ChevronLeft size={18} />
+                </motion.button>
+              </motion.div>
+
+              {/* Member list */}
+              {browsableMembers.map((member) => {
+                const isCurrentMember = viewingMember?.id === member.id;
+                return (
+                  <motion.div
+                    key={member.id}
+                    variants={itemVariants}
+                    layout="position"
+                    className="flex items-center gap-3"
+                  >
+                    {/* Member name label */}
+                    <motion.span
+                      variants={labelVariants}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-lg shadow-lg whitespace-nowrap flex items-center gap-2 ${
+                        isCurrentMember
+                          ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white'
+                          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200'
+                      }`}
+                    >
+                      {member.name}
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                        isCurrentMember
+                          ? 'bg-white/20'
+                          : 'bg-gray-100 dark:bg-gray-700'
+                      }`}>
+                        {member.wishlist_item_count}
+                      </span>
+                      {member.external_wishlist_count > 0 && (
+                        <span className={`flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full ${
+                          isCurrentMember
+                            ? 'bg-white/20'
+                            : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                        }`}>
+                          <Link2 className="w-3 h-3" />
+                          {member.external_wishlist_count}
+                        </span>
+                      )}
+                    </motion.span>
+
+                    {/* Select button */}
+                    <motion.button
+                      onClick={() => {
+                        setIsOpen(false);
+                        setShowMemberSubmenu(false);
+                        onSelectMember?.(member);
+                      }}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.95 }}
+                      whileFocus={{ scale: 1.1 }}
+                      aria-label={`View ${member.name}'s wishlist`}
+                      className={`w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 ${
+                        isCurrentMember
+                          ? 'bg-gradient-to-r from-pink-500 to-rose-500 dark:from-pink-400 dark:to-rose-400 text-white ring-2 ring-white dark:ring-gray-900'
+                          : 'bg-gradient-to-r from-pink-500 to-rose-500 dark:from-pink-400 dark:to-rose-400 hover:from-pink-600 hover:to-rose-600 dark:hover:from-pink-500 dark:hover:to-rose-500 text-white'
+                      }`}
+                    >
+                      <User size={16} />
+                    </motion.button>
+                  </motion.div>
+                );
+              })}
+
+              {/* Submenu header */}
+              <motion.div
+                variants={itemVariants}
+                layout="position"
+                className="flex items-center gap-3"
+              >
+                <motion.span
+                  variants={labelVariants}
+                  className="px-3 py-1.5 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-sm font-semibold rounded-lg shadow-lg whitespace-nowrap"
+                >
+                  Browse Wishlists
+                </motion.span>
+                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 dark:from-pink-400 dark:to-rose-400 text-white shadow-lg flex items-center justify-center">
+                  <Users size={18} />
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Main FAB Button */}
         <motion.button
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={() => {
+            if (isOpen) {
+              setShowMemberSubmenu(false);
+            }
+            setIsOpen(!isOpen);
+          }}
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          className={`relative w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all duration-300 ${
+          whileFocus={{ scale: 1.05 }}
+          aria-label={isOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={isOpen}
+          className={`relative w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 ${
             isOpen
               ? 'bg-gray-700 dark:bg-gray-600'
               : 'bg-gradient-to-r from-indigo-500 to-purple-600 dark:from-indigo-400 dark:to-purple-500'

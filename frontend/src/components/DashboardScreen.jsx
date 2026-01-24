@@ -1,5 +1,5 @@
 // frontend/src/components/DashboardScreen.jsx
-import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
 import { 
@@ -22,7 +22,7 @@ import UserPreferencesDropdown from './UserPreferencesDropdown';
 import FloatingActionMenu from './FloatingActionMenu';
 import Navbar from './Navbar';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, ChevronDown, Gift, TriangleAlert, Home, Calendar, Link2 } from 'lucide-react';
+import { Plus, TriangleAlert } from 'lucide-react';
 import { toast } from 'react-toastify';
 
 /**
@@ -40,7 +40,6 @@ const DashboardScreen = (props = {}) => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [needsUpgrade, setNeedsUpgrade] = useState(false);
   const [showUpgradeAlert, setShowUpgradeAlert] = useState(false);
-  const [isBrowserExpanded, setBrowserExpanded] = useState(false);
   const [isDragging, setIsDragging] = useState(false); // Track drag operations
   const [isAddingItem, setIsAddingItem] = useState(false); // State to control AddItemForm visibility
   const [isExternalWishlistsOpen, setIsExternalWishlistsOpen] = useState(false); // State for external wishlists modal
@@ -50,7 +49,6 @@ const DashboardScreen = (props = {}) => {
   const minRefreshInterval = 2000; // Minimum 2 seconds between refreshes
   const memberIdFromParams = searchParams.get('memberId');
   const itemIdFromParams = searchParams.get('itemId');
-  const browseWishlistsRef = useRef(null);
 
   const updateSearchParams = useCallback((updates, options = {}) => {
     const nextParams = new URLSearchParams(searchParams);
@@ -150,7 +148,6 @@ const DashboardScreen = (props = {}) => {
 
   const handleSelectViewingMember = (member) => {
     setViewingMember(member);
-    setBrowserExpanded(false); // Collapse after selection
     setIsAddingItem(false);
     setIsPreferencesOpen(false);
     updateSearchParams(
@@ -568,101 +565,6 @@ const DashboardScreen = (props = {}) => {
               </div>
             </div>
           )}
-          
-          {/* Header section */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4 p-4 sm:p-6 bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)]">
-            <div className="w-full md:w-auto">
-              <div className="flex flex-row items-center gap-2">
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 dark:text-white">
-                  {viewingMember?.id === selectedUser.id ? "Your Wishlist" : `${viewingMember?.name || ''}'s Wishlist`}
-                </h1>
-              </div>
-              <p className="hidden sm:block text-gray-600 dark:text-gray-300 mt-1 text-sm sm:text-base">
-                {viewingMember?.id === selectedUser.id ? "Manage your wishes or " : "Browse wishes and "}
-                see what others are hoping for!
-              </p>
-            </div>
-            
-          </div>
-
-          {/* Collapsible Browse Wishlist Section - Enhanced with gradient styling */}
-          <div ref={browseWishlistsRef} className="bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)] overflow-hidden">
-            <button
-              onClick={() => setBrowserExpanded(!isBrowserExpanded)}
-              className="w-full flex items-center justify-between px-3 py-2.5 sm:p-4 bg-gradient-to-r from-sky-50 to-indigo-50 dark:from-sky-900/20 dark:to-indigo-900/20 hover:from-sky-100 hover:to-indigo-100 dark:hover:from-sky-900/30 dark:hover:to-indigo-900/30 transition-colors duration-200"
-            >
-              <div className="flex items-center gap-2">
-                <Gift className="w-4 h-4 text-primary dark:text-primary-400" />
-                <span className="font-semibold text-gray-800 dark:text-white text-sm sm:text-base">
-                  Browse Wishlists
-                </span>
-                {Array.isArray(familyMembers) && (
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                    ({familyMembers.filter(m => !m.is_admin).length})
-                  </span>
-                )}
-                <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full">
-                  View Others
-                </span>
-              </div>
-              <ChevronDown
-                className={`w-4 h-4 text-gray-500 dark:text-gray-400 transform transition-transform duration-200 ${
-                  isBrowserExpanded ? 'rotate-180' : ''
-                }`}
-              />
-            </button>
-
-            <motion.div
-              initial={false}
-              animate={{
-                height: isBrowserExpanded ? 'auto' : 0,
-                opacity: isBrowserExpanded ? 1 : 0
-              }}
-              transition={{ duration: 0.2 }}
-              className="overflow-hidden border-t border-gray-100 dark:border-gray-700"
-            >
-              <div className="p-4 grid gap-2">
-                {Array.isArray(familyMembers) && familyMembers
-                  .filter(member => !member.is_admin)
-                  .map(member => (
-                    <motion.button
-                      key={member.id}
-                      onClick={() => handleSelectViewingMember(member)}
-                      className={`w-full flex items-center justify-between px-4 py-2.5 rounded-lg transition-all duration-200
-                        ${viewingMember?.id === member.id
-                          ? 'bg-gradient-to-r from-sky-500 to-indigo-500 dark:from-sky-400 dark:to-indigo-400 text-white shadow-sm'
-                          : 'bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'
-                        }`}
-                    >
-                      <span className="font-medium">{member.name}</span>
-                      <div className="flex items-center gap-1">
-                        <span className={`text-xs px-2 py-0.5 rounded-full
-                          ${viewingMember?.id === member.id
-                            ? 'bg-white/20'
-                            : 'bg-white dark:bg-gray-600'
-                          }`}
-                        >
-                          {member.wishlist_item_count}
-                        </span>
-
-                        {/* External wishlist indicator */}
-                        {member.external_wishlist_count > 0 && (
-                          <span className={`flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full
-                            ${viewingMember?.id === member.id
-                              ? 'bg-white/20'
-                              : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
-                            }`}
-                          >
-                            <Link2 className="w-3 h-3" />
-                            {member.external_wishlist_count}
-                          </span>
-                        )}
-                      </div>
-                    </motion.button>
-                ))}
-              </div>
-            </motion.div>
-          </div>
 
           {/* Wishlist items for viewingMember */}
           {viewingMember && (
@@ -694,13 +596,9 @@ const DashboardScreen = (props = {}) => {
                 onReturnHome={() => handleSelectViewingMember(selectedUser)}
                 onOpenExternalWishlists={() => setIsExternalWishlistsOpen(true)}
                 onOpenPreferences={() => setIsPreferencesOpen(true)}
-                onBrowseWishlists={() => {
-                  setBrowserExpanded(true);
-                  // Scroll to the browse section after a short delay for the expansion animation
-                  setTimeout(() => {
-                    browseWishlistsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  }, 100);
-                }}
+                onSelectMember={handleSelectViewingMember}
+                familyMembers={familyMembers}
+                selectedUser={selectedUser}
                 isHidden={isAddingItem || selectedItem}
               />
 

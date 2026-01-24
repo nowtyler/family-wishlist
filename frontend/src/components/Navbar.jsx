@@ -287,15 +287,15 @@ const Navbar = ({
                       onChange={(e) => setNewVersion(e.target.value)}
                       className="w-20 px-1 py-0.5 text-xs border rounded"
                     />
-                    <button 
-                      onClick={handleUpdateVersion} 
+                    <button
+                      onClick={handleUpdateVersion}
                       className="text-green-500 hover:text-green-600"
                       title="Save version"
                     >
                       <Check size={14} />
                     </button>
-                    <button 
-                      onClick={() => setIsEditingVersion(false)} 
+                    <button
+                      onClick={() => setIsEditingVersion(false)}
                       className="text-red-500 hover:text-red-600"
                       title="Cancel"
                     >
@@ -320,7 +320,7 @@ const Navbar = ({
                   </span>
                 )}
               </div>
-              
+
               {/* Development Environment Badge */}
               {isDevEnvironment && (
                 <div className="ml-2 px-2 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200 text-xs rounded-full">
@@ -338,7 +338,7 @@ const Navbar = ({
               >
                 {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </button>
-              
+
               {/* Help Button */}
               <button
                 onClick={() => setShowHelpModal(true)}
@@ -486,6 +486,23 @@ const Navbar = ({
               </div>
             </div>
           </div>
+
+          {/* Wishlist Header - Second row blended into navbar */}
+          {viewingMember && selectedUser && (
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+                <div className="w-full md:w-auto">
+                  <h2 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white">
+                    {viewingMember.id === selectedUser.id ? "Your Wishlist" : `${viewingMember.name || ''}'s Wishlist`}
+                  </h2>
+                  <p className="hidden sm:block text-gray-600 dark:text-gray-300 text-sm">
+                    {viewingMember.id === selectedUser.id ? "Manage your wishes or " : "Browse wishes and "}
+                    see what others are hoping for!
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </nav>
 
