@@ -625,19 +625,8 @@ const DashboardScreen = (props = {}) => {
           {/* Add Item Form Modal */}
           <AnimatePresence>
             {isAddingItem && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-                style={{
-                  position: 'fixed',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  zIndex: 50,
-                }}
+              <div
+                className="fixed inset-0 z-[100] flex items-center justify-center p-4"
                 onMouseDown={(e) => {
                   // Only track mousedown on the backdrop itself, not the modal content
                   if (e.target === e.currentTarget) {
@@ -658,11 +647,18 @@ const DashboardScreen = (props = {}) => {
                   e.stopPropagation();
                 }}
               >
+                {/* Backdrop */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 bg-black/50 z-[100]"
+                />
                 <motion.div
                   initial={{ scale: 0.95, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.95, opacity: 0 }}
-                  className="relative w-full max-w-2xl mx-auto my-8 max-h-[90vh] overflow-y-auto"
+                  className="relative w-full max-w-2xl mx-auto my-8 max-h-[90vh] overflow-y-auto z-[110]"
                   onMouseDown={() => {
                     // Track when mouse is pressed down inside the modal
                     setIsDragging(false);
@@ -679,7 +675,7 @@ const DashboardScreen = (props = {}) => {
                     onClose={handleCloseAddItemForm}
                   />
                 </motion.div>
-              </motion.div>
+              </div>
             )}
           </AnimatePresence>
         </motion.div>

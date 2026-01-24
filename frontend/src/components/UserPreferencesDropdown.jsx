@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, Calendar, Shirt, Ruler, Pencil, Save, X, Gift, Footprints, Asterisk, Hand, RulerDimensionLine, Info } from 'lucide-react';
+import { ChevronDown, Calendar, Shirt, Ruler, Gift, Footprints, Asterisk, Hand, RulerDimensionLine, Info } from 'lucide-react';
 import { updateFamilyMemberPreferences } from '../services/api';
 
 const sizeOptions = {
@@ -278,70 +278,26 @@ const UserPreferencesDropdown = ({
         {dropdownOpen && (
           <>
             {/* Modal wrapper - full screen centered when hideTrigger is true, dropdown style otherwise */}
-            <div className={`fixed inset-0 z-40 flex items-center justify-center p-4 ${!hideTrigger ? 'sm:contents' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) setDropdownOpen(false); }}>
+            <div className={`fixed inset-0 z-[100] flex items-center justify-center p-4 ${!hideTrigger ? 'sm:contents' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) setDropdownOpen(false); }}>
               {/* Backdrop */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className={`absolute inset-0 bg-black/50 ${!hideTrigger ? 'sm:hidden' : ''}`}
+                className={`fixed inset-0 bg-black/50 z-[100] ${!hideTrigger ? 'sm:hidden' : ''}`}
               />
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.2 }}
-                className={`relative w-full max-w-sm bg-white dark:bg-gray-800 shadow-lg rounded-lg overflow-hidden z-50 ${!hideTrigger ? 'sm:absolute sm:w-80 sm:right-0 sm:mt-2' : ''}`}
+                className={`relative w-full max-w-sm bg-white dark:bg-gray-800 shadow-lg rounded-lg overflow-hidden z-[110] ${!hideTrigger ? 'sm:absolute sm:w-80 sm:right-0 sm:mt-2' : ''}`}
               >
             {/* Header with Birthday Info */}
             <div className="p-4 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/30 dark:to-blue-900/30 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex justify-between items-center">
-                <h3 className="font-semibold text-gray-800 dark:text-gray-100">
-                  {member.name}'s Preferences
-                </h3>
-                <div className="flex items-center gap-2">
-                  {isOwner && (
-                    <>
-                      {isEditing ? (
-                        <>
-                          <button
-                            onClick={handleCancel}
-                            className="p-2 rounded-full text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                            aria-label="Cancel editing"
-                          >
-                            <X size={20} />
-                          </button>
-                          <button
-                            onClick={handleEditSave}
-                            className="p-2 rounded-full text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
-                            disabled={isLoading}
-                            aria-label="Save preferences"
-                          >
-                            <Save size={20} />
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={handleEditSave}
-                          className="p-2 rounded-full text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                          aria-label="Edit preferences"
-                        >
-                          <Pencil size={20} />
-                        </button>
-                      )}
-                    </>
-                  )}
-                      {!isEditing && (
-                        <button
-                      onClick={() => setDropdownOpen(false)}
-                      className="p-2 rounded-full text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                      aria-label="Close"
-                    >
-                      <X size={20} />
-                    </button>
-                  )}
-                </div>
-              </div>
+              <h3 className="font-semibold text-gray-800 dark:text-gray-100">
+                {member.name}'s Preferences
+              </h3>
               {birthdayInfo && (
                 <div className="flex items-center gap-1.5 mt-2 text-gray-700 dark:text-gray-300 text-sm bg-white dark:bg-gray-700 px-2 py-1 rounded-md">
                   <Calendar size={14} className="text-amber-500" />
@@ -511,6 +467,44 @@ const UserPreferencesDropdown = ({
                   {error}
                 </div>
               )}
+
+              {/* Sticky bottom action buttons */}
+              <div className="sticky bottom-0 left-0 right-0 pt-4 mt-6 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 pb-2">
+                {isEditing ? (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleCancel}
+                      className="flex-1 py-2.5 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg text-gray-800 dark:text-gray-200 font-medium transition-colors duration-200"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleEditSave}
+                      disabled={isLoading}
+                      className="flex-1 py-2.5 px-4 bg-emerald-500 hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700 rounded-lg text-white font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isLoading ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    {isOwner && (
+                      <button
+                        onClick={handleEditSave}
+                        className="flex-1 py-2.5 px-4 bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 rounded-lg text-white font-medium transition-colors duration-200"
+                      >
+                        Edit
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setDropdownOpen(false)}
+                      className={`${isOwner ? 'flex-1' : 'w-full'} py-2.5 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg text-gray-800 dark:text-gray-200 font-medium transition-colors duration-200`}
+                    >
+                      Close
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
               </motion.div>
             </div>
