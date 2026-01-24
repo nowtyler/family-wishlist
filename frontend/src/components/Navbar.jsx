@@ -2,14 +2,13 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
-import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPlus, 
-         Trash2, AlertOctagon, Database, HelpCircle, UserRound, User, Home, Download, Upload } from 'lucide-react';
+import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPlus,
+         Trash2, AlertOctagon, Database, UserRound, User, Home, Download, Upload } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems, 
          getFamilyMembers, clearAllWishlists, getAdminAccess, exportWishlist, importWishlist } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import MigrationModal from './admin/MigrationModal';
-import HelpModal from './HelpModal';
 import FamilyMemberManager from './admin/FamilyMemberManager';
 import UserProfileModal from './UserProfileModal';
 import UserHouseholdManager from './UserHouseholdManager';
@@ -32,7 +31,6 @@ const Navbar = ({
   const [deleteMode, setDeleteMode] = useState(null); // 'all' or 'user'
   const [showMigrationModal, setShowMigrationModal] = useState(false);
   const [isDevEnvironment, setIsDevEnvironment] = useState(false);
-  const [showHelpModal, setShowHelpModal] = useState(false);
   const [showFamilyManager, setShowFamilyManager] = useState(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
   const [showUserHouseholdManager, setShowUserHouseholdManager] = useState(false);
@@ -339,15 +337,6 @@ const Navbar = ({
                 {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </button>
 
-              {/* Help Button */}
-              <button
-                onClick={() => setShowHelpModal(true)}
-                className="p-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white transition-colors"
-                aria-label="Help"
-              >
-                <HelpCircle className="w-5 h-5" />
-              </button>
-
               {/* Settings Menu */}
               <div className="relative" ref={settingsRef}>
                 <button
@@ -557,14 +546,6 @@ const Navbar = ({
               </div>
             </motion.div>
           </motion.div>
-        )}
-        {/* Help Modal */}
-        {showHelpModal && (
-          <HelpModal 
-            isOpen={showHelpModal}
-            onClose={() => setShowHelpModal(false)}
-            isAdmin={isAdmin}
-          />
         )}
         {/* Family Member Manager Modal */}
         {showFamilyManager && (
