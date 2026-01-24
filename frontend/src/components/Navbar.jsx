@@ -267,7 +267,7 @@ const Navbar = ({
 
   return (
     <>
-      <nav className="bg-white dark:bg-gray-800 shadow-md sticky top-0 z-50">
+      <nav className="bg-white dark:bg-gray-800 shadow-md border-b border-gray-300 dark:border-gray-600 sticky top-0 z-50">
         <div className="container mx-auto px-6 py-3">
           <div className="flex justify-between items-center">
             {/* Logo, Version, and Development Badge */}
@@ -472,7 +472,14 @@ const Navbar = ({
                       <button
                         onClick={() => {
                           setShowSettings(false);
-                          tutorial.startTutorial();
+                          // If viewing someone else's wishlist, navigate to own wishlist first
+                          if (viewingMember && selectedUser && viewingMember.id !== selectedUser.id) {
+                            navigate('/');
+                            // Start tutorial after navigation completes
+                            setTimeout(() => tutorial.startTutorial(), 300);
+                          } else {
+                            tutorial.startTutorial();
+                          }
                         }}
                         className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
                       >
