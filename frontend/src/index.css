@@ -10,6 +10,11 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Disable touch zoom on mobile devices */
+* {
+  touch-action: manipulation;
+}
+
 /* Add any global custom styles here */
 .card-shadow {
   @apply shadow-lg hover:shadow-xl transition-shadow duration-300;
