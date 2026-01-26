@@ -134,7 +134,7 @@ app.add_middleware(
 # 5. Add security headers (HSTS, CSP, etc.)
 
 # Initialize rate limiter
-rate_limiter = RateLimiter(requests_per_minute=60)
+rate_limiter = RateLimiter(requests_per_minute=300, burst_allowance=150)
 
 # Initialize emergency token service
 emergency_token_service = EmergencyTokenService()
