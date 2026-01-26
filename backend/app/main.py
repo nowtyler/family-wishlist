@@ -29,6 +29,7 @@ from .services.user_auth_service import UserAuthService
 from .services.email_service import EmailService
 from .services.emergency_token_service import EmergencyTokenService
 from .middleware.rate_limiter import RateLimiter
+from .middleware.login_rate_limiter import login_rate_limiter, RateLimitEvent
 from .deps import validate_password_strength
 import secrets
 import psutil
@@ -190,6 +191,9 @@ async def startup_event():
         # Continue startup despite errors - we'll provide emergency access
     
     await rate_limiter.start_cleanup()
+
+    # Start the login-specific rate limiter (with n8n webhook integration)
+    await login_rate_limiter.start()
 
 # Add rate limiting middleware
 @app.middleware("http")
@@ -2028,26 +2032,55 @@ async def login(
 ):
     """
     Authenticate a user with username and password.
+
+    Rate limiting:
+    - IP-based: 5 attempts per 15 minutes, 15-minute lockout
+    - Username-based: 3 attempts per 15 minutes, progressive lockout (5min, 10min, 20min... up to 1hr)
     """
     try:
+        # Check login-specific rate limits (stricter than general API rate limiting)
+        rate_limit_result = login_rate_limiter.check_rate_limit(client_ip, request.username)
+        if not rate_limit_result.allowed:
+            # Log the blocked attempt
+            login_rate_limiter._log_event(
+                RateLimitEvent.ATTEMPT_BLOCKED,
+                client_ip,
+                request.username,
+                {
+                    "reason": rate_limit_result.reason.value if rate_limit_result.reason else None,
+                    "retry_after": rate_limit_result.retry_after,
+                }
+            )
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=rate_limit_result.message or "Too many login attempts. Please try again later.",
+                headers={"Retry-After": str(rate_limit_result.retry_after or 900)}
+            )
+
         # Log the login attempt
         auth.log_auth_event("LOGIN_ATTEMPT", request.username, True, client_ip)
-        
+
         success, message, user = UserAuthService.authenticate_user(db, request.username, request.password)
-        
+
         if not success:
+            # Record failed attempt for rate limiting
+            login_rate_limiter.record_failed_attempt(client_ip, request.username)
+
             # Log failed login
             auth.log_auth_event("LOGIN", request.username, False, client_ip, message)
-            
+
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=message
             )
-        
+
+        # Record successful login - resets rate limit counters
+        login_rate_limiter.record_successful_login(client_ip, request.username)
+
         # Log successful login
-        auth.log_auth_event("LOGIN", user.username, True, client_ip, 
+        auth.log_auth_event("LOGIN", user.username, True, client_ip,
                             f"User ID: {user.id}, Admin: {user.is_admin}")
-        
+
         return schemas.LoginResponse(
             success=True,
             message=message,

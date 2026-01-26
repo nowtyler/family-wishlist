@@ -46,7 +46,7 @@ const ensureMenuOpenForTutorial = () => {
   }
 
   const isExpanded = fabButton.getAttribute('aria-expanded') === 'true';
-  if (!isExpanded) {
+  if (!isExpanded && fabButton instanceof HTMLElement) {
     fabButton.click();
   }
 };

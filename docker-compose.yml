@@ -44,6 +44,10 @@ services:
       - TZ=${TZ} # Timezone
       - CHRISTMAS_MONTH=${CHRISTMAS_MONTH}
       - CHRISTMAS_DAY=${CHRISTMAS_DAY}
+      # Rate limit webhook (n8n) - for login security observability
+      - WEBHOOK_AUTH_USER=${WEBHOOK_AUTH_USER}
+      - WEBHOOK_AUTH_PASS=${WEBHOOK_AUTH_PASS}
+      - RATELIMIT_WEBHOOK_URL=${RATELIMIT_WEBHOOK_URL}
      volumes:
       - ${LOCAL_APPS_PATH}family-wishlist/data:/app/data  # Production data path
       - ${LOCAL_APPS_PATH}family-wishlist/data/backups:/app/data/backups
@@ -116,6 +120,10 @@ services:
       - TZ=${TZ} # Timezone
       - CHRISTMAS_MONTH=${CHRISTMAS_MONTH}
       - CHRISTMAS_DAY=${CHRISTMAS_DAY}
+      # Rate limit webhook (n8n) - for login security observability
+      - WEBHOOK_AUTH_USER=${WEBHOOK_AUTH_USER}
+      - WEBHOOK_AUTH_PASS=${WEBHOOK_AUTH_PASS}
+      - DEV_RATELIMIT_WEBHOOK_URL=${DEV_RATELIMIT_WEBHOOK_URL}
      volumes:
       - ${LOCAL_APPS_PATH}dev-family-wishlist/data:/app/data  # Development data path
       - ${LOCAL_APPS_PATH}dev-family-wishlist/data/backups:/app/data/backups
