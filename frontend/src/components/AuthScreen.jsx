@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
-import { verifyPassword, loginUser, registerUser, requestPasswordReset, getAdminAccess } from '../services/api';
+import { verifyPassword, loginUser, registerUser, requestPasswordReset } from '../services/api';
 import { motion } from 'framer-motion';
-import EmergencyAccessModal from './EmergencyAccessModal';
 import UserHouseholdManager from './UserHouseholdManager';
 import { validatePassword, validatePasswordMatch } from '../utils/passwordValidation';
 import { toast } from 'react-toastify';
@@ -20,39 +19,13 @@ const AuthScreen = () => {
   const [email, setEmail] = useState('');
   const [birthday, setBirthday] = useState('');
   const [resetEmail, setResetEmail] = useState('');
-  const [emergencyToken, setEmergencyToken] = useState('');
-
   // UI states
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showEmergencyAccess, setShowEmergencyAccess] = useState(false);
   const [showHouseholdSetup, setShowHouseholdSetup] = useState(false);
   
   const { login, setSelectedUser } = useAppContext();
-
-  const handleEmergencyAccess = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-    setIsLoading(true);
-    
-    try {
-      const response = await getAdminAccess({ emergency_token: emergencyToken });
-      if (response.success) {
-        login(true);
-        setSelectedUser(response.admin_user);
-        navigate('/admin');
-      } else {
-        setError(response.message || 'Emergency access failed');
-      }
-    } catch (err) {
-      console.error('Emergency access error:', err);
-      setError(err.response?.data?.detail || err.message || 'Emergency access failed');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -60,52 +33,40 @@ const AuthScreen = () => {
     setIsLoading(true);
     
     try {
-      // Check if this is an emergency access attempt
-      if (username.toLowerCase() === 'bypass') {
-        const response = await getAdminAccess({ emergency_token: password });
-        if (response.success) {
-          login(true);
-          setSelectedUser(response.admin_user);
-          navigate('/admin');
-        } else {
-          setError(response.message || 'Emergency access failed');
-        }
-      } else {
-        const response = await loginUser(username, password);
-        if (response.data.success) {
-          // Store user info and login with direct=true
-          login(true);
+      const response = await loginUser(username, password);
+      if (response.data.success) {
+        // Store user info and login with direct=true
+        login(true);
+        
+        // Use the user object from the response
+        if (response.data.user) {
+          const userData = {
+            ...response.data.user,
+            // Ensure these fields are set even if not in response
+            is_admin: response.data.user.is_admin || false
+          };
           
-          // Use the user object from the response
-          if (response.data.user) {
-            const userData = {
-              ...response.data.user,
-              // Ensure these fields are set even if not in response
-              is_admin: response.data.user.is_admin || false
-            };
-            
-            // Set the user data first
-            setSelectedUser(userData);
-            
-            // Log the navigation attempt
-            console.log('Login successful, redirecting user:', {
-              is_admin: userData.is_admin,
-              target: userData.is_admin ? '/admin' : '/'
-            });
-            
-            // Redirect admin users to admin page, others to main dashboard
-            if (userData.is_admin) {
-              navigate('/admin');
-            } else {
-              navigate('/');
-            }
+          // Set the user data first
+          setSelectedUser(userData);
+          
+          // Log the navigation attempt
+          console.log('Login successful, redirecting user:', {
+            is_admin: userData.is_admin,
+            target: userData.is_admin ? '/admin' : '/'
+          });
+          
+          // Redirect admin users to admin page, others to main dashboard
+          if (userData.is_admin) {
+            navigate('/admin');
           } else {
-            console.error('No user object in login response:', response.data);
-            setError('Login failed - invalid response format');
+            navigate('/');
           }
         } else {
-          setError(response.data.message || 'Login failed');
+          console.error('No user object in login response:', response.data);
+          setError('Login failed - invalid response format');
         }
+      } else {
+        setError(response.data.message || 'Login failed');
       }
     } catch (err) {
       console.error('Login error:', err);
@@ -277,7 +238,7 @@ const AuthScreen = () => {
                 type="password"
                 required
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
-                placeholder={username.toLowerCase() === 'bypass' ? 'Enter emergency access token' : 'Password'}
+                placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -291,7 +252,7 @@ const AuthScreen = () => {
                 disabled={isLoading}
                 className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed dark:focus:ring-offset-gray-900"
               >
-                {isLoading ? 'Signing in...' : (username.toLowerCase() === 'bypass' ? 'Emergency Access' : 'Sign In')}
+                {isLoading ? 'Signing in...' : 'Sign In'}
               </button>
             </div>
             <div className="flex items-center justify-between">

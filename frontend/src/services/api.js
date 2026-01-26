@@ -553,32 +553,6 @@ export const getSchemaHash = () => {
   return apiClient.get('/admin/schema/hash');
 };
 
-// --- Admin Access ---
-export const getAdminAccess = async (params) => {
-  try {
-    // Extract the emergency token from the params object
-    const { emergency_token } = params;
-    
-    // Try the new secure emergency access endpoint first
-    const response = await apiClient.post('/emergency/admin-access', { emergency_token });
-    console.log('Admin access response:', response.data);
-    return response.data;
-  } catch (error) {
-    console.error('Failed to get admin access:', error);
-    
-    // If the new endpoint fails, try the legacy endpoint as fallback
-    try {
-      console.log('Trying legacy emergency access endpoint...');
-      const legacyResponse = await apiClient.post('/admin/emergency-access');
-      console.log('Legacy admin access response:', legacyResponse.data);
-      return legacyResponse.data;
-    } catch (legacyError) {
-      console.error('Legacy emergency access also failed:', legacyError);
-      throw error; // Throw the original error
-    }
-  }
-};
-
 // --- URL Import ---
 export const fetchProductDetailsFromUrl = async (url) => {
   try {
@@ -792,19 +766,6 @@ export const getDatabaseVersion = () => {
 
 export const getAuthLogs = (params = {}) => {
     return apiClient.get('/admin/system/auth-logs', { params });
-};
-
-// --- Emergency Token Management ---
-export const getEmergencyTokenInfo = () => {
-  return apiClient.get('/admin/emergency-token/info');
-};
-
-export const updateEmergencyToken = (newToken) => {
-  return apiClient.put('/admin/emergency-token', { new_token: newToken });
-};
-
-export const generateNewEmergencyToken = () => {
-  return apiClient.post('/admin/emergency-token/generate');
 };
 
 // --- User Household Management (Non-Admin) ---

@@ -529,27 +529,6 @@ class ExternalWishlist(ExternalWishlistBase):
 
 # Add these new schemas after the existing schemas
 
-class EmergencyAccessRequest(BaseModel):
-    emergency_token: str
-
-class EmergencyAccessResponse(BaseModel):
-    success: bool
-    message: str
-    admin_user: FamilyMember
-
-class UpdateEmergencyTokenRequest(BaseModel):
-    new_token: str
-
-class UpdateEmergencyTokenResponse(BaseModel):
-    success: bool
-    message: str
-
-class EmergencyTokenInfoResponse(BaseModel):
-    exists: bool
-    created_at: Optional[str]
-    updated_at: Optional[str]
-    has_token: bool
-
 class SystemConfig(BaseModel):
     key: str
     value: str
@@ -568,7 +547,6 @@ class FirstTimeSetupRequest(BaseModel):
 class FirstTimeSetupResponse(BaseModel):
     success: bool
     message: str
-    emergency_access_key: str
     admin_user: FamilyMember
 
 class MaintenanceBroadcastRequest(BaseModel):

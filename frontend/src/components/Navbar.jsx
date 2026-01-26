@@ -7,7 +7,7 @@ import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPl
 import { useTutorial } from '../contexts/TutorialContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems, 
-         getFamilyMembers, clearAllWishlists, getAdminAccess, exportWishlist, importWishlist } from '../services/api';
+         getFamilyMembers, clearAllWishlists, exportWishlist, importWishlist } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import MigrationModal from './admin/MigrationModal';
 import FamilyMemberManager from './admin/FamilyMemberManager';
@@ -101,18 +101,6 @@ const Navbar = ({
       console.log('Updating version to:', newVersion);
       console.log('Current user:', selectedUser);
       
-      // If user is admin by name but ID might be invalid, try getting proper admin access
-      if (selectedUser?.is_admin && (!selectedUser.id || selectedUser.id < 1)) {
-        try {
-          console.log('Getting proper admin access first');
-          const adminData = await getAdminAccess();
-          setSelectedUser(adminData);
-        } catch (adminErr) {
-          console.error('Failed to get admin access:', adminErr);
-          // Continue anyway with current user
-        }
-      }
-      
       const response = await updateSystemVersion(newVersion);
       if (response && response.data) {
         setVersion(response.data.version);
@@ -126,20 +114,7 @@ const Navbar = ({
       console.error('Failed to update version:', err);
       console.error('Response details:', err.response?.data);
       
-      // Special handling for admin access issues
-      if (err.response?.status === 403 || err.response?.status === 404) {
-        try {
-          console.log('Attempting to get proper admin access');
-          const adminData = await getAdminAccess();
-          setSelectedUser(adminData);
-          alert("Admin access refreshed. Please try updating the version again.");
-        } catch (adminErr) {
-          console.error('Failed to get admin access:', adminErr);
-          alert(`Failed to update version: ${err.response?.data?.detail || err.message || 'Unknown error'}`);
-        }
-      } else {
-        alert(`Failed to update version: ${err.response?.data?.detail || err.message || 'Unknown error'}`);
-      }
+      alert(`Failed to update version: ${err.response?.data?.detail || err.message || 'Unknown error'}`);
       
       setIsEditingVersion(true); // Re-show form on error
     }

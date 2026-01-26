@@ -41,10 +41,6 @@ setup_permissions() {
   # Database files
   find /app/data -name "*.db" -exec chown root:root {} \; -exec chmod 644 {} \; 2>/dev/null || true
   
-  # Emergency token files need to stay root-owned but need to be readable/writable by the app
-  find /app/data -name "emergency_*.key" -exec chown root:root {} \; -exec chmod 644 {} \; 2>/dev/null || true
-  find /app/data -name "emergency_*.enc" -exec chown root:root {} \; -exec chmod 644 {} \; 2>/dev/null || true
-  
   echo "Permission setup completed."
 }
 

@@ -15,9 +15,8 @@ const FirstTimeSetupScreen = () => {
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [emergencyKey, setEmergencyKey] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showKey, setShowKey] = useState(false);
+  const [isSetupComplete, setIsSetupComplete] = useState(false);
   
   const { login, setSelectedUser } = useAppContext();
   const navigate = useNavigate();
@@ -60,9 +59,9 @@ const FirstTimeSetupScreen = () => {
         admin_email: formData.admin_email,
         admin_name: formData.admin_name
       });
-      setEmergencyKey(response.emergency_access_key);
-      setSuccess('System setup completed successfully! Please save your emergency access key.');
-      toast.success('System setup completed successfully! Please save your emergency access key.');
+      setSuccess('System setup completed successfully!');
+      toast.success('System setup completed successfully!');
+      setIsSetupComplete(true);
       login(true);
       setSelectedUser(response.admin_user);
     } catch (err) {
@@ -98,7 +97,7 @@ const FirstTimeSetupScreen = () => {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          {!emergencyKey ? (
+          {!isSetupComplete ? (
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <label htmlFor="admin_username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -207,37 +206,6 @@ const FirstTimeSetupScreen = () => {
             <div className="space-y-6">
               <div className="rounded-md bg-green-50 dark:bg-green-900/50 p-4">
                 <div className="text-sm text-green-700 dark:text-green-200">{success}</div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Emergency Access Key
-                </label>
-                <div className="relative">
-                  <input
-                    type={showKey ? "text" : "password"}
-                    value={emergencyKey}
-                    readOnly
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 sm:text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowKey(!showKey)}
-                    className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-                  >
-                    {showKey ? 'Hide' : 'Show'}
-                  </button>
-                </div>
-                <div className="mt-4 space-y-2 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 p-4 rounded-md border border-gray-200 dark:border-gray-700">
-                  <p className="font-medium text-gray-700 dark:text-gray-300">Emergency Access Instructions:</p>
-                  <p>1. Save this key in a secure location</p>
-                  <p>2. To use emergency access:</p>
-                  <ul className="ml-4 list-disc">
-                    <li>Enter "bypass" as the username</li>
-                    <li>Enter your emergency access key as the password</li>
-                  </ul>
-                  <p className="mt-2 text-red-600 dark:text-red-400 font-medium">Important: This current key cannot be recovered if lost!</p>
-                </div>
               </div>
 
               <div>

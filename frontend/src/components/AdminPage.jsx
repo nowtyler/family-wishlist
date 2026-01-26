@@ -50,7 +50,6 @@ import {
 import FamilyMemberManager from './admin/FamilyMemberManager';
 import Navbar from './Navbar';
 import MigrationManager from './admin/MigrationManager';
-import EmergencyTokenManager from './admin/EmergencyTokenManager';
 import ApplicationLogViewer from './admin/ApplicationLogViewer';
 import EnhancedUpcomingEventsBanner from './EnhancedUpcomingEventsBanner';
 
@@ -1655,7 +1654,6 @@ const AdminPage = () => {
         </AdminCard>
 
         {/* Emergency Token Management */}
-        <EmergencyTokenManager />
 
         {/* Application Logs */}
         <ApplicationLogViewer />
