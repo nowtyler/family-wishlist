@@ -118,7 +118,7 @@ The Docker entrypoint script automatically:
 ### Environment Variables
 - `PUID` - User ID for file permissions (default: 1000)
 - `PGID` - Group ID for file permissions (default: 1000)
-- `ENVIRONMENT` - Environment type (prod/dev)
+- `ENVIRONMENT` - Environment type (`production` or `development`)
 
 ## Usage
 
@@ -160,7 +160,7 @@ docker exec wishlist-backend python test_logging.py
 Verify these environment variables are set correctly:
 - `PUID` - Should match your host user ID
 - `PGID` - Should match your host group ID
-- `ENVIRONMENT` - Should be set to `prod` or `dev`
+- `ENVIRONMENT` - Should be set to `production` or `development`
 
 #### Manual Testing
 Run the test script inside the container:

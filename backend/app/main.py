@@ -27,8 +27,10 @@ from .services.backup_service import BackupService
 from .services.url_scraper import ProductScraper
 from .services.user_auth_service import UserAuthService
 from .services.email_service import EmailService
+from .services.turnstile import verify_turnstile
 from .middleware.rate_limiter import RateLimiter
 from .middleware.login_rate_limiter import login_rate_limiter, RateLimitEvent
+from .middleware.auth_rate_limiter import register_rate_limiter, password_reset_rate_limiter
 from .deps import validate_password_strength
 import secrets
 import psutil
@@ -77,8 +79,8 @@ tags_metadata = [
 
 # Add environment info to the application
 import os
-ENVIRONMENT = os.getenv("ENVIRONMENT", "prod").lower()
-IS_DEV = ENVIRONMENT == "dev"
+ENVIRONMENT = os.getenv("ENVIRONMENT", "production").lower()
+IS_DEV = ENVIRONMENT != "production"  # Any non-production env is treated as dev
 DATABASE_PATH = os.getenv("WISHLIST_DATABASE_URL", "sqlite:///./data/wishlist.db")
 
 # Enhanced API documentation
@@ -164,11 +166,11 @@ async def startup_event():
         finally:
             db.close()
         
-        # Check for schema changes and auto-generate migrations if needed
+        # Initialize migration service for system_settings tracking
         try:
             from .services.migration_service import MigrationService
             migration_service = MigrationService(DATABASE_PATH)
-            
+
             # Initialize system_settings table and schema hash if needed
             # This is critical for first-time setup to prevent migration loops
             try:
@@ -177,18 +179,10 @@ async def startup_event():
                     logger.info("Initialized system_settings table during startup")
             except Exception as e:
                 logger.error(f"Failed to initialize system_settings table: {e}")
-            
-            # Check if there are pending changes that need migration
-            if migration_service.detect_model_changes():
-                logger.info("Schema changes detected during startup, attempting to auto-generate migration...")
-                try:
-                    auto_migration = migration_service.auto_generate_migration()
-                    if auto_migration:
-                        logger.info(f"Auto-generated migration during startup: {auto_migration}")
-                    else:
-                        logger.warning("Failed to auto-generate migration during startup")
-                except Exception as e:
-                    logger.error(f"Error auto-generating migration during startup: {e}")
+
+            # NOTE: Auto-migration on startup is DISABLED to prevent empty migration spam
+            # Migrations should be created manually via the Admin UI when needed
+            # The manual migration in database.py handles the first_login column addition
         except Exception as e:
             logger.warning(f"Migration service not available during startup: {e}")
         
@@ -1801,6 +1795,16 @@ async def login(
     - Username-based: 3 attempts per 15 minutes, progressive lockout (5min, 10min, 20min... up to 1hr)
     """
     try:
+        turnstile_valid = await verify_turnstile(request.turnstile_token, client_ip)
+        if not turnstile_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Turnstile verification failed.",
+                    "turnstile_required": True,
+                }
+            )
+
         # Check login-specific rate limits (stricter than general API rate limiting)
         rate_limit_result = login_rate_limiter.check_rate_limit(client_ip, request.username)
         if not rate_limit_result.allowed:
@@ -1816,7 +1820,11 @@ async def login(
             )
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=rate_limit_result.message or "Too many login attempts. Please try again later.",
+                detail={
+                    "message": rate_limit_result.message or "Too many login attempts. Please try again later.",
+                    "turnstile_required": True,
+                    "retry_after": rate_limit_result.retry_after,
+                },
                 headers={"Retry-After": str(rate_limit_result.retry_after or 900)}
             )
 
@@ -1844,6 +1852,14 @@ async def login(
         auth.log_auth_event("LOGIN", user.username, True, client_ip,
                             f"User ID: {user.id}, Admin: {user.is_admin}")
 
+        # Capture first_login status before clearing it
+        is_first_login = user.first_login if hasattr(user, 'first_login') else False
+
+        # Clear first_login flag after successful login
+        if is_first_login:
+            user.first_login = False
+            db.commit()
+
         return schemas.LoginResponse(
             success=True,
             message=message,
@@ -1853,6 +1869,7 @@ async def login(
                 username=user.username,
                 email=user.email,
                 is_admin=user.is_admin,
+                first_login=is_first_login,
                 wishlist_item_count=0
             )
         )
@@ -1884,8 +1901,33 @@ async def register(
     Register a new user with username, password, etc.
     """
     try:
+        turnstile_valid = await verify_turnstile(user_data.turnstile_token, client_ip)
+        if not turnstile_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Turnstile verification failed.",
+                    "turnstile_required": True,
+                }
+            )
+
+        rate_limit_result = register_rate_limiter.check_rate_limit(client_ip, user_data.username)
+        if not rate_limit_result.allowed:
+            auth.log_auth_event("REGISTER_RATE_LIMIT", user_data.username, False, client_ip,
+                                rate_limit_result.message or "Registration rate limit exceeded")
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "message": rate_limit_result.message or "Too many registration attempts. Please try again later.",
+                    "turnstile_required": True,
+                    "retry_after": rate_limit_result.retry_after,
+                },
+                headers={"Retry-After": str(rate_limit_result.retry_after or 900)}
+            )
+
         # Log registration attempt
         auth.log_auth_event("REGISTER_ATTEMPT", user_data.username, True, client_ip)
+        register_rate_limiter.record_attempt(client_ip, user_data.username)
         
         # Validate password strength
         if not validate_password_strength(user_data.password):
@@ -1955,8 +1997,33 @@ async def request_password_reset(
     Request a password reset by username or email.
     """
     try:
+        turnstile_valid = await verify_turnstile(request.turnstile_token, client_ip)
+        if not turnstile_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Turnstile verification failed.",
+                    "turnstile_required": True,
+                }
+            )
+
+        rate_limit_result = password_reset_rate_limiter.check_rate_limit(client_ip, request.username_or_email)
+        if not rate_limit_result.allowed:
+            auth.log_auth_event("PASSWORD_RESET_RATE_LIMIT", request.username_or_email, False, client_ip,
+                                rate_limit_result.message or "Password reset rate limit exceeded")
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "message": rate_limit_result.message or "Too many password reset requests. Please try again later.",
+                    "turnstile_required": True,
+                    "retry_after": rate_limit_result.retry_after,
+                },
+                headers={"Retry-After": str(rate_limit_result.retry_after or 900)}
+            )
+
         # Log password reset request
         auth.log_auth_event("PASSWORD_RESET_REQUEST", request.username_or_email, True, client_ip)
+        password_reset_rate_limiter.record_attempt(client_ip, request.username_or_email)
         
         success, message = UserAuthService.create_reset_token(db, request.username_or_email)
         

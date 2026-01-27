@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
 import { verifyPassword, loginUser, registerUser, requestPasswordReset } from '../services/api';
@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import UserHouseholdManager from './UserHouseholdManager';
 import { validatePassword, validatePasswordMatch } from '../utils/passwordValidation';
 import { toast } from 'react-toastify';
+import TurnstileWidget from './TurnstileWidget';
 
 const AuthScreen = () => {
   const navigate = useNavigate();
@@ -24,20 +25,63 @@ const AuthScreen = () => {
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showHouseholdSetup, setShowHouseholdSetup] = useState(false);
-  
+  const [turnstileTokens, setTurnstileTokens] = useState({
+    login: '',
+    register: '',
+    reset: '',
+  });
+  const [widgetResetCounter, setWidgetResetCounter] = useState(0);
+
   const { login, setSelectedUser } = useAppContext();
+
+  const currentMode = useMemo(() => authMode, [authMode]);
+
+  // Reset Turnstile widget and token when switching modes
+  const switchAuthMode = (newMode) => {
+    setAuthMode(newMode);
+    setError('');
+    setSuccess('');
+    setWidgetResetCounter(prev => prev + 1);
+    setTurnstileTokens({
+      login: '',
+      register: '',
+      reset: '',
+    });
+  };
+
+  const extractErrorDetail = (err, fallbackMessage) => {
+    const detail = err.response?.data?.detail;
+    if (detail && typeof detail === 'object') {
+      return {
+        message: detail.message || fallbackMessage,
+        turnstileRequired: detail.turnstile_required || false,
+      };
+    }
+    return {
+      message: detail || err.userMessage || fallbackMessage,
+      turnstileRequired: false,
+    };
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
-    
+
     try {
-      const response = await loginUser(username, password);
+      const isDevelopment = import.meta.env.MODE === 'development';
+      // Only require Turnstile token in production
+      if (!isDevelopment && !turnstileTokens.login) {
+        setError('Please complete the Turnstile challenge before signing in.');
+        setIsLoading(false);
+        return;
+      }
+      const response = await loginUser(username, password, turnstileTokens.login);
       if (response.data.success) {
         // Store user info and login with direct=true
         login(true);
-        
+        setTurnstileTokens((prev) => ({ ...prev, login: '' }));
+
         // Use the user object from the response
         if (response.data.user) {
           const userData = {
@@ -45,21 +89,28 @@ const AuthScreen = () => {
             // Ensure these fields are set even if not in response
             is_admin: response.data.user.is_admin || false
           };
-          
+
           // Set the user data first
           setSelectedUser(userData);
-          
+
           // Log the navigation attempt
-          console.log('Login successful, redirecting user:', {
+          console.log('Login successful, user data:', {
             is_admin: userData.is_admin,
+            first_login: userData.first_login,
             target: userData.is_admin ? '/admin' : '/'
           });
-          
-          // Redirect admin users to admin page, others to main dashboard
-          if (userData.is_admin) {
-            navigate('/admin');
+
+          // Check if this is the user's first login
+          if (userData.first_login && !userData.is_admin) {
+            // Show household setup modal for first-time non-admin users
+            setShowHouseholdSetup(true);
           } else {
-            navigate('/');
+            // Redirect admin users to admin page, others to main dashboard
+            if (userData.is_admin) {
+              navigate('/admin');
+            } else {
+              navigate('/');
+            }
           }
         } else {
           console.error('No user object in login response:', response.data);
@@ -70,7 +121,11 @@ const AuthScreen = () => {
       }
     } catch (err) {
       console.error('Login error:', err);
-      setError(err.response?.data?.detail || err.userMessage || 'Failed to login. Please try again.');
+      const { message } = extractErrorDetail(
+        err,
+        'Failed to login. Please try again.'
+      );
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -80,7 +135,7 @@ const AuthScreen = () => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
-    
+
     // Frontend password validation with toast notifications
     const passwordValidation = validatePassword(password);
     if (!passwordValidation.isValid) {
@@ -88,44 +143,33 @@ const AuthScreen = () => {
       setIsLoading(false);
       return;
     }
-    
+
     const passwordMatchValidation = validatePasswordMatch(password, confirmPassword);
     if (!passwordMatchValidation.isValid) {
       toast.error(passwordMatchValidation.error);
       setIsLoading(false);
       return;
     }
-    
+
     try {
+      const isDevelopment = import.meta.env.MODE === 'development';
+      // Only require Turnstile token in production
+      if (!isDevelopment && !turnstileTokens.register) {
+        setError('Please complete the Turnstile challenge before registering.');
+        setIsLoading(false);
+        return;
+      }
       const userData = {
         username,
         password,
         name,
         email: email || undefined,
-        birthday: birthday || undefined
+        birthday: birthday || undefined,
+        turnstile_token: turnstileTokens.register || undefined,
       };
       
       const response = await registerUser(userData);
       if (response.data.success) {
-        // Auto-login the user after successful registration
-        try {
-          const loginResponse = await loginUser(username, password);
-          if (loginResponse.data.success && loginResponse.data.user) {
-            login(loginResponse.data.user.is_admin);
-            setSelectedUser(loginResponse.data.user);
-            toast.success('Registration successful! Now let\'s set up your households.');
-            setShowHouseholdSetup(true);
-          } else {
-            // If auto-login fails, just redirect to login
-            toast.success('Registration successful! Please log in to continue.');
-            setAuthMode('login');
-          }
-        } catch (loginErr) {
-          console.error('Auto-login error:', loginErr);
-          toast.success('Registration successful! Please log in to continue.');
-          setAuthMode('login');
-        }
-        
         // Clear form
         setUsername('');
         setPassword('');
@@ -133,18 +177,28 @@ const AuthScreen = () => {
         setName('');
         setEmail('');
         setBirthday('');
+        setTurnstileTokens((prev) => ({ ...prev, register: '' }));
+
+        // Show success message and switch to login mode
+        // Note: We don't auto-login to avoid bypassing Turnstile verification
+        toast.success('Registration successful! Please log in to continue.');
+        setSuccess('Registration successful! Please log in with your new account.');
+        switchAuthMode('login');
       } else {
         setError(response.data.message || 'Registration failed');
       }
     } catch (err) {
       console.error('Registration error:', err);
-      const errorMessage = err.response?.data?.detail || err.userMessage || 'Failed to register. Please try again.';
+      const { message } = extractErrorDetail(
+        err,
+        'Failed to register. Please try again.'
+      );
       
       // Check if it's a password validation error from backend
-      if (err.response?.data?.detail && err.response.data.detail.includes('Password must be at least 8 characters')) {
-        toast.error(err.response.data.detail);
+      if (message.includes('Password must be at least 8 characters')) {
+        toast.error(message);
       } else {
-        setError(errorMessage);
+        setError(message);
       }
     } finally {
       setIsLoading(false);
@@ -156,17 +210,29 @@ const AuthScreen = () => {
     setError('');
     setSuccess('');
     setIsLoading(true);
-    
+
     try {
-      const response = await requestPasswordReset(resetEmail);
+      const isDevelopment = import.meta.env.MODE === 'development';
+      // Only require Turnstile token in production
+      if (!isDevelopment && !turnstileTokens.reset) {
+        setError('Please complete the Turnstile challenge before requesting a reset.');
+        setIsLoading(false);
+        return;
+      }
+      const response = await requestPasswordReset(resetEmail, turnstileTokens.reset);
       if (response.data.success) {
         setSuccess('If an account with that email exists, password reset instructions have been sent.');
+        setTurnstileTokens((prev) => ({ ...prev, reset: '' }));
       } else {
         setError(response.data.message || 'Password reset failed');
       }
     } catch (err) {
       console.error('Password reset error:', err);
-      setError(err.response?.data?.detail || err.userMessage || 'Failed to request password reset.');
+      const { message } = extractErrorDetail(
+        err,
+        'Failed to request password reset.'
+      );
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -246,6 +312,12 @@ const AuthScreen = () => {
             {error && (
               <div className="text-red-500 dark:text-red-400 text-sm text-center">{error}</div>
             )}
+            <TurnstileWidget
+              resetKey={`login-${widgetResetCounter}`}
+              onVerify={(token) => setTurnstileTokens((prev) => ({ ...prev, login: token }))}
+              onExpire={() => setTurnstileTokens((prev) => ({ ...prev, login: '' }))}
+              onError={() => setError('Turnstile verification failed. Please try again.')}
+            />
             <div>
               <button
                 type="submit"
@@ -258,14 +330,14 @@ const AuthScreen = () => {
             <div className="flex items-center justify-between">
               <button
                 type="button"
-                onClick={() => { setAuthMode('register'); setError(''); setSuccess(''); }}
+                onClick={() => switchAuthMode('register')}
                 className="text-sm font-medium text-primary hover:text-primary-dark dark:text-primary-light dark:hover:text-primary"
               >
                 New user? Register
               </button>
               <button
                 type="button"
-                onClick={() => { setAuthMode('reset'); setError(''); setSuccess(''); }}
+                onClick={() => switchAuthMode('reset')}
                 className="text-sm font-medium text-primary hover:text-primary-dark dark:text-primary-light dark:hover:text-primary"
               >
                 Forgot password?
@@ -365,6 +437,12 @@ const AuthScreen = () => {
             {error && (
               <div className="text-red-500 dark:text-red-400 text-sm text-center">{error}</div>
             )}
+            <TurnstileWidget
+              resetKey={`register-${widgetResetCounter}`}
+              onVerify={(token) => setTurnstileTokens((prev) => ({ ...prev, register: token }))}
+              onExpire={() => setTurnstileTokens((prev) => ({ ...prev, register: '' }))}
+              onError={() => setError('Turnstile verification failed. Please try again.')}
+            />
             <div className="pt-2">
               <button
                 type="submit"
@@ -377,7 +455,7 @@ const AuthScreen = () => {
             <div className="text-center">
               <button
                 type="button"
-                onClick={() => { setAuthMode('login'); setError(''); setSuccess(''); }}
+                onClick={() => switchAuthMode('login')}
                 className="text-sm font-medium text-primary hover:text-primary-dark dark:text-primary-light dark:hover:text-primary"
               >
                 Already have an account? Sign in
@@ -406,6 +484,12 @@ const AuthScreen = () => {
             {error && (
               <div className="text-red-500 dark:text-red-400 text-sm text-center">{error}</div>
             )}
+            <TurnstileWidget
+              resetKey={`reset-${widgetResetCounter}`}
+              onVerify={(token) => setTurnstileTokens((prev) => ({ ...prev, reset: token }))}
+              onExpire={() => setTurnstileTokens((prev) => ({ ...prev, reset: '' }))}
+              onError={() => setError('Turnstile verification failed. Please try again.')}
+            />
             <div>
               <button
                 type="submit"
@@ -418,7 +502,7 @@ const AuthScreen = () => {
             <div className="text-center">
               <button
                 type="button"
-                onClick={() => { setAuthMode('login'); setError(''); setSuccess(''); }}
+                onClick={() => switchAuthMode('login')}
                 className="text-sm font-medium text-primary hover:text-primary-dark dark:text-primary-light dark:hover:text-primary"
               >
                 Back to login

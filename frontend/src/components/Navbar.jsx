@@ -58,15 +58,17 @@ const Navbar = ({
     const checkEnvironment = async () => {
       try {
         // First check if the environment is set directly in env vars
-        if (import.meta.env.IS_DEV_ENV || import.meta.env.ENVIRONMENT === 'dev') {
+        if (import.meta.env.IS_DEV_ENV ||
+            import.meta.env.ENVIRONMENT === 'development' ||
+            import.meta.env.ENVIRONMENT === 'dev') {  // Legacy support
           setIsDevEnvironment(true);
           return;
         }
-        
+
         // Fallback to checking the API
         const response = await fetch('/api/health');
         const data = await response.json();
-        setIsDevEnvironment(data.environment === 'dev' || data.is_dev === true);
+        setIsDevEnvironment(data.environment !== 'production' && data.environment !== 'prod');
       } catch (err) {
         console.error('Failed to check environment:', err);
         // Default to checking Vite environment variables as fallback

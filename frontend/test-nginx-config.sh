@@ -3,7 +3,7 @@
 # Test script to verify nginx config environment variable substitution
 
 # Define test variables
-export ENVIRONMENT="dev"
+export ENVIRONMENT="development"
 export BACKEND_SERVICE="dev-backend"
 
 # Create a test template

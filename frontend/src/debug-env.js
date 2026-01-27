@@ -14,7 +14,8 @@ export function logEnvironmentVariables() {
 }
 
 export const isDevelopmentEnvironment = () => {
-  return import.meta.env.IS_DEV_ENV === true || 
-         import.meta.env.ENVIRONMENT === 'dev' ||
+  return import.meta.env.IS_DEV_ENV === true ||
+         import.meta.env.ENVIRONMENT === 'development' ||
+         import.meta.env.ENVIRONMENT === 'dev' ||  // Legacy support
          import.meta.env.MODE === 'development';
 };

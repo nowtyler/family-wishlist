@@ -2,12 +2,12 @@
 set -e
 
 # Determine which backend service to use based on environment
-if [[ "$ENVIRONMENT" == "dev" ]]; then
-  export BACKEND_SERVICE=dev-backend
-  echo "Development environment: Using dev-backend service"
-else
+if [[ "$ENVIRONMENT" == "production" || "$ENVIRONMENT" == "prod" ]]; then
   export BACKEND_SERVICE=backend
   echo "Production environment: Using backend service"
+else
+  export BACKEND_SERVICE=dev-backend
+  echo "Development environment: Using dev-backend service"
 fi
 
 # Debug the environment variable

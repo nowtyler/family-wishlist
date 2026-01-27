@@ -169,9 +169,13 @@ export const getUserProfile = async (userId) => {
   }
 };
 
-export const loginUser = async (username, password) => {
+export const loginUser = async (username, password, turnstileToken) => {
     try {
-        const response = await apiClient.post('/auth/login', { username, password });
+        const response = await apiClient.post('/auth/login', {
+            username,
+            password,
+            turnstile_token: turnstileToken || undefined,
+        });
         return response;
     } catch (error) {
         console.error('Login error:', {
@@ -195,9 +199,12 @@ export const registerUser = async (userData) => {
     }
 };
 
-export const requestPasswordReset = async (usernameOrEmail) => {
+export const requestPasswordReset = async (usernameOrEmail, turnstileToken) => {
     try {
-        const response = await apiClient.post('/auth/reset-password/request', { username_or_email: usernameOrEmail });
+        const response = await apiClient.post('/auth/reset-password/request', {
+            username_or_email: usernameOrEmail,
+            turnstile_token: turnstileToken || undefined,
+        });
         return response;
     } catch (error) {
         console.error('Password reset request error:', {

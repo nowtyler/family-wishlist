@@ -23,6 +23,7 @@ class FamilyMemberBase(BaseModel):
     username: Optional[str] = None
     email: Optional[str] = None
     force_password_change: Optional[bool] = False
+    first_login: Optional[bool] = False
 
 class HouseholdBase(BaseModel):
     name: str
@@ -143,6 +144,7 @@ class BaseResponse(BaseModel):
 class LoginRequest(BaseModel):
     username: str
     password: str
+    turnstile_token: Optional[str] = None
 
 class LoginResponse(BaseResponse):
     user: 'FamilyMember'
@@ -153,6 +155,7 @@ class UserRegisterRequest(BaseModel):
     name: str
     email: EmailStr
     birthday: Optional[date] = None
+    turnstile_token: Optional[str] = None
 
 class AuthResponse(BaseResponse):
     user_id: Optional[int] = None
@@ -160,6 +163,7 @@ class AuthResponse(BaseResponse):
 
 class PasswordResetRequest(BaseModel):
     username_or_email: str
+    turnstile_token: Optional[str] = None
 
 class PasswordResetConfirmRequest(BaseModel):
     token: str
