@@ -220,14 +220,18 @@ class UserAuthService:
             # Check if username already exists (case insensitive)
             existing_user = db.query(models.FamilyMember).filter(func.lower(models.FamilyMember.username) == normalized_username).first()
             if existing_user:
-                return False, "Username already exists", None
+                logger.info("Registration rejected: username already exists")
+                # Normalize error message to avoid account enumeration
+                return False, "Registration failed", None
             
             # Check if email already exists (if provided) - case insensitive
             if user_data.email:
                 normalized_email = user_data.email.lower().strip()
                 existing_email = db.query(models.FamilyMember).filter(func.lower(models.FamilyMember.email) == normalized_email).first()
                 if existing_email:
-                    return False, "Email already in use", None
+                    logger.info("Registration rejected: email already exists")
+                    # Normalize error message to avoid account enumeration
+                    return False, "Registration failed", None
             
             # Create new user with normalized username
             new_user = models.FamilyMember(
