@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
 import { verifyPassword, loginUser, registerUser, requestPasswordReset } from '../services/api';
@@ -48,6 +48,19 @@ const AuthScreen = () => {
       reset: '',
     });
   };
+
+  // Memoized Turnstile callbacks to prevent infinite re-renders
+  const handleTurnstileVerify = useCallback((mode) => (token) => {
+    setTurnstileTokens((prev) => ({ ...prev, [mode]: token }));
+  }, []);
+
+  const handleTurnstileExpire = useCallback((mode) => () => {
+    setTurnstileTokens((prev) => ({ ...prev, [mode]: '' }));
+  }, []);
+
+  const handleTurnstileError = useCallback(() => {
+    setError('Turnstile verification failed. Please try again.');
+  }, []);
 
   const extractErrorDetail = (err, fallbackMessage) => {
     const detail = err.response?.data?.detail;
@@ -314,9 +327,9 @@ const AuthScreen = () => {
             )}
             <TurnstileWidget
               resetKey={`login-${widgetResetCounter}`}
-              onVerify={(token) => setTurnstileTokens((prev) => ({ ...prev, login: token }))}
-              onExpire={() => setTurnstileTokens((prev) => ({ ...prev, login: '' }))}
-              onError={() => setError('Turnstile verification failed. Please try again.')}
+              onVerify={handleTurnstileVerify('login')}
+              onExpire={handleTurnstileExpire('login')}
+              onError={handleTurnstileError}
             />
             <div>
               <button
@@ -439,9 +452,9 @@ const AuthScreen = () => {
             )}
             <TurnstileWidget
               resetKey={`register-${widgetResetCounter}`}
-              onVerify={(token) => setTurnstileTokens((prev) => ({ ...prev, register: token }))}
-              onExpire={() => setTurnstileTokens((prev) => ({ ...prev, register: '' }))}
-              onError={() => setError('Turnstile verification failed. Please try again.')}
+              onVerify={handleTurnstileVerify('register')}
+              onExpire={handleTurnstileExpire('register')}
+              onError={handleTurnstileError}
             />
             <div className="pt-2">
               <button
@@ -486,9 +499,9 @@ const AuthScreen = () => {
             )}
             <TurnstileWidget
               resetKey={`reset-${widgetResetCounter}`}
-              onVerify={(token) => setTurnstileTokens((prev) => ({ ...prev, reset: token }))}
-              onExpire={() => setTurnstileTokens((prev) => ({ ...prev, reset: '' }))}
-              onError={() => setError('Turnstile verification failed. Please try again.')}
+              onVerify={handleTurnstileVerify('reset')}
+              onExpire={handleTurnstileExpire('reset')}
+              onError={handleTurnstileError}
             />
             <div>
               <button
