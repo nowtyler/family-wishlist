@@ -50,12 +50,28 @@ const AuthScreen = () => {
   };
 
   // Memoized Turnstile callbacks to prevent infinite re-renders
-  const handleTurnstileVerify = useCallback((mode) => (token) => {
-    setTurnstileTokens((prev) => ({ ...prev, [mode]: token }));
+  const handleLoginVerify = useCallback((token) => {
+    setTurnstileTokens((prev) => ({ ...prev, login: token }));
   }, []);
 
-  const handleTurnstileExpire = useCallback((mode) => () => {
-    setTurnstileTokens((prev) => ({ ...prev, [mode]: '' }));
+  const handleLoginExpire = useCallback(() => {
+    setTurnstileTokens((prev) => ({ ...prev, login: '' }));
+  }, []);
+
+  const handleRegisterVerify = useCallback((token) => {
+    setTurnstileTokens((prev) => ({ ...prev, register: token }));
+  }, []);
+
+  const handleRegisterExpire = useCallback(() => {
+    setTurnstileTokens((prev) => ({ ...prev, register: '' }));
+  }, []);
+
+  const handleResetVerify = useCallback((token) => {
+    setTurnstileTokens((prev) => ({ ...prev, reset: token }));
+  }, []);
+
+  const handleResetExpire = useCallback(() => {
+    setTurnstileTokens((prev) => ({ ...prev, reset: '' }));
   }, []);
 
   const handleTurnstileError = useCallback(() => {
@@ -327,8 +343,8 @@ const AuthScreen = () => {
             )}
             <TurnstileWidget
               resetKey={`login-${widgetResetCounter}`}
-              onVerify={handleTurnstileVerify('login')}
-              onExpire={handleTurnstileExpire('login')}
+              onVerify={handleLoginVerify}
+              onExpire={handleLoginExpire}
               onError={handleTurnstileError}
             />
             <div>
@@ -452,8 +468,8 @@ const AuthScreen = () => {
             )}
             <TurnstileWidget
               resetKey={`register-${widgetResetCounter}`}
-              onVerify={handleTurnstileVerify('register')}
-              onExpire={handleTurnstileExpire('register')}
+              onVerify={handleRegisterVerify}
+              onExpire={handleRegisterExpire}
               onError={handleTurnstileError}
             />
             <div className="pt-2">
@@ -499,8 +515,8 @@ const AuthScreen = () => {
             )}
             <TurnstileWidget
               resetKey={`reset-${widgetResetCounter}`}
-              onVerify={handleTurnstileVerify('reset')}
-              onExpire={handleTurnstileExpire('reset')}
+              onVerify={handleResetVerify}
+              onExpire={handleResetExpire}
               onError={handleTurnstileError}
             />
             <div>
