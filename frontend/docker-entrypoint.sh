@@ -33,8 +33,8 @@ if [ -f "$INDEX_FILE" ]; then
 
   echo "Injecting RUNTIME_MODE=$RUNTIME_MODE into index.html"
 
-  # Inject script before closing </head> tag
-  sed -i "s|</head>|<script>window.__RUNTIME_ENV__={mode:'$RUNTIME_MODE',siteKey:'$VITE_SITE_KEY'||''};</script></head>|" "$INDEX_FILE"
+  # Inject script before closing </head> tag (using # as delimiter to avoid conflicts with || operator)
+  sed -i "s#</head>#<script>window.__RUNTIME_ENV__={mode:'$RUNTIME_MODE',siteKey:'$VITE_SITE_KEY'||''};</script></head>#" "$INDEX_FILE"
 fi
 
 # Execute the CMD from the Dockerfile
