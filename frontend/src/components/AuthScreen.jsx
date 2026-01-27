@@ -69,7 +69,7 @@ const AuthScreen = () => {
     setIsLoading(true);
 
     try {
-      const isDevelopment = import.meta.env.MODE === 'development';
+      const isDevelopment = import.meta.env.MODE === 'development' || window.__RUNTIME_ENV__?.mode === 'development';
       // Only require Turnstile token in production
       if (!isDevelopment && !turnstileTokens.login) {
         setError('Please complete the Turnstile challenge before signing in.');
@@ -152,7 +152,7 @@ const AuthScreen = () => {
     }
 
     try {
-      const isDevelopment = import.meta.env.MODE === 'development';
+      const isDevelopment = import.meta.env.MODE === 'development' || window.__RUNTIME_ENV__?.mode === 'development';
       // Only require Turnstile token in production
       if (!isDevelopment && !turnstileTokens.register) {
         setError('Please complete the Turnstile challenge before registering.');
@@ -212,7 +212,7 @@ const AuthScreen = () => {
     setIsLoading(true);
 
     try {
-      const isDevelopment = import.meta.env.MODE === 'development';
+      const isDevelopment = import.meta.env.MODE === 'development' || window.__RUNTIME_ENV__?.mode === 'development';
       // Only require Turnstile token in production
       if (!isDevelopment && !turnstileTokens.reset) {
         setError('Please complete the Turnstile challenge before requesting a reset.');

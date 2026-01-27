@@ -19,8 +19,8 @@ const loadTurnstileScript = () => new Promise((resolve, reject) => {
 const TurnstileWidget = ({ onVerify, onExpire, onError, resetKey }) => {
   const containerRef = useRef(null);
   const widgetIdRef = useRef(null);
-  const siteKey = import.meta.env.VITE_SITE_KEY || import.meta.env.SITE_KEY;
-  const isDevelopment = import.meta.env.MODE === 'development';
+  const siteKey = import.meta.env.VITE_SITE_KEY || import.meta.env.SITE_KEY || window.__RUNTIME_ENV__?.siteKey;
+  const isDevelopment = import.meta.env.MODE === 'development' || window.__RUNTIME_ENV__?.mode === 'development';
 
   useEffect(() => {
     // In development, immediately call onVerify with empty token to bypass Turnstile
