@@ -59,6 +59,33 @@ def _apply_pending_migrations():
                     logger.warning(f"Could not update schema hash after migration: {hash_error}")
             else:
                 logger.debug("Migration skipped: first_login column already exists")
+
+            # Migration 002: Clear plaintext reset tokens (now stored as SHA-256 hashes)
+            # Check if any unhashed tokens exist (plaintext tokens are 64 chars, SHA-256 hashes are 64 hex chars)
+            # We detect plaintext tokens by checking if any token is NOT a valid hex string
+            result = conn.execute(text(
+                "SELECT COUNT(*) FROM family_members WHERE reset_token IS NOT NULL"
+            ))
+            tokens_exist = result.scalar() > 0
+
+            if tokens_exist:
+                # Check if tokens look like plaintext (contain non-hex characters)
+                result = conn.execute(text(
+                    "SELECT reset_token FROM family_members WHERE reset_token IS NOT NULL LIMIT 1"
+                ))
+                sample_token = result.scalar()
+
+                # SHA-256 hashes are 64 hex characters. Plaintext tokens contain alphanumeric chars
+                # that may include uppercase letters not valid in hex (G-Z)
+                is_plaintext = sample_token and not all(c in '0123456789abcdef' for c in sample_token.lower())
+
+                if is_plaintext:
+                    logger.info("Applying migration: Clearing plaintext reset tokens (now stored as hashes)")
+                    conn.execute(text(
+                        "UPDATE family_members SET reset_token = NULL, reset_token_expires = NULL WHERE reset_token IS NOT NULL"
+                    ))
+                    conn.commit()
+                    logger.info("✓ Migration complete: Plaintext reset tokens cleared")
     except Exception as e:
         logger.error(f"Migration error: {e}")
         # Don't fail startup if migration fails
