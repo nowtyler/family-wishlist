@@ -14,6 +14,11 @@ class HouseholdStatus(str, Enum):
     PENDING = "pending"
     DECLINED = "declined"
 
+class ShoppingCartStatus(str, Enum):
+    PENDING = "pending"
+    PURCHASED = "purchased"
+    CANCELLED = "cancelled"
+
 # Base models first
 class FamilyMemberBase(BaseModel):
     name: str
@@ -472,7 +477,6 @@ class MigrationInfo(BaseModel):
 class MigrationList(BaseModel):
     current_version: str
     available_migrations: List[MigrationInfo]
-    stored_schema_hash: Optional[str]
     needs_upgrade: bool
     db_version: str  # "legacy" or "current"
 
@@ -528,6 +532,41 @@ class ExternalWishlist(ExternalWishlistBase):
     id: int
     owner_id: int
     
+    class Config:
+        from_attributes = True
+
+# --- Shopping Cart ---
+class ShoppingCartItemBase(BaseModel):
+    buyer_id: int
+    recipient_id: int
+    wishlist_item_id: Optional[int] = None
+    title: str = Field(..., min_length=1, max_length=200)
+    notes: Optional[str] = Field(None, max_length=2000)
+    link: Optional[HttpUrl] = None
+    image_url: Optional[HttpUrl] = None
+    price: Optional[int] = Field(None, ge=0)
+    status: ShoppingCartStatus = ShoppingCartStatus.PENDING
+    purchased_at: Optional[datetime] = None
+
+class ShoppingCartItemCreate(ShoppingCartItemBase):
+    pass
+
+class ShoppingCartItemUpdate(BaseModel):
+    buyer_id: Optional[int] = None
+    recipient_id: Optional[int] = None
+    wishlist_item_id: Optional[int] = None
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    notes: Optional[str] = Field(None, max_length=2000)
+    link: Optional[HttpUrl] = None
+    image_url: Optional[HttpUrl] = None
+    price: Optional[int] = Field(None, ge=0)
+    status: Optional[ShoppingCartStatus] = None
+    purchased_at: Optional[datetime] = None
+
+class ShoppingCartItem(ShoppingCartItemBase):
+    id: int
+    created_at: datetime
+
     class Config:
         from_attributes = True
 

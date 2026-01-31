@@ -210,6 +210,26 @@ class ExternalWishlist(Base):
     def __repr__(self):
         return f"<ExternalWishlist(id={self.id}, name='{self.name}', owner_id={self.owner_id})>"
 
+class ShoppingCartItem(Base):
+    __tablename__ = "shopping_cart_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    buyer_id = Column(Integer, ForeignKey("family_members.id"), nullable=False)
+    recipient_id = Column(Integer, ForeignKey("family_members.id"), nullable=False)
+    wishlist_item_id = Column(Integer, ForeignKey("wishlist_items.id"), nullable=True)
+    title = Column(String, nullable=False)
+    notes = Column(Text, nullable=True)
+    link = Column(String, nullable=True)
+    image_url = Column(String, nullable=True)
+    price = Column(Integer, nullable=True)
+    status = Column(String, nullable=False, default="pending")
+    purchased_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    buyer = relationship("FamilyMember", foreign_keys=[buyer_id])
+    recipient = relationship("FamilyMember", foreign_keys=[recipient_id])
+    wishlist_item = relationship("WishlistItem")
+
 class SystemConfig(Base):
     __tablename__ = "system_config"
     

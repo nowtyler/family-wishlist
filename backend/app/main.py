@@ -1092,71 +1092,15 @@ async def get_migrations(
         current_version = migration_service.get_current_version()
         available_migrations = migration_service.get_available_migrations()
         
-        try:
-            stored_hash = crud.get_schema_hash(db)
-            current_hash = migration_service.get_schema_hash()
-            
-            # First check for multiple heads - this always requires migration
-            has_multiple_heads = "," in current_version
-            
-            # Check for non-"pending" migrations that are not yet applied
-            has_pending_migrations = any(m.version != "pending" and not m.applied for m in available_migrations)
-            
-            # Only check for model changes if we don't have other clear indicators
-            needs_schema_check = not (has_multiple_heads or has_pending_migrations)
-            model_changes_detected = False
-            
-            if needs_schema_check and stored_hash != current_hash:
-                # Log that we're checking for model changes
-                logger.info(f"Schema hashes don't match, verifying actual schema changes...")
-                
-                # Attempt to update hash if models match but hashes don't
-                # This helps address "false positive" needs_upgrade flags
-                try:
-                    # If we're at the current version (and not "base") and hashes don't match,
-                    # then we can update the hash without requiring migration
-                    # Check if alembic config is available
-                    if migration_service.alembic_cfg is not None:
-                        script_dir = alembic.script.ScriptDirectory.from_config(migration_service.alembic_cfg)
-                        head = script_dir.get_current_head()
-                        
-                        if current_version == head and head != "base":
-                            # We're at current head version, just hash mismatch - update the hash silently
-                            logger.info(f"Schema hash mismatch but database is at current head version. Updating hash...")
-                            crud.update_schema_hash(db, current_hash)
-                            stored_hash = current_hash  # Set them equal to avoid marking as needs_upgrade
-                    else:
-                        # Actually check for model changes
-                        model_changes_detected = migration_service.detect_model_changes()
-                except Exception as hash_fix_error:
-                    logger.error(f"Error during hash sync: {hash_fix_error}")
-                    # Don't assume we need upgrade just because of this error
-            
-            # A migration is needed if:
-            # 1. We have multiple heads (always requires merge) OR
-            # 2. We have pending migrations that are not applied OR
-            # 3. We have actual model changes detected
-            needs_upgrade = has_multiple_heads or has_pending_migrations or model_changes_detected
-            
-            logger.info(f"Schema status - Stored: {stored_hash[:8] if stored_hash else 'None'}... Current: {current_hash[:8]}... "
-                        f"Multiple heads: {has_multiple_heads}, Pending migrations: {has_pending_migrations}, "
-                        f"Model changes: {model_changes_detected}, Needs upgrade: {needs_upgrade}")
-        except Exception as e:
-            logger.error(f"Schema hash error: {str(e)}")
-            import traceback
-            logger.error(traceback.format_exc())
-            stored_hash = None
-            current_hash = None
-            # Don't automatically mark as needs_upgrade on error, this causes false positives
-            # Only mark as needing upgrade if we have multiple heads or pending migrations
-            needs_upgrade = "," in current_version or any(m.version != "pending" and not m.applied for m in available_migrations)
-        
+        has_multiple_heads = "," in current_version
+        has_pending_migrations = any(not m.applied for m in available_migrations)
+        needs_upgrade = has_multiple_heads or has_pending_migrations
+
         return {
             "current_version": current_version,
             "available_migrations": available_migrations,
-            "stored_schema_hash": stored_hash,
             "needs_upgrade": needs_upgrade,
-            "db_version": "current"  # Remove bootstrap/legacy references
+            "db_version": "current"
         }
     except Exception as e:
         logger.error(f"Migration error: {str(e)}")
@@ -1165,7 +1109,6 @@ async def get_migrations(
         return {
             "current_version": "unknown",
             "available_migrations": [],
-            "stored_schema_hash": None,
             "needs_upgrade": True,
             "db_version": "current"
         }
