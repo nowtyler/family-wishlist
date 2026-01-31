@@ -9,14 +9,15 @@ import React, {
 } from 'react';
 import Joyride, { STATUS, ACTIONS, EVENTS } from 'react-joyride';
 import { useTheme } from './ThemeContext';
+import { useAppContext } from './AppContext';
 import { HelpCircle, X, ChevronLeft, ChevronRight, SkipForward } from 'lucide-react';
 
 const TutorialContext = createContext(null);
 
 export const useTutorial = () => useContext(TutorialContext);
 
-const TUTORIAL_STORAGE_KEY = 'wishlist_tutorial_completed';
-const TUTORIAL_NEVER_SHOW_KEY = 'wishlist_tutorial_never_show';
+// Base localStorage key - will be combined with user ID for per-user tracking
+const TUTORIAL_COMPLETED_KEY_BASE = 'wishlist_tutorial_completed';
 const MENU_STEP_TARGETS = new Set([
   '#tutorial-add-item',
   '#tutorial-browse-wishlists',
@@ -247,21 +248,68 @@ const tutorialSteps = [
 
 export const TutorialProvider = ({ children }) => {
   const { darkMode } = useTheme();
+  const { selectedUser } = useAppContext();
   const [run, setRun] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
-  const [hasSeenTutorial, setHasSeenTutorial] = useState(true); // Default true to prevent flash
-  const [neverShowAgain, setNeverShowAgain] = useState(false);
+  const [tutorialCompleted, setTutorialCompleted] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const [joyrideKey, setJoyrideKey] = useState(0);
   const menuRetryRef = useRef(null);
+  const autoStartAttemptedRef = useRef(false);
 
-  // Check localStorage on mount
+  // Get user-specific localStorage key
+  const getTutorialKey = useCallback(() => {
+    if (!selectedUser?.id) return null;
+    return `${TUTORIAL_COMPLETED_KEY_BASE}_${selectedUser.id}`;
+  }, [selectedUser?.id]);
+
+  // Check localStorage when user changes
   useEffect(() => {
-    const completed = localStorage.getItem(TUTORIAL_STORAGE_KEY);
-    const neverShow = localStorage.getItem(TUTORIAL_NEVER_SHOW_KEY);
+    const key = getTutorialKey();
+    if (!key) {
+      // No user yet, reset state
+      setTutorialCompleted(false);
+      setIsInitialized(false);
+      autoStartAttemptedRef.current = false;
+      return;
+    }
 
-    setHasSeenTutorial(completed === 'true');
-    setNeverShowAgain(neverShow === 'true');
-  }, []);
+    const completed = localStorage.getItem(key);
+    setTutorialCompleted(completed === 'true');
+    setIsInitialized(true);
+    // Reset auto-start attempt when user changes
+    autoStartAttemptedRef.current = false;
+  }, [getTutorialKey]);
+
+  // Auto-start tutorial for users who haven't completed/skipped it
+  useEffect(() => {
+    // Only attempt auto-start once per session per user
+    if (autoStartAttemptedRef.current) {
+      return;
+    }
+
+    if (!isInitialized || tutorialCompleted || run) {
+      return;
+    }
+
+    // Mark that we've attempted auto-start
+    autoStartAttemptedRef.current = true;
+
+    // Wait for DOM elements to be ready before starting
+    const timeoutId = setTimeout(() => {
+      // Check if FAB button exists (DOM is ready)
+      const fabButton = document.querySelector('#tutorial-fab-button');
+      if (fabButton) {
+        setStepIndex(0);
+        setRun(true);
+      } else {
+        // DOM not ready, reset flag to try again
+        autoStartAttemptedRef.current = false;
+      }
+    }, 1500);
+
+    return () => clearTimeout(timeoutId);
+  }, [isInitialized, tutorialCompleted, run]);
 
   useLayoutEffect(() => {
     if (!run) {
@@ -276,17 +324,18 @@ export const TutorialProvider = ({ children }) => {
     menuRetryRef.current = null;
   }, [run, stepIndex]);
 
-  // Start tutorial for first-time users (after a short delay)
+  // Start tutorial for all users who haven't completed/skipped it (after a short delay)
   const startTutorialForNewUser = useCallback(() => {
-    // Don't restart if already running
-    if (!hasSeenTutorial && !neverShowAgain && !run) {
-      // Small delay to ensure DOM elements are rendered
-      setTimeout(() => {
-        setStepIndex(0);
-        setRun(true);
-      }, 1500);
+    // Wait until localStorage check is complete, then show if not completed/skipped
+    if (!isInitialized || tutorialCompleted || run) {
+      return;
     }
-  }, [hasSeenTutorial, neverShowAgain, run]);
+    // Small delay to ensure DOM elements are rendered
+    setTimeout(() => {
+      setStepIndex(0);
+      setRun(true);
+    }, 1500);
+  }, [isInitialized, tutorialCompleted, run]);
 
   // Manually start the tutorial
   const startTutorial = useCallback(() => {
@@ -301,22 +350,22 @@ export const TutorialProvider = ({ children }) => {
 
   // Reset tutorial (for testing or re-showing)
   const resetTutorial = useCallback(() => {
-    localStorage.removeItem(TUTORIAL_STORAGE_KEY);
-    localStorage.removeItem(TUTORIAL_NEVER_SHOW_KEY);
-    setHasSeenTutorial(false);
-    setNeverShowAgain(false);
-  }, []);
-
-  // Mark tutorial as completed with "never show again" option
-  const completeTutorial = useCallback((dontShowAgain = false) => {
-    localStorage.setItem(TUTORIAL_STORAGE_KEY, 'true');
-    setHasSeenTutorial(true);
-
-    if (dontShowAgain) {
-      localStorage.setItem(TUTORIAL_NEVER_SHOW_KEY, 'true');
-      setNeverShowAgain(true);
+    const key = getTutorialKey();
+    if (key) {
+      localStorage.removeItem(key);
     }
-  }, []);
+    setTutorialCompleted(false);
+    autoStartAttemptedRef.current = false;
+  }, [getTutorialKey]);
+
+  // Mark tutorial as completed (either finished or skipped)
+  const completeTutorial = useCallback(() => {
+    const key = getTutorialKey();
+    if (key) {
+      localStorage.setItem(key, 'true');
+    }
+    setTutorialCompleted(true);
+  }, [getTutorialKey]);
 
   const queueStepChange = useCallback((nextIndex) => {
     if (nextIndex < 0 || nextIndex >= tutorialSteps.length) {
@@ -344,7 +393,7 @@ export const TutorialProvider = ({ children }) => {
     if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status)) {
       setRun(false);
       setStepIndex(0);
-      completeTutorial(status === STATUS.SKIPPED);
+      completeTutorial();
       return;
     }
 
@@ -352,11 +401,12 @@ export const TutorialProvider = ({ children }) => {
       requestMenuOpenForTutorial();
     }
 
-    // Handle close action - stop the tour and mark complete
+    // Handle close action - stop the tour WITHOUT marking complete
+    // This allows the tutorial to restart on next login
     if (action === ACTIONS.CLOSE) {
       setRun(false);
       setStepIndex(0);
-      completeTutorial(false);
+      // Don't call completeTutorial() - let it restart on next login
       return;
     }
 
@@ -366,7 +416,7 @@ export const TutorialProvider = ({ children }) => {
         if (isLastStep) {
           setRun(false);
           setStepIndex(0);
-          completeTutorial(false);
+          completeTutorial();
           return;
         }
         queueStepChange(index + 1);
@@ -399,8 +449,8 @@ export const TutorialProvider = ({ children }) => {
     run,
     stepIndex,
     currentStep,
-    hasSeenTutorial,
-    neverShowAgain,
+    tutorialCompleted,
+    isInitialized,
     startTutorial,
     stopTutorial,
     resetTutorial,

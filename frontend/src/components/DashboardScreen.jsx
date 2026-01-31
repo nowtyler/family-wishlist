@@ -148,13 +148,6 @@ const DashboardScreen = (props = {}) => {
     return () => { mounted = false; };
   }, [selectedUser?.id, viewingMember?.id, familyMembers.length]);
 
-  // Start tutorial for first-time users after dashboard loads
-  useEffect(() => {
-    if (!isLoading && viewingMember && tutorial?.startTutorialForNewUser) {
-      tutorial.startTutorialForNewUser();
-    }
-  }, [isLoading, viewingMember, tutorial]);
-
   const handleSelectViewingMember = (member) => {
     setViewingMember(member);
     setIsAddingItem(false);
