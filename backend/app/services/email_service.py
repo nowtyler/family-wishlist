@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any
 import logging
 from datetime import datetime
+import re
 import secrets
 import string
 
@@ -208,11 +209,15 @@ class EmailService:
         subject = template.subject
         body = template.body
         
-        if template_vars:
-            for key, value in template_vars.items():
-                placeholder = f"{{{{{key}}}}}"
-                subject = subject.replace(placeholder, str(value))
-                body = body.replace(placeholder, str(value))
+        # Always inject copyright_year so footers stay current automatically
+        if template_vars is None:
+            template_vars = {}
+        template_vars.setdefault("copyright_year", str(datetime.now().year))
+
+        for key, value in template_vars.items():
+            placeholder = f"{{{{{key}}}}}"
+            subject = subject.replace(placeholder, str(value))
+            body = body.replace(placeholder, str(value))
         
         # Send email
         success = self._send_email(recipient_email, subject, body, recipient_name)
@@ -379,7 +384,7 @@ def create_default_templates(db: Session):
                                 <tr>
                                     <td style="background-color:#f1f5f9;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">
                                         <p style="margin:0;color:#64748b;font-size:14px;">
-                                            &copy; 2025 Family Wishlist. All rights reserved.
+                                            &copy; {{copyright_year}} Family Wishlist. All rights reserved.
                                         </p>
                                         <p style="margin:10px 0 0;color:#94a3b8;font-size:12px;">
                                             This is an automated message, please do not reply.
@@ -448,11 +453,10 @@ def create_default_templates(db: Session):
                                                                     <h3 style="margin:0;color:#1e40af;font-size:18px;font-weight:600;">Quick Start Guide</h3>
                                                                     <ul style="margin:15px 0 0;padding:0 0 0 20px;color:#334155;">
                                                                         <li style="margin-bottom:10px;">Access your wishlist anytime at: <a href="https://wishlist.ariahive.top" style="color:#3b82f6;text-decoration:none;font-weight:500;">wishlist.ariahive.top</a></li>
-                                                                        <li style="margin-bottom:10px;">Create your wishlist by adding items you'd love to receive</li>
-                                                                        <li style="margin-bottom:10px;">Join or create a household to share wishlists with family members</li>
-                                                                        <li style="margin-bottom:10px;">View others' wishlists and mark items as purchased</li>
-                                                                        <li style="margin-bottom:10px;">Set your birthday and preferences in your profile</li>
-                                                                        <li style="margin-bottom:10px;">Export/import your wishlist for backup or sharing</li>
+                                                                        <li style="margin-bottom:10px;">Use the Quick Actions menu at the bottom of the screen — it's your main hub for adding items, browsing wishlists, and more</li>
+                                                                        <li style="margin-bottom:10px;">Add items to your wishlist by pasting a URL to auto-fill product details, or enter them manually</li>
+                                                                        <li style="margin-bottom:10px;">Browse family members' wishlists to see what they're hoping for</li>
+                                                                        <li style="margin-bottom:10px;">Find links to external wishlists (like Amazon) for even more gift ideas</li>
                                                                     </ul>
                                                                 </td>
                                                             </tr>
@@ -482,11 +486,9 @@ def create_default_templates(db: Session):
                                                                 <td style="padding-left:15px;">
                                                                     <h3 style="margin:0;color:#86198f;font-size:18px;font-weight:600;">Key Features</h3>
                                                                     <ul style="margin:15px 0 0;padding:0 0 0 20px;color:#334155;">
-                                                                        <li style="margin-bottom:10px;"><span style="font-weight:600;color:#d946ef;">Smart Imports:</span> Add items from any website or create custom items</li>
-                                                                        <li style="margin-bottom:10px;"><span style="font-weight:600;color:#d946ef;">Priority Levels:</span> Set priority levels for your wishlist items</li>
-                                                                        <li style="margin-bottom:10px;"><span style="font-weight:600;color:#d946ef;">Event Notifications:</span> Get notified of upcoming birthdays and events</li>
-                                                                        <li style="margin-bottom:10px;"><span style="font-weight:600;color:#d946ef;">Gift Privacy:</span> Keep gift purchases a surprise with our privacy features</li>
-                                                                        <li style="margin-bottom:0;"><span style="font-weight:600;color:#d946ef;">Size Preferences:</span> Set your clothing and shoe sizes in your profile</li>
+                                                                        <li style="margin-bottom:10px;"><span style="font-weight:600;color:#d946ef;">Sizes & Preferences:</span> View and edit clothing sizes, favorite colors, and other gift preferences</li>
+                                                                        <li style="margin-bottom:10px;"><span style="font-weight:600;color:#d946ef;">Settings & Profile:</span> Edit your account, manage households, and import/export your wishlist data</li>
+                                                                        <li style="margin-bottom:0;"><span style="font-weight:600;color:#d946ef;">Dark/Light Mode:</span> Toggle between dark and light themes based on your preference</li>
                                                                     </ul>
                                                                 </td>
                                                             </tr>
@@ -516,15 +518,15 @@ def create_default_templates(db: Session):
                                                                 <td style="padding-left:15px;">
                                                                     <h3 style="margin:0;color:#9d174d;font-size:18px;font-weight:600;">Gift Coordination</h3>
                                                                     <p style="margin:10px 0 0;color:#334155;line-height:1.6;">
-                                                                        Express interest in items by clicking the heart icon, mark items as purchased using the shopping cart button, 
-                                                                        and add comments to coordinate gift plans with other family members!
+                                                                        Switch between family members' wishlists to see what they're hoping for.
+                                                                        Mark items as "thinking about" or "purchased" to coordinate gifts with the rest of the family!
                                                                     </p>
                                                                     <div style="margin-top:15px;">
                                                                         <table cellpadding="0" cellspacing="0" border="0">
                                                                             <tr>
                                                                                 <td>
                                                                                     <div style="display:inline-block;background-color:#fecdd3;color:#be123c;padding:8px 15px;border-radius:30px;font-size:14px;font-weight:500;margin-right:10px;">
-                                                                                        ♥ Interested
+                                                                                        ♥ Thinking About
                                                                                     </div>
                                                                                 </td>
                                                                                 <td>
@@ -604,7 +606,7 @@ def create_default_templates(db: Session):
                                             We hope you enjoy using Family Wishlist!
                                         </p>
                                         <p style="margin:15px 0 0;color:#64748b;font-size:14px;">
-                                            &copy; 2025 Family Wishlist. All rights reserved.
+                                            &copy; {{copyright_year}} Family Wishlist. All rights reserved.
                                         </p>
                                         <p style="margin:10px 0 0;color:#94a3b8;font-size:12px;">
                                             This email was sent to {{email}}
@@ -693,7 +695,7 @@ def create_default_templates(db: Session):
                                 <tr>
                                     <td style="background-color:#f1f5f9;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">
                                         <p style="margin:0;color:#64748b;font-size:14px;">
-                                            &copy; 2025 Family Wishlist. All rights reserved.
+                                            &copy; {{copyright_year}} Family Wishlist. All rights reserved.
                                         </p>
                                         <p style="margin:10px 0 0;color:#94a3b8;font-size:12px;">
                                             This is an automated message, please do not reply.
@@ -775,7 +777,7 @@ def create_default_templates(db: Session):
                                 <tr>
                                     <td style="background-color:#f1f5f9;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">
                                         <p style="margin:0;color:#64748b;font-size:14px;">
-                                            &copy; 2025 Family Wishlist. All rights reserved.
+                                            &copy; {{copyright_year}} Family Wishlist. All rights reserved.
                                         </p>
                                         <p style="margin:10px 0 0;color:#94a3b8;font-size:12px;">
                                             This is an automated message, please do not reply.
@@ -835,7 +837,7 @@ def create_default_templates(db: Session):
                                 <tr>
                                     <td style="background-color:#f1f5f9;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">
                                         <p style="margin:0;color:#64748b;font-size:14px;">
-                                            &copy; 2025 Family Wishlist. All rights reserved.
+                                            &copy; {{copyright_year}} Family Wishlist. All rights reserved.
                                         </p>
                                         <p style="margin:10px 0 0;color:#94a3b8;font-size:12px;">
                                             This is an automated message, please do not reply.
@@ -861,6 +863,13 @@ def create_default_templates(db: Session):
             new_template.body = template["body"].strip()
             new_template.is_active = True
             db.add(new_template)
+
+    # Migrate existing templates: replace any hardcoded copyright year with the dynamic variable
+    for t in db.query(EmailTemplate).all():
+        if t.body and '{{copyright_year}}' not in t.body:
+            updated = re.sub(r'&copy;\s*\d{4}\s+Family Wishlist', '&copy; {{copyright_year}} Family Wishlist', t.body)
+            if updated != t.body:
+                t.body = updated
 
     try:
         db.commit()
