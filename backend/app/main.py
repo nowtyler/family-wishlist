@@ -3688,3 +3688,164 @@ def broadcast_maintenance_email(
         success=True,
         message=f"Maintenance notice sent to {sent_count} users."
     )
+
+# --- Shopping Cart ---
+
+@app.get("/api/shopping-cart", response_model=List[schemas.ShoppingCartItem])
+def get_shopping_cart_items(
+    buyer_id: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    """Get all shopping cart items for a buyer."""
+    items = db.query(models.ShoppingCartItem).filter(
+        models.ShoppingCartItem.buyer_id == buyer_id
+    ).order_by(models.ShoppingCartItem.created_at.desc()).all()
+    return items
+
+@app.post("/api/shopping-cart", response_model=schemas.ShoppingCartItem)
+def create_shopping_cart_item(
+    item: schemas.ShoppingCartItemCreate,
+    db: Session = Depends(get_db),
+):
+    """Create a new shopping cart item."""
+    db_item = models.ShoppingCartItem(
+        buyer_id=item.buyer_id,
+        recipient_id=item.recipient_id,
+        wishlist_item_id=item.wishlist_item_id,
+        title=item.title,
+        notes=item.notes,
+        link=str(item.link) if item.link else None,
+        image_url=str(item.image_url) if item.image_url else None,
+        price=item.price,
+        status=item.status.value if item.status else "pending",
+    )
+    db.add(db_item)
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+@app.post("/api/shopping-cart/from-wishlist-item/{item_id}", response_model=schemas.ShoppingCartItem)
+def create_shopping_cart_item_from_wishlist(
+    item_id: int = Path(...),
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header),
+):
+    """Create a shopping cart item from an existing wishlist item."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current user context (X-Current-User-Id header) is required.")
+    wishlist_item = db.query(models.WishlistItem).filter(models.WishlistItem.id == item_id).first()
+    if not wishlist_item:
+        raise HTTPException(status_code=404, detail="Wishlist item not found")
+    current_user = db.query(models.FamilyMember).filter(models.FamilyMember.id == current_user_id).first()
+    if not current_user:
+        raise HTTPException(status_code=404, detail="Current user not found")
+
+    recipient_id = body.get("recipient_id")
+    if not recipient_id:
+        raise HTTPException(status_code=400, detail="recipient_id is required")
+
+    existing_cart_item = db.query(models.ShoppingCartItem).filter(
+        models.ShoppingCartItem.buyer_id == current_user_id,
+        models.ShoppingCartItem.wishlist_item_id == wishlist_item.id,
+    ).first()
+    if existing_cart_item:
+        raise HTTPException(status_code=409, detail="Item already in cart")
+
+    if wishlist_item.is_purchased and wishlist_item.purchased_by != current_user.name:
+        raise HTTPException(status_code=409, detail="Item already reserved by another user")
+
+    db_item = models.ShoppingCartItem(
+        buyer_id=current_user_id,
+        recipient_id=recipient_id,
+        wishlist_item_id=wishlist_item.id,
+        title=wishlist_item.title,
+        notes=None,
+        link=wishlist_item.link,
+        image_url=wishlist_item.image_url,
+        price=wishlist_item.price,
+        status="pending",
+    )
+    db.add(db_item)
+    wishlist_item.is_purchased = True
+    wishlist_item.purchased_by = current_user.name
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+@app.put("/api/shopping-cart/{cart_item_id}", response_model=schemas.ShoppingCartItem)
+def update_shopping_cart_item(
+    cart_item_id: int = Path(...),
+    updates: schemas.ShoppingCartItemUpdate = Body(...),
+    db: Session = Depends(get_db),
+):
+    """Update a shopping cart item."""
+    db_item = db.query(models.ShoppingCartItem).filter(models.ShoppingCartItem.id == cart_item_id).first()
+    if not db_item:
+        raise HTTPException(status_code=404, detail="Shopping cart item not found")
+
+    update_data = updates.model_dump(exclude_unset=True)
+    if "link" in update_data and update_data["link"] is not None:
+        update_data["link"] = str(update_data["link"])
+    if "image_url" in update_data and update_data["image_url"] is not None:
+        update_data["image_url"] = str(update_data["image_url"])
+    if "status" in update_data and update_data["status"] is not None:
+        update_data["status"] = update_data["status"].value if hasattr(update_data["status"], "value") else update_data["status"]
+        if update_data["status"] == "purchased" and not db_item.purchased_at:
+            update_data["purchased_at"] = datetime.utcnow()
+
+    for key, value in update_data.items():
+        setattr(db_item, key, value)
+
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+@app.delete("/api/shopping-cart/{cart_item_id}")
+def delete_shopping_cart_item(
+    cart_item_id: int = Path(...),
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header),
+):
+    """Delete a shopping cart item."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current user context (X-Current-User-Id header) is required.")
+    db_item = db.query(models.ShoppingCartItem).filter(models.ShoppingCartItem.id == cart_item_id).first()
+    if not db_item:
+        raise HTTPException(status_code=404, detail="Shopping cart item not found")
+    current_user = db.query(models.FamilyMember).filter(models.FamilyMember.id == current_user_id).first()
+    if db_item.wishlist_item_id and current_user:
+        wishlist_item = db.query(models.WishlistItem).filter(models.WishlistItem.id == db_item.wishlist_item_id).first()
+        if wishlist_item and wishlist_item.purchased_by == current_user.name:
+            wishlist_item.is_purchased = False
+            wishlist_item.purchased_by = None
+    db.delete(db_item)
+    db.commit()
+    return {"success": True, "message": "Item removed from cart."}
+
+@app.post("/api/shopping-cart/{cart_item_id}/copy", response_model=schemas.ShoppingCartItem)
+def copy_shopping_cart_item(
+    cart_item_id: int = Path(...),
+    overrides: dict = Body(default={}),
+    db: Session = Depends(get_db),
+):
+    """Copy a shopping cart item, optionally overriding fields."""
+    source = db.query(models.ShoppingCartItem).filter(models.ShoppingCartItem.id == cart_item_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Shopping cart item not found")
+
+    db_item = models.ShoppingCartItem(
+        buyer_id=overrides.get("buyer_id", source.buyer_id),
+        recipient_id=overrides.get("recipient_id", source.recipient_id),
+        wishlist_item_id=source.wishlist_item_id,
+        title=overrides.get("title", source.title),
+        notes=overrides.get("notes", source.notes),
+        link=overrides.get("link", source.link),
+        image_url=source.image_url,
+        price=overrides.get("price", source.price),
+        status="pending",
+    )
+    db.add(db_item)
+    db.commit()
+    db.refresh(db_item)
+    return db_item

@@ -22,6 +22,7 @@ const MENU_STEP_TARGETS = new Set([
   '#tutorial-add-item',
   '#tutorial-browse-wishlists',
   '#tutorial-external-wishlists',
+  '#tutorial-shopping-cart',
   '#tutorial-preferences',
 ]);
 
@@ -220,6 +221,13 @@ const tutorialSteps = [
     target: '#tutorial-external-wishlists',
     title: 'External Wishlists',
     content: 'Some family members have wishlists on other sites like Amazon. Find links to those external wishlists here.',
+    disableBeacon: true,
+    placement: 'top',
+  },
+  {
+    target: '#tutorial-shopping-cart',
+    title: 'Shopping Cart',
+    content: 'Collect gift ideas here while browsing others\' wishlists. Review, edit, and track what you plan to buy.',
     disableBeacon: true,
     placement: 'top',
   },

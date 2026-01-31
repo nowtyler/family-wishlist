@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Plus, Home, Link2, Users, User, ChevronLeft } from 'lucide-react';
+import { Menu, X, Plus, Home, Link2, Users, User, ChevronLeft, ShoppingCart } from 'lucide-react';
 import { useTutorial } from '../contexts/TutorialContext';
 
 const MENU_TUTORIAL_TARGETS = [
   '#tutorial-add-item',
   '#tutorial-browse-wishlists',
   '#tutorial-external-wishlists',
+  '#tutorial-shopping-cart',
   '#tutorial-preferences',
 ];
 
@@ -15,18 +16,21 @@ const FloatingActionMenu = ({
   viewingMember,
   onAddItem,
   onReturnHome,
+  onOpenShoppingCart,
   onOpenExternalWishlists,
   onOpenPreferences = null,
   onSelectMember,
   familyMembers = [],
   selectedUser = null,
   isHidden = false,
+  cartCount = 0,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showMemberSubmenu, setShowMemberSubmenu] = useState(false);
   const menuRef = useRef(null);
   const tutorial = useTutorial();
   const tutorialTarget = tutorial?.currentStep?.target;
+  const isTutorialRunning = Boolean(tutorial?.run);
   const isTutorialMenuStep =
     tutorial?.run && typeof tutorialTarget === 'string' && MENU_TUTORIAL_TARGETS.includes(tutorialTarget);
 
@@ -50,7 +54,7 @@ const FloatingActionMenu = ({
   // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (isTutorialMenuStep) {
+      if (isTutorialRunning || isTutorialMenuStep) {
         return;
       }
 
@@ -69,12 +73,15 @@ const FloatingActionMenu = ({
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('touchstart', handleClickOutside);
     };
-  }, [isOpen, isTutorialMenuStep]);
+  }, [isOpen, isTutorialMenuStep, isTutorialRunning]);
 
   // Close on escape key
   useEffect(() => {
     const handleEscape = (event) => {
       if (event.key === 'Escape') {
+        if (isTutorialRunning) {
+          return;
+        }
         if (showMemberSubmenu) {
           setShowMemberSubmenu(false);
         } else {
@@ -85,7 +92,7 @@ const FloatingActionMenu = ({
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [showMemberSubmenu]);
+  }, [showMemberSubmenu, isTutorialRunning]);
 
   // Build menu items based on context
   const getMenuItems = () => {
@@ -134,6 +141,22 @@ const FloatingActionMenu = ({
         },
         gradient: 'from-amber-500 to-orange-500 dark:from-amber-400 dark:to-orange-400',
         hoverGradient: 'hover:from-amber-600 hover:to-orange-600 dark:hover:from-amber-500 dark:hover:to-orange-500',
+      });
+    }
+
+    if (onOpenShoppingCart) {
+      items.push({
+        id: 'shopping-cart',
+        tutorialId: 'tutorial-shopping-cart',
+        icon: ShoppingCart,
+        label: 'Shopping Cart',
+        badge: cartCount > 0 ? cartCount : null,
+        onClick: () => {
+          setIsOpen(false);
+          onOpenShoppingCart?.();
+        },
+        gradient: 'from-blue-500 to-cyan-500 dark:from-blue-400 dark:to-cyan-400',
+        hoverGradient: 'hover:from-blue-600 hover:to-cyan-600 dark:hover:from-blue-500 dark:hover:to-cyan-500',
       });
     }
 
@@ -271,7 +294,7 @@ const FloatingActionMenu = ({
             exit="exit"
             className="fixed inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-sm z-40"
             onClick={() => {
-              if (!isTutorialMenuStep) {
+              if (!isTutorialRunning && !isTutorialMenuStep) {
                 setIsOpen(false);
               }
             }}
@@ -467,7 +490,7 @@ const FloatingActionMenu = ({
               </motion.span>
             )}
           </AnimatePresence>
-          {/* Badge for external wishlists - only show when menu is closed */}
+          {/* Badges - only show when menu is closed */}
           {!isOpen && viewingMember?.external_wishlist_count > 0 && (
             <motion.span
               initial={{ scale: 0 }}
@@ -475,6 +498,15 @@ const FloatingActionMenu = ({
               className="absolute -top-1 -right-1 flex items-center justify-center min-w-[20px] h-[20px] px-1 text-xs font-bold text-white bg-amber-500 dark:bg-amber-400 dark:text-gray-900 rounded-full shadow-md border-2 border-white dark:border-gray-900"
             >
               {viewingMember.external_wishlist_count}
+            </motion.span>
+          )}
+          {!isOpen && cartCount > 0 && (
+            <motion.span
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className="absolute -bottom-1 -right-1 flex items-center justify-center min-w-[20px] h-[20px] px-1 text-xs font-bold text-white bg-rose-500 dark:bg-rose-400 dark:text-gray-900 rounded-full shadow-md border-2 border-white dark:border-gray-900"
+            >
+              {cartCount > 99 ? '99+' : cartCount}
             </motion.span>
           )}
         </motion.button>

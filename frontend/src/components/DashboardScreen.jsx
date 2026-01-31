@@ -9,8 +9,8 @@ import {
   createWishlistItem, 
   deleteWishlistItem, 
   toggleThinkingAbout, 
-  markPurchased, 
   getMigrations,
+  getShoppingCartItems,
   getUserProfile 
 } from '../services/api'; 
 import WishlistCard from './WishlistCard';
@@ -18,6 +18,7 @@ import EnhancedUpcomingEventsBanner from './EnhancedUpcomingEventsBanner';
 import AddItemForm from './AddItemForm';
 import SchemaAlertModal from './SchemaAlertModal';
 import ExternalWishlistsButton from './ExternalWishlistsButton';
+import ShoppingCartDrawer from './ShoppingCartDrawer';
 import UserPreferencesDropdown from './UserPreferencesDropdown';
 import FloatingActionMenu from './FloatingActionMenu';
 import Navbar from './Navbar';
@@ -46,6 +47,8 @@ const DashboardScreen = (props = {}) => {
   const [isAddingItem, setIsAddingItem] = useState(false); // State to control AddItemForm visibility
   const [isExternalWishlistsOpen, setIsExternalWishlistsOpen] = useState(false); // State for external wishlists modal
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false); // State for preferences modal
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
   const [lastRefreshTimestamp, setLastRefreshTimestamp] = useState(0); // Add refresh timestamp to prevent too frequent refreshes
   const [isFetchingInProgress, setIsFetchingInProgress] = useState(false); // Track ongoing fetches
   const minRefreshInterval = 2000; // Minimum 2 seconds between refreshes
@@ -65,6 +68,21 @@ const DashboardScreen = (props = {}) => {
 
     setSearchParams(nextParams, options);
   }, [searchParams, setSearchParams]);
+
+  const refreshCartCount = useCallback(async (nextCount) => {
+    if (typeof nextCount === 'number') {
+      setCartCount(nextCount);
+      return;
+    }
+    if (!selectedUser?.id) return;
+    try {
+      const response = await getShoppingCartItems(selectedUser.id);
+      setCartCount(Array.isArray(response?.data) ? response.data.length : 0);
+    } catch (error) {
+      console.error('Failed to load shopping cart count:', error);
+    }
+  }, [selectedUser?.id]);
+
 
   // Replace the initialization effect with a more robust version
   useEffect(() => {
@@ -147,6 +165,11 @@ const DashboardScreen = (props = {}) => {
     initializeDashboard();
     return () => { mounted = false; };
   }, [selectedUser?.id, viewingMember?.id, familyMembers.length]);
+
+  useEffect(() => {
+    refreshCartCount();
+  }, [refreshCartCount]);
+
 
   const handleSelectViewingMember = (member) => {
     setViewingMember(member);
@@ -358,47 +381,6 @@ const DashboardScreen = (props = {}) => {
     }
   };
 
-  const handleMarkPurchased = async (itemId) => {
-    try {
-      // Find the item index and optimistically update UI
-      const itemIndex = wishlistItems.findIndex(item => item.id === itemId);
-      if (itemIndex !== -1) {
-        // Create a copy of the wishlist items array
-        const updatedItems = [...wishlistItems];
-        // Toggle the purchased status optimistically
-        updatedItems[itemIndex] = {
-          ...updatedItems[itemIndex],
-          purchased: !updatedItems[itemIndex].purchased,
-          purchased_by: updatedItems[itemIndex].purchased ? null : selectedUser.id
-        };
-        // Update the state immediately
-        setWishlistItems(updatedItems);
-      }
-      
-      // Send the request to the server
-      const response = await markPurchased(itemId);
-      
-      // Update with server response data if available
-      if (response?.data && itemIndex !== -1) {
-        const updatedItems = [...wishlistItems];
-        updatedItems[itemIndex] = response.data;
-        setWishlistItems(updatedItems);
-      }
-      
-      // Refresh family members to update count (do this in background)
-      const membersResponse = await getFamilyMembers();
-      setFamilyMembers(membersResponse.data);
-    } catch (error) {
-      console.error("Error marking as purchased:", error);
-      // Check if the error is because the item is already purchased
-      if (error.response?.status === 404) {
-        toast.info("Only one person can mark an item as purchased");
-      } else {
-        toast.error("Failed to mark item as purchased.");
-      }
-    }
-  };
-
   // Check for schema upgrades
   useEffect(() => {
     const checkSchema = async () => {
@@ -481,6 +463,7 @@ const DashboardScreen = (props = {}) => {
       return;
     }
 
+    if (isLoading) return;
     if (!wishlistItems.length) return;
 
     const matchedItem = wishlistItems.find(item => String(item.id) === String(itemIdFromParams));
@@ -492,7 +475,60 @@ const DashboardScreen = (props = {}) => {
     if (!selectedItem || selectedItem.id !== matchedItem.id) {
       setSelectedItem(matchedItem);
     }
-  }, [itemIdFromParams, wishlistItems, selectedItem, updateSearchParams]);
+  }, [itemIdFromParams, wishlistItems, selectedItem, updateSearchParams, isLoading]);
+
+  const handleOpenWishlistItemFromCart = useCallback(async (memberId, itemId) => {
+    if (!memberId || !itemId) return;
+    let targetMember =
+      familyMembers.find((member) => Number(member.id) === Number(memberId))
+      || (selectedUser?.id === memberId ? selectedUser : null);
+
+    if (!targetMember) {
+      try {
+        const userResponse = await getUserProfile(memberId);
+        if (userResponse?.data) {
+          targetMember = userResponse.data;
+          setFamilyMembers((prev) => {
+            if (Array.isArray(prev) && prev.some((member) => Number(member.id) === Number(memberId))) {
+              return prev;
+            }
+            return Array.isArray(prev) ? [...prev, userResponse.data] : [userResponse.data];
+          });
+        }
+      } catch (error) {
+        console.error('Failed to load member for cart item:', error);
+      }
+    }
+
+    if (targetMember) {
+      handleSelectViewingMember(targetMember);
+    }
+
+    setIsLoading(true);
+    setWishlistItems([]);
+    setSelectedItem(null);
+    updateSearchParams(
+      {
+        memberId: memberId === selectedUser?.id ? null : memberId,
+        itemId,
+      },
+      { replace: false }
+    );
+
+    try {
+      const itemsResponse = await getWishlistItems(memberId);
+      const nextItems = itemsResponse?.data || [];
+      setWishlistItems(nextItems);
+      const matchedItem = nextItems.find(item => String(item.id) === String(itemId));
+      if (matchedItem) {
+        setSelectedItem(matchedItem);
+      }
+    } catch (error) {
+      console.error('Failed to load wishlist items for cart item:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [familyMembers, selectedUser?.id, handleSelectViewingMember, updateSearchParams, getWishlistItems, getUserProfile, setFamilyMembers]);
 
   const handlePreferencesUpdate = async () => {
     // Refresh family members to get updated preferences
@@ -580,10 +616,11 @@ const DashboardScreen = (props = {}) => {
                 onUpdateItems={refreshWishlistItems}
                 onDeleteItem={handleDeleteItem}
                 onThinkingAbout={handleThinkingAbout}
-                onMarkPurchased={handleMarkPurchased}
                 onItemClick={handleItemClick}
                 onItemModalClose={handleItemModalClose}
                 selectedItem={selectedItem}
+                onCartUpdated={refreshCartCount}
+                currentUserName={selectedUser?.name}
               />
             </div>
           )}
@@ -596,12 +633,14 @@ const DashboardScreen = (props = {}) => {
                 viewingMember={viewingMember}
                 onAddItem={handleOpenAddItemForm}
                 onReturnHome={() => handleSelectViewingMember(selectedUser)}
+                onOpenShoppingCart={() => setIsCartOpen(true)}
                 onOpenExternalWishlists={() => setIsExternalWishlistsOpen(true)}
                 onOpenPreferences={() => setIsPreferencesOpen(true)}
                 onSelectMember={handleSelectViewingMember}
                 familyMembers={familyMembers}
                 selectedUser={selectedUser}
                 isHidden={isAddingItem || selectedItem}
+                cartCount={cartCount}
               />
 
               {/* Hidden External Wishlists Button - Only renders modal, triggered from FloatingActionMenu */}
@@ -682,6 +721,19 @@ const DashboardScreen = (props = {}) => {
           </AnimatePresence>
         </motion.div>
       </div>
+
+      {viewingMember && (
+        <ShoppingCartDrawer
+          isOpen={isCartOpen}
+          onClose={() => setIsCartOpen(false)}
+          defaultRecipientId={viewingMember?.id}
+          onCartUpdated={refreshCartCount}
+          onCartChanged={() => refreshWishlistItems(true)}
+          onOpenWishlistItem={({ memberId, itemId }) => {
+            handleOpenWishlistItemFromCart(memberId, itemId);
+          }}
+        />
+      )}
     </>
   );
 };

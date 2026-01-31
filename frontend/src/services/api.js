@@ -199,6 +199,29 @@ export const registerUser = async (userData) => {
     }
 };
 
+// --- Shopping Cart ---
+export const addShoppingCartItemFromWishlistItem = async (itemId, recipientId) => {
+  try {
+    const response = await apiClient.post(`/shopping-cart/from-wishlist-item/${itemId}`, {
+      recipient_id: recipientId,
+    });
+    return response;
+  } catch (error) {
+    console.error('Failed to add wishlist item to shopping cart:', error);
+    throw error;
+  }
+};
+
+export const createShoppingCartItem = async (itemData) => {
+  try {
+    const response = await apiClient.post('/shopping-cart', itemData);
+    return response;
+  } catch (error) {
+    console.error('Failed to create shopping cart item:', error);
+    throw error;
+  }
+};
+
 export const requestPasswordReset = async (usernameOrEmail, turnstileToken) => {
     try {
         const response = await apiClient.post('/auth/reset-password/request', {
@@ -631,6 +654,28 @@ export const updateExternalWishlist = (wishlistId, wishlistData) => {
 
 export const deleteExternalWishlist = (wishlistId) => {
   return apiClient.delete(`/external-wishlists/${wishlistId}`);
+};
+
+// --- Shopping Cart ---
+export const getShoppingCartItems = (buyerId) => {
+  return apiClient.get('/shopping-cart', {
+    params: {
+      buyer_id: buyerId,
+      _t: new Date().getTime(),
+    },
+  });
+};
+
+export const updateShoppingCartItem = (cartItemId, updates) => {
+  return apiClient.put(`/shopping-cart/${cartItemId}`, updates);
+};
+
+export const deleteShoppingCartItem = (cartItemId) => {
+  return apiClient.delete(`/shopping-cart/${cartItemId}`);
+};
+
+export const copyShoppingCartItem = (cartItemId, overrides = {}) => {
+  return apiClient.post(`/shopping-cart/${cartItemId}/copy`, overrides);
 };
 
 // --- Admin Household Management ---

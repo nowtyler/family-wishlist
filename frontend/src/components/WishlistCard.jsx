@@ -1,8 +1,9 @@
 // WishlistCard.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, ExternalLink, MessageCircleHeart, Pencil, Check, X, ShoppingCart, Flag, MessageCircle, Send, Download, Upload, Link2 } from 'lucide-react';
-import { updateWishlistItem, addComment, deleteComment, getWishlistItems, exportWishlist, importWishlist } from '../services/api';
+import { Trash2, ExternalLink, MessageCircleHeart, Pencil, Check, X, Flag, MessageCircle, Send, Download, Upload, Link2, ShoppingCart } from 'lucide-react';
+import { toast } from 'react-toastify';
+import { updateWishlistItem, addComment, deleteComment, getWishlistItems, exportWishlist, importWishlist, addShoppingCartItemFromWishlistItem, getShoppingCartItems, deleteShoppingCartItem, markPurchased } from '../services/api';
 
 // Constants
 const MAX_TITLE_LENGTH = 200;
@@ -66,10 +67,11 @@ const sizeOptions = {
  *   onUpdateItems?: () => void | Promise<void>,
  *   onDeleteItem?: (itemId: number|string) => void,
  *   onThinkingAbout?: (itemId: number|string) => void,
- *   onMarkPurchased?: (itemId: number|string) => void,
  *   onItemClick?: (item: WishlistItem) => void,
  *   onItemModalClose?: () => void,
- *   selectedItem?: WishlistItem|null
+ *   selectedItem?: WishlistItem|null,
+ *   onCartUpdated?: (nextCount?: number) => void,
+ *   currentUserName?: string
  * }} WishlistCardProps
  */
 
@@ -84,10 +86,11 @@ const WishlistCard = (props) => {
     onUpdateItems,
     onDeleteItem,
     onThinkingAbout,
-    onMarkPurchased,
     onItemClick,
     onItemModalClose,
-    selectedItem: externalSelectedItem
+    selectedItem: externalSelectedItem,
+    onCartUpdated,
+    currentUserName
   } = props;
   /** @type {WishlistItem[]} */
   const safeItems = Array.isArray(items) ? items : [];
@@ -111,6 +114,8 @@ const WishlistCard = (props) => {
   const modalRef = useRef(null);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef(null);
+  const [addingToCartItemId, setAddingToCartItemId] = useState(null);
+  const [removingFromCartItemId, setRemovingFromCartItemId] = useState(null);
 
   // Check for duplicate titles when editing
   useEffect(() => {
@@ -344,38 +349,6 @@ const WishlistCard = (props) => {
     );
   };
 
-  const renderPurchaseButton = (item) => {
-    if (isOwnWishlist) return null;
-    
-    const isPurchased = item.purchased_by && item.purchased_by === member.name;
-    
-    return (
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onMarkPurchased(item.id);
-        }}
-        className={`flex items-center gap-1 text-sm px-2 py-0.5 rounded-full transition-all duration-300 min-w-[70px] min-h-[26px] justify-center ${
-          isPurchased
-            ? 'bg-green-500 text-white hover:bg-green-600'
-            : 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
-        }`}
-      >
-        <ShoppingCart
-          size={16}
-          className={`${isPurchased ? 'fill-current' : ''} transition-all duration-300`}
-        />
-        {item.purchased_by && (
-          <span className={`ml-1 px-1.5 py-0.5 ${
-            isPurchased ? 'bg-white/20' : 'bg-green-100 dark:bg-green-900/30'
-          } rounded-full text-xs`}>
-            1
-          </span>
-        )}
-      </button>
-    );
-  };
-
   const renderPriorityIcon = (priority) => {
     return (
       <div className="flex items-center">
@@ -396,6 +369,60 @@ const WishlistCard = (props) => {
         </span>
       </div>
     );
+  };
+
+  const handleAddToCart = async (item) => {
+    try {
+      setAddingToCartItemId(item.id);
+      await addShoppingCartItemFromWishlistItem(item.id, member.id);
+      toast.success('Added to cart.');
+      await onUpdateItems?.(true);
+      onCartUpdated?.();
+    } catch (error) {
+      console.error('Failed to add item to cart:', error);
+      if (error.response?.status === 409) {
+        toast.info(error.response?.data?.detail || 'Item already reserved.');
+      } else {
+        toast.error('Failed to add item to cart.');
+      }
+    } finally {
+      setAddingToCartItemId(null);
+    }
+  };
+
+  const handleRemoveFromCart = async (item) => {
+    try {
+      if (!currentUserId) return;
+      setRemovingFromCartItemId(item.id);
+      const response = await getShoppingCartItems(currentUserId);
+      const cartItems = Array.isArray(response?.data) ? response.data : [];
+      const cartItem = cartItems.find((cart) => cart.wishlist_item_id === item.id);
+      if (!cartItem) {
+        if (currentUserName && item.purchased_by === currentUserName) {
+          try {
+            await markPurchased(item.id);
+            toast.success('Reservation cleared.');
+          } catch (fallbackError) {
+            console.error('Failed to clear reservation:', fallbackError);
+            toast.info('Item is no longer in your cart.');
+          }
+        } else {
+          toast.info('Item is no longer in your cart.');
+        }
+        await onUpdateItems?.(true);
+        onCartUpdated?.();
+        return;
+      }
+      await deleteShoppingCartItem(cartItem.id);
+      toast.success('Removed from cart.');
+      await onUpdateItems?.(true);
+      onCartUpdated?.();
+    } catch (error) {
+      console.error('Failed to remove item from cart:', error);
+      toast.error('Failed to remove item from cart.');
+    } finally {
+      setRemovingFromCartItemId(null);
+    }
   };
 
   // Helper function to truncate title
@@ -593,13 +620,81 @@ const WishlistCard = (props) => {
 
   const renderActionButtons = (item) => {
     const hasComments = item.comments?.length > 0;
+    const isReservedByOther =
+      !isOwnWishlist &&
+      item.purchased_by &&
+      currentUserName &&
+      item.purchased_by !== currentUserName;
+    const isReservedBySelf =
+      !isOwnWishlist &&
+      item.purchased_by &&
+      currentUserName &&
+      item.purchased_by === currentUserName;
     
     return (
       <div className="flex items-center gap-1 ml-auto shrink-0">
         {!isOwnWishlist && (
           <div className="flex items-center gap-1">
             {renderThinkingAbout(item)}
-            {renderPurchaseButton(item)}
+            {isReservedBySelf ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRemoveFromCart(item);
+                }}
+                className="flex items-center justify-center text-sm px-2 py-0.5 rounded-full transition-all duration-300 min-w-[36px] min-h-[26px] text-rose-600 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-900/20"
+                disabled={removingFromCartItemId === item.id}
+                aria-label={removingFromCartItemId === item.id ? 'Removing from cart' : 'Remove from cart'}
+                title={removingFromCartItemId === item.id ? 'Removing...' : 'Remove from cart'}
+              >
+                <ShoppingCart
+                  size={16}
+                  className={removingFromCartItemId === item.id ? 'animate-pulse' : ''}
+                />
+                <span className="sr-only">
+                  {removingFromCartItemId === item.id ? 'Removing...' : 'Remove from cart'}
+                </span>
+              </button>
+            ) : (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddToCart(item);
+                }}
+                className={`flex items-center justify-center text-sm px-2 py-0.5 rounded-full transition-all duration-300 min-w-[36px] min-h-[26px] ${
+                  isReservedByOther
+                    ? 'text-gray-400 cursor-not-allowed'
+                    : 'text-indigo-600 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-900/20'
+                }`}
+                disabled={addingToCartItemId === item.id || isReservedByOther}
+                aria-label={
+                  isReservedByOther
+                    ? `Reserved by ${item.purchased_by}`
+                    : addingToCartItemId === item.id
+                      ? 'Adding to cart'
+                      : 'Add to cart'
+                }
+                title={
+                  isReservedByOther
+                    ? `Reserved by ${item.purchased_by}`
+                    : addingToCartItemId === item.id
+                      ? 'Adding...'
+                      : 'Add to cart'
+                }
+              >
+                <ShoppingCart
+                  size={16}
+                  className={addingToCartItemId === item.id ? 'animate-pulse' : ''}
+                />
+                <span className="sr-only">
+                  {isReservedByOther
+                    ? `Reserved by ${item.purchased_by}`
+                    : addingToCartItemId === item.id
+                      ? 'Adding...'
+                      : 'Add to cart'}
+                </span>
+              </button>
+            )}
           </div>
         )}
         {hasComments && (
@@ -823,10 +918,23 @@ const WishlistCard = (props) => {
                 <div className="flex items-center flex-wrap justify-between gap-1 mt-2">
                   {!editingItemId && (
                     <>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         {renderPriorityIcon(item.priority)}
                       </div>
-                      {renderActionButtons(item)}
+                      <div className="flex items-center justify-end gap-2">
+                        {!isOwnWishlist && item.purchased_by && (
+                          <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded-full ${
+                            currentUserName && item.purchased_by === currentUserName
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200'
+                              : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
+                          }`}>
+                            {currentUserName && item.purchased_by === currentUserName
+                              ? 'Reserved by you'
+                              : `Reserved by ${item.purchased_by}`}
+                          </span>
+                        )}
+                        {renderActionButtons(item)}
+                      </div>
                     </>
                   )}
                 </div>
@@ -963,11 +1071,17 @@ const WishlistCard = (props) => {
                     {selectedItem.purchased_by && (
                       <div className="border-t dark:border-gray-700 pt-4">
                         <h3 className="text-md font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                          Purchase Status:
+                          Reservation Status:
                         </h3>
-                        <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-sm">
-                          Purchased by {selectedItem.purchased_by}
-                        </span>
+                        {currentUserName && selectedItem.purchased_by === currentUserName ? (
+                          <span className="px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-200 rounded-full text-sm">
+                            Reserved by you
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-full text-sm">
+                            Reserved by {selectedItem.purchased_by}
+                          </span>
+                        )}
                       </div>
                     )}
                   </>
