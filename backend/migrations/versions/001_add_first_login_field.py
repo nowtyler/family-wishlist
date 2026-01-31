@@ -1,9 +1,16 @@
 """
 Add first_login field to family_members table
 
-Revision ID: 001
+Revision ID: 001_add_first_login_field
+Revises: None
 Create Date: 2026-01-26
 """
+
+# revision identifiers, used by Alembic.
+revision = "001_add_first_login_field"
+down_revision = None
+branch_labels = None
+depends_on = None
 
 from sqlalchemy import text
 import sys
