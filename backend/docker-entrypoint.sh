@@ -49,6 +49,9 @@ setup_permissions
 
 # Check if we need to run database migrations
 if [[ "$1" == "uvicorn" ]]; then
+  echo "Running migrations..."
+  python -m alembic upgrade head
+  echo "Migrations completed."
   echo "Starting API server..."
   exec "$@"
 elif [[ "$1" == "migrate" ]]; then
