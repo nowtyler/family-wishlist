@@ -16,7 +16,7 @@ import { useAppContext } from '../../contexts/AppContext';
 import { validatePassword, validatePasswordMatch } from '../../utils/passwordValidation';
 import { toast } from 'react-toastify';
 
-const FamilyMemberManager = ({ isOpen, onClose }) => {
+const FamilyMemberManager = ({ isOpen, onClose, onMutate }) => {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -238,7 +238,10 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
       if (typeof refreshFamilyMembers === 'function') {
         await refreshFamilyMembers();
       }
-      
+      if (typeof onMutate === 'function') {
+        onMutate();
+      }
+
       // Reset form state
       setFormData({ name: '', birthday: '', username: '', email: '', password: '', confirmPassword: '' });
       setEditMemberId(null);
@@ -287,7 +290,10 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
       if (typeof refreshFamilyMembers === 'function') {
         await refreshFamilyMembers();
       }
-      
+      if (typeof onMutate === 'function') {
+        onMutate();
+      }
+
       // Reset states
       setSelectedMember(null);
       setActionType(null);
@@ -305,11 +311,9 @@ const FamilyMemberManager = ({ isOpen, onClose }) => {
     if (!dateString) return "No birthday set";
     
     try {
-      // Fix the one-day-off issue by correctly handling the timezone
       const [year, month, day] = dateString.split('-').map(num => parseInt(num, 10));
-      // Create date using UTC to avoid timezone issues
-      const date = new Date(Date.UTC(year, month - 1, day + 1));
-      return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+      const date = new Date(Date.UTC(year, month - 1, day));
+      return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: 'UTC' });
     } catch (err) {
       return dateString;
     }

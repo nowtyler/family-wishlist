@@ -291,21 +291,24 @@ const AdminPage = () => {
       setIsModalOpen(true);
     };
 
+    const refreshUsersAndHouseholds = async () => {
+      try {
+        const [usersRes, householdsRes] = await Promise.all([
+          getFamilyMembers(),
+          getHouseholdsWithMembers()
+        ]);
+        setUsers(usersRes.data || []);
+        setHouseholds(householdsRes.data || []);
+        await refreshFamilyMembers();
+      } catch (err) {
+        console.error('Failed to fetch users:', err);
+        toast.error('Failed to load users');
+      }
+    };
+
     const handleCloseModal = () => {
       setIsModalOpen(false);
-      // Refresh both local state and global family members data
-      const fetchData = async () => {
-        try {
-          const response = await getFamilyMembers();
-          setUsers(response.data || []);
-          // Also refresh the global family members state
-          await refreshFamilyMembers();
-        } catch (err) {
-          console.error('Failed to fetch users:', err);
-          toast.error('Failed to load users');
-        }
-      };
-      fetchData();
+      refreshUsersAndHouseholds();
     };
 
     // Get households for a specific user
@@ -382,6 +385,7 @@ const AdminPage = () => {
         <FamilyMemberManager
           isOpen={isModalOpen}
           onClose={handleCloseModal}
+          onMutate={refreshUsersAndHouseholds}
         />
       </div>
     );
