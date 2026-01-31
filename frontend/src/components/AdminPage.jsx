@@ -6,7 +6,7 @@ import {
   Home, UserPlus, UserMinus, Lock, Unlock, Send, TestTube,
   Calendar, Gift, FileText, Archive, Download, Upload, Save, ArrowUp,
   CircleCheck, CircleX, Database, CircleAlert, Box, RotateCcw,
-  AlertOctagon, Menu
+  AlertOctagon, Menu, LayoutDashboard
 } from 'lucide-react';
 import { useAppContext } from '../contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
@@ -211,7 +211,7 @@ const AdminPage = () => {
   }, []);
 
   const tabs = [
-    { id: 'dashboard', label: 'Dashboard', icon: Home },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'users', label: 'Users', icon: Users },
     { id: 'households', label: 'Households', icon: Home },
     { id: 'items', label: 'Items', icon: Gift },
@@ -271,6 +271,34 @@ const AdminPage = () => {
           value={`${systemStatus?.database_size_kb || 0} KB`}
           icon={Database}
           color="purple"
+        />
+      </div>
+
+      {/* App Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard
+          title="Total Users"
+          value={stats.total_users || 0}
+          icon={Users}
+          color="blue"
+        />
+        <StatCard
+          title="Households"
+          value={stats.total_households || 0}
+          icon={Home}
+          color="green"
+        />
+        <StatCard
+          title="Wishlist Items"
+          value={stats.total_wishlists || 0}
+          icon={Gift}
+          color="purple"
+        />
+        <StatCard
+          title="Emails Sent"
+          value={stats.total_emails_sent || 0}
+          icon={Mail}
+          color="blue"
         />
       </div>
 
