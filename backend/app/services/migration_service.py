@@ -104,137 +104,6 @@ class MigrationService:
             traceback.print_exc()
             return "unknown"
 
-    def detect_model_changes(self) -> bool:
-        """
-        Detect if there are pending model changes that should be migrated.
-        Returns True if changes detected, False otherwise.
-        """
-        try:
-            # Get the current hash from the metadata
-            current_hash = self.get_schema_hash()
-            stored_hash = None
-            
-            # Connect to the database and get stored hash
-            engine = create_engine(self.db_url)
-            with engine.connect() as conn:
-                # First try schema_version table
-                try:
-                    result = conn.execute(text("SELECT hash FROM schema_version ORDER BY updated_at DESC LIMIT 1"))
-                    row = result.fetchone()
-                    if row:
-                        stored_hash = row[0]
-                except Exception:
-                    logger.debug("Could not get hash from schema_version table")
-                
-                # If no hash found, try system_settings
-                if not stored_hash:
-                    try:
-                        result = conn.execute(text("SELECT schema_hash FROM system_settings WHERE id = 1"))
-                        row = result.fetchone()
-                        if row:
-                            stored_hash = row[0]
-                    except Exception:
-                        logger.debug("Could not get hash from system_settings table")
-                
-                # If we still don't have a stored hash or it's explicitly "null", this is likely first-time setup
-                # Initialize the hash to match current schema to avoid unnecessary migrations
-                if not stored_hash or stored_hash == "null":
-                    logger.info(f"No stored schema hash found or hash is 'null' - Initializing with current hash: {current_hash[:8]}...")
-                    
-                    # Initialize system_settings table if needed
-                    try:
-                        # Check if system_settings table exists
-                        result = conn.execute(text(
-                            "SELECT name FROM sqlite_master WHERE type='table' AND name='system_settings'"
-                        ))
-                        
-                        if not result.fetchone():
-                            # Create system_settings table if it doesn't exist
-                            conn.execute(text("""
-                                CREATE TABLE system_settings (
-                                    id INTEGER PRIMARY KEY,
-                                    version TEXT,
-                                    schema_hash TEXT,
-                                    last_updated DATE,
-                                    is_foundation BOOLEAN DEFAULT 0,
-                                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                                )
-                            """))
-                            # Insert initial row
-                            conn.execute(text("""
-                                INSERT INTO system_settings (id, version, schema_hash, last_updated, is_foundation)
-                                VALUES (1, 'initial', :hash, CURRENT_DATE, 1)
-                            """), {"hash": current_hash})
-                        else:
-                            # Update existing row
-                            conn.execute(text("UPDATE system_settings SET schema_hash = :hash WHERE id = 1"), {"hash": current_hash})
-                    
-                        # Also create and initialize schema_version table 
-                        conn.execute(text(
-                            "CREATE TABLE IF NOT EXISTS schema_version (hash TEXT, updated_at TIMESTAMP)"
-                        ))
-                        conn.execute(text(
-                            "INSERT INTO schema_version (hash, updated_at) VALUES (:hash, :updated_at)"
-                        ), {"hash": current_hash, "updated_at": get_est_timestamp()})
-                        
-                        # Since we've now initialized the hash, we can return False (no changes)
-                        return False
-                    
-                    except Exception as e:
-                        logger.error(f"Failed to initialize schema hash: {e}")
-                        # If we couldn't initialize, report changes needed
-                        return True
-                
-                # If the stored hash is literally the string "null", initialize it
-                # This can happen during first-time setup or after certain database operations
-                if stored_hash == "null":
-                    logger.info(f"Found 'null' as schema hash - Initializing with current hash: {current_hash[:8]}...")
-                    self.reset_schema_hash()
-                    return False
-                
-                # Compare hashes
-                if stored_hash == current_hash:
-                    # Check version only if hashes match
-                    if self.alembic_cfg is not None:
-                        try:
-                            script = ScriptDirectory.from_config(self.alembic_cfg)
-                            current = self.get_current_version()
-                            head = script.get_current_head()
-                            
-                            # If current version is not at head, consider it needs upgrade
-                            if current != head and current != "base" and "," not in current:
-                                logger.debug(f"Database version not at head - Current: {current}, Head: {head}")
-                                return True
-                        except Exception as e:
-                            logger.warning(f"Error checking alembic versions: {e}")
-                    
-                    # Hashes match and no version issue
-                    return False
-                
-                # Hashes don't match - debug log and check versions
-                logger.debug(f"Schema hashes don't match - Stored: {stored_hash}, Current: {current_hash}")
-                
-                # Check if we just need to update the hash by verifying version is current
-                if self.alembic_cfg is not None:
-                    try:
-                        script = ScriptDirectory.from_config(self.alembic_cfg)
-                        current = self.get_current_version()
-                        head = script.get_current_head()
-                        
-                        # If we're at the head version, we can update the hash
-                        if current == head:
-                            logger.info("Schema hash mismatch but version is at head. Updating hash to match.")
-                            self.reset_schema_hash()
-                            return False
-                    except Exception as e:
-                        logger.warning(f"Error checking alembic versions during hash mismatch: {e}")
-                
-                return True
-                
-        except Exception as e:
-            logger.error(f"Error in detect_model_changes: {e}")
-            return True  # On error, assume changes needed to be safe
-
     def sqlite_on_connect(self, dbapi_connection, connection_record):
         """Enable SQLite foreign key support and other optimizations"""
         cursor = dbapi_connection.cursor()
@@ -250,26 +119,6 @@ class MigrationService:
             head = script.get_current_head()
             migrations = []
 
-            # Only autogenerate if DB is at head
-            if current == head:
-                try:
-                    logger.info("Checking for model changes and attempting to autogenerate migration (only if at head)...")
-                    auto_migration_result = self.auto_generate_migration()
-                    if auto_migration_result:
-                        logger.info(f"Auto-generated migration: {auto_migration_result}")
-                        # Refresh the script directory to include the new migration
-                        script = ScriptDirectory.from_config(self.alembic_cfg)
-                        # Add pending changes indicator
-                        migrations.append(MigrationInfo(
-                            version="pending",
-                            description="Pending model changes detected - Click upgrade to apply",
-                            applied=False
-                        ))
-                except Exception as e:
-                    logger.warning(f"Failed to auto-generate migration: {e}")
-            else:
-                logger.info(f"Not at head (current: {current}, head: {head}), skipping autogenerate.")
-
             # Add existing migrations
             for sc in script.walk_revisions():
                 # Skip already applied migrations for cleaner display
@@ -284,33 +133,6 @@ class MigrationService:
         except Exception as e:
             logger.error(f"Error getting migrations: {e}")
             return []
-
-    def auto_generate_migration(self) -> Optional[str]:
-        """Automatically generate a migration file when schema changes are detected"""
-        try:
-            from alembic.command import revision
-            
-            # Generate a timestamp-based message
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            message = f"Auto-generated migration for schema changes at {timestamp}"
-            
-            # Call the alembic revision command with autogenerate
-            revision(
-                self.alembic_cfg,
-                message=message,
-                autogenerate=True
-            )
-            
-            # Get the latest revision after creation
-            script_directory = ScriptDirectory.from_config(self.alembic_cfg)
-            current_head = script_directory.get_current_head()
-            
-            logger.info(f"Auto-generated migration: {current_head}")
-            return current_head
-        except Exception as e:
-            logger.error(f"Failed to auto-generate migration: {e}")
-            traceback.print_exc()
-            return None
 
     def is_foundation_database(self) -> bool:
         """Check if this is the foundation database"""
@@ -508,16 +330,6 @@ class MigrationService:
                     if current_version == "base" or current_version == "unknown":
                         connection.execute(text("INSERT INTO alembic_version (version_num) VALUES ('base')"))
         
-            # Check for model changes and create migrations if needed
-            if self.detect_model_changes():
-                logger.info("Creating new migration for detected changes")
-                try:
-                    revision_result = self.create_migration("Auto-generated migration for model changes")
-                    logger.info(f"Created new migration: {revision_result}")
-                except Exception as e:
-                    logger.error(f"Error creating migration: {e}")
-                    traceback.print_exc()
-        
             # Run the actual migration
             logger.info(f"Running upgrade to {target}")
             try:
@@ -560,29 +372,28 @@ class MigrationService:
             # Update schema hash in both storage locations
             try:
                 post_migration_hash = self.get_schema_hash()
-                if pre_migration_hash != post_migration_hash:
-                    logger.info(f"Schema hash changed: {pre_migration_hash[:8]}... -> {post_migration_hash[:8]}...")
-                    with self.engine.begin() as conn:
-                        # Update schema_version table
-                        try:
-                            # Create table if it doesn't exist
-                            conn.execute(text(
-                                "CREATE TABLE IF NOT EXISTS schema_version (hash TEXT, updated_at TIMESTAMP)"
-                            ))
-                            # Insert new hash
-                            conn.execute(text(
-                                "INSERT INTO schema_version (hash, updated_at) VALUES (:hash, :updated_at)"
-                            ), {"hash": post_migration_hash, "updated_at": get_est_timestamp()})
-                        except Exception as e:
-                            logger.warning(f"Failed to update schema_version table: {e}")
+                logger.info(f"Updating schema hash after migration: {post_migration_hash[:8]}...")
+                with self.engine.begin() as conn:
+                    # Update schema_version table
+                    try:
+                        # Create table if it doesn't exist
+                        conn.execute(text(
+                            "CREATE TABLE IF NOT EXISTS schema_version (hash TEXT, updated_at TIMESTAMP)"
+                        ))
+                        # Insert new hash
+                        conn.execute(text(
+                            "INSERT INTO schema_version (hash, updated_at) VALUES (:hash, :updated_at)"
+                        ), {"hash": post_migration_hash, "updated_at": get_est_timestamp()})
+                    except Exception as e:
+                        logger.warning(f"Failed to update schema_version table: {e}")
 
-                        # Update system_settings table
-                        try:
-                            conn.execute(text(
-                                "UPDATE system_settings SET schema_hash = :hash, last_updated = CURRENT_DATE WHERE id = 1"
-                            ), {"hash": post_migration_hash})
-                        except Exception as e:
-                            logger.warning(f"Failed to update system_settings table: {e}")
+                    # Update system_settings table
+                    try:
+                        conn.execute(text(
+                            "UPDATE system_settings SET schema_hash = :hash, last_updated = CURRENT_DATE WHERE id = 1"
+                        ), {"hash": post_migration_hash})
+                    except Exception as e:
+                        logger.warning(f"Failed to update system_settings table: {e}")
             except Exception as e:
                 logger.warning(f"Failed to update schema hash: {e}")
             
@@ -621,11 +432,6 @@ class MigrationService:
         except Exception as e:
             logger.error(f"Error generating schema hash: {e}")
             return "error_generating_hash"
-
-    def schema_requires_migration(self, target_hash: str) -> bool:
-        """Check if current schema matches target hash"""
-        current_hash = self.get_schema_hash()
-        return current_hash != target_hash
 
     def delete_migration(self, version: str) -> Tuple[bool, str]:
         """Delete a migration file with safeguards"""
