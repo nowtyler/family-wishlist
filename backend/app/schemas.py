@@ -609,3 +609,95 @@ class FirstTimeSetupResponse(BaseModel):
 class MaintenanceBroadcastRequest(BaseModel):
     maintenance_time: Optional[str] = None
     expected_downtime: Optional[str] = None
+
+
+# --- Shared Wishlist Schemas ---
+class SharedWishlistOwner(BaseModel):
+    id: int
+    name: str
+    username: Optional[str] = None
+    added_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SharedWishlistBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=2000)
+
+
+class SharedWishlistCreate(SharedWishlistBase):
+    pass
+
+
+class SharedWishlistUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=2000)
+
+
+class SharedWishlist(SharedWishlistBase):
+    id: int
+    created_at: datetime
+    created_by: int
+    owner_count: Optional[int] = 0
+    item_count: Optional[int] = 0
+    owners: List[SharedWishlistOwner] = []
+
+    class Config:
+        from_attributes = True
+
+
+class SharedWishlistItemBase(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=2000)
+    link: Optional[HttpUrl] = None
+    image_url: Optional[HttpUrl] = None
+    priority: int = Field(default=1, ge=0, le=2)
+    price: Optional[float] = Field(None, ge=0, le=1000000)
+
+
+class SharedWishlistItemCreate(SharedWishlistItemBase):
+    pass
+
+
+class SharedWishlistItemUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=2000)
+    link: Optional[str] = None
+    image_url: Optional[str] = None
+    priority: Optional[int] = Field(None, ge=0, le=2)
+    price: Optional[float] = Field(None, ge=0)
+
+
+class SharedWishlistItem(BaseModel):
+    id: int
+    wishlist_id: int
+    title: str
+    description: Optional[str] = None
+    link: Optional[str] = None
+    image_url: Optional[str] = None
+    priority: int = 0
+    price: Optional[int] = None
+    is_purchased: bool = False
+    purchased_by: Optional[str] = None
+    thinking_about_by_list: List[str] = []
+    created_at: Optional[datetime] = None
+    created_by: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SharedWishlistWithItems(SharedWishlist):
+    items: List[SharedWishlistItem] = []
+
+
+class AddOwnerRequest(BaseModel):
+    username: str = Field(..., min_length=1, max_length=100)
+
+
+class SharedWishlistResponse(BaseModel):
+    success: bool
+    message: str
+    wishlist: Optional[SharedWishlist] = None

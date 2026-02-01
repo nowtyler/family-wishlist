@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { Menu, X, Plus, Home, Link2, Users, User, ChevronLeft, ShoppingCart } from 'lucide-react';
+import { Menu, X, Plus, Home, Link2, Users, User, ChevronLeft, ShoppingCart, Baby } from 'lucide-react';
 import { useTutorial } from '../contexts/TutorialContext';
 
 // Haptic feedback helper
@@ -26,12 +26,14 @@ const FloatingActionMenu = ({
   onOpenShoppingCart,
   onOpenExternalWishlists,
   onOpenPreferences = null,
+  onOpenSharedWishlists = null,
   onSelectMember,
   familyMembers = [],
   selectedUser = null,
   isHidden = false,
   cartCount = 0,
   notificationCount = 0,
+  sharedWishlistCount = 0,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showMemberSubmenu, setShowMemberSubmenu] = useState(false);
@@ -186,6 +188,22 @@ const FloatingActionMenu = ({
         },
         gradient: 'from-violet-500 to-purple-500 dark:from-violet-400 dark:to-purple-400',
         hoverGradient: 'hover:from-violet-600 hover:to-purple-600 dark:hover:from-violet-500 dark:hover:to-purple-500',
+      });
+    }
+
+    // Shared kid wishlists
+    if (onOpenSharedWishlists) {
+      items.push({
+        id: 'shared-wishlists',
+        icon: Baby,
+        label: 'Kid Wishlists',
+        badge: sharedWishlistCount > 0 ? sharedWishlistCount : null,
+        onClick: () => {
+          setIsOpen(false);
+          onOpenSharedWishlists();
+        },
+        gradient: 'from-fuchsia-500 to-pink-500 dark:from-fuchsia-400 dark:to-pink-400',
+        hoverGradient: 'hover:from-fuchsia-600 hover:to-pink-600 dark:hover:from-fuchsia-500 dark:hover:to-pink-500',
       });
     }
 

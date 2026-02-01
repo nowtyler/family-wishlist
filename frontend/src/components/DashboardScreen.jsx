@@ -2,17 +2,18 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
-import { 
-  getFamilyMembers, 
-  getWishlistItems, 
-  getUpcomingEvent, 
-  createWishlistItem, 
-  deleteWishlistItem, 
-  toggleThinkingAbout, 
+import {
+  getFamilyMembers,
+  getWishlistItems,
+  getUpcomingEvent,
+  createWishlistItem,
+  deleteWishlistItem,
+  toggleThinkingAbout,
   getMigrations,
   getShoppingCartItems,
   getUserProfile,
-  getNotifications
+  getNotifications,
+  getSharedWishlists
 } from '../services/api';
 import WishlistCard from './WishlistCard';
 import EnhancedUpcomingEventsBanner from './EnhancedUpcomingEventsBanner';
@@ -22,6 +23,8 @@ import ExternalWishlistsButton from './ExternalWishlistsButton';
 import ShoppingCartDrawer from './ShoppingCartDrawer';
 import UserPreferencesDropdown from './UserPreferencesDropdown';
 import FloatingActionMenu from './FloatingActionMenu';
+import SharedWishlistManager from './SharedWishlistManager';
+import SharedWishlistView from './SharedWishlistView';
 import Navbar from './Navbar';
 import { useTutorial } from '../contexts/TutorialContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -56,6 +59,11 @@ const DashboardScreen = (props = {}) => {
   const minRefreshInterval = 2000; // Minimum 2 seconds between refreshes
   const memberIdFromParams = searchParams.get('memberId');
   const itemIdFromParams = searchParams.get('itemId');
+
+  // Shared wishlists state
+  const [isSharedWishlistsOpen, setIsSharedWishlistsOpen] = useState(false);
+  const [sharedWishlists, setSharedWishlists] = useState([]);
+  const [selectedSharedWishlist, setSelectedSharedWishlist] = useState(null);
 
   const updateSearchParams = useCallback((updates, options = {}) => {
     const nextParams = new URLSearchParams(searchParams);
@@ -94,6 +102,26 @@ const DashboardScreen = (props = {}) => {
       // silently fail — notifications are non-critical
     }
   }, [selectedUser?.id]);
+
+  const refreshSharedWishlists = useCallback(async () => {
+    if (!selectedUser?.id) return;
+    try {
+      const response = await getSharedWishlists();
+      setSharedWishlists(Array.isArray(response?.data) ? response.data : []);
+    } catch (error) {
+      // silently fail — shared wishlists are non-critical on initial load
+    }
+  }, [selectedUser?.id]);
+
+  const handleSelectSharedWishlist = useCallback((wishlist) => {
+    setSelectedSharedWishlist(wishlist);
+    setIsSharedWishlistsOpen(false);
+  }, []);
+
+  const handleBackFromSharedWishlist = useCallback(() => {
+    setSelectedSharedWishlist(null);
+    refreshSharedWishlists();
+  }, [refreshSharedWishlists]);
 
   // Replace the initialization effect with a more robust version
   useEffect(() => {
@@ -180,7 +208,8 @@ const DashboardScreen = (props = {}) => {
   useEffect(() => {
     refreshCartCount();
     refreshNotificationCount();
-  }, [refreshCartCount, refreshNotificationCount]);
+    refreshSharedWishlists();
+  }, [refreshCartCount, refreshNotificationCount, refreshSharedWishlists]);
 
 
   const handleSelectViewingMember = (member) => {
@@ -649,12 +678,14 @@ const DashboardScreen = (props = {}) => {
                 onOpenShoppingCart={() => setIsCartOpen(true)}
                 onOpenExternalWishlists={() => setIsExternalWishlistsOpen(true)}
                 onOpenPreferences={() => setIsPreferencesOpen(true)}
+                onOpenSharedWishlists={() => setIsSharedWishlistsOpen(true)}
                 onSelectMember={handleSelectViewingMember}
                 familyMembers={familyMembers}
                 selectedUser={selectedUser}
-                isHidden={isAddingItem || selectedItem}
+                isHidden={isAddingItem || selectedItem || selectedSharedWishlist}
                 cartCount={cartCount}
                 notificationCount={notificationCount}
+                sharedWishlistCount={sharedWishlists.length}
               />
 
               {/* Hidden External Wishlists Button - Only renders modal, triggered from FloatingActionMenu */}
@@ -748,6 +779,27 @@ const DashboardScreen = (props = {}) => {
           }}
           onNotificationCountUpdate={setNotificationCount}
         />
+      )}
+
+      {/* Shared Wishlists Manager Modal */}
+      <SharedWishlistManager
+        isOpen={isSharedWishlistsOpen}
+        onClose={() => setIsSharedWishlistsOpen(false)}
+        onSelectWishlist={handleSelectSharedWishlist}
+        currentUserId={selectedUser?.id}
+      />
+
+      {/* Shared Wishlist View - Full screen overlay when viewing a shared wishlist */}
+      {selectedSharedWishlist && (
+        <div className="fixed inset-0 z-50 bg-gray-50 dark:bg-gray-900">
+          <SharedWishlistView
+            wishlist={selectedSharedWishlist}
+            onBack={handleBackFromSharedWishlist}
+            currentUserId={selectedUser?.id}
+            currentUserName={selectedUser?.name}
+            isOwner={selectedSharedWishlist.owners?.some(o => o.id === selectedUser?.id)}
+          />
+        </div>
       )}
     </>
   );

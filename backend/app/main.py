@@ -1684,6 +1684,413 @@ def delete_external_wishlist_endpoint(
         detail="External wishlist not found or you're not authorized to delete it"
     )
 
+
+# --- Shared Wishlists (Kid Wishlists) ---
+
+@app.get("/api/shared-wishlists", response_model=List[schemas.SharedWishlist])
+def get_shared_wishlists(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get all shared wishlists where the current user is an owner"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    wishlists = crud.get_shared_wishlists_for_user(db, current_user_id)
+    result = []
+    for wishlist in wishlists:
+        owners = crud.get_shared_wishlist_owners(db, wishlist.id)
+        item_count = db.query(models.SharedWishlistItem).filter(
+            models.SharedWishlistItem.wishlist_id == wishlist.id
+        ).count()
+        result.append(schemas.SharedWishlist(
+            id=wishlist.id,
+            name=wishlist.name,
+            description=wishlist.description,
+            created_at=wishlist.created_at,
+            created_by=wishlist.created_by,
+            owner_count=len(owners),
+            item_count=item_count,
+            owners=[schemas.SharedWishlistOwner(
+                id=o.id,
+                name=o.name,
+                username=o.username
+            ) for o in owners]
+        ))
+    return result
+
+
+@app.post("/api/shared-wishlists", response_model=schemas.SharedWishlist, status_code=status.HTTP_201_CREATED)
+def create_shared_wishlist(
+    wishlist: schemas.SharedWishlistCreate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Create a new shared wishlist (e.g., for a kid)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    db_wishlist = crud.create_shared_wishlist(db, wishlist, current_user_id)
+    owners = crud.get_shared_wishlist_owners(db, db_wishlist.id)
+
+    return schemas.SharedWishlist(
+        id=db_wishlist.id,
+        name=db_wishlist.name,
+        description=db_wishlist.description,
+        created_at=db_wishlist.created_at,
+        created_by=db_wishlist.created_by,
+        owner_count=len(owners),
+        item_count=0,
+        owners=[schemas.SharedWishlistOwner(
+            id=o.id,
+            name=o.name,
+            username=o.username
+        ) for o in owners]
+    )
+
+
+@app.get("/api/shared-wishlists/{wishlist_id}", response_model=schemas.SharedWishlistWithItems)
+def get_shared_wishlist(
+    wishlist_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get a shared wishlist with its items"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    db_wishlist = crud.get_shared_wishlist(db, wishlist_id)
+    if not db_wishlist:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shared wishlist not found")
+
+    # Check access - must be owner or share household with an owner
+    is_owner = crud.is_shared_wishlist_owner(db, wishlist_id, current_user_id)
+    user = crud.get_family_member(db, current_user_id)
+    is_admin = user and user.is_admin
+
+    if not is_owner and not is_admin:
+        # Check household access
+        owners = crud.get_shared_wishlist_owners(db, wishlist_id)
+        owner_ids = [o.id for o in owners]
+
+        current_user_households = {
+            row[0] for row in db.query(models.user_household_association.c.household_id).filter(
+                models.user_household_association.c.user_id == current_user_id,
+                models.user_household_association.c.status == 'active'
+            ).all()
+        }
+
+        owner_households = {
+            row[0] for row in db.query(models.user_household_association.c.household_id).filter(
+                models.user_household_association.c.user_id.in_(owner_ids),
+                models.user_household_association.c.status == 'active'
+            ).all()
+        }
+
+        if not current_user_households.intersection(owner_households):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+    owners = crud.get_shared_wishlist_owners(db, wishlist_id)
+    items = crud.get_shared_wishlist_items(db, wishlist_id, current_user_id)
+
+    return schemas.SharedWishlistWithItems(
+        id=db_wishlist.id,
+        name=db_wishlist.name,
+        description=db_wishlist.description,
+        created_at=db_wishlist.created_at,
+        created_by=db_wishlist.created_by,
+        owner_count=len(owners),
+        item_count=len(items),
+        owners=[schemas.SharedWishlistOwner(
+            id=o.id,
+            name=o.name,
+            username=o.username
+        ) for o in owners],
+        items=items
+    )
+
+
+@app.put("/api/shared-wishlists/{wishlist_id}", response_model=schemas.SharedWishlist)
+def update_shared_wishlist(
+    wishlist_id: int,
+    wishlist_update: schemas.SharedWishlistUpdate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Update a shared wishlist (owners only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    db_wishlist = crud.update_shared_wishlist(db, wishlist_id, wishlist_update, current_user_id)
+    if not db_wishlist:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Shared wishlist not found or you're not authorized to update it"
+        )
+
+    owners = crud.get_shared_wishlist_owners(db, wishlist_id)
+    item_count = db.query(models.SharedWishlistItem).filter(
+        models.SharedWishlistItem.wishlist_id == wishlist_id
+    ).count()
+
+    return schemas.SharedWishlist(
+        id=db_wishlist.id,
+        name=db_wishlist.name,
+        description=db_wishlist.description,
+        created_at=db_wishlist.created_at,
+        created_by=db_wishlist.created_by,
+        owner_count=len(owners),
+        item_count=item_count,
+        owners=[schemas.SharedWishlistOwner(
+            id=o.id,
+            name=o.name,
+            username=o.username
+        ) for o in owners]
+    )
+
+
+@app.delete("/api/shared-wishlists/{wishlist_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_shared_wishlist(
+    wishlist_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Delete a shared wishlist (creator or admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    if not crud.delete_shared_wishlist(db, wishlist_id, current_user_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Shared wishlist not found or you're not authorized to delete it"
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.post("/api/shared-wishlists/{wishlist_id}/owners", response_model=schemas.SharedWishlistOwner)
+def add_shared_wishlist_owner(
+    wishlist_id: int,
+    request: schemas.AddOwnerRequest,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Add a co-owner to a shared wishlist by username"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    new_owner = crud.add_shared_wishlist_owner(db, wishlist_id, request.username, current_user_id)
+    if not new_owner:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found or you're not authorized to add owners"
+        )
+
+    return schemas.SharedWishlistOwner(
+        id=new_owner.id,
+        name=new_owner.name,
+        username=new_owner.username
+    )
+
+
+@app.delete("/api/shared-wishlists/{wishlist_id}/owners/{owner_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_shared_wishlist_owner(
+    wishlist_id: int,
+    owner_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Remove an owner from a shared wishlist"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    if not crud.remove_shared_wishlist_owner(db, wishlist_id, owner_id, current_user_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot remove owner. Either not authorized, owner not found, or this is the last owner."
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# --- Shared Wishlist Items ---
+
+@app.get("/api/shared-wishlists/{wishlist_id}/items", response_model=List[schemas.SharedWishlistItem])
+def get_shared_wishlist_items(
+    wishlist_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get items from a shared wishlist"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    items = crud.get_shared_wishlist_items(db, wishlist_id, current_user_id)
+    return items
+
+
+@app.post("/api/shared-wishlists/{wishlist_id}/items", response_model=schemas.SharedWishlistItem, status_code=status.HTTP_201_CREATED)
+def create_shared_wishlist_item(
+    wishlist_id: int,
+    item: schemas.SharedWishlistItemCreate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Add an item to a shared wishlist (owners only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    db_item = crud.create_shared_wishlist_item(db, wishlist_id, item, current_user_id)
+    if not db_item:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You're not authorized to add items to this wishlist"
+        )
+
+    thinking_by_list = db_item.thinking_about_by.split(',') if db_item.thinking_about_by else []
+
+    return schemas.SharedWishlistItem(
+        id=db_item.id,
+        wishlist_id=db_item.wishlist_id,
+        title=db_item.title,
+        description=db_item.description,
+        link=str(db_item.link) if db_item.link else None,
+        image_url=str(db_item.image_url) if db_item.image_url else None,
+        priority=db_item.priority,
+        price=db_item.price,
+        is_purchased=db_item.is_purchased,
+        purchased_by=db_item.purchased_by,
+        thinking_about_by_list=thinking_by_list,
+        created_at=db_item.created_at,
+        created_by=db_item.created_by
+    )
+
+
+@app.put("/api/shared-wishlist-items/{item_id}", response_model=schemas.SharedWishlistItem)
+def update_shared_wishlist_item(
+    item_id: int,
+    item_update: schemas.SharedWishlistItemUpdate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Update a shared wishlist item (owners only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    db_item = crud.update_shared_wishlist_item(db, item_id, item_update, current_user_id)
+    if not db_item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Item not found or you're not authorized to update it"
+        )
+
+    thinking_by_list = db_item.thinking_about_by.split(',') if db_item.thinking_about_by else []
+
+    return schemas.SharedWishlistItem(
+        id=db_item.id,
+        wishlist_id=db_item.wishlist_id,
+        title=db_item.title,
+        description=db_item.description,
+        link=str(db_item.link) if db_item.link else None,
+        image_url=str(db_item.image_url) if db_item.image_url else None,
+        priority=db_item.priority,
+        price=db_item.price,
+        is_purchased=db_item.is_purchased,
+        purchased_by=db_item.purchased_by,
+        thinking_about_by_list=thinking_by_list,
+        created_at=db_item.created_at,
+        created_by=db_item.created_by
+    )
+
+
+@app.delete("/api/shared-wishlist-items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_shared_wishlist_item(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Delete a shared wishlist item (owners only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    if not crud.delete_shared_wishlist_item(db, item_id, current_user_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Item not found or you're not authorized to delete it"
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.patch("/api/shared-wishlist-items/{item_id}/toggle-thinking", response_model=schemas.SharedWishlistItem)
+def toggle_shared_item_thinking(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Toggle 'thinking about' status for a shared wishlist item (non-owners only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    db_item = crud.toggle_shared_item_thinking_about(db, item_id, current_user_id)
+    if not db_item:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot toggle thinking about status. Item not found or you are an owner."
+        )
+
+    thinking_by_list = db_item.thinking_about_by.split(',') if db_item.thinking_about_by else []
+
+    return schemas.SharedWishlistItem(
+        id=db_item.id,
+        wishlist_id=db_item.wishlist_id,
+        title=db_item.title,
+        description=db_item.description,
+        link=str(db_item.link) if db_item.link else None,
+        image_url=str(db_item.image_url) if db_item.image_url else None,
+        priority=db_item.priority,
+        price=db_item.price,
+        is_purchased=db_item.is_purchased,
+        purchased_by=db_item.purchased_by,
+        thinking_about_by_list=thinking_by_list,
+        created_at=db_item.created_at,
+        created_by=db_item.created_by
+    )
+
+
+@app.patch("/api/shared-wishlist-items/{item_id}/toggle-purchased", response_model=schemas.SharedWishlistItem)
+def toggle_shared_item_purchased(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Toggle purchased status for a shared wishlist item (non-owners only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    db_item = crud.toggle_shared_item_purchased(db, item_id, current_user_id)
+    if not db_item:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot toggle purchased status. Item not found, you are an owner, or item was purchased by someone else."
+        )
+
+    thinking_by_list = db_item.thinking_about_by.split(',') if db_item.thinking_about_by else []
+
+    return schemas.SharedWishlistItem(
+        id=db_item.id,
+        wishlist_id=db_item.wishlist_id,
+        title=db_item.title,
+        description=db_item.description,
+        link=str(db_item.link) if db_item.link else None,
+        image_url=str(db_item.image_url) if db_item.image_url else None,
+        priority=db_item.priority,
+        price=db_item.price,
+        is_purchased=db_item.is_purchased,
+        purchased_by=db_item.purchased_by,
+        thinking_about_by_list=thinking_by_list,
+        created_at=db_item.created_at,
+        created_by=db_item.created_by
+    )
+
+
 @app.put("/api/members/{member_id}/preferences", response_model=schemas.FamilyMember)
 def update_member_preferences(
     member_id: int,

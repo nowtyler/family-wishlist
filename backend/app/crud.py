@@ -726,26 +726,26 @@ def delete_family_member(db: Session, member_id: int) -> bool:
     db_member = get_family_member(db, member_id)
     if not db_member:
         return False
-    
+
     try:
         # First, delete all comments created by the user
         db.query(models.Comment).filter(models.Comment.author_id == member_id).delete()
-        
+
         # Find all wishlist items owned by the user
         item_ids = [item.id for item in db.query(models.WishlistItem.id).filter(
             models.WishlistItem.owner_id == member_id
         ).all()]
-        
+
         # Delete comments on the user's wishlist items
         if item_ids:
             db.query(models.Comment).filter(models.Comment.item_id.in_(item_ids)).delete(synchronize_session=False)
-        
+
         # Delete the user's wishlist items
         db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == member_id).delete()
-        
+
         # Delete external wishlists
         db.query(models.ExternalWishlist).filter(models.ExternalWishlist.owner_id == member_id).delete()
-        
+
         # Finally, delete the family member (which will also delete preferences since they're stored in the same record)
         db.delete(db_member)
         db.commit()
@@ -754,3 +754,383 @@ def delete_family_member(db: Session, member_id: int) -> bool:
         db.rollback()
         logger.error(f"Error deleting family member: {e}")
         return False
+
+
+# --- Shared Wishlist CRUD ---
+
+def get_shared_wishlists_for_user(db: Session, user_id: int) -> List[models.SharedWishlist]:
+    """Get all shared wishlists where the user is an owner"""
+    return db.query(models.SharedWishlist).join(
+        models.shared_wishlist_owners,
+        models.SharedWishlist.id == models.shared_wishlist_owners.c.wishlist_id
+    ).filter(
+        models.shared_wishlist_owners.c.user_id == user_id
+    ).all()
+
+
+def get_shared_wishlist(db: Session, wishlist_id: int) -> Optional[models.SharedWishlist]:
+    """Get a shared wishlist by ID"""
+    return db.query(models.SharedWishlist).filter(models.SharedWishlist.id == wishlist_id).first()
+
+
+def is_shared_wishlist_owner(db: Session, wishlist_id: int, user_id: int) -> bool:
+    """Check if a user is an owner of a shared wishlist"""
+    result = db.query(models.shared_wishlist_owners).filter(
+        models.shared_wishlist_owners.c.wishlist_id == wishlist_id,
+        models.shared_wishlist_owners.c.user_id == user_id
+    ).first()
+    return result is not None
+
+
+def get_shared_wishlist_owners(db: Session, wishlist_id: int) -> List[models.FamilyMember]:
+    """Get all owners of a shared wishlist"""
+    return db.query(models.FamilyMember).join(
+        models.shared_wishlist_owners,
+        models.FamilyMember.id == models.shared_wishlist_owners.c.user_id
+    ).filter(
+        models.shared_wishlist_owners.c.wishlist_id == wishlist_id
+    ).all()
+
+
+def create_shared_wishlist(db: Session, wishlist: schemas.SharedWishlistCreate, creator_id: int) -> models.SharedWishlist:
+    """Create a new shared wishlist and add the creator as an owner"""
+    db_wishlist = models.SharedWishlist(
+        name=wishlist.name,
+        description=wishlist.description,
+        created_by=creator_id
+    )
+    db.add(db_wishlist)
+    db.flush()  # Get the ID before adding owner
+
+    # Add creator as first owner
+    db.execute(
+        models.shared_wishlist_owners.insert().values(
+            wishlist_id=db_wishlist.id,
+            user_id=creator_id,
+            added_by=creator_id
+        )
+    )
+
+    db.commit()
+    db.refresh(db_wishlist)
+    return db_wishlist
+
+
+def update_shared_wishlist(db: Session, wishlist_id: int, wishlist_update: schemas.SharedWishlistUpdate, current_user_id: int) -> Optional[models.SharedWishlist]:
+    """Update a shared wishlist (only owners can update)"""
+    db_wishlist = get_shared_wishlist(db, wishlist_id)
+    if not db_wishlist:
+        return None
+
+    # Check if user is an owner
+    if not is_shared_wishlist_owner(db, wishlist_id, current_user_id):
+        user = get_family_member(db, current_user_id)
+        if not user or not user.is_admin:
+            return None
+
+    update_data = wishlist_update.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_wishlist, key, value)
+
+    db.commit()
+    db.refresh(db_wishlist)
+    return db_wishlist
+
+
+def delete_shared_wishlist(db: Session, wishlist_id: int, current_user_id: int) -> bool:
+    """Delete a shared wishlist (only creator or admin can delete)"""
+    db_wishlist = get_shared_wishlist(db, wishlist_id)
+    if not db_wishlist:
+        return False
+
+    user = get_family_member(db, current_user_id)
+    is_admin = user and user.is_admin
+
+    # Only creator or admin can delete
+    if db_wishlist.created_by != current_user_id and not is_admin:
+        return False
+
+    db.delete(db_wishlist)
+    db.commit()
+    return True
+
+
+def add_shared_wishlist_owner(db: Session, wishlist_id: int, new_owner_username: str, added_by_user_id: int) -> Optional[models.FamilyMember]:
+    """Add a new owner to a shared wishlist by username"""
+    # Check if requesting user is an owner
+    if not is_shared_wishlist_owner(db, wishlist_id, added_by_user_id):
+        user = get_family_member(db, added_by_user_id)
+        if not user or not user.is_admin:
+            return None
+
+    # Find user by username (case insensitive)
+    new_owner = db.query(models.FamilyMember).filter(
+        func.lower(models.FamilyMember.username) == new_owner_username.lower().strip()
+    ).first()
+
+    if not new_owner:
+        return None
+
+    # Check if already an owner
+    if is_shared_wishlist_owner(db, wishlist_id, new_owner.id):
+        return new_owner  # Already an owner, return success
+
+    # Add as owner
+    db.execute(
+        models.shared_wishlist_owners.insert().values(
+            wishlist_id=wishlist_id,
+            user_id=new_owner.id,
+            added_by=added_by_user_id
+        )
+    )
+    db.commit()
+    return new_owner
+
+
+def remove_shared_wishlist_owner(db: Session, wishlist_id: int, owner_id_to_remove: int, current_user_id: int) -> bool:
+    """Remove an owner from a shared wishlist"""
+    db_wishlist = get_shared_wishlist(db, wishlist_id)
+    if not db_wishlist:
+        return False
+
+    user = get_family_member(db, current_user_id)
+    is_admin = user and user.is_admin
+
+    # Check permissions: creator, admin, or self-removal
+    is_owner = is_shared_wishlist_owner(db, wishlist_id, current_user_id)
+    is_self_removal = current_user_id == owner_id_to_remove
+    is_creator = db_wishlist.created_by == current_user_id
+
+    if not (is_creator or is_admin or (is_owner and is_self_removal)):
+        return False
+
+    # Don't allow removing the last owner
+    owner_count = db.query(models.shared_wishlist_owners).filter(
+        models.shared_wishlist_owners.c.wishlist_id == wishlist_id
+    ).count()
+
+    if owner_count <= 1:
+        return False
+
+    # Remove owner
+    db.execute(
+        models.shared_wishlist_owners.delete().where(
+            and_(
+                models.shared_wishlist_owners.c.wishlist_id == wishlist_id,
+                models.shared_wishlist_owners.c.user_id == owner_id_to_remove
+            )
+        )
+    )
+    db.commit()
+    return True
+
+
+# --- Shared Wishlist Items CRUD ---
+
+def get_shared_wishlist_items(db: Session, wishlist_id: int, current_user_id: int) -> List[schemas.SharedWishlistItem]:
+    """
+    Get items from a shared wishlist with proper visibility rules.
+
+    Key difference from regular wishlists:
+    - Owners of shared wishlists CAN see purchased status (to coordinate gift-giving for kids)
+    - Non-owners see purchased status as usual
+    """
+    db_wishlist = get_shared_wishlist(db, wishlist_id)
+    if not db_wishlist:
+        return []
+
+    # Check if user has access (is an owner or shares household with an owner)
+    is_owner = is_shared_wishlist_owner(db, wishlist_id, current_user_id)
+
+    user = get_family_member(db, current_user_id)
+    is_admin = user and user.is_admin
+
+    if not is_owner and not is_admin:
+        # Check household access - user must share a household with at least one owner
+        owners = get_shared_wishlist_owners(db, wishlist_id)
+        owner_ids = [o.id for o in owners]
+
+        # Get current user's households
+        current_user_households = {
+            row[0] for row in db.query(models.user_household_association.c.household_id).filter(
+                models.user_household_association.c.user_id == current_user_id,
+                models.user_household_association.c.status == 'active'
+            ).all()
+        }
+
+        # Get owners' households
+        owner_households = {
+            row[0] for row in db.query(models.user_household_association.c.household_id).filter(
+                models.user_household_association.c.user_id.in_(owner_ids),
+                models.user_household_association.c.status == 'active'
+            ).all()
+        }
+
+        # Check for shared households
+        if not current_user_households.intersection(owner_households):
+            return []
+
+    # Get items
+    db_items = db.query(models.SharedWishlistItem).filter(
+        models.SharedWishlistItem.wishlist_id == wishlist_id
+    ).order_by(
+        models.SharedWishlistItem.priority.desc(),
+        models.SharedWishlistItem.id.desc()
+    ).all()
+
+    result_items = []
+    for item in db_items:
+        # KEY DIFFERENCE: Owners of shared wishlists CAN see purchased status
+        # This allows parents to coordinate without duplicating gifts
+        # (Unlike regular wishlists where owner cannot see to preserve surprise)
+        effective_is_purchased = item.is_purchased
+        effective_purchased_by = item.purchased_by
+
+        thinking_by_list = item.thinking_about_by.split(',') if item.thinking_about_by else []
+        thinking_by_list = [name.strip() for name in thinking_by_list if name.strip()]
+
+        result_items.append(schemas.SharedWishlistItem(
+            id=item.id,
+            wishlist_id=item.wishlist_id,
+            title=item.title,
+            description=item.description,
+            link=str(item.link) if item.link else None,
+            image_url=str(item.image_url) if item.image_url else None,
+            priority=item.priority,
+            price=item.price,
+            is_purchased=effective_is_purchased,
+            purchased_by=effective_purchased_by,
+            thinking_about_by_list=thinking_by_list,
+            created_at=item.created_at,
+            created_by=item.created_by
+        ))
+
+    return result_items
+
+
+def create_shared_wishlist_item(db: Session, wishlist_id: int, item: schemas.SharedWishlistItemCreate, current_user_id: int) -> Optional[models.SharedWishlistItem]:
+    """Create a new item in a shared wishlist (only owners can add items)"""
+    if not is_shared_wishlist_owner(db, wishlist_id, current_user_id):
+        user = get_family_member(db, current_user_id)
+        if not user or not user.is_admin:
+            return None
+
+    item_data = item.model_dump()
+
+    # Convert URLs to strings
+    if item_data.get('link'):
+        item_data['link'] = str(item_data['link'])
+    if item_data.get('image_url'):
+        item_data['image_url'] = str(item_data['image_url'])
+
+    # Convert price to cents
+    if item_data.get('price') is not None:
+        item_data['price'] = int(item_data['price'] * 100)
+
+    db_item = models.SharedWishlistItem(
+        **item_data,
+        wishlist_id=wishlist_id,
+        created_by=current_user_id
+    )
+    db.add(db_item)
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+
+def update_shared_wishlist_item(db: Session, item_id: int, item_update: schemas.SharedWishlistItemUpdate, current_user_id: int) -> Optional[models.SharedWishlistItem]:
+    """Update an item in a shared wishlist (only owners can update)"""
+    db_item = db.query(models.SharedWishlistItem).filter(models.SharedWishlistItem.id == item_id).first()
+    if not db_item:
+        return None
+
+    if not is_shared_wishlist_owner(db, db_item.wishlist_id, current_user_id):
+        user = get_family_member(db, current_user_id)
+        if not user or not user.is_admin:
+            return None
+
+    update_data = item_update.model_dump(exclude_unset=True)
+
+    # Convert price to cents if provided
+    if 'price' in update_data and update_data['price'] is not None:
+        update_data['price'] = int(update_data['price'] * 100)
+
+    for key, value in update_data.items():
+        setattr(db_item, key, value)
+
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+
+def delete_shared_wishlist_item(db: Session, item_id: int, current_user_id: int) -> bool:
+    """Delete an item from a shared wishlist (only owners can delete)"""
+    db_item = db.query(models.SharedWishlistItem).filter(models.SharedWishlistItem.id == item_id).first()
+    if not db_item:
+        return False
+
+    if not is_shared_wishlist_owner(db, db_item.wishlist_id, current_user_id):
+        user = get_family_member(db, current_user_id)
+        if not user or not user.is_admin:
+            return False
+
+    db.delete(db_item)
+    db.commit()
+    return True
+
+
+def toggle_shared_item_thinking_about(db: Session, item_id: int, user_id: int) -> Optional[models.SharedWishlistItem]:
+    """Toggle 'thinking about' status for a shared wishlist item"""
+    db_item = db.query(models.SharedWishlistItem).filter(models.SharedWishlistItem.id == item_id).first()
+    if not db_item:
+        return None
+
+    user = get_family_member(db, user_id)
+    if not user:
+        return None
+
+    # Owners cannot mark their own items as thinking about
+    if is_shared_wishlist_owner(db, db_item.wishlist_id, user_id):
+        return None
+
+    thinking_list = db_item.thinking_about_by.split(',') if db_item.thinking_about_by else []
+    thinking_list = [name.strip() for name in thinking_list if name.strip()]
+
+    if user.name in thinking_list:
+        thinking_list.remove(user.name)
+    else:
+        thinking_list.append(user.name)
+
+    db_item.thinking_about_by = ",".join(thinking_list)
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+
+def toggle_shared_item_purchased(db: Session, item_id: int, user_id: int) -> Optional[models.SharedWishlistItem]:
+    """Toggle purchased status for a shared wishlist item"""
+    db_item = db.query(models.SharedWishlistItem).filter(models.SharedWishlistItem.id == item_id).first()
+    if not db_item:
+        return None
+
+    user = get_family_member(db, user_id)
+    if not user:
+        return None
+
+    # Owners cannot mark their own items as purchased
+    if is_shared_wishlist_owner(db, db_item.wishlist_id, user_id):
+        return None
+
+    if db_item.is_purchased:
+        if db_item.purchased_by == user.name:
+            db_item.is_purchased = False
+            db_item.purchased_by = None
+        else:
+            return None  # Can't toggle if someone else purchased
+    else:
+        db_item.is_purchased = True
+        db_item.purchased_by = user.name
+
+    db.commit()
+    db.refresh(db_item)
+    return db_item

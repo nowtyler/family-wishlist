@@ -858,4 +858,84 @@ export const broadcastMaintenanceNotice = (maintenance_time, expected_downtime) 
   return apiClient.post('/admin/email/broadcast-maintenance', { maintenance_time, expected_downtime });
 };
 
+// --- Shared Wishlists (Kid Wishlists) ---
+export const getSharedWishlists = () => {
+  return apiClient.get('/shared-wishlists');
+};
+
+export const getSharedWishlist = (wishlistId) => {
+  return apiClient.get(`/shared-wishlists/${wishlistId}`);
+};
+
+export const createSharedWishlist = (wishlistData) => {
+  return apiClient.post('/shared-wishlists', wishlistData);
+};
+
+export const updateSharedWishlist = (wishlistId, wishlistData) => {
+  return apiClient.put(`/shared-wishlists/${wishlistId}`, wishlistData);
+};
+
+export const deleteSharedWishlist = (wishlistId) => {
+  return apiClient.delete(`/shared-wishlists/${wishlistId}`);
+};
+
+export const addSharedWishlistOwner = (wishlistId, username) => {
+  return apiClient.post(`/shared-wishlists/${wishlistId}/owners`, { username });
+};
+
+export const removeSharedWishlistOwner = (wishlistId, ownerId) => {
+  return apiClient.delete(`/shared-wishlists/${wishlistId}/owners/${ownerId}`);
+};
+
+export const getSharedWishlistItems = (wishlistId) => {
+  return apiClient.get(`/shared-wishlists/${wishlistId}/items`);
+};
+
+export const createSharedWishlistItem = async (wishlistId, itemData) => {
+  try {
+    const cleanData = {
+      ...itemData,
+      link: itemData.link || null,
+      image_url: itemData.image_url || null,
+      description: itemData.description || null,
+      price: itemData.price ? parseFloat(itemData.price) : null
+    };
+    const response = await apiClient.post(`/shared-wishlists/${wishlistId}/items`, cleanData);
+    return response;
+  } catch (error) {
+    console.error('Failed to create shared wishlist item:', error);
+    throw error;
+  }
+};
+
+export const updateSharedWishlistItem = async (itemId, itemData) => {
+  try {
+    const cleanData = {
+      ...itemData,
+      link: itemData.link || null,
+      image_url: itemData.image_url || null,
+      description: itemData.description || null,
+      price: itemData.price !== null && itemData.price !== undefined && itemData.price !== '' ?
+        parseFloat(itemData.price) : null
+    };
+    const response = await apiClient.put(`/shared-wishlist-items/${itemId}`, cleanData);
+    return response;
+  } catch (error) {
+    console.error('Failed to update shared wishlist item:', error);
+    throw error;
+  }
+};
+
+export const deleteSharedWishlistItem = (itemId) => {
+  return apiClient.delete(`/shared-wishlist-items/${itemId}`);
+};
+
+export const toggleSharedItemThinking = (itemId) => {
+  return apiClient.patch(`/shared-wishlist-items/${itemId}/toggle-thinking`);
+};
+
+export const toggleSharedItemPurchased = (itemId) => {
+  return apiClient.patch(`/shared-wishlist-items/${itemId}/toggle-purchased`);
+};
+
 export default apiClient;
