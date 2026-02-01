@@ -80,6 +80,22 @@ const ShoppingCartDrawer = ({
     return new Set(notifications.map((n) => n.cart_item_id).filter(Boolean));
   }, [notifications]);
 
+  const previousCustomRecipientNames = useMemo(() => {
+    if (!Array.isArray(cartItems)) return [];
+    const seen = new Map();
+    cartItems.forEach((item) => {
+      if (item?.recipient_id == null && item?.recipient_name) {
+        const trimmed = String(item.recipient_name).trim();
+        if (!trimmed) return;
+        const key = trimmed.toLowerCase();
+        if (!seen.has(key)) {
+          seen.set(key, trimmed);
+        }
+      }
+    });
+    return Array.from(seen.values()).sort((a, b) => a.localeCompare(b));
+  }, [cartItems]);
+
   const getDaysUntilBirthday = (birthday) => {
     if (!birthday) return null;
     try {
@@ -360,6 +376,11 @@ const ShoppingCartDrawer = ({
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    const isCustomRecipientSelection = formState.recipientId.startsWith('custom:');
+    const selectedCustomRecipientName = isCustomRecipientSelection
+      ? formState.recipientId.slice('custom:'.length)
+      : '';
+
     if (!formState.title.trim()) {
       toast.error('Title is required.');
       return;
@@ -382,8 +403,10 @@ const ShoppingCartDrawer = ({
       link: formState.link.trim() || null,
       price: priceInCents,
     };
-    if (formState.recipientId && formState.recipientId !== 'other') {
+    if (formState.recipientId && formState.recipientId !== 'other' && !isCustomRecipientSelection) {
       payload.recipient_id = Number(formState.recipientId);
+    } else if (isCustomRecipientSelection) {
+      payload.recipient_name = selectedCustomRecipientName.trim();
     } else {
       payload.recipient_name = formState.recipientName.trim();
     }
@@ -820,6 +843,15 @@ const ShoppingCartDrawer = ({
                             {member.name}
                           </option>
                         ))}
+                        {previousCustomRecipientNames.length > 0 && (
+                          <optgroup label="Previously used">
+                            {previousCustomRecipientNames.map((name) => (
+                              <option key={`custom:${name}`} value={`custom:${name}`}>
+                                {name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
                         <option value="other">Other...</option>
                       </select>
                       {formState.recipientId === 'other' && (
