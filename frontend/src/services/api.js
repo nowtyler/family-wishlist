@@ -678,6 +678,15 @@ export const copyShoppingCartItem = (cartItemId, overrides = {}) => {
   return apiClient.post(`/shopping-cart/${cartItemId}/copy`, overrides);
 };
 
+// --- Notifications ---
+export const getNotifications = (userId) => {
+  return apiClient.get('/notifications', { params: { user_id: userId } });
+};
+
+export const markNotificationRead = (notificationId) => {
+  return apiClient.patch(`/notifications/${notificationId}`);
+};
+
 // --- Admin Household Management ---
 export const getHouseholds = () => {
   return apiClient.get('/admin/households');

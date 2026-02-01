@@ -570,6 +570,18 @@ class ShoppingCartItem(ShoppingCartItemBase):
     class Config:
         from_attributes = True
 
+# --- Notifications ---
+class NotificationResponse(BaseModel):
+    id: int
+    recipient_id: int
+    message: str
+    cart_item_id: Optional[int] = None
+    is_read: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
 # Add these new schemas after the existing schemas
 
 class SystemConfig(BaseModel):

@@ -356,15 +356,37 @@ def toggle_item_purchased(db: Session, item_id: int, user_id: int) -> Optional[m
     return db_item
 
 
+def notify_cart_buyers_on_wishlist_delete(db: Session, wishlist_item: models.WishlistItem) -> None:
+    """Disconnect cart items from a deleted wishlist item and notify each buyer."""
+    cart_items = db.query(models.ShoppingCartItem).filter(
+        models.ShoppingCartItem.wishlist_item_id == wishlist_item.id
+    ).all()
+    if not cart_items:
+        return
+
+    owner = get_family_member(db, wishlist_item.owner_id)
+    owner_name = owner.name if owner else "Someone"
+
+    for cart_item in cart_items:
+        cart_item.wishlist_item_id = None
+        notification = models.Notification(
+            recipient_id=cart_item.buyer_id,
+            message=f'{owner_name} removed "{wishlist_item.title}" from their wishlist.',
+            cart_item_id=cart_item.id,
+            is_read=False,
+        )
+        db.add(notification)
+
 def delete_wishlist_item(db: Session, item_id: int, requesting_user_id: int) -> bool:
     db_item = db.query(models.WishlistItem).filter(models.WishlistItem.id == item_id).first()
     if not db_item:
         return False
-        
+
     requesting_user = get_family_member(db, requesting_user_id)
     is_admin = requesting_user and requesting_user.name.lower() == 'admin'
-    
+
     if is_admin or db_item.owner_id == requesting_user_id:
+        notify_cart_buyers_on_wishlist_delete(db, db_item)
         db.query(models.Comment).filter(models.Comment.item_id == item_id).delete()
         db.delete(db_item)
         db.commit()
@@ -374,14 +396,13 @@ def delete_wishlist_item(db: Session, item_id: int, requesting_user_id: int) -> 
 def delete_all_wishlist_items(db: Session, owner_id: int, requesting_user_id: int) -> bool:
     requesting_user = get_family_member(db, requesting_user_id)
     is_admin = requesting_user and requesting_user.name.lower() == 'admin'
-    
+
     if is_admin or owner_id == requesting_user_id:
-        # First delete all comments for the items
         items = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == owner_id).all()
         for item in items:
+            notify_cart_buyers_on_wishlist_delete(db, item)
             db.query(models.Comment).filter(models.Comment.item_id == item.id).delete()
-        
-        # Then delete all items
+
         db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == owner_id).delete()
         db.commit()
         return True

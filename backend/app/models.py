@@ -230,6 +230,19 @@ class ShoppingCartItem(Base):
     recipient = relationship("FamilyMember", foreign_keys=[recipient_id])
     wishlist_item = relationship("WishlistItem")
 
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    recipient_id = Column(Integer, ForeignKey("family_members.id"), nullable=False)
+    message = Column(Text, nullable=False)
+    cart_item_id = Column(Integer, ForeignKey("shopping_cart_items.id"), nullable=True)
+    is_read = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    recipient = relationship("FamilyMember")
+    cart_item = relationship("ShoppingCartItem")
+
 class SystemConfig(Base):
     __tablename__ = "system_config"
     

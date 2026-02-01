@@ -3058,14 +3058,17 @@ def delete_item_admin(
         item = db.query(models.WishlistItem).filter(models.WishlistItem.id == item_id).first()
         if not item:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
-        
+
+        # Notify cart buyers and disconnect cart items before deletion
+        crud.notify_cart_buyers_on_wishlist_delete(db, item)
+
         # Delete associated comments first
         db.query(models.Comment).filter(models.Comment.item_id == item_id).delete()
-        
+
         # Delete the item
         db.delete(item)
         db.commit()
-        
+
         return {"message": "Item deleted successfully"}
     except HTTPException:
         raise
@@ -3849,3 +3852,35 @@ def copy_shopping_cart_item(
     db.commit()
     db.refresh(db_item)
     return db_item
+
+# --- Notifications ---
+
+@app.get("/api/notifications", response_model=List[schemas.NotificationResponse])
+def get_notifications(
+    user_id: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    """Get unread notifications for a user."""
+    return db.query(models.Notification).filter(
+        models.Notification.recipient_id == user_id,
+        models.Notification.is_read == False,
+    ).order_by(models.Notification.created_at.desc()).all()
+
+@app.patch("/api/notifications/{notification_id}")
+def mark_notification_read(
+    notification_id: int = Path(...),
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header),
+):
+    """Mark a notification as read (dismissed)."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current user context (X-Current-User-Id header) is required.")
+    notification = db.query(models.Notification).filter(
+        models.Notification.id == notification_id,
+        models.Notification.recipient_id == current_user_id,
+    ).first()
+    if not notification:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    notification.is_read = True
+    db.commit()
+    return {"success": True}

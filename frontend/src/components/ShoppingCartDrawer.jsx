@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, ChevronsDown, ChevronsUp, Trash2, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronDown, ChevronsDown, ChevronsUp, Circle, Trash2, X } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useAppContext } from '../contexts/AppContext';
-import { createShoppingCartItem, deleteShoppingCartItem, getShoppingCartItems } from '../services/api';
+import { createShoppingCartItem, deleteShoppingCartItem, getShoppingCartItems, getNotifications, markNotificationRead, updateShoppingCartItem } from '../services/api';
 
 const emptyFormState = {
   title: '',
@@ -38,6 +38,7 @@ const ShoppingCartDrawer = ({
   onCartUpdated = null,
   onCartChanged = null,
   onOpenWishlistItem = null,
+  onNotificationCountUpdate = null,
 }) => {
   const { familyMembers, selectedUser } = useAppContext();
   const [formState, setFormState] = useState(emptyFormState);
@@ -54,6 +55,7 @@ const ShoppingCartDrawer = ({
   const [cartItems, setCartItems] = useState([]);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
   const [itemsError, setItemsError] = useState('');
+  const [notifications, setNotifications] = useState([]);
 
   const recipientOptions = useMemo(
     () => (Array.isArray(familyMembers) ? familyMembers : []),
@@ -67,6 +69,10 @@ const ShoppingCartDrawer = ({
     });
     return lookup;
   }, [recipientOptions]);
+
+  const notifiedItemIds = useMemo(() => {
+    return new Set(notifications.map((n) => n.cart_item_id).filter(Boolean));
+  }, [notifications]);
 
   const getDaysUntilBirthday = (birthday) => {
     if (!birthday) return null;
@@ -167,6 +173,71 @@ const ShoppingCartDrawer = ({
     }
   };
 
+  const fetchNotifications = async () => {
+    if (!selectedUser?.id) return;
+    try {
+      const response = await getNotifications(selectedUser.id);
+      const nextNotifications = Array.isArray(response?.data) ? response.data : [];
+      setNotifications(nextNotifications);
+      onNotificationCountUpdate?.(nextNotifications.length);
+    } catch (error) {
+      console.error('Failed to load notifications:', error);
+    }
+  };
+
+  const handleDismissNotification = async (notificationId) => {
+    try {
+      await markNotificationRead(notificationId);
+      setNotifications((prev) => {
+        const next = prev.filter((n) => n.id !== notificationId);
+        onNotificationCountUpdate?.(next.length);
+        return next;
+      });
+    } catch (error) {
+      console.error('Failed to dismiss notification:', error);
+    }
+  };
+
+  const handleRemoveNotifiedItem = async (notification) => {
+    try {
+      if (notification.cart_item_id) {
+        await deleteShoppingCartItem(notification.cart_item_id);
+      }
+      await markNotificationRead(notification.id);
+      setCartItems((prev) => {
+        const next = notification.cart_item_id
+          ? prev.filter((item) => item.id !== notification.cart_item_id)
+          : prev;
+        onCartUpdated?.(next.length);
+        return next;
+      });
+      setNotifications((prev) => {
+        const next = prev.filter((n) => n.id !== notification.id);
+        onNotificationCountUpdate?.(next.length);
+        return next;
+      });
+      onCartChanged?.();
+    } catch (error) {
+      console.error('Failed to remove notified item:', error);
+      toast.error('Failed to remove item.');
+    }
+  };
+
+  const handleToggleStatus = async (item) => {
+    const newStatus = item.status === 'purchased' ? 'pending' : 'purchased';
+    try {
+      await updateShoppingCartItem(item.id, { status: newStatus });
+      setCartItems((prev) =>
+        prev.map((i) =>
+          i.id === item.id ? { ...i, status: newStatus } : i
+        )
+      );
+    } catch (error) {
+      console.error('Failed to update cart item status:', error);
+      toast.error('Failed to update status.');
+    }
+  };
+
   const handleRemoveItem = async (itemId) => {
     try {
       await deleteShoppingCartItem(itemId);
@@ -225,6 +296,7 @@ const ShoppingCartDrawer = ({
   useEffect(() => {
     if (isOpen) {
       fetchCartItems();
+      fetchNotifications();
     }
   }, [isOpen, selectedUser?.id]);
 
@@ -361,6 +433,41 @@ const ShoppingCartDrawer = ({
                 pullStartYRef.current = null;
               }}
             >
+              {notifications.length > 0 && (
+                <div className="space-y-2">
+                  {notifications.map((notification) => (
+                    <div
+                      key={notification.id}
+                      className="flex items-start gap-2.5 rounded-lg border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-900/20 p-3"
+                    >
+                      <AlertCircle size={16} className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-amber-800 dark:text-amber-200">
+                          {notification.message}
+                        </p>
+                        {notification.cart_item_id && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveNotifiedItem(notification)}
+                            className="mt-1 text-xs font-medium text-amber-700 hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100 underline"
+                          >
+                            Remove from cart
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDismissNotification(notification.id)}
+                        className="text-amber-500 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-200 shrink-0"
+                        aria-label="Dismiss notification"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/60 p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <div>
@@ -438,7 +545,7 @@ const ShoppingCartDrawer = ({
                                 <div
                                   className={`rounded-md border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/60 p-2.5 leading-snug ${
                                   item.wishlist_item_id ? 'cursor-pointer hover:shadow-md' : ''
-                                }`}
+                                } ${notifiedItemIds.has(item.id) ? 'border-l-[3px] border-l-amber-400 dark:border-l-amber-500' : ''}`}
                                 role={item.wishlist_item_id ? 'button' : undefined}
                                 tabIndex={item.wishlist_item_id ? 0 : undefined}
                                 onClick={() => {
@@ -467,12 +574,31 @@ const ShoppingCartDrawer = ({
                                       {truncateText(item.title, 60)}
                                     </p>
                                     {item.status && (
-                                      <p className="text-xs text-gray-400 dark:text-gray-500 capitalize">
+                                      <p className={`text-xs capitalize ${
+                                        item.status === 'purchased'
+                                          ? 'text-emerald-600 dark:text-emerald-400'
+                                          : 'text-gray-400 dark:text-gray-500'
+                                      }`}>
                                         {item.status}
                                       </p>
                                     )}
                                   </div>
                                   <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        handleToggleStatus(item);
+                                      }}
+                                      className={`p-0.5 rounded transition-colors ${
+                                        item.status === 'purchased'
+                                          ? 'text-emerald-600 dark:text-emerald-400'
+                                          : 'text-gray-300 hover:text-emerald-500 dark:text-gray-600 dark:hover:text-emerald-400'
+                                      }`}
+                                      aria-label={item.status === 'purchased' ? 'Mark as pending' : 'Mark as purchased'}
+                                    >
+                                      {item.status === 'purchased' ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+                                    </button>
                                     {priceLabel && (
                                       <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200">
                                         {priceLabel}

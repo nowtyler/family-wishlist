@@ -1,7 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Menu, X, Plus, Home, Link2, Users, User, ChevronLeft, ShoppingCart } from 'lucide-react';
 import { useTutorial } from '../contexts/TutorialContext';
+
+// Haptic feedback helper
+const triggerHaptic = (pattern = 10) => {
+  if (navigator.vibrate) {
+    navigator.vibrate(pattern);
+  }
+};
 
 const MENU_TUTORIAL_TARGETS = [
   '#tutorial-add-item',
@@ -24,11 +31,13 @@ const FloatingActionMenu = ({
   selectedUser = null,
   isHidden = false,
   cartCount = 0,
+  notificationCount = 0,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showMemberSubmenu, setShowMemberSubmenu] = useState(false);
   const menuRef = useRef(null);
   const tutorial = useTutorial();
+  const prefersReducedMotion = useReducedMotion();
   const tutorialTarget = tutorial?.currentStep?.target;
   const isTutorialRunning = Boolean(tutorial?.run);
   const isTutorialMenuStep =
@@ -145,12 +154,16 @@ const FloatingActionMenu = ({
     }
 
     if (onOpenShoppingCart) {
+      const hasNotifications = notificationCount > 0;
       items.push({
         id: 'shopping-cart',
         tutorialId: 'tutorial-shopping-cart',
         icon: ShoppingCart,
         label: 'Shopping Cart',
-        badge: cartCount > 0 ? cartCount : null,
+        badge: hasNotifications ? notificationCount : (cartCount > 0 ? cartCount : null),
+        badgeColorClass: hasNotifications
+          ? 'bg-amber-500 dark:bg-amber-400 dark:text-gray-900'
+          : 'bg-red-500 dark:bg-red-400 dark:text-gray-900',
         onClick: () => {
           setIsOpen(false);
           onOpenShoppingCart?.();
@@ -214,65 +227,82 @@ const FloatingActionMenu = ({
 
   const menuItems = getMenuItems();
 
-  // Animation variants
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.05,
-        delayChildren: 0.02,
-      },
-    },
-    exit: {
-      opacity: 0,
-      transition: {
-        staggerChildren: 0.03,
-        staggerDirection: -1,
-      },
-    },
-  };
+  // Animation variants (simplified when user prefers reduced motion)
+  const containerVariants = prefersReducedMotion
+    ? {
+        hidden: { opacity: 0 },
+        visible: { opacity: 1 },
+        exit: { opacity: 0 },
+      }
+    : {
+        hidden: { opacity: 0 },
+        visible: {
+          opacity: 1,
+          transition: {
+            staggerChildren: 0.05,
+            delayChildren: 0.02,
+          },
+        },
+        exit: {
+          opacity: 0,
+          transition: {
+            staggerChildren: 0.03,
+            staggerDirection: -1,
+          },
+        },
+      };
 
-  const itemVariants = {
-    hidden: {
-      opacity: 0,
-      y: 20,
-      scale: 0.8,
-    },
-    visible: {
-      opacity: 1,
-      y: 0,
-      scale: 1,
-      transition: {
-        type: 'spring',
-        stiffness: 400,
-        damping: 25,
-      },
-    },
-    exit: {
-      opacity: 0,
-      y: 14,
-      scale: 0.9,
-      transition: {
-        duration: 0.16,
-        ease: 'easeOut',
-      },
-    },
-  };
+  const itemVariants = prefersReducedMotion
+    ? {
+        hidden: { opacity: 0 },
+        visible: { opacity: 1 },
+        exit: { opacity: 0 },
+      }
+    : {
+        hidden: {
+          opacity: 0,
+          y: 20,
+          scale: 0.8,
+        },
+        visible: {
+          opacity: 1,
+          y: 0,
+          scale: 1,
+          transition: {
+            type: 'spring',
+            stiffness: 400,
+            damping: 25,
+          },
+        },
+        exit: {
+          opacity: 0,
+          y: 14,
+          scale: 0.9,
+          transition: {
+            duration: 0.16,
+            ease: 'easeOut',
+          },
+        },
+      };
 
-  const labelVariants = {
-    hidden: { opacity: 0, x: 10, scale: 0.9 },
-    visible: {
-      opacity: 1,
-      x: 0,
-      scale: 1,
-      transition: {
-        type: 'spring',
-        stiffness: 400,
-        damping: 25,
-      },
-    },
-  };
+  const labelVariants = prefersReducedMotion
+    ? {
+        hidden: { opacity: 0 },
+        visible: { opacity: 1 },
+      }
+    : {
+        hidden: { opacity: 0, x: 10, scale: 0.9 },
+        visible: {
+          opacity: 1,
+          x: 0,
+          scale: 1,
+          transition: {
+            type: 'spring',
+            stiffness: 400,
+            damping: 25,
+          },
+        },
+      };
 
   const backdropVariants = {
     hidden: { opacity: 0 },
@@ -305,7 +335,11 @@ const FloatingActionMenu = ({
       {/* Menu Container */}
       <div
         ref={menuRef}
-        className="fixed bottom-6 right-6 z-50 flex flex-col-reverse items-end gap-3"
+        className="fixed z-50 flex flex-col-reverse items-end gap-4"
+        style={{
+          bottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px) + 0.5rem)',
+          right: 'max(1.5rem, env(safe-area-inset-right, 0px) + 0.5rem)',
+        }}
       >
         {/* Action Items */}
         <AnimatePresence mode="popLayout">
@@ -315,14 +349,14 @@ const FloatingActionMenu = ({
               initial="hidden"
               animate="visible"
               exit="exit"
-              className="flex flex-col-reverse items-end gap-3 mb-2"
+              className="flex flex-col-reverse items-end gap-4 mb-2"
             >
               {menuItems.map((item) => (
                 <motion.div
                   key={item.id}
                   variants={itemVariants}
                   layout="position"
-                  className="flex items-center gap-3"
+                  className="flex items-center gap-4"
                 >
                   {/* Label */}
                   <motion.span
@@ -335,7 +369,10 @@ const FloatingActionMenu = ({
                   {/* Action Button */}
                   <motion.button
                     id={item.tutorialId}
-                    onClick={item.onClick}
+                    onClick={() => {
+                      triggerHaptic();
+                      item.onClick();
+                    }}
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.95 }}
                     whileFocus={{ scale: 1.1 }}
@@ -345,7 +382,7 @@ const FloatingActionMenu = ({
                     <item.icon size={20} />
                     {/* Badge */}
                     {item.badge && (
-                      <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[20px] h-[20px] px-1 text-xs font-bold text-white bg-red-500 dark:bg-red-400 dark:text-gray-900 rounded-full shadow-md border-2 border-white dark:border-gray-900">
+                      <span className={`absolute -top-1 -right-1 flex items-center justify-center min-w-[20px] h-[20px] px-1 text-xs font-bold text-white rounded-full shadow-md border-2 border-white dark:border-gray-900 ${item.badgeColorClass || 'bg-red-500 dark:bg-red-400 dark:text-gray-900'}`}>
                         {item.badge}
                       </span>
                     )}
@@ -364,13 +401,13 @@ const FloatingActionMenu = ({
               initial="hidden"
               animate="visible"
               exit="exit"
-              className="flex flex-col-reverse items-end gap-2 mb-2"
+              className="flex flex-col-reverse items-end gap-3 mb-2"
             >
               {/* Back button */}
               <motion.div
                 variants={itemVariants}
                 layout="position"
-                className="flex items-center gap-3"
+                className="flex items-center gap-4"
               >
                 <motion.span
                   variants={labelVariants}
@@ -379,7 +416,10 @@ const FloatingActionMenu = ({
                   Back
                 </motion.span>
                 <motion.button
-                  onClick={() => setShowMemberSubmenu(false)}
+                  onClick={() => {
+                    triggerHaptic();
+                    setShowMemberSubmenu(false);
+                  }}
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.95 }}
                   whileFocus={{ scale: 1.1 }}
@@ -401,7 +441,7 @@ const FloatingActionMenu = ({
                     key={member.id}
                     variants={itemVariants}
                     layout="position"
-                    className="flex items-center gap-3"
+                    className="flex items-center gap-4"
                   >
                     {/* Member name label */}
                     <motion.span
@@ -418,6 +458,7 @@ const FloatingActionMenu = ({
                     {/* Select button with initial and badge */}
                     <motion.button
                       onClick={() => {
+                        triggerHaptic();
                         setIsOpen(false);
                         setShowMemberSubmenu(false);
                         onSelectMember?.(member);
@@ -449,6 +490,7 @@ const FloatingActionMenu = ({
         <motion.button
           id="tutorial-fab-button"
           onClick={() => {
+            triggerHaptic();
             if (isOpen) {
               setShowMemberSubmenu(false);
             }
@@ -498,15 +540,6 @@ const FloatingActionMenu = ({
               className="absolute -top-1 -right-1 flex items-center justify-center min-w-[20px] h-[20px] px-1 text-xs font-bold text-white bg-amber-500 dark:bg-amber-400 dark:text-gray-900 rounded-full shadow-md border-2 border-white dark:border-gray-900"
             >
               {viewingMember.external_wishlist_count}
-            </motion.span>
-          )}
-          {!isOpen && cartCount > 0 && (
-            <motion.span
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className="absolute -bottom-1 -right-1 flex items-center justify-center min-w-[20px] h-[20px] px-1 text-xs font-bold text-white bg-rose-500 dark:bg-rose-400 dark:text-gray-900 rounded-full shadow-md border-2 border-white dark:border-gray-900"
-            >
-              {cartCount > 99 ? '99+' : cartCount}
             </motion.span>
           )}
         </motion.button>

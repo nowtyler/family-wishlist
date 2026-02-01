@@ -11,8 +11,9 @@ import {
   toggleThinkingAbout, 
   getMigrations,
   getShoppingCartItems,
-  getUserProfile 
-} from '../services/api'; 
+  getUserProfile,
+  getNotifications
+} from '../services/api';
 import WishlistCard from './WishlistCard';
 import EnhancedUpcomingEventsBanner from './EnhancedUpcomingEventsBanner';
 import AddItemForm from './AddItemForm';
@@ -49,6 +50,7 @@ const DashboardScreen = (props = {}) => {
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false); // State for preferences modal
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
+  const [notificationCount, setNotificationCount] = useState(0);
   const [lastRefreshTimestamp, setLastRefreshTimestamp] = useState(0); // Add refresh timestamp to prevent too frequent refreshes
   const [isFetchingInProgress, setIsFetchingInProgress] = useState(false); // Track ongoing fetches
   const minRefreshInterval = 2000; // Minimum 2 seconds between refreshes
@@ -83,6 +85,15 @@ const DashboardScreen = (props = {}) => {
     }
   }, [selectedUser?.id]);
 
+  const refreshNotificationCount = useCallback(async () => {
+    if (!selectedUser?.id) return;
+    try {
+      const response = await getNotifications(selectedUser.id);
+      setNotificationCount(Array.isArray(response?.data) ? response.data.length : 0);
+    } catch (error) {
+      // silently fail — notifications are non-critical
+    }
+  }, [selectedUser?.id]);
 
   // Replace the initialization effect with a more robust version
   useEffect(() => {
@@ -168,7 +179,8 @@ const DashboardScreen = (props = {}) => {
 
   useEffect(() => {
     refreshCartCount();
-  }, [refreshCartCount]);
+    refreshNotificationCount();
+  }, [refreshCartCount, refreshNotificationCount]);
 
 
   const handleSelectViewingMember = (member) => {
@@ -335,7 +347,8 @@ const DashboardScreen = (props = {}) => {
     if (viewingMember?.id === selectedUser?.id || isAdmin) {
       try {
         await deleteWishlistItem(itemId);
-        refreshWishlistItems();
+        // Optimistically remove the item immediately
+        setWishlistItems(prev => prev.filter(item => item.id !== itemId));
         // Refresh family members to update count
         const membersResponse = await getFamilyMembers();
         setFamilyMembers(membersResponse.data);
@@ -641,6 +654,7 @@ const DashboardScreen = (props = {}) => {
                 selectedUser={selectedUser}
                 isHidden={isAddingItem || selectedItem}
                 cartCount={cartCount}
+                notificationCount={notificationCount}
               />
 
               {/* Hidden External Wishlists Button - Only renders modal, triggered from FloatingActionMenu */}
@@ -732,6 +746,7 @@ const DashboardScreen = (props = {}) => {
           onOpenWishlistItem={({ memberId, itemId }) => {
             handleOpenWishlistItemFromCart(memberId, itemId);
           }}
+          onNotificationCountUpdate={setNotificationCount}
         />
       )}
     </>
