@@ -538,7 +538,8 @@ class ExternalWishlist(ExternalWishlistBase):
 # --- Shopping Cart ---
 class ShoppingCartItemBase(BaseModel):
     buyer_id: int
-    recipient_id: int
+    recipient_id: Optional[int] = None
+    recipient_name: Optional[str] = Field(None, max_length=100)
     wishlist_item_id: Optional[int] = None
     title: str = Field(..., min_length=1, max_length=200)
     notes: Optional[str] = Field(None, max_length=2000)
@@ -554,6 +555,7 @@ class ShoppingCartItemCreate(ShoppingCartItemBase):
 class ShoppingCartItemUpdate(BaseModel):
     buyer_id: Optional[int] = None
     recipient_id: Optional[int] = None
+    recipient_name: Optional[str] = Field(None, max_length=100)
     wishlist_item_id: Optional[int] = None
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     notes: Optional[str] = Field(None, max_length=2000)

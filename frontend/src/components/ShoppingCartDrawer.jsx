@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, CheckCircle2, ChevronDown, ChevronsDown, ChevronsUp, Circle, Trash2, X } from 'lucide-react';
+import { AlertCircle, ArrowRight, CheckCircle2, ChevronDown, ChevronsDown, ChevronsUp, Circle, Link, Loader, Trash2, X } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useAppContext } from '../contexts/AppContext';
-import { createShoppingCartItem, deleteShoppingCartItem, getShoppingCartItems, getNotifications, markNotificationRead, updateShoppingCartItem } from '../services/api';
+import { createShoppingCartItem, deleteShoppingCartItem, fetchProductDetailsFromUrl, getShoppingCartItems, getNotifications, markNotificationRead, updateShoppingCartItem } from '../services/api';
 
 const emptyFormState = {
   title: '',
   recipientId: '',
+  recipientName: '',
   notes: '',
   link: '',
   price: '',
@@ -56,6 +57,11 @@ const ShoppingCartDrawer = ({
   const [isLoadingItems, setIsLoadingItems] = useState(false);
   const [itemsError, setItemsError] = useState('');
   const [notifications, setNotifications] = useState([]);
+  const [urlToImport, setUrlToImport] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const [importSuccess, setImportSuccess] = useState(false);
+  const [urlError, setUrlError] = useState('');
+  const [urlImportDismissed, setUrlImportDismissed] = useState(false);
 
   const recipientOptions = useMemo(
     () => (Array.isArray(familyMembers) ? familyMembers : []),
@@ -94,7 +100,9 @@ const ShoppingCartDrawer = ({
   const groupedCartItems = useMemo(() => {
     if (!Array.isArray(cartItems) || cartItems.length === 0) return [];
     const groups = cartItems.reduce((acc, item) => {
-      const key = String(item.recipient_id ?? 'unknown');
+      const key = item.recipient_id != null
+        ? String(item.recipient_id)
+        : `custom:${item.recipient_name || 'unknown'}`;
       if (!acc[key]) {
         acc[key] = [];
       }
@@ -102,11 +110,15 @@ const ShoppingCartDrawer = ({
       return acc;
     }, {});
     return Object.entries(groups)
-      .map(([recipientId, items]) => {
-        const recipient = recipientLookup.get(String(recipientId));
+      .map(([key, items]) => {
+        const firstItem = items[0];
+        const recipient = firstItem.recipient_id != null
+          ? recipientLookup.get(String(firstItem.recipient_id))
+          : null;
         return {
-          recipientId,
+          recipientId: key,
           recipient,
+          recipientName: recipient?.name || firstItem.recipient_name || 'Unknown',
           items,
           daysUntil: recipient?.birthday ? getDaysUntilBirthday(recipient.birthday) : null,
         };
@@ -290,6 +302,11 @@ const ShoppingCartDrawer = ({
       requestAnimationFrame(() => {
         titleInputRef.current?.focus();
       });
+    } else {
+      setUrlToImport('');
+      setImportSuccess(false);
+      setUrlError('');
+      setUrlImportDismissed(false);
     }
   }, [isManualEntryOpen]);
 
@@ -307,14 +324,48 @@ const ShoppingCartDrawer = ({
     }));
   };
 
+  const handleImportUrl = async () => {
+    if (!urlToImport.trim()) {
+      setUrlError('Please enter a URL.');
+      return;
+    }
+    if (urlToImport.toLowerCase().includes('etsy.com')) {
+      setUrlError('Etsy URLs cannot be imported automatically. The link has been saved below.');
+      setFormState((prev) => ({ ...prev, link: urlToImport }));
+      return;
+    }
+    setUrlError('');
+    setIsImporting(true);
+    try {
+      const details = await fetchProductDetailsFromUrl(urlToImport);
+      if (details.error) {
+        setUrlError(details.message || 'Could not import details. The link has been saved below.');
+        setFormState((prev) => ({ ...prev, link: details.url || urlToImport }));
+      } else {
+        setFormState((prev) => ({
+          ...prev,
+          title: details.title || prev.title,
+          price: details.price != null ? details.price.toString() : prev.price,
+          link: details.url || urlToImport,
+        }));
+        setImportSuccess(true);
+      }
+    } catch (err) {
+      setUrlError('Import failed. The link has been saved below.');
+      setFormState((prev) => ({ ...prev, link: urlToImport }));
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!formState.title.trim()) {
       toast.error('Title is required.');
       return;
     }
-    if (!formState.recipientId) {
-      toast.error('Please select a recipient.');
+    if (!formState.recipientId || (formState.recipientId === 'other' && !formState.recipientName.trim())) {
+      toast.error(formState.recipientId === 'other' ? 'Please enter a recipient name.' : 'Please select a recipient.');
       return;
     }
 
@@ -326,12 +377,16 @@ const ShoppingCartDrawer = ({
 
     const payload = {
       buyer_id: selectedUser?.id,
-      recipient_id: Number(formState.recipientId),
       title: formState.title.trim(),
       notes: formState.notes.trim() || null,
       link: formState.link.trim() || null,
       price: priceInCents,
     };
+    if (formState.recipientId && formState.recipientId !== 'other') {
+      payload.recipient_id = Number(formState.recipientId);
+    } else {
+      payload.recipient_name = formState.recipientName.trim();
+    }
 
     try {
       setIsSubmitting(true);
@@ -341,9 +396,10 @@ const ShoppingCartDrawer = ({
         ...emptyFormState,
         recipientId: defaultRecipientId ? String(defaultRecipientId) : '',
       });
-      setLastAddedSummary(
-        `${payload.title}${recipientOptions.length ? ` for ${recipientLookup.get(String(payload.recipient_id))?.name || `Member #${payload.recipient_id}`}` : ''}`
-      );
+      const displayName = payload.recipient_id
+        ? (recipientLookup.get(String(payload.recipient_id))?.name || `Member #${payload.recipient_id}`)
+        : payload.recipient_name;
+      setLastAddedSummary(`${payload.title} for ${displayName}`);
       setIsManualEntryOpen(false);
       requestAnimationFrame(() => {
         toggleButtonRef.current?.focus();
@@ -523,7 +579,7 @@ const ShoppingCartDrawer = ({
                             aria-expanded={!isCollapsed}
                           >
                             <span>
-                              {group.recipient?.name || `Member #${group.recipientId}`}
+                              {group.recipientName}
                               {daysLabel && (
                                 <span className="ml-2 text-[10px] font-medium text-gray-400 dark:text-gray-500">
                                   {daysLabel}
@@ -693,6 +749,49 @@ const ShoppingCartDrawer = ({
                           </span>
                         </button>
                       </div>
+                    {!importSuccess && !urlImportDismissed && (
+                      <div className="rounded-md border border-indigo-200 dark:border-indigo-800/50 bg-indigo-50 dark:bg-indigo-900/20 p-3 space-y-2">
+                        <div className="flex items-center gap-1.5">
+                          <Link size={14} className="text-indigo-600 dark:text-indigo-400" />
+                          <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">Import from URL</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <input
+                            type="url"
+                            value={urlToImport}
+                            onChange={(e) => setUrlToImport(e.target.value)}
+                            placeholder="https://example.com/product"
+                            className="flex-1 min-w-0 rounded-md border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-gray-800 px-2.5 py-1.5 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            disabled={isImporting}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleImportUrl}
+                            disabled={isImporting}
+                            className="shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1.5 disabled:opacity-50 hover:bg-indigo-700"
+                            aria-label="Import"
+                          >
+                            {isImporting ? <Loader size={14} className="animate-spin" /> : <ArrowRight size={14} />}
+                          </button>
+                        </div>
+                        {urlError && (
+                          <p className="text-xs text-red-600 dark:text-red-400">{urlError}</p>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setUrlImportDismissed(true)}
+                          className="text-xs text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+                        >
+                          Skip import
+                        </button>
+                      </div>
+                    )}
+                    {importSuccess && (
+                      <div className="flex items-center gap-2 rounded-md border border-green-200 dark:border-green-800/50 bg-green-50 dark:bg-green-900/20 px-3 py-2">
+                        <CheckCircle2 size={14} className="text-green-600 dark:text-green-400 shrink-0" />
+                        <p className="text-xs text-green-700 dark:text-green-300">Details imported — review below.</p>
+                      </div>
+                    )}
                     <div>
                       <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Title</label>
                       <input
@@ -721,7 +820,19 @@ const ShoppingCartDrawer = ({
                             {member.name}
                           </option>
                         ))}
+                        <option value="other">Other...</option>
                       </select>
+                      {formState.recipientId === 'other' && (
+                        <input
+                          type="text"
+                          value={formState.recipientName}
+                          onChange={handleChange('recipientName')}
+                          className="mt-2 w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                          placeholder="Enter name"
+                          maxLength={100}
+                          required
+                        />
+                      )}
                     </div>
 
                     <div>

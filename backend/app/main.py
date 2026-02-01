@@ -3711,9 +3711,12 @@ def create_shopping_cart_item(
     db: Session = Depends(get_db),
 ):
     """Create a new shopping cart item."""
+    if not item.recipient_id and not item.recipient_name:
+        raise HTTPException(status_code=400, detail="Either recipient_id or recipient_name is required.")
     db_item = models.ShoppingCartItem(
         buyer_id=item.buyer_id,
         recipient_id=item.recipient_id,
+        recipient_name=item.recipient_name,
         wishlist_item_id=item.wishlist_item_id,
         title=item.title,
         notes=item.notes,

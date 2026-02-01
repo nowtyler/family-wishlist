@@ -215,7 +215,8 @@ class ShoppingCartItem(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     buyer_id = Column(Integer, ForeignKey("family_members.id"), nullable=False)
-    recipient_id = Column(Integer, ForeignKey("family_members.id"), nullable=False)
+    recipient_id = Column(Integer, ForeignKey("family_members.id"), nullable=True)
+    recipient_name = Column(String, nullable=True)
     wishlist_item_id = Column(Integer, ForeignKey("wishlist_items.id"), nullable=True)
     title = Column(String, nullable=False)
     notes = Column(Text, nullable=True)
