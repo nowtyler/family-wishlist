@@ -62,12 +62,14 @@ const DashboardScreen = (props = {}) => {
   const memberIdFromParams = searchParams.get('memberId');
   const itemIdFromParams = searchParams.get('itemId');
   const sharedWishlistIdFromParams = searchParams.get('sharedWishlistId');
+  const sharedWishlistItemIdFromParams = searchParams.get('sharedWishlistItemId');
 
   // Shared wishlists state
   const [isSharedWishlistsOpen, setIsSharedWishlistsOpen] = useState(false);
   const [sharedWishlists, setSharedWishlists] = useState([]);
   const [selectedSharedWishlist, setSelectedSharedWishlist] = useState(null);
   const [sharedWishlistReloadTrigger, setSharedWishlistReloadTrigger] = useState(0);
+  const [sharedWishlistOptimisticUpdate, setSharedWishlistOptimisticUpdate] = useState(null);
 
   const updateSearchParams = useCallback((updates, options = {}) => {
     const nextParams = new URLSearchParams(searchParams);
@@ -235,7 +237,11 @@ const DashboardScreen = (props = {}) => {
     setIsAddingItem(false);
     setIsPreferencesOpen(false);
     updateSearchParams(
-      { memberId: member?.id === selectedUser?.id ? null : member?.id, sharedWishlistId: null },
+      {
+        memberId: member?.id === selectedUser?.id ? null : member?.id,
+        sharedWishlistId: null,
+        sharedWishlistItemId: null
+      },
       { replace: false }
     );
     // Notify parent about the viewing member change
@@ -438,6 +444,24 @@ const DashboardScreen = (props = {}) => {
     }
   }, [refreshWishlistItems]);
 
+  const handleCartChanged = useCallback((change = null) => {
+    if (selectedSharedWishlist && change?.sharedWishlistItemId) {
+      setSharedWishlistOptimisticUpdate({
+        itemId: change.sharedWishlistItemId,
+        updates: { purchased_by: null },
+        nonce: Date.now()
+      });
+      if (change.revert) {
+        setSharedWishlistReloadTrigger((prev) => prev + 1);
+      }
+      return;
+    }
+
+    if (viewingMember?.id) {
+      refreshWishlistItems(true);
+    }
+  }, [selectedSharedWishlist, viewingMember?.id, refreshWishlistItems]);
+
   const handleOpenAddItemForm = () => {
     setIsAddingItem(true);
   };
@@ -593,7 +617,48 @@ const DashboardScreen = (props = {}) => {
     }
   }, [itemIdFromParams, wishlistItems, selectedItem, updateSearchParams, isLoading]);
 
-  const handleOpenWishlistItemFromCart = useCallback(async (memberId, itemId) => {
+  const handleOpenWishlistItemFromCart = useCallback(async (payload) => {
+    if (!payload) return;
+    const { memberId, itemId, sharedWishlistId, sharedWishlistItemId } = payload;
+
+    if (sharedWishlistId && sharedWishlistItemId) {
+      let targetWishlist = sharedWishlists.find(
+        (wishlist) => String(wishlist.id) === String(sharedWishlistId)
+      );
+
+      if (!targetWishlist) {
+        try {
+          const response = await getSharedWishlists();
+          const nextWishlists = Array.isArray(response?.data) ? response.data : [];
+          setSharedWishlists(nextWishlists);
+          targetWishlist = nextWishlists.find(
+            (wishlist) => String(wishlist.id) === String(sharedWishlistId)
+          );
+        } catch (error) {
+          console.error('Failed to load shared wishlists for cart item:', error);
+        }
+      }
+
+      if (targetWishlist) {
+        setSelectedSharedWishlist(targetWishlist);
+        setViewingMember(null);
+        setIsSharedWishlistsOpen(false);
+        setIsAddingItem(false);
+        setIsPreferencesOpen(false);
+      }
+
+      updateSearchParams(
+        {
+          sharedWishlistId,
+          sharedWishlistItemId,
+          memberId: null,
+          itemId: null
+        },
+        { replace: false }
+      );
+      return;
+    }
+
     if (!memberId || !itemId) return;
     let targetMember =
       familyMembers.find((member) => Number(member.id) === Number(memberId))
@@ -627,6 +692,8 @@ const DashboardScreen = (props = {}) => {
       {
         memberId: memberId === selectedUser?.id ? null : memberId,
         itemId,
+        sharedWishlistId: null,
+        sharedWishlistItemId: null
       },
       { replace: false }
     );
@@ -644,7 +711,17 @@ const DashboardScreen = (props = {}) => {
     } finally {
       setIsLoading(false);
     }
-  }, [familyMembers, selectedUser?.id, handleSelectViewingMember, updateSearchParams, getWishlistItems, getUserProfile, setFamilyMembers]);
+  }, [
+    familyMembers,
+    selectedUser?.id,
+    sharedWishlists,
+    handleSelectViewingMember,
+    updateSearchParams,
+    getWishlistItems,
+    getUserProfile,
+    getSharedWishlists,
+    setFamilyMembers
+  ]);
 
   const handlePreferencesUpdate = async () => {
     // Refresh family members to get updated preferences
@@ -735,6 +812,9 @@ const DashboardScreen = (props = {}) => {
               onUpdateItems={refreshSharedWishlists}
               onCartUpdated={refreshCartCount}
               reloadTrigger={sharedWishlistReloadTrigger}
+              optimisticUpdate={sharedWishlistOptimisticUpdate}
+              openItemId={sharedWishlistItemIdFromParams}
+              onClearOpenItemId={() => updateSearchParams({ sharedWishlistItemId: null }, { replace: false })}
             />
           ) : viewingMember ? (
             <div className="relative">
@@ -873,9 +953,9 @@ const DashboardScreen = (props = {}) => {
           onClose={() => setIsCartOpen(false)}
           defaultRecipientId={viewingMember?.id}
           onCartUpdated={refreshCartCount}
-          onCartChanged={() => refreshWishlistItems(true)}
-          onOpenWishlistItem={({ memberId, itemId }) => {
-            handleOpenWishlistItemFromCart(memberId, itemId);
+          onCartChanged={handleCartChanged}
+          onOpenWishlistItem={(payload) => {
+            handleOpenWishlistItemFromCart(payload);
           }}
           onNotificationCountUpdate={setNotificationCount}
         />

@@ -571,6 +571,7 @@ class ShoppingCartItemUpdate(BaseModel):
 class ShoppingCartItem(ShoppingCartItemBase):
     id: int
     created_at: datetime
+    shared_wishlist_id: Optional[int] = None
 
     class Config:
         from_attributes = True

@@ -16,7 +16,10 @@ const SharedWishlistInline = ({
   isOwner,
   onUpdateItems,
   onCartUpdated,
-  reloadTrigger = 0
+  reloadTrigger = 0,
+  optimisticUpdate = null,
+  openItemId = null,
+  onClearOpenItemId = null
 }) => {
   const [wishlistData, setWishlistData] = useState(wishlist);
   const [items, setItems] = useState([]);
@@ -109,6 +112,7 @@ const SharedWishlistInline = ({
 
   const handleItemModalClose = () => {
     setSelectedItem(null);
+    onClearOpenItemId?.();
   };
 
   const handleUpdateItems = useCallback(async (skipReload = false) => {
@@ -123,6 +127,35 @@ const SharedWishlistInline = ({
     // Otherwise, do a full reload
     await loadWishlist();
   }, [loadWishlist, onUpdateItems]);
+
+  const handleOptimisticUpdateItem = useCallback((itemId, updates) => {
+    setItems((prevItems) =>
+      prevItems.map((item) =>
+        item.id === itemId ? { ...item, ...updates } : item
+      )
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!optimisticUpdate?.itemId) return;
+    handleOptimisticUpdateItem(optimisticUpdate.itemId, optimisticUpdate.updates || {});
+  }, [optimisticUpdate?.nonce, optimisticUpdate?.itemId, handleOptimisticUpdateItem]);
+
+  useEffect(() => {
+    if (!openItemId) {
+      if (selectedItem) {
+        setSelectedItem(null);
+      }
+      return;
+    }
+    if (!items.length) return;
+    const matchedItem = items.find(item => String(item.id) === String(openItemId));
+    if (matchedItem) {
+      setSelectedItem(matchedItem);
+    } else {
+      onClearOpenItemId?.();
+    }
+  }, [openItemId, items, selectedItem, onClearOpenItemId]);
 
   // Create a "virtual member" object that WishlistCard expects
   const virtualMember = {
@@ -173,6 +206,7 @@ const SharedWishlistInline = ({
         selectedItem={selectedItem}
         currentUserName={currentUserName}
         onCartUpdated={onCartUpdated}
+        onOptimisticUpdateItem={handleOptimisticUpdateItem}
       />
     </div>
   );

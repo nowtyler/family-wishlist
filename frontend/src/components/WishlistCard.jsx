@@ -71,7 +71,8 @@ const sizeOptions = {
  *   onItemModalClose?: () => void,
  *   selectedItem?: WishlistItem|null,
  *   onCartUpdated?: (nextCount?: number) => void,
- *   currentUserName?: string
+ *   currentUserName?: string,
+ *   onOptimisticUpdateItem?: (itemId: number|string, updates: Partial<WishlistItem>) => void
  * }} WishlistCardProps
  */
 
@@ -90,7 +91,8 @@ const WishlistCard = (props) => {
     onItemModalClose,
     selectedItem: externalSelectedItem,
     onCartUpdated,
-    currentUserName
+    currentUserName,
+    onOptimisticUpdateItem
   } = props;
   /** @type {WishlistItem[]} */
   const safeItems = Array.isArray(items) ? items : [];
@@ -399,11 +401,17 @@ const WishlistCard = (props) => {
   };
 
   const handleAddToCart = async (item) => {
+    const previousPurchasedBy = item.purchased_by;
     try {
       setAddingToCartItemId(item.id);
 
       // Check if this is a shared wishlist
       if (member.is_shared_wishlist) {
+        if (onOptimisticUpdateItem) {
+          onOptimisticUpdateItem(item.id, {
+            purchased_by: currentUserName || 'You'
+          });
+        }
         await addShoppingCartItemFromSharedWishlistItem(item.id, member.shared_wishlist_id);
       } else {
         await addShoppingCartItemFromWishlistItem(item.id, member.id);
@@ -414,6 +422,11 @@ const WishlistCard = (props) => {
       onCartUpdated?.();
     } catch (error) {
       console.error('Failed to add item to cart:', error);
+      if (member.is_shared_wishlist && onOptimisticUpdateItem) {
+        onOptimisticUpdateItem(item.id, {
+          purchased_by: previousPurchasedBy || null
+        });
+      }
       if (error.response?.status === 409) {
         toast.info(error.response?.data?.detail || 'Item already reserved.');
       } else if (error.response?.status === 403) {
@@ -427,6 +440,7 @@ const WishlistCard = (props) => {
   };
 
   const handleRemoveFromCart = async (item) => {
+    const previousPurchasedBy = item.purchased_by;
     try {
       if (!currentUserId) return;
       setRemovingFromCartItemId(item.id);
@@ -443,6 +457,9 @@ const WishlistCard = (props) => {
           try {
             // Use appropriate toggle based on wishlist type
             if (member.is_shared_wishlist) {
+              if (onOptimisticUpdateItem) {
+                onOptimisticUpdateItem(item.id, { purchased_by: null });
+              }
               await toggleSharedItemPurchased(item.id);
             } else {
               await markPurchased(item.id);
@@ -459,12 +476,20 @@ const WishlistCard = (props) => {
         onCartUpdated?.();
         return;
       }
+      if (member.is_shared_wishlist && onOptimisticUpdateItem) {
+        onOptimisticUpdateItem(item.id, { purchased_by: null });
+      }
       await deleteShoppingCartItem(cartItem.id);
       toast.success('Removed from cart.');
       await onUpdateItems?.(true);
       onCartUpdated?.();
     } catch (error) {
       console.error('Failed to remove item from cart:', error);
+      if (member.is_shared_wishlist && onOptimisticUpdateItem) {
+        onOptimisticUpdateItem(item.id, {
+          purchased_by: previousPurchasedBy || null
+        });
+      }
       toast.error('Failed to remove item from cart.');
     } finally {
       setRemovingFromCartItemId(null);

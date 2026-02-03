@@ -266,18 +266,25 @@ const ShoppingCartDrawer = ({
     }
   };
 
-  const handleRemoveItem = async (itemId) => {
+  const handleRemoveItem = async (item) => {
+    const cartItemId = item?.id;
+    const changePayload = {
+      wishlistItemId: item?.wishlist_item_id ?? null,
+      sharedWishlistItemId: item?.shared_wishlist_item_id ?? null
+    };
+    onCartChanged?.({ ...changePayload, optimistic: true });
     try {
-      await deleteShoppingCartItem(itemId);
+      await deleteShoppingCartItem(cartItemId);
       setCartItems((prev) => {
-        const nextItems = Array.isArray(prev) ? prev.filter((item) => item.id !== itemId) : [];
+        const nextItems = Array.isArray(prev) ? prev.filter((cartItem) => cartItem.id !== cartItemId) : [];
         onCartUpdated?.(nextItems.length);
         return nextItems;
       });
-      onCartChanged?.();
+      onCartChanged?.({ ...changePayload, optimistic: false });
       toast.success('Removed from cart.');
     } catch (error) {
       console.error('Failed to remove cart item:', error);
+      onCartChanged?.({ ...changePayload, revert: true });
       toast.error('Failed to remove item from cart.');
     }
   };
@@ -621,28 +628,42 @@ const ShoppingCartDrawer = ({
                             const priceLabel = formatPrice(item.price);
                             return (
                               <React.Fragment key={item.id}>
-                                <div
+                        <div
                                   className={`rounded-md border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/60 p-2.5 leading-snug ${
-                                  item.wishlist_item_id ? 'cursor-pointer hover:shadow-md' : ''
+                                  (item.wishlist_item_id || item.shared_wishlist_item_id) ? 'cursor-pointer hover:shadow-md' : ''
                                 } ${notifiedItemIds.has(item.id) ? 'border-l-[3px] border-l-amber-400 dark:border-l-amber-500' : ''}`}
-                                role={item.wishlist_item_id ? 'button' : undefined}
-                                tabIndex={item.wishlist_item_id ? 0 : undefined}
+                                role={(item.wishlist_item_id || item.shared_wishlist_item_id) ? 'button' : undefined}
+                                tabIndex={(item.wishlist_item_id || item.shared_wishlist_item_id) ? 0 : undefined}
                                 onClick={() => {
-                                  if (!item.wishlist_item_id) return;
-                                  onOpenWishlistItem?.({
-                                    memberId: item.recipient_id,
-                                    itemId: item.wishlist_item_id,
-                                  });
-                                  onClose?.();
-                                }}
-                                onKeyDown={(event) => {
-                                  if (!item.wishlist_item_id) return;
-                                  if (event.key === 'Enter' || event.key === ' ') {
-                                    event.preventDefault();
+                                  if (item.wishlist_item_id) {
                                     onOpenWishlistItem?.({
                                       memberId: item.recipient_id,
                                       itemId: item.wishlist_item_id,
                                     });
+                                  } else if (item.shared_wishlist_item_id && item.shared_wishlist_id) {
+                                    onOpenWishlistItem?.({
+                                      sharedWishlistId: item.shared_wishlist_id,
+                                      sharedWishlistItemId: item.shared_wishlist_item_id,
+                                    });
+                                  } else {
+                                    return;
+                                  }
+                                  onClose?.();
+                                }}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Enter' || event.key === ' ') {
+                                    event.preventDefault();
+                                    if (item.wishlist_item_id) {
+                                      onOpenWishlistItem?.({
+                                        memberId: item.recipient_id,
+                                        itemId: item.wishlist_item_id,
+                                      });
+                                    } else if (item.shared_wishlist_item_id && item.shared_wishlist_id) {
+                                      onOpenWishlistItem?.({
+                                        sharedWishlistId: item.shared_wishlist_id,
+                                        sharedWishlistItemId: item.shared_wishlist_item_id,
+                                      });
+                                    }
                                     onClose?.();
                                   }
                                 }}
@@ -687,7 +708,7 @@ const ShoppingCartDrawer = ({
                                       type="button"
                                       onClick={(event) => {
                                         event.stopPropagation();
-                                        handleRemoveItem(item.id);
+                                        handleRemoveItem(item);
                                       }}
                                       className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
                                       aria-label="Remove from cart"

@@ -235,6 +235,12 @@ class ShoppingCartItem(Base):
     wishlist_item = relationship("WishlistItem")
     shared_wishlist_item = relationship("SharedWishlistItem")
 
+    @property
+    def shared_wishlist_id(self):
+        if self.shared_wishlist_item:
+            return self.shared_wishlist_item.wishlist_id
+        return None
+
 class Notification(Base):
     __tablename__ = "notifications"
 
