@@ -944,4 +944,22 @@ export const toggleSharedItemPurchased = (itemId) => {
   return apiClient.patch(`/shared-wishlist-items/${itemId}/toggle-purchased`);
 };
 
+// Add shopping cart item from shared wishlist item
+export const addShoppingCartItemFromSharedWishlistItem = async (itemId, sharedWishlistId) => {
+  try {
+    const response = await apiClient.post(`/shopping-cart/from-shared-wishlist-item/${itemId}`, {
+      shared_wishlist_id: sharedWishlistId,
+    });
+    return response;
+  } catch (error) {
+    console.error('Failed to add shared wishlist item to shopping cart:', error);
+    throw error;
+  }
+};
+
+// Add comment to shared wishlist item
+export const addSharedWishlistItemComment = (itemId, text) => {
+  return apiClient.post(`/shared-wishlist-items/${itemId}/comments`, { text });
+};
+
 export default apiClient;

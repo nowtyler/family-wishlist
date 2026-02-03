@@ -441,6 +441,29 @@ def create_comment(db: Session, item_id: int, text: str, author_id: int) -> mode
     db.refresh(db_comment)
     return db_comment
 
+
+def create_shared_wishlist_item_comment(db: Session, shared_item_id: int, text: str, author_id: int) -> Optional[models.Comment]:
+    """Create a comment on a shared wishlist item."""
+    # Verify the shared item exists
+    shared_item = db.query(models.SharedWishlistItem).filter(
+        models.SharedWishlistItem.id == shared_item_id
+    ).first()
+    if not shared_item:
+        return None
+
+    now = get_est_timestamp()
+    db_comment = models.Comment(
+        text=text,
+        author_id=author_id,
+        shared_item_id=shared_item_id,
+        item_id=None,  # Not a regular wishlist item
+        created_at=now
+    )
+    db.add(db_comment)
+    db.commit()
+    db.refresh(db_comment)
+    return db_comment
+
 def delete_comment(db: Session, comment_id: int, author_id: int) -> bool:
     """Delete a comment with proper authorization check"""
     db_comment = db.query(models.Comment).filter(models.Comment.id == comment_id).first()
@@ -1013,6 +1036,24 @@ def get_shared_wishlist_items(db: Session, wishlist_id: int, current_user_id: in
         thinking_by_list = item.thinking_about_by.split(',') if item.thinking_about_by else []
         thinking_by_list = [name.strip() for name in thinking_by_list if name.strip()]
 
+        # Get comments for this shared wishlist item
+        item_comments = db.query(models.Comment).filter(
+            models.Comment.shared_item_id == item.id
+        ).order_by(models.Comment.created_at.asc()).all()
+
+        comments_list = []
+        for comment in item_comments:
+            author = get_family_member(db, comment.author_id)
+            author_name = author.name if author else "Unknown"
+            comments_list.append(schemas.SharedWishlistItemComment(
+                id=comment.id,
+                author_id=comment.author_id,
+                author_name=author_name,
+                shared_item_id=comment.shared_item_id,
+                text=comment.text,
+                created_at=comment.created_at
+            ))
+
         result_items.append(schemas.SharedWishlistItem(
             id=item.id,
             wishlist_id=item.wishlist_id,
@@ -1025,6 +1066,7 @@ def get_shared_wishlist_items(db: Session, wishlist_id: int, current_user_id: in
             is_purchased=effective_is_purchased,
             purchased_by=effective_purchased_by,
             thinking_about_by_list=thinking_by_list,
+            comments=comments_list,
             created_at=item.created_at,
             created_by=item.created_by
         ))
@@ -1087,6 +1129,30 @@ def update_shared_wishlist_item(db: Session, item_id: int, item_update: schemas.
     return db_item
 
 
+def notify_cart_buyers_on_shared_wishlist_delete(db: Session, shared_item: models.SharedWishlistItem) -> None:
+    """Disconnect cart items from a deleted shared wishlist item and notify each buyer."""
+    cart_items = db.query(models.ShoppingCartItem).filter(
+        models.ShoppingCartItem.shared_wishlist_item_id == shared_item.id
+    ).all()
+    if not cart_items:
+        return
+
+    wishlist = db.query(models.SharedWishlist).filter(
+        models.SharedWishlist.id == shared_item.wishlist_id
+    ).first()
+    wishlist_name = wishlist.name if wishlist else "A shared wishlist"
+
+    for cart_item in cart_items:
+        cart_item.shared_wishlist_item_id = None
+        notification = models.Notification(
+            recipient_id=cart_item.buyer_id,
+            message=f'"{shared_item.title}" was removed from "{wishlist_name}".',
+            cart_item_id=cart_item.id,
+            is_read=False,
+        )
+        db.add(notification)
+
+
 def delete_shared_wishlist_item(db: Session, item_id: int, current_user_id: int) -> bool:
     """Delete an item from a shared wishlist (only owners can delete)"""
     db_item = db.query(models.SharedWishlistItem).filter(models.SharedWishlistItem.id == item_id).first()
@@ -1097,6 +1163,9 @@ def delete_shared_wishlist_item(db: Session, item_id: int, current_user_id: int)
         user = get_family_member(db, current_user_id)
         if not user or not user.is_admin:
             return False
+
+    # Notify cart buyers before deletion
+    notify_cart_buyers_on_shared_wishlist_delete(db, db_item)
 
     db.delete(db_item)
     db.commit()

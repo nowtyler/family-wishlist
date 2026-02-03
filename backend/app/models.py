@@ -161,10 +161,12 @@ class Comment(Base):
     id = Column(Integer, primary_key=True, index=True)
     text = Column(Text, nullable=False)
     author_id = Column(Integer, ForeignKey("family_members.id")) # Who wrote the comment
-    item_id = Column(Integer, ForeignKey("wishlist_items.id"))
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)  # Add this line
+    item_id = Column(Integer, ForeignKey("wishlist_items.id"), nullable=True)  # For regular wishlist items
+    shared_item_id = Column(Integer, ForeignKey("shared_wishlist_items.id"), nullable=True)  # For shared wishlist items
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     item = relationship("WishlistItem", back_populates="comments")
+    shared_item = relationship("SharedWishlistItem", back_populates="comments")
     author = relationship("FamilyMember") # To show who wrote the comment
 
 class WishlistItemCreate(BaseModel):
@@ -218,6 +220,7 @@ class ShoppingCartItem(Base):
     recipient_id = Column(Integer, ForeignKey("family_members.id"), nullable=True)
     recipient_name = Column(String, nullable=True)
     wishlist_item_id = Column(Integer, ForeignKey("wishlist_items.id"), nullable=True)
+    shared_wishlist_item_id = Column(Integer, ForeignKey("shared_wishlist_items.id"), nullable=True)
     title = Column(String, nullable=False)
     notes = Column(Text, nullable=True)
     link = Column(String, nullable=True)
@@ -230,6 +233,7 @@ class ShoppingCartItem(Base):
     buyer = relationship("FamilyMember", foreign_keys=[buyer_id])
     recipient = relationship("FamilyMember", foreign_keys=[recipient_id])
     wishlist_item = relationship("WishlistItem")
+    shared_wishlist_item = relationship("SharedWishlistItem")
 
 class Notification(Base):
     __tablename__ = "notifications"
@@ -291,6 +295,8 @@ class SharedWishlist(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     created_by = Column(Integer, ForeignKey("family_members.id"), nullable=False)
     household_id = Column(Integer, ForeignKey("households.id"), nullable=True)
+    occasion_date = Column(String, nullable=True)  # Format: YYYY-MM-DD (birthday, wedding date, etc.)
+    occasion_type = Column(String, nullable=True)  # birthday, wedding, baby_shower, anniversary, holiday, other
 
     # Relationships
     creator = relationship("FamilyMember", foreign_keys=[created_by])
@@ -329,6 +335,7 @@ class SharedWishlistItem(Base):
     # Relationships
     wishlist = relationship("SharedWishlist", back_populates="items")
     creator = relationship("FamilyMember", foreign_keys=[created_by])
+    comments = relationship("Comment", back_populates="shared_item", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<SharedWishlistItem(id={self.id}, title='{self.title}')>"

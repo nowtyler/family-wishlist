@@ -13,7 +13,9 @@ import {
   getShoppingCartItems,
   getUserProfile,
   getNotifications,
-  getSharedWishlists
+  getSharedWishlists,
+  getSharedWishlistItems,
+  createSharedWishlistItem
 } from '../services/api';
 import WishlistCard from './WishlistCard';
 import EnhancedUpcomingEventsBanner from './EnhancedUpcomingEventsBanner';
@@ -24,7 +26,7 @@ import ShoppingCartDrawer from './ShoppingCartDrawer';
 import UserPreferencesDropdown from './UserPreferencesDropdown';
 import FloatingActionMenu from './FloatingActionMenu';
 import SharedWishlistManager from './SharedWishlistManager';
-import SharedWishlistView from './SharedWishlistView';
+import SharedWishlistInline from './SharedWishlistInline';
 import Navbar from './Navbar';
 import { useTutorial } from '../contexts/TutorialContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -59,11 +61,13 @@ const DashboardScreen = (props = {}) => {
   const minRefreshInterval = 2000; // Minimum 2 seconds between refreshes
   const memberIdFromParams = searchParams.get('memberId');
   const itemIdFromParams = searchParams.get('itemId');
+  const sharedWishlistIdFromParams = searchParams.get('sharedWishlistId');
 
   // Shared wishlists state
   const [isSharedWishlistsOpen, setIsSharedWishlistsOpen] = useState(false);
   const [sharedWishlists, setSharedWishlists] = useState([]);
   const [selectedSharedWishlist, setSelectedSharedWishlist] = useState(null);
+  const [sharedWishlistReloadTrigger, setSharedWishlistReloadTrigger] = useState(0);
 
   const updateSearchParams = useCallback((updates, options = {}) => {
     const nextParams = new URLSearchParams(searchParams);
@@ -115,13 +119,26 @@ const DashboardScreen = (props = {}) => {
 
   const handleSelectSharedWishlist = useCallback((wishlist) => {
     setSelectedSharedWishlist(wishlist);
+    setViewingMember(null); // Clear regular member when viewing shared wishlist
     setIsSharedWishlistsOpen(false);
-  }, []);
+    setIsAddingItem(false);
+    setIsPreferencesOpen(false);
+    updateSearchParams(
+      { sharedWishlistId: wishlist?.id, memberId: null },
+      { replace: false }
+    );
+  }, [updateSearchParams]);
 
   const handleBackFromSharedWishlist = useCallback(() => {
     setSelectedSharedWishlist(null);
+    // Return to user's own wishlist
+    setViewingMember(selectedUser);
+    updateSearchParams(
+      { sharedWishlistId: null, memberId: null },
+      { replace: false }
+    );
     refreshSharedWishlists();
-  }, [refreshSharedWishlists]);
+  }, [refreshSharedWishlists, updateSearchParams, selectedUser]);
 
   // Replace the initialization effect with a more robust version
   useEffect(() => {
@@ -214,10 +231,11 @@ const DashboardScreen = (props = {}) => {
 
   const handleSelectViewingMember = (member) => {
     setViewingMember(member);
+    setSelectedSharedWishlist(null); // Clear shared wishlist when selecting a member
     setIsAddingItem(false);
     setIsPreferencesOpen(false);
     updateSearchParams(
-      { memberId: member?.id === selectedUser?.id ? null : member?.id },
+      { memberId: member?.id === selectedUser?.id ? null : member?.id, sharedWishlistId: null },
       { replace: false }
     );
     // Notify parent about the viewing member change
@@ -236,6 +254,8 @@ const DashboardScreen = (props = {}) => {
   // Sync viewing member with URL state so browser back/forward works as expected.
   useEffect(() => {
     if (!selectedUser?.id) return;
+    // Skip if viewing a shared wishlist
+    if (sharedWishlistIdFromParams) return;
 
     const targetId = memberIdFromParams ? Number(memberIdFromParams) : selectedUser.id;
 
@@ -262,7 +282,36 @@ const DashboardScreen = (props = {}) => {
     if (viewingMember?.id !== matchedMember.id) {
       setViewingMember(matchedMember);
     }
-  }, [memberIdFromParams, familyMembers, selectedUser?.id, viewingMember?.id, updateSearchParams]);
+  }, [memberIdFromParams, sharedWishlistIdFromParams, familyMembers, selectedUser?.id, viewingMember?.id, updateSearchParams]);
+
+  // Sync shared wishlist with URL state so browser back/forward works
+  useEffect(() => {
+    if (!selectedUser?.id) return;
+
+    // If we have a sharedWishlistId in URL, sync state
+    if (sharedWishlistIdFromParams) {
+      const matchedWishlist = sharedWishlists.find(
+        w => String(w.id) === String(sharedWishlistIdFromParams)
+      );
+
+      if (matchedWishlist) {
+        if (selectedSharedWishlist?.id !== matchedWishlist.id) {
+          setSelectedSharedWishlist(matchedWishlist);
+          setViewingMember(null);
+        }
+      } else if (sharedWishlists.length > 0) {
+        // Wishlist not found in list, clear the URL param
+        updateSearchParams({ sharedWishlistId: null }, { replace: true });
+      }
+    } else if (selectedSharedWishlist && !sharedWishlistIdFromParams) {
+      // URL param was cleared (e.g., browser back), clear state
+      setSelectedSharedWishlist(null);
+      // Restore to user's own wishlist if no member is selected
+      if (!memberIdFromParams && !viewingMember) {
+        setViewingMember(selectedUser);
+      }
+    }
+  }, [sharedWishlistIdFromParams, sharedWishlists, selectedUser?.id, selectedSharedWishlist?.id, memberIdFromParams, viewingMember, updateSearchParams]);
 
   // Ensure viewing member has the most up-to-date information from family members
   useEffect(() => {
@@ -277,25 +326,50 @@ const DashboardScreen = (props = {}) => {
   }, [familyMembers, viewingMember?.id]);
 
   const handleAddItem = async (newItem) => {
-    if (viewingMember?.id === selectedUser?.id || isAdmin) {
+    // Check if we're adding to a shared wishlist
+    if (selectedSharedWishlist) {
+      // Adding to shared wishlist - check if user is an owner
+      const isOwner = selectedSharedWishlist.owners?.some(o => o.id === selectedUser?.id);
+      if (!isOwner) {
+        toast.error("Only co-owners can add items to this shared wishlist.");
+        return;
+      }
+
       try {
         setIsLoading(true);
-        await createWishlistItem(viewingMember.id, newItem);
-        // Refresh items
-        const itemsResponse = await getWishlistItems(viewingMember.id);
-        setWishlistItems(itemsResponse.data || []);
-        // Refresh family members to update count
-        const membersResponse = await getFamilyMembers();
-        setFamilyMembers(membersResponse.data);
+        await createSharedWishlistItem(selectedSharedWishlist.id, newItem);
+        // Trigger reload of SharedWishlistInline component
+        setSharedWishlistReloadTrigger(prev => prev + 1);
         setIsAddingItem(false);
+        toast.success("Item added to shared wishlist.");
       } catch (error) {
-        console.error("Error adding item:", error);
-        toast.error("Failed to add item.");
+        console.error("Error adding item to shared wishlist:", error);
+        toast.error("Failed to add item to shared wishlist.");
       } finally {
         setIsLoading(false);
       }
     } else {
-      toast.error("Cannot add items to another user's wishlist.");
+      // Adding to personal wishlist
+      if (viewingMember?.id === selectedUser?.id || isAdmin) {
+        try {
+          setIsLoading(true);
+          await createWishlistItem(viewingMember.id, newItem);
+          // Refresh items
+          const itemsResponse = await getWishlistItems(viewingMember.id);
+          setWishlistItems(itemsResponse.data || []);
+          // Refresh family members to update count
+          const membersResponse = await getFamilyMembers();
+          setFamilyMembers(membersResponse.data);
+          setIsAddingItem(false);
+        } catch (error) {
+          console.error("Error adding item:", error);
+          toast.error("Failed to add item.");
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        toast.error("Cannot add items to another user's wishlist.");
+      }
     }
   };
 
@@ -609,6 +683,7 @@ const DashboardScreen = (props = {}) => {
       <Navbar
         onClearWishlist={refreshWishlistItems}
         viewingMember={viewingMember}
+        selectedSharedWishlist={selectedSharedWishlist}
         onHouseholdUpdate={handleHouseholdUpdate}
         onRefreshWishlist={refreshWishlistItems}
         onOpenSharedWishlists={() => setIsSharedWishlistsOpen(true)}
@@ -632,7 +707,10 @@ const DashboardScreen = (props = {}) => {
 
           {/* Enhanced Upcoming Events Banner */}
           {familyMembers.length > 0 && (
-            <EnhancedUpcomingEventsBanner familyMembers={familyMembers} />
+            <EnhancedUpcomingEventsBanner
+              familyMembers={familyMembers}
+              sharedWishlists={sharedWishlists}
+            />
           )}
 
           {/* Schema Warning Banner */}
@@ -647,8 +725,18 @@ const DashboardScreen = (props = {}) => {
             </div>
           )}
 
-          {/* Wishlist items for viewingMember */}
-          {viewingMember && (
+          {/* Wishlist items for viewingMember OR selectedSharedWishlist */}
+          {selectedSharedWishlist ? (
+            <SharedWishlistInline
+              wishlist={selectedSharedWishlist}
+              currentUserId={selectedUser?.id}
+              currentUserName={selectedUser?.name}
+              isOwner={selectedSharedWishlist.owners?.some(o => o.id === selectedUser?.id)}
+              onUpdateItems={refreshSharedWishlists}
+              onCartUpdated={refreshCartCount}
+              reloadTrigger={sharedWishlistReloadTrigger}
+            />
+          ) : viewingMember ? (
             <div className="relative">
               <WishlistCard
                 member={viewingMember}
@@ -666,14 +754,19 @@ const DashboardScreen = (props = {}) => {
                 currentUserName={selectedUser?.name}
               />
             </div>
-          )}
+          ) : null}
 
           {/* Floating Action Menu - Unified menu for all quick actions */}
-          {viewingMember && (
+          {(viewingMember || selectedSharedWishlist) && (
             <>
               <FloatingActionMenu
-                isOwnWishlist={viewingMember?.id === selectedUser?.id || isAdmin}
+                isOwnWishlist={
+                  selectedSharedWishlist
+                    ? selectedSharedWishlist.owners?.some(o => o.id === selectedUser?.id)
+                    : (viewingMember?.id === selectedUser?.id || isAdmin)
+                }
                 viewingMember={viewingMember}
+                selectedSharedWishlist={selectedSharedWishlist}
                 onAddItem={handleOpenAddItemForm}
                 onReturnHome={() => handleSelectViewingMember(selectedUser)}
                 onOpenShoppingCart={() => setIsCartOpen(true)}
@@ -685,28 +778,32 @@ const DashboardScreen = (props = {}) => {
                 familyMembers={familyMembers}
                 sharedWishlists={sharedWishlists}
                 selectedUser={selectedUser}
-                isHidden={isAddingItem || selectedItem || selectedSharedWishlist}
+                isHidden={isAddingItem || selectedItem}
                 cartCount={cartCount}
                 notificationCount={notificationCount}
               />
 
               {/* Hidden External Wishlists Button - Only renders modal, triggered from FloatingActionMenu */}
-              <ExternalWishlistsButton
-                member={viewingMember}
-                variant="hidden"
-                externalOpen={isExternalWishlistsOpen}
-                onExternalClose={() => setIsExternalWishlistsOpen(false)}
-              />
+              {viewingMember && (
+                <ExternalWishlistsButton
+                  member={viewingMember}
+                  variant="hidden"
+                  externalOpen={isExternalWishlistsOpen}
+                  onExternalClose={() => setIsExternalWishlistsOpen(false)}
+                />
+              )}
 
-              <UserPreferencesDropdown
-                member={viewingMember}
-                isOwner={viewingMember.id === selectedUser.id || isAdmin}
-                currentUserId={selectedUser.id}
-                onUpdateSuccess={handlePreferencesUpdate}
-                isOpen={isPreferencesOpen}
-                onOpenChange={setIsPreferencesOpen}
-                hideTrigger
-              />
+              {viewingMember && (
+                <UserPreferencesDropdown
+                  member={viewingMember}
+                  isOwner={viewingMember.id === selectedUser.id || isAdmin}
+                  currentUserId={selectedUser.id}
+                  onUpdateSuccess={handlePreferencesUpdate}
+                  isOpen={isPreferencesOpen}
+                  onOpenChange={setIsPreferencesOpen}
+                  hideTrigger
+                />
+              )}
             </>
           )}
 
@@ -758,7 +855,8 @@ const DashboardScreen = (props = {}) => {
                   onClick={e => e.stopPropagation()} // Prevent closing when clicking the form
                 >
                   <AddItemForm
-                    wishlistId={viewingMember.id}
+                    wishlistId={selectedSharedWishlist ? selectedSharedWishlist.id : viewingMember.id}
+                    isSharedWishlist={!!selectedSharedWishlist}
                     onAddItem={handleAddItem}
                     onClose={handleCloseAddItemForm}
                   />
@@ -790,19 +888,6 @@ const DashboardScreen = (props = {}) => {
         onSelectWishlist={handleSelectSharedWishlist}
         currentUserId={selectedUser?.id}
       />
-
-      {/* Shared Wishlist View - Full screen overlay when viewing a shared wishlist */}
-      {selectedSharedWishlist && (
-        <div className="fixed inset-0 z-50 bg-gray-50 dark:bg-gray-900">
-          <SharedWishlistView
-            wishlist={selectedSharedWishlist}
-            onBack={handleBackFromSharedWishlist}
-            currentUserId={selectedUser?.id}
-            currentUserName={selectedUser?.name}
-            isOwner={selectedSharedWishlist.owners?.some(o => o.id === selectedUser?.id)}
-          />
-        </div>
-      )}
     </>
   );
 };

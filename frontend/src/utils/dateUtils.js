@@ -170,23 +170,25 @@ export const getChristmasInfo = () => {
 };
 
 /**
- * Get all upcoming events (birthdays and Christmas) ordered by date
+ * Get all upcoming events (birthdays, shared wishlist occasions, and Christmas) ordered by date
  * @param {Array} familyMembers - Array of family members
+ * @param {Array} sharedWishlists - Array of shared wishlists with occasion dates
  * @returns {Array} Sorted array of upcoming events
  */
-export const getUpcomingEvents = (familyMembers) => {
+export const getUpcomingEvents = (familyMembers, sharedWishlists = []) => {
   const events = [];
-  
+
   // Add Christmas to events
   const christmasInfo = getChristmasInfo();
   if (christmasInfo) {
     events.push({
       name: "Christmas",
       daysUntil: christmasInfo.daysUntil,
-      date: christmasInfo.date
+      date: christmasInfo.date,
+      type: 'holiday'
     });
   }
-  
+
   // Add all family member birthdays
   if (Array.isArray(familyMembers)) {
     familyMembers.forEach(member => {
@@ -196,15 +198,59 @@ export const getUpcomingEvents = (familyMembers) => {
           events.push({
             name: `${member.name}'s Birthday`,
             daysUntil: birthdayInfo.daysUntil,
-            date: birthdayInfo.date
+            date: birthdayInfo.date,
+            type: 'birthday',
+            memberId: member.id
           });
         }
       }
     });
   }
-  
+
+  // Add shared wishlist occasions
+  if (Array.isArray(sharedWishlists)) {
+    sharedWishlists.forEach(wishlist => {
+      if (wishlist.occasion_date) {
+        const occasionInfo = getDaysUntilBirthday(wishlist.occasion_date);
+        if (occasionInfo) {
+          const displayName = wishlist.name
+            .replace(/['']s\s+Wishlist$/i, '')
+            .replace(/\s+Wishlist$/i, '');
+
+          // Format event name based on occasion type
+          let eventName;
+          switch (wishlist.occasion_type) {
+            case 'birthday':
+              eventName = `${displayName}'s Birthday`;
+              break;
+            case 'wedding':
+              eventName = `${displayName}'s Wedding`;
+              break;
+            case 'baby_shower':
+              eventName = `${displayName}'s Baby Shower`;
+              break;
+            case 'anniversary':
+              eventName = `${displayName}'s Anniversary`;
+              break;
+            default:
+              eventName = displayName;
+          }
+
+          events.push({
+            name: eventName,
+            daysUntil: occasionInfo.daysUntil,
+            date: occasionInfo.date,
+            type: wishlist.occasion_type || 'other',
+            isSharedWishlist: true,
+            wishlistId: wishlist.id
+          });
+        }
+      }
+    });
+  }
+
   // Sort events by days until (closest first)
   events.sort((a, b) => a.daysUntil - b.daysUntil);
-  
+
   return events;
 };

@@ -2145,6 +2145,48 @@ def toggle_shared_item_purchased(
     )
 
 
+@app.post("/api/shared-wishlist-items/{item_id}/comments", response_model=schemas.SharedWishlistItemComment)
+def add_shared_wishlist_item_comment(
+    item_id: int,
+    comment: schemas.CommentCreate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Add a comment to a shared wishlist item. Non-owners and admin can comment."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    # Get the shared item
+    shared_item = db.query(models.SharedWishlistItem).filter(models.SharedWishlistItem.id == item_id).first()
+    if not shared_item:
+        raise HTTPException(status_code=404, detail="Shared wishlist item not found")
+
+    # Get the current user
+    current_user = crud.get_family_member(db, current_user_id)
+    if not current_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    is_admin = current_user.name.lower() == 'admin'
+
+    # Check if user is an owner (owners can't comment unless they're admin)
+    if crud.is_shared_wishlist_owner(db, shared_item.wishlist_id, current_user_id) and not is_admin:
+        raise HTTPException(status_code=400, detail="Owners cannot comment on their own wishlist items")
+
+    # Create the comment
+    db_comment = crud.create_shared_wishlist_item_comment(db, item_id, comment.text, current_user_id)
+    if not db_comment:
+        raise HTTPException(status_code=400, detail="Failed to create comment")
+
+    return schemas.SharedWishlistItemComment(
+        id=db_comment.id,
+        author_id=db_comment.author_id,
+        author_name=current_user.name,
+        shared_item_id=db_comment.shared_item_id,
+        text=db_comment.text,
+        created_at=db_comment.created_at
+    )
+
+
 @app.put("/api/members/{member_id}/preferences", response_model=schemas.FamilyMember)
 def update_member_preferences(
     member_id: int,
@@ -4321,6 +4363,71 @@ def create_shopping_cart_item_from_wishlist(
     db.refresh(db_item)
     return db_item
 
+
+@app.post("/api/shopping-cart/from-shared-wishlist-item/{item_id}", response_model=schemas.ShoppingCartItem)
+def create_shopping_cart_item_from_shared_wishlist(
+    item_id: int = Path(...),
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header),
+):
+    """Create a shopping cart item from a shared wishlist item."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current user context (X-Current-User-Id header) is required.")
+
+    shared_item = db.query(models.SharedWishlistItem).filter(models.SharedWishlistItem.id == item_id).first()
+    if not shared_item:
+        raise HTTPException(status_code=404, detail="Shared wishlist item not found")
+
+    current_user = db.query(models.FamilyMember).filter(models.FamilyMember.id == current_user_id).first()
+    if not current_user:
+        raise HTTPException(status_code=404, detail="Current user not found")
+
+    # Get the shared wishlist
+    shared_wishlist = db.query(models.SharedWishlist).filter(models.SharedWishlist.id == shared_item.wishlist_id).first()
+    if not shared_wishlist:
+        raise HTTPException(status_code=404, detail="Shared wishlist not found")
+
+    # Owners cannot add their own items to cart
+    if crud.is_shared_wishlist_owner(db, shared_item.wishlist_id, current_user_id):
+        raise HTTPException(status_code=403, detail="Owners cannot reserve items from their own shared wishlist")
+
+    # Check if already in cart
+    existing_cart_item = db.query(models.ShoppingCartItem).filter(
+        models.ShoppingCartItem.buyer_id == current_user_id,
+        models.ShoppingCartItem.shared_wishlist_item_id == shared_item.id,
+    ).first()
+    if existing_cart_item:
+        raise HTTPException(status_code=409, detail="Item already in cart")
+
+    # Check if already reserved by someone else
+    if shared_item.is_purchased and shared_item.purchased_by != current_user.name:
+        raise HTTPException(status_code=409, detail="Item already reserved by another user")
+
+    # Create the cart item using the shared wishlist name as recipient_name
+    db_item = models.ShoppingCartItem(
+        buyer_id=current_user_id,
+        recipient_id=None,  # No family member recipient for shared wishlists
+        recipient_name=shared_wishlist.name,  # Use wishlist name as recipient
+        shared_wishlist_item_id=shared_item.id,
+        wishlist_item_id=None,
+        title=shared_item.title,
+        notes=None,
+        link=shared_item.link,
+        image_url=shared_item.image_url,
+        price=shared_item.price,
+        status="pending",
+    )
+    db.add(db_item)
+
+    # Mark the shared item as purchased
+    shared_item.is_purchased = True
+    shared_item.purchased_by = current_user.name
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+
 @app.put("/api/shopping-cart/{cart_item_id}", response_model=schemas.ShoppingCartItem)
 def update_shopping_cart_item(
     cart_item_id: int = Path(...),
@@ -4362,11 +4469,23 @@ def delete_shopping_cart_item(
     if not db_item:
         raise HTTPException(status_code=404, detail="Shopping cart item not found")
     current_user = db.query(models.FamilyMember).filter(models.FamilyMember.id == current_user_id).first()
+
+    # Clear purchased status on regular wishlist items
     if db_item.wishlist_item_id and current_user:
         wishlist_item = db.query(models.WishlistItem).filter(models.WishlistItem.id == db_item.wishlist_item_id).first()
         if wishlist_item and wishlist_item.purchased_by == current_user.name:
             wishlist_item.is_purchased = False
             wishlist_item.purchased_by = None
+
+    # Clear purchased status on shared wishlist items
+    if db_item.shared_wishlist_item_id and current_user:
+        shared_item = db.query(models.SharedWishlistItem).filter(
+            models.SharedWishlistItem.id == db_item.shared_wishlist_item_id
+        ).first()
+        if shared_item and shared_item.purchased_by == current_user.name:
+            shared_item.is_purchased = False
+            shared_item.purchased_by = None
+
     db.delete(db_item)
     db.commit()
     return {"success": True, "message": "Item removed from cart."}

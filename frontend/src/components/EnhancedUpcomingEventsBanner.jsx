@@ -3,13 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, Gift, ChevronDown, ChevronUp } from 'lucide-react';
 import { getCountdownDisplay, getUpcomingEvents } from '../utils/dateUtils';
 
-const EnhancedUpcomingEventsBanner = ({ familyMembers }) => {
+const EnhancedUpcomingEventsBanner = ({ familyMembers, sharedWishlists = [] }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  
+
   // Get and sort all upcoming events
   const upcomingEvents = useMemo(() => {
-    return getUpcomingEvents(familyMembers);
-  }, [familyMembers]);
+    return getUpcomingEvents(familyMembers, sharedWishlists);
+  }, [familyMembers, sharedWishlists]);
   
   if (!upcomingEvents || upcomingEvents.length === 0) return null;
 

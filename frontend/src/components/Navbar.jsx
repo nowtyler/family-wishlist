@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
 import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPlus,
-         Trash2, AlertOctagon, Database, UserRound, User, Home, Download, Upload, HelpCircle, Baby } from 'lucide-react';
+         Trash2, AlertOctagon, Database, UserRound, User, Home, Download, Upload, HelpCircle, Baby, Users } from 'lucide-react';
 import { useTutorial } from '../contexts/TutorialContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems,
@@ -17,6 +17,7 @@ import UserHouseholdManager from './UserHouseholdManager';
 const Navbar = ({
   onClearWishlist = () => {},
   viewingMember = null,
+  selectedSharedWishlist = null,
   onHouseholdUpdate = () => {},
   onRefreshWishlist = () => {},
   onOpenSharedWishlists = null
@@ -419,7 +420,7 @@ const Navbar = ({
                       </button>
                     )}
 
-                    {/* Manage Kid Wishlists - available to everyone */}
+                    {/* Manage Shared Wishlists - available to everyone */}
                     {onOpenSharedWishlists && (
                       <button
                         onClick={() => {
@@ -428,8 +429,8 @@ const Navbar = ({
                         }}
                         className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
                       >
-                        <Baby className="w-4 h-4 mr-2 text-fuchsia-500" />
-                        <span>Manage Kid Wishlists</span>
+                        <Users className="w-4 h-4 mr-2 text-fuchsia-500" />
+                        <span>Manage Shared Wishlists</span>
                       </button>
                     )}
 
@@ -494,15 +495,18 @@ const Navbar = ({
           </div>
 
           {/* Wishlist Header - Second row blended into navbar */}
-          {viewingMember && selectedUser && (
+          {(viewingMember || selectedSharedWishlist) && selectedUser && (
             <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
               <div className="flex flex-col items-center">
                 <h2 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white drop-shadow-lg text-center">
-                  {viewingMember.id === selectedUser.id ? "Your Wishlist" : `${viewingMember.name || ''}'s Wishlist`}
+                  {selectedSharedWishlist
+                    ? selectedSharedWishlist.name
+                    : (viewingMember.id === selectedUser.id ? "Your Wishlist" : `${viewingMember.name || ''}'s Wishlist`)}
                 </h2>
                 <p className="hidden sm:block text-gray-600 dark:text-gray-300 text-sm text-center">
-                  {viewingMember.id === selectedUser.id ? "Manage your wishes or " : "Browse wishes and "}
-                  see what others are hoping for!
+                  {selectedSharedWishlist
+                    ? `Shared wishlist with ${selectedSharedWishlist.owner_count || 0} co-owner${(selectedSharedWishlist.owner_count || 0) !== 1 ? 's' : ''}`
+                    : (viewingMember.id === selectedUser.id ? "Manage your wishes or " : "Browse wishes and ") + "see what others are hoping for!"}
                 </p>
               </div>
             </div>

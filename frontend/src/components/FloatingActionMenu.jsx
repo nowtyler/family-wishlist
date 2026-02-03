@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { Menu, X, Plus, Home, Link2, Users, User, ChevronLeft, ShoppingCart, Baby } from 'lucide-react';
+import { Menu, X, Plus, Home, Link2, Users, User, ChevronLeft, ShoppingCart } from 'lucide-react';
 import { useTutorial } from '../contexts/TutorialContext';
 
 // Haptic feedback helper
@@ -21,6 +21,7 @@ const MENU_TUTORIAL_TARGETS = [
 const FloatingActionMenu = ({
   isOwnWishlist,
   viewingMember,
+  selectedSharedWishlist = null,
   onAddItem,
   onReturnHome,
   onOpenShoppingCart,
@@ -38,7 +39,6 @@ const FloatingActionMenu = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showMemberSubmenu, setShowMemberSubmenu] = useState(false);
-  const [browseTab, setBrowseTab] = useState('people'); // 'people' or 'kids'
   const menuRef = useRef(null);
   const tutorial = useTutorial();
   const prefersReducedMotion = useReducedMotion();
@@ -209,15 +209,26 @@ const FloatingActionMenu = ({
     return items;
   };
 
-  // Get non-admin family members for the submenu, sorted alphabetically
-  const browsableMembers = familyMembers
-    .filter(m => !m.is_admin)
-    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  // Get non-admin family members for the submenu
+  const browsableMembers = familyMembers.filter(m => !m.is_admin);
 
-  // Sort shared wishlists alphabetically by name
-  const sortedSharedWishlists = [...sharedWishlists].sort((a, b) =>
-    (a.name || '').localeCompare(b.name || '')
-  );
+  // Create unified list of members and shared wishlists, sorted alphabetically
+  const unifiedBrowseList = [
+    ...browsableMembers.map(member => ({
+      type: 'member',
+      id: member.id,
+      name: member.name,
+      itemCount: member.wishlist_item_count || 0,
+      data: member
+    })),
+    ...sharedWishlists.map(wishlist => ({
+      type: 'shared',
+      id: `shared-${wishlist.id}`,
+      name: wishlist.name.replace(/['']s\s+Wishlist$/i, '').replace(/\s+Wishlist$/i, ''),
+      itemCount: wishlist.item_count || wishlist.items?.length || 0,
+      data: wishlist
+    }))
+  ].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
   // Color palette for member avatars
   const memberColors = [
@@ -445,167 +456,110 @@ const FloatingActionMenu = ({
                 </motion.button>
               </motion.div>
 
-              {/* Tab content - People */}
-              {browseTab === 'people' && browsableMembers.map((member, memberIndex) => {
-                const isCurrentMember = viewingMember?.id === member.id;
-                const memberColor = getMemberColor(memberIndex);
-                const initial = member.name.charAt(0).toUpperCase();
+              {/* Unified browse list - members and shared wishlists together */}
+              {unifiedBrowseList.map((item, index) => {
+                if (item.type === 'member') {
+                  const member = item.data;
+                  const isCurrentMember = viewingMember?.id === member.id;
+                  const memberColor = getMemberColor(index);
+                  const initial = member.name.charAt(0).toUpperCase();
 
-                return (
-                  <motion.div
-                    key={member.id}
-                    variants={itemVariants}
-                    layout="position"
-                    className="flex items-center gap-4"
-                  >
-                    {/* Member name label */}
-                    <motion.span
-                      variants={labelVariants}
-                      className={`px-3 py-1.5 text-sm font-medium rounded-lg shadow-lg whitespace-nowrap ${
-                        isCurrentMember
-                          ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white'
-                          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200'
-                      }`}
+                  return (
+                    <motion.div
+                      key={item.id}
+                      variants={itemVariants}
+                      layout="position"
+                      className="flex items-center gap-4"
                     >
-                      {member.name}
-                    </motion.span>
+                      {/* Member name label */}
+                      <motion.span
+                        variants={labelVariants}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-lg shadow-lg whitespace-nowrap ${
+                          isCurrentMember
+                            ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white'
+                            : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200'
+                        }`}
+                      >
+                        {member.name}
+                      </motion.span>
 
-                    {/* Select button with initial and badge */}
-                    <motion.button
-                      onClick={() => {
-                        triggerHaptic();
-                        setIsOpen(false);
-                        setShowMemberSubmenu(false);
-                        onSelectMember?.(member);
-                      }}
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.95 }}
-                      whileFocus={{ scale: 1.1 }}
-                      aria-label={`View ${member.name}'s wishlist`}
-                      className={`relative w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 text-white font-semibold text-base ${
-                        isCurrentMember
-                          ? `${memberColor.bg} ring-2 ring-white dark:ring-gray-900`
-                          : `${memberColor.bg} ${memberColor.hover}`
-                      }`}
+                      {/* Select button with initial and badge */}
+                      <motion.button
+                        onClick={() => {
+                          triggerHaptic();
+                          setIsOpen(false);
+                          setShowMemberSubmenu(false);
+                          onSelectMember?.(member);
+                        }}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.95 }}
+                        whileFocus={{ scale: 1.1 }}
+                        aria-label={`View ${member.name}'s wishlist`}
+                        className={`relative w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 text-white font-semibold text-base ${
+                          isCurrentMember
+                            ? `${memberColor.bg} ring-2 ring-white dark:ring-gray-900`
+                            : `${memberColor.bg} ${memberColor.hover}`
+                        }`}
+                      >
+                        {initial}
+                        {/* Item count badge */}
+                        <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[20px] h-[20px] px-1 text-xs font-bold text-white bg-gray-700 dark:bg-gray-800 rounded-full shadow-md border-2 border-white dark:border-gray-900">
+                          {item.itemCount}
+                        </span>
+                      </motion.button>
+                    </motion.div>
+                  );
+                } else {
+                  // Shared wishlist
+                  const wishlist = item.data;
+                  const isCurrentWishlist = selectedSharedWishlist?.id === wishlist.id;
+
+                  return (
+                    <motion.div
+                      key={item.id}
+                      variants={itemVariants}
+                      layout="position"
+                      className="flex items-center gap-4"
                     >
-                      {initial}
-                      {/* Item count badge */}
-                      <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[20px] h-[20px] px-1 text-xs font-bold text-white bg-gray-700 dark:bg-gray-800 rounded-full shadow-md border-2 border-white dark:border-gray-900">
-                        {member.wishlist_item_count}
-                      </span>
-                    </motion.button>
-                  </motion.div>
-                );
+                      {/* Wishlist name label with shared indicator */}
+                      <motion.span
+                        variants={labelVariants}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-lg shadow-lg whitespace-nowrap flex items-center gap-1.5 ${
+                          isCurrentWishlist
+                            ? 'bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white'
+                            : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200'
+                        }`}
+                      >
+                        <Users size={14} className={isCurrentWishlist ? 'text-white' : 'text-fuchsia-500'} />
+                        {item.name}
+                      </motion.span>
+
+                      {/* Select button */}
+                      <motion.button
+                        onClick={() => {
+                          triggerHaptic();
+                          setIsOpen(false);
+                          setShowMemberSubmenu(false);
+                          onSelectSharedWishlist?.(wishlist);
+                        }}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.95 }}
+                        whileFocus={{ scale: 1.1 }}
+                        aria-label={`View ${wishlist.name}`}
+                        className={`relative w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 text-white bg-gradient-to-r from-fuchsia-500 to-pink-500 hover:from-fuchsia-600 hover:to-pink-600 ${
+                          isCurrentWishlist ? 'ring-2 ring-white dark:ring-gray-900' : ''
+                        }`}
+                      >
+                        <Users size={18} />
+                        {/* Item count badge */}
+                        <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[20px] h-[20px] px-1 text-xs font-bold text-white bg-gray-700 dark:bg-gray-800 rounded-full shadow-md border-2 border-white dark:border-gray-900">
+                          {item.itemCount}
+                        </span>
+                      </motion.button>
+                    </motion.div>
+                  );
+                }
               })}
-
-              {/* Tab content - Kids */}
-              {browseTab === 'kids' && sortedSharedWishlists.length > 0 && sortedSharedWishlists.map((wishlist) => {
-                const itemCount = wishlist.item_count || wishlist.items?.length || 0;
-                // Strip "Wishlist" or "'s Wishlist" from the display name
-                const displayName = wishlist.name
-                  .replace(/['']s\s+Wishlist$/i, '')
-                  .replace(/\s+Wishlist$/i, '');
-
-                return (
-                  <motion.div
-                    key={`shared-${wishlist.id}`}
-                    variants={itemVariants}
-                    layout="position"
-                    className="flex items-center gap-4"
-                  >
-                    {/* Wishlist name label with kid indicator */}
-                    <motion.span
-                      variants={labelVariants}
-                      className="px-3 py-1.5 text-sm font-medium rounded-lg shadow-lg whitespace-nowrap bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 flex items-center gap-1.5"
-                    >
-                      <Baby size={14} className="text-fuchsia-500" />
-                      {displayName}
-                    </motion.span>
-
-                    {/* Select button */}
-                    <motion.button
-                      onClick={() => {
-                        triggerHaptic();
-                        setIsOpen(false);
-                        setShowMemberSubmenu(false);
-                        onSelectSharedWishlist?.(wishlist);
-                      }}
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.95 }}
-                      whileFocus={{ scale: 1.1 }}
-                      aria-label={`View ${wishlist.name}`}
-                      className="relative w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 text-white bg-gradient-to-r from-fuchsia-500 to-pink-500 hover:from-fuchsia-600 hover:to-pink-600"
-                    >
-                      <Baby size={18} />
-                      {/* Item count badge */}
-                      <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[20px] h-[20px] px-1 text-xs font-bold text-white bg-gray-700 dark:bg-gray-800 rounded-full shadow-md border-2 border-white dark:border-gray-900">
-                        {itemCount}
-                      </span>
-                    </motion.button>
-                  </motion.div>
-                );
-              })}
-
-              {/* Empty state for Kids tab */}
-              {browseTab === 'kids' && sortedSharedWishlists.length === 0 && (
-                <motion.div
-                  variants={itemVariants}
-                  layout="position"
-                  className="flex items-center gap-4"
-                >
-                  <motion.span
-                    variants={labelVariants}
-                    className="px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400 rounded-lg shadow-lg whitespace-nowrap bg-white dark:bg-gray-800"
-                  >
-                    No kid wishlists yet
-                  </motion.span>
-                </motion.div>
-              )}
-
-              {/* Tabs */}
-              <motion.div
-                variants={itemVariants}
-                layout="position"
-                className="flex items-center gap-2"
-              >
-                <button
-                  onClick={() => {
-                    triggerHaptic();
-                    setBrowseTab('people');
-                  }}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-lg shadow-lg transition-all ${
-                    browseTab === 'people'
-                      ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white'
-                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <span className="flex items-center gap-1.5">
-                    <Users size={14} />
-                    People
-                  </span>
-                </button>
-                <button
-                  onClick={() => {
-                    triggerHaptic();
-                    setBrowseTab('kids');
-                  }}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-lg shadow-lg transition-all ${
-                    browseTab === 'kids'
-                      ? 'bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white'
-                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <span className="flex items-center gap-1.5">
-                    <Baby size={14} />
-                    Kids
-                    {sortedSharedWishlists.length > 0 && (
-                      <span className="ml-1 px-1.5 py-0.5 text-xs bg-white/20 rounded-full">
-                        {sortedSharedWishlists.length}
-                      </span>
-                    )}
-                  </span>
-                </button>
-              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>

@@ -1,4 +1,4 @@
-// SharedWishlistManager.jsx - Component for managing shared kid wishlists
+// SharedWishlistManager.jsx - Component for managing shared wishlists
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -31,6 +31,8 @@ const SharedWishlistManager = ({
   const [newWishlistName, setNewWishlistName] = useState('');
   const [newWishlistDescription, setNewWishlistDescription] = useState('');
   const [newWishlistHouseholdId, setNewWishlistHouseholdId] = useState('');
+  const [newOccasionDate, setNewOccasionDate] = useState('');
+  const [newOccasionType, setNewOccasionType] = useState('birthday');
   const [selectedOwnerId, setSelectedOwnerId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -53,6 +55,12 @@ const SharedWishlistManager = ({
   useEffect(() => {
     if (isOpen) {
       loadWishlists();
+    } else {
+      // Reset all editing states when modal is closed
+      setManagingOwners(null);
+      setEditingWishlist(null);
+      setShowCreateForm(false);
+      setSelectedOwnerId('');
     }
   }, [isOpen, loadWishlists]);
 
@@ -65,12 +73,16 @@ const SharedWishlistManager = ({
       const response = await createSharedWishlist({
         name: newWishlistName.trim(),
         description: newWishlistDescription.trim() || null,
-        household_id: newWishlistHouseholdId ? parseInt(newWishlistHouseholdId) : null
+        household_id: newWishlistHouseholdId ? parseInt(newWishlistHouseholdId) : null,
+        occasion_date: newOccasionDate || null,
+        occasion_type: newOccasionType || null
       });
       setWishlists(prev => [...prev, response.data]);
       setNewWishlistName('');
       setNewWishlistDescription('');
       setNewWishlistHouseholdId('');
+      setNewOccasionDate('');
+      setNewOccasionType('birthday');
       setShowCreateForm(false);
       toast.success('Shared wishlist created');
     } catch (error) {
@@ -175,7 +187,7 @@ const SharedWishlistManager = ({
             <div className="flex items-center gap-3">
               <Users className="w-6 h-6 text-purple-500" />
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Shared Kid Wishlists
+                Shared Wishlists
               </h2>
             </div>
             <button
@@ -191,7 +203,7 @@ const SharedWishlistManager = ({
             {/* Info Banner */}
             <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
               <p className="text-sm text-purple-700 dark:text-purple-300">
-                <strong>Shared Kid Wishlists</strong> allow multiple parents/guardians to manage a wishlist together.
+                <strong>Shared Wishlists</strong> allow multiple people manage a wishlist together.
                 Unlike personal wishlists, <strong>all co-owners can see purchased status</strong> to coordinate gift-giving.
               </p>
             </div>
@@ -209,7 +221,7 @@ const SharedWishlistManager = ({
                 <div className="space-y-3">
                   <div>
                     <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-                      Name (e.g., "Emma's Wishlist")
+                      Name (e.g., "Alex", "Baby Shower" or "Family Gifts")
                     </label>
                     <input
                       type="text"
@@ -255,10 +267,43 @@ const SharedWishlistManager = ({
                         ))}
                       </select>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Kid wishlists assigned to a household are only visible to members of that household
+                        Shared wishlists assigned to a household are only visible to members of that household
                       </p>
                     </div>
                   )}
+                  <div>
+                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                      Occasion Type (optional)
+                    </label>
+                    <select
+                      value={newOccasionType}
+                      onChange={(e) => setNewOccasionType(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600
+                        bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                      <option value="birthday">Birthday</option>
+                      <option value="wedding">Wedding</option>
+                      <option value="baby_shower">Baby Shower</option>
+                      <option value="anniversary">Anniversary</option>
+                      <option value="holiday">Holiday</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                      Occasion Date (optional)
+                    </label>
+                    <input
+                      type="date"
+                      value={newOccasionDate}
+                      onChange={(e) => setNewOccasionDate(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600
+                        bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Used for event reminders and countdown display
+                    </p>
+                  </div>
                   <div className="flex gap-2">
                     <button
                       type="submit"
@@ -276,6 +321,8 @@ const SharedWishlistManager = ({
                         setNewWishlistName('');
                         setNewWishlistDescription('');
                         setNewWishlistHouseholdId('');
+                        setNewOccasionDate('');
+                        setNewOccasionType('birthday');
                       }}
                       className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200
                         rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
@@ -304,7 +351,7 @@ const SharedWishlistManager = ({
               <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                 <Gift className="w-12 h-12 mx-auto mb-3 opacity-50" />
                 <p>No shared wishlists yet.</p>
-                <p className="text-sm mt-1">Create one to start managing gifts for your kids!</p>
+                <p className="text-sm mt-1">Create one to start managing gifts together!</p>
               </div>
             ) : (
               <div className="space-y-3">

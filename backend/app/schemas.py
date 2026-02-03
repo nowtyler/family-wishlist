@@ -539,9 +539,10 @@ class ExternalWishlist(ExternalWishlistBase):
 # --- Shopping Cart ---
 class ShoppingCartItemBase(BaseModel):
     buyer_id: int
-    recipient_id: Optional[int] = None
+    recipient_id: Optional[Union[int, str]] = None
     recipient_name: Optional[str] = Field(None, max_length=100)
     wishlist_item_id: Optional[int] = None
+    shared_wishlist_item_id: Optional[int] = None
     title: str = Field(..., min_length=1, max_length=200)
     notes: Optional[str] = Field(None, max_length=2000)
     link: Optional[HttpUrl] = None
@@ -555,9 +556,10 @@ class ShoppingCartItemCreate(ShoppingCartItemBase):
 
 class ShoppingCartItemUpdate(BaseModel):
     buyer_id: Optional[int] = None
-    recipient_id: Optional[int] = None
+    recipient_id: Optional[Union[int, str]] = None
     recipient_name: Optional[str] = Field(None, max_length=100)
     wishlist_item_id: Optional[int] = None
+    shared_wishlist_item_id: Optional[int] = None
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     notes: Optional[str] = Field(None, max_length=2000)
     link: Optional[HttpUrl] = None
@@ -627,6 +629,8 @@ class SharedWishlistBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=2000)
     household_id: Optional[int] = None
+    occasion_date: Optional[str] = Field(None, description="Date in YYYY-MM-DD format (birthday, wedding date, etc.)")
+    occasion_type: Optional[str] = Field(None, description="Type: birthday, wedding, baby_shower, anniversary, holiday, other")
 
 
 class SharedWishlistCreate(SharedWishlistBase):
@@ -637,6 +641,8 @@ class SharedWishlistUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=2000)
     household_id: Optional[int] = None
+    occasion_date: Optional[str] = None
+    occasion_type: Optional[str] = None
 
 
 class SharedWishlist(SharedWishlistBase):
@@ -674,6 +680,18 @@ class SharedWishlistItemUpdate(BaseModel):
     price: Optional[float] = Field(None, ge=0)
 
 
+class SharedWishlistItemComment(BaseModel):
+    id: int
+    author_id: int
+    author_name: str
+    shared_item_id: int
+    text: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class SharedWishlistItem(BaseModel):
     id: int
     wishlist_id: int
@@ -686,6 +704,7 @@ class SharedWishlistItem(BaseModel):
     is_purchased: bool = False
     purchased_by: Optional[str] = None
     thinking_about_by_list: List[str] = []
+    comments: List[SharedWishlistItemComment] = []
     created_at: Optional[datetime] = None
     created_by: Optional[int] = None
 

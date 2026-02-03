@@ -53,11 +53,34 @@ const SharedWishlistView = ({
 
   const handleThinkingAbout = async (itemId) => {
     try {
-      await toggleSharedItemThinking(itemId);
-      await loadWishlist(); // Refresh to get updated state
+      // Find the item index and optimistically update UI
+      const itemIndex = items.findIndex(item => item.id === itemId);
+      if (itemIndex !== -1) {
+        // Create a copy of the items array
+        const updatedItems = [...items];
+        // Toggle the thinking_about status optimistically
+        updatedItems[itemIndex] = {
+          ...updatedItems[itemIndex],
+          thinking_about: !updatedItems[itemIndex].thinking_about
+        };
+        // Update the state immediately
+        setItems(updatedItems);
+      }
+
+      // Send the request to the server
+      const response = await toggleSharedItemThinking(itemId);
+
+      // Only refresh if response doesn't match our optimistic update
+      if (response?.data && itemIndex !== -1) {
+        const updatedItems = [...items];
+        updatedItems[itemIndex] = response.data;
+        setItems(updatedItems);
+      }
     } catch (error) {
       console.error('Failed to toggle thinking status:', error);
       toast.error('Cannot mark "thinking about" on items you own');
+      // Revert optimistic update by refreshing
+      await loadWishlist();
     }
   };
 
@@ -68,6 +91,13 @@ const SharedWishlistView = ({
   const handleItemModalClose = () => {
     setSelectedItem(null);
   };
+
+  const handleUpdateItems = useCallback(async (skipReload = false) => {
+    // If skipReload is true, we're doing an optimistic update and don't need to reload
+    if (!skipReload) {
+      await loadWishlist();
+    }
+  }, [loadWishlist]);
 
   // Create a "virtual member" object that WishlistCard expects
   const virtualMember = {
@@ -132,14 +162,13 @@ const SharedWishlistView = ({
           isLoading={isLoading}
           isOwnWishlist={isOwner}
           currentUserId={currentUserId}
-          onUpdateItems={loadWishlist}
+          onUpdateItems={handleUpdateItems}
           onDeleteItem={handleDeleteItem}
           onThinkingAbout={handleThinkingAbout}
           onItemClick={handleItemClick}
           onItemModalClose={handleItemModalClose}
           selectedItem={selectedItem}
           currentUserName={currentUserName}
-          // Don't pass onCartUpdated since shared wishlists might not support shopping cart
         />
       </div>
     </div>

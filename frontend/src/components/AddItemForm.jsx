@@ -1,7 +1,7 @@
 // AddItemForm.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { fetchProductDetailsFromUrl, getWishlistItems } from '../services/api';
+import { fetchProductDetailsFromUrl, getWishlistItems, getSharedWishlistItems } from '../services/api';
 import { X, Link, Loader, ArrowRight, ChevronDown, ChevronUp, Ruler } from 'lucide-react';
 
 // Add priority mapping
@@ -43,7 +43,7 @@ const sizeOptions = {
   }
 };
 
-function AddItemForm({ wishlistId, onAddItem, onClose }) {
+function AddItemForm({ wishlistId, onAddItem, onClose, isSharedWishlist = false }) {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -76,10 +76,13 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
   useEffect(() => {
     const fetchExistingItems = async () => {
       if (!wishlistId) return;
-      
+
       try {
         setIsFetchingItems(true);
-        const response = await getWishlistItems(wishlistId);
+        // Use the correct API function based on whether it's a shared wishlist
+        const response = isSharedWishlist
+          ? await getSharedWishlistItems(wishlistId)
+          : await getWishlistItems(wishlistId);
         if (response && response.data) {
           setExistingItems(response.data);
         }
@@ -91,7 +94,7 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
     };
 
     fetchExistingItems();
-  }, [wishlistId]);
+  }, [wishlistId, isSharedWishlist]);
 
   // Check for duplicate titles when form data changes
   useEffect(() => {
