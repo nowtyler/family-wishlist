@@ -7,7 +7,7 @@ import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPl
 import { useTutorial } from '../contexts/TutorialContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems,
-         getFamilyMembers, clearAllWishlists, exportWishlist, importWishlist, setActiveHousehold } from '../services/api';
+         getFamilyMembers, clearAllWishlists, exportWishlist, importWishlist } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import MigrationModal from './admin/MigrationModal';
 import FamilyMemberManager from './admin/FamilyMemberManager';
@@ -177,28 +177,6 @@ const Navbar = ({
       }
     } catch (error) {
       console.error('Error refreshing family members after household update:', error);
-    }
-  };
-
-  const handleSwitchHousehold = async (householdId) => {
-    try {
-      const response = await setActiveHousehold(householdId);
-      // Update the selectedUser with new preferences
-      setSelectedUser(response.data);
-
-      // Refresh family members to show only members of new household
-      const membersResponse = await getFamilyMembers();
-      setFamilyMembers(membersResponse.data);
-
-      // Call the callback for dashboard refresh
-      if (onHouseholdUpdate) {
-        onHouseholdUpdate();
-      }
-
-      // Close settings menu
-      setShowSettings(false);
-    } catch (error) {
-      console.error('Failed to switch household:', error);
     }
   };
 
@@ -372,29 +350,6 @@ const Navbar = ({
                             </div>
                           </div>
                         </div>
-                      </div>
-                    )}
-
-                    {/* Household Switcher */}
-                    {selectedUser && selectedUser.households && selectedUser.households.length > 1 && (
-                      <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-600">
-                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-                          Active Household
-                        </label>
-                        <select
-                          value={selectedUser.preferences?.active_household_id || ''}
-                          onChange={(e) => handleSwitchHousehold(parseInt(e.target.value))}
-                          className="w-full px-2 py-1 text-sm bg-gray-50 dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded text-gray-900 dark:text-white"
-                        >
-                          {selectedUser.households.map((household) => (
-                            <option key={household.id} value={household.id}>
-                              {household.name}
-                            </option>
-                          ))}
-                        </select>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          Switch to view members from a different household
-                        </p>
                       </div>
                     )}
 

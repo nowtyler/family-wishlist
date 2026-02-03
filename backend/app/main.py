@@ -267,45 +267,33 @@ def read_family_members(
         # Admin can see all family members
         members = crud.get_family_members(db)
     else:
-        # Regular users can only see members of their active household
+        # Regular users see all members who share ANY household with them
         try:
-            # Get user's active household from preferences
-            active_household_id = None
-            if current_user.preferences and isinstance(current_user.preferences, dict):
-                active_household_id = current_user.preferences.get('active_household_id')
+            # Get all households the current user is in
+            current_user_households_query = db.query(models.user_household_association.c.household_id).filter(
+                models.user_household_association.c.user_id == current_user_id,
+                models.user_household_association.c.status == 'active'
+            )
+            current_user_households = {row[0] for row in current_user_households_query.all()}
 
-            if not active_household_id:
-                # No active household set - get all households user is in
-                current_user_households_query = db.query(models.user_household_association.c.household_id).filter(
-                    models.user_household_association.c.user_id == current_user_id,
-                    models.user_household_association.c.status == 'active'
-                )
-                current_user_households = {row[0] for row in current_user_households_query.all()}
-
-                if not current_user_households:
-                    # If user has no households, they can only see themselves
-                    members = [current_user]
-                else:
-                    # Use the first household as default active household
-                    active_household_id = list(current_user_households)[0]
-
-            if active_household_id:
-                # Get all users in the active household
+            if not current_user_households:
+                # If user has no households, they can only see themselves
+                members = [current_user]
+            else:
+                # Get all users who are in ANY of the user's households
                 household_member_ids_query = db.query(models.user_household_association.c.user_id).filter(
-                    models.user_household_association.c.household_id == active_household_id,
+                    models.user_household_association.c.household_id.in_(current_user_households),
                     models.user_household_association.c.status == 'active'
                 ).distinct()
                 household_member_ids = {row[0] for row in household_member_ids_query.all()}
 
-                # Get family members who are in the active household
+                # Get family members who share at least one household
                 members = db.query(models.FamilyMember).filter(
                     models.FamilyMember.id.in_(household_member_ids)
                 ).all()
-            else:
-                members = [current_user]
 
         except Exception as e:
-            logger.error(f"Error filtering family members by active household for user {current_user_id}: {e}")
+            logger.error(f"Error filtering family members by household for user {current_user_id}: {e}")
             # Fallback: only show current user
             members = [current_user]
     
