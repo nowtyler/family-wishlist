@@ -39,6 +39,7 @@ class FamilyMember(FamilyMemberBase):
     wishlist_item_count: Optional[int] = 0
     external_wishlist_count: Optional[int] = 0
     household_count: Optional[int] = 0
+    households: Optional[List[Dict[str, Any]]] = []
 
     class Config:
         from_attributes = True
@@ -625,6 +626,7 @@ class SharedWishlistOwner(BaseModel):
 class SharedWishlistBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=2000)
+    household_id: Optional[int] = None
 
 
 class SharedWishlistCreate(SharedWishlistBase):
@@ -634,6 +636,7 @@ class SharedWishlistCreate(SharedWishlistBase):
 class SharedWishlistUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=2000)
+    household_id: Optional[int] = None
 
 
 class SharedWishlist(SharedWishlistBase):
@@ -643,6 +646,7 @@ class SharedWishlist(SharedWishlistBase):
     owner_count: Optional[int] = 0
     item_count: Optional[int] = 0
     owners: List[SharedWishlistOwner] = []
+    household_name: Optional[str] = None
 
     class Config:
         from_attributes = True

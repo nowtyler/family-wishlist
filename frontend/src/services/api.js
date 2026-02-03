@@ -850,6 +850,12 @@ export const leaveHousehold = (householdId) => {
   return apiClient.delete(`/households/${householdId}/leave`);
 };
 
+export const setActiveHousehold = (householdId) => {
+  return apiClient.put('/households/active', null, {
+    params: { household_id: householdId }
+  });
+};
+
 export const getApplicationLogs = (params = {}) => {
     return apiClient.get('/admin/system/logs', { params });
 };

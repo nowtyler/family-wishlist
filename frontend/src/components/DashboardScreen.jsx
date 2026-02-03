@@ -606,11 +606,12 @@ const DashboardScreen = (props = {}) => {
   return (
     <>
       {/* Add Navbar component */}
-      <Navbar 
-        onClearWishlist={refreshWishlistItems} 
+      <Navbar
+        onClearWishlist={refreshWishlistItems}
         viewingMember={viewingMember}
         onHouseholdUpdate={handleHouseholdUpdate}
         onRefreshWishlist={refreshWishlistItems}
+        onOpenSharedWishlists={() => setIsSharedWishlistsOpen(true)}
       />
       
       <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
@@ -680,12 +681,13 @@ const DashboardScreen = (props = {}) => {
                 onOpenPreferences={() => setIsPreferencesOpen(true)}
                 onOpenSharedWishlists={() => setIsSharedWishlistsOpen(true)}
                 onSelectMember={handleSelectViewingMember}
+                onSelectSharedWishlist={handleSelectSharedWishlist}
                 familyMembers={familyMembers}
+                sharedWishlists={sharedWishlists}
                 selectedUser={selectedUser}
                 isHidden={isAddingItem || selectedItem || selectedSharedWishlist}
                 cartCount={cartCount}
                 notificationCount={notificationCount}
-                sharedWishlistCount={sharedWishlists.length}
               />
 
               {/* Hidden External Wishlists Button - Only renders modal, triggered from FloatingActionMenu */}

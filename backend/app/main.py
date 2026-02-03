@@ -267,33 +267,45 @@ def read_family_members(
         # Admin can see all family members
         members = crud.get_family_members(db)
     else:
-        # Regular users can only see members who share households with them
+        # Regular users can only see members of their active household
         try:
-            # Get current user's household IDs
-            current_user_households_query = db.query(models.user_household_association.c.household_id).filter(
-                models.user_household_association.c.user_id == current_user_id,
-                models.user_household_association.c.status == 'active'
-            )
-            current_user_households = {row[0] for row in current_user_households_query.all()}
-            
-            if not current_user_households:
-                # If user has no households, they can only see themselves
-                members = [current_user]
-            else:
-                # Get all users who share at least one household with current user
+            # Get user's active household from preferences
+            active_household_id = None
+            if current_user.preferences and isinstance(current_user.preferences, dict):
+                active_household_id = current_user.preferences.get('active_household_id')
+
+            if not active_household_id:
+                # No active household set - get all households user is in
+                current_user_households_query = db.query(models.user_household_association.c.household_id).filter(
+                    models.user_household_association.c.user_id == current_user_id,
+                    models.user_household_association.c.status == 'active'
+                )
+                current_user_households = {row[0] for row in current_user_households_query.all()}
+
+                if not current_user_households:
+                    # If user has no households, they can only see themselves
+                    members = [current_user]
+                else:
+                    # Use the first household as default active household
+                    active_household_id = list(current_user_households)[0]
+
+            if active_household_id:
+                # Get all users in the active household
                 household_member_ids_query = db.query(models.user_household_association.c.user_id).filter(
-                    models.user_household_association.c.household_id.in_(current_user_households),
+                    models.user_household_association.c.household_id == active_household_id,
                     models.user_household_association.c.status == 'active'
                 ).distinct()
                 household_member_ids = {row[0] for row in household_member_ids_query.all()}
-                
-                # Get family members who are in the same households
+
+                # Get family members who are in the active household
                 members = db.query(models.FamilyMember).filter(
                     models.FamilyMember.id.in_(household_member_ids)
                 ).all()
-                
+            else:
+                members = [current_user]
+
         except Exception as e:
-            logger.error(f"Error filtering family members by household for user {current_user_id}: {e}")
+            logger.error(f"Error filtering family members by active household for user {current_user_id}: {e}")
             # Fallback: only show current user
             members = [current_user]
     
@@ -308,11 +320,34 @@ def read_family_members(
         external_wishlist_count = db.query(models.ExternalWishlist).filter(
             models.ExternalWishlist.owner_id == member.id
         ).count()
-        # Ensure birthday is correctly formatted if present
-        member_schema = schemas.FamilyMember.from_orm(member)
-        member_schema.wishlist_item_count = count
-        member_schema.external_wishlist_count = external_wishlist_count
-        member_schema.household_count = household_count
+        # Get household details for this member
+        member_households = db.query(models.Household).join(
+            models.user_household_association,
+            models.Household.id == models.user_household_association.c.household_id
+        ).filter(
+            models.user_household_association.c.user_id == member.id,
+            models.user_household_association.c.status == 'active'
+        ).all()
+
+        households_data = [{"id": h.id, "name": h.name} for h in member_households]
+
+        # Build member dict manually to avoid ORM relationship serialization issues
+        member_dict = {
+            "id": member.id,
+            "name": member.name,
+            "birthday": member.birthday,
+            "is_admin": member.is_admin,
+            "preferences": member.preferences,
+            "username": member.username,
+            "email": member.email,
+            "force_password_change": member.force_password_change,
+            "first_login": member.first_login,
+            "wishlist_item_count": count,
+            "external_wishlist_count": external_wishlist_count,
+            "household_count": household_count,
+            "households": households_data
+        }
+        member_schema = schemas.FamilyMember.model_validate(member_dict)
         members_with_counts.append(member_schema)
     return members_with_counts
 
@@ -1692,21 +1727,31 @@ def get_shared_wishlists(
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id_from_header)
 ):
-    """Get all shared wishlists where the current user is an owner"""
+    """Get all shared wishlists (filtered by user's households)"""
     if current_user_id is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
 
-    wishlists = crud.get_shared_wishlists_for_user(db, current_user_id)
+    wishlists = crud.get_all_shared_wishlists(db, user_id=current_user_id)
     result = []
     for wishlist in wishlists:
         owners = crud.get_shared_wishlist_owners(db, wishlist.id)
         item_count = db.query(models.SharedWishlistItem).filter(
             models.SharedWishlistItem.wishlist_id == wishlist.id
         ).count()
+
+        # Get household name if household_id is set
+        household_name = None
+        if wishlist.household_id:
+            household = db.query(models.Household).filter(models.Household.id == wishlist.household_id).first()
+            if household:
+                household_name = household.name
+
         result.append(schemas.SharedWishlist(
             id=wishlist.id,
             name=wishlist.name,
             description=wishlist.description,
+            household_id=wishlist.household_id,
+            household_name=household_name,
             created_at=wishlist.created_at,
             created_by=wishlist.created_by,
             owner_count=len(owners),
@@ -1733,10 +1778,19 @@ def create_shared_wishlist(
     db_wishlist = crud.create_shared_wishlist(db, wishlist, current_user_id)
     owners = crud.get_shared_wishlist_owners(db, db_wishlist.id)
 
+    # Get household name if household_id is set
+    household_name = None
+    if db_wishlist.household_id:
+        household = db.query(models.Household).filter(models.Household.id == db_wishlist.household_id).first()
+        if household:
+            household_name = household.name
+
     return schemas.SharedWishlist(
         id=db_wishlist.id,
         name=db_wishlist.name,
         description=db_wishlist.description,
+        household_id=db_wishlist.household_id,
+        household_name=household_name,
         created_at=db_wishlist.created_at,
         created_by=db_wishlist.created_by,
         owner_count=len(owners),
@@ -1763,40 +1817,43 @@ def get_shared_wishlist(
     if not db_wishlist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shared wishlist not found")
 
-    # Check access - must be owner or share household with an owner
+    # Check access - must be owner, in same household, or admin
     is_owner = crud.is_shared_wishlist_owner(db, wishlist_id, current_user_id)
     user = crud.get_family_member(db, current_user_id)
     is_admin = user and user.is_admin
 
     if not is_owner and not is_admin:
-        # Check household access
-        owners = crud.get_shared_wishlist_owners(db, wishlist_id)
-        owner_ids = [o.id for o in owners]
+        # Check household access if wishlist has a household
+        if db_wishlist.household_id:
+            current_user_households = {
+                row[0] for row in db.query(models.user_household_association.c.household_id).filter(
+                    models.user_household_association.c.user_id == current_user_id,
+                    models.user_household_association.c.status == 'active'
+                ).all()
+            }
 
-        current_user_households = {
-            row[0] for row in db.query(models.user_household_association.c.household_id).filter(
-                models.user_household_association.c.user_id == current_user_id,
-                models.user_household_association.c.status == 'active'
-            ).all()
-        }
-
-        owner_households = {
-            row[0] for row in db.query(models.user_household_association.c.household_id).filter(
-                models.user_household_association.c.user_id.in_(owner_ids),
-                models.user_household_association.c.status == 'active'
-            ).all()
-        }
-
-        if not current_user_households.intersection(owner_households):
+            if db_wishlist.household_id not in current_user_households:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+        else:
+            # No household set - deny access if not owner or admin
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     owners = crud.get_shared_wishlist_owners(db, wishlist_id)
     items = crud.get_shared_wishlist_items(db, wishlist_id, current_user_id)
 
+    # Get household name if household_id is set
+    household_name = None
+    if db_wishlist.household_id:
+        household = db.query(models.Household).filter(models.Household.id == db_wishlist.household_id).first()
+        if household:
+            household_name = household.name
+
     return schemas.SharedWishlistWithItems(
         id=db_wishlist.id,
         name=db_wishlist.name,
         description=db_wishlist.description,
+        household_id=db_wishlist.household_id,
+        household_name=household_name,
         created_at=db_wishlist.created_at,
         created_by=db_wishlist.created_by,
         owner_count=len(owners),
@@ -1833,10 +1890,19 @@ def update_shared_wishlist(
         models.SharedWishlistItem.wishlist_id == wishlist_id
     ).count()
 
+    # Get household name if household_id is set
+    household_name = None
+    if db_wishlist.household_id:
+        household = db.query(models.Household).filter(models.Household.id == db_wishlist.household_id).first()
+        if household:
+            household_name = household.name
+
     return schemas.SharedWishlist(
         id=db_wishlist.id,
         name=db_wishlist.name,
         description=db_wishlist.description,
+        household_id=db_wishlist.household_id,
+        household_name=household_name,
         created_at=db_wishlist.created_at,
         created_by=db_wishlist.created_by,
         owner_count=len(owners),
@@ -4002,6 +4068,87 @@ def leave_household(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to leave household: {str(e)}"
+        )
+
+@app.put("/api/households/active", response_model=schemas.FamilyMember)
+def set_active_household(
+    household_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Set the active/primary household for the current user"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    try:
+        # Get current user
+        user = crud.get_family_member(db, current_user_id)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+        # Verify user is a member of this household
+        membership = db.query(models.user_household_association).filter(
+            models.user_household_association.c.user_id == current_user_id,
+            models.user_household_association.c.household_id == household_id,
+            models.user_household_association.c.status == 'active'
+        ).first()
+
+        if not membership:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You are not a member of this household"
+            )
+
+        # Update user preferences with active household
+        preferences = user.preferences or {}
+        preferences['active_household_id'] = household_id
+
+        updated_user = crud.update_member_preferences(db, current_user_id, preferences)
+
+        # Build response with counts and households
+        count = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == user.id).count()
+        household_count = db.query(models.user_household_association).filter(
+            models.user_household_association.c.user_id == user.id
+        ).count()
+        external_wishlist_count = db.query(models.ExternalWishlist).filter(
+            models.ExternalWishlist.owner_id == user.id
+        ).count()
+
+        member_households = db.query(models.Household).join(
+            models.user_household_association,
+            models.Household.id == models.user_household_association.c.household_id
+        ).filter(
+            models.user_household_association.c.user_id == user.id,
+            models.user_household_association.c.status == 'active'
+        ).all()
+
+        households_data = [{"id": h.id, "name": h.name} for h in member_households]
+
+        member_dict = {
+            "id": updated_user.id,
+            "name": updated_user.name,
+            "birthday": updated_user.birthday,
+            "is_admin": updated_user.is_admin,
+            "preferences": updated_user.preferences,
+            "username": updated_user.username,
+            "email": updated_user.email,
+            "force_password_change": updated_user.force_password_change,
+            "first_login": updated_user.first_login,
+            "wishlist_item_count": count,
+            "external_wishlist_count": external_wishlist_count,
+            "household_count": household_count,
+            "households": households_data
+        }
+
+        return schemas.FamilyMember.model_validate(member_dict)
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to set active household: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to set active household: {str(e)}"
         )
 
 @app.delete("/api/admin/email/templates/{template_id}", response_model=schemas.EmailResponse)

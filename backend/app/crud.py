@@ -768,6 +768,29 @@ def get_shared_wishlists_for_user(db: Session, user_id: int) -> List[models.Shar
     ).all()
 
 
+def get_all_shared_wishlists(db: Session, user_id: Optional[int] = None) -> List[models.SharedWishlist]:
+    """Get all shared wishlists visible to the user (filtered by household)"""
+    query = db.query(models.SharedWishlist)
+
+    # If user_id is provided, filter by user's households
+    if user_id:
+        # Get user's household IDs
+        user_households = db.query(models.user_household_association.c.household_id).filter(
+            models.user_household_association.c.user_id == user_id,
+            models.user_household_association.c.status == 'active'
+        ).subquery()
+
+        # Filter wishlists: either no household (visible to all) or belongs to user's household
+        query = query.filter(
+            or_(
+                models.SharedWishlist.household_id == None,
+                models.SharedWishlist.household_id.in_(user_households)
+            )
+        )
+
+    return query.order_by(models.SharedWishlist.created_at.desc()).all()
+
+
 def get_shared_wishlist(db: Session, wishlist_id: int) -> Optional[models.SharedWishlist]:
     """Get a shared wishlist by ID"""
     return db.query(models.SharedWishlist).filter(models.SharedWishlist.id == wishlist_id).first()
@@ -797,7 +820,8 @@ def create_shared_wishlist(db: Session, wishlist: schemas.SharedWishlistCreate, 
     db_wishlist = models.SharedWishlist(
         name=wishlist.name,
         description=wishlist.description,
-        created_by=creator_id
+        created_by=creator_id,
+        household_id=wishlist.household_id
     )
     db.add(db_wishlist)
     db.flush()  # Get the ID before adding owner

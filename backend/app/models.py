@@ -290,10 +290,18 @@ class SharedWishlist(Base):
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     created_by = Column(Integer, ForeignKey("family_members.id"), nullable=False)
+    household_id = Column(Integer, ForeignKey("households.id"), nullable=True)
 
     # Relationships
     creator = relationship("FamilyMember", foreign_keys=[created_by])
-    owners = relationship("FamilyMember", secondary=shared_wishlist_owners, backref="shared_wishlists")
+    household = relationship("Household", foreign_keys=[household_id])
+    owners = relationship(
+        "FamilyMember",
+        secondary=shared_wishlist_owners,
+        primaryjoin="SharedWishlist.id == shared_wishlist_owners.c.wishlist_id",
+        secondaryjoin="FamilyMember.id == shared_wishlist_owners.c.user_id",
+        backref="shared_wishlists"
+    )
     items = relationship("SharedWishlistItem", back_populates="wishlist", cascade="all, delete-orphan")
 
     def __repr__(self):
