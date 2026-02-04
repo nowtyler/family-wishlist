@@ -177,8 +177,8 @@ const FloatingActionMenu = ({
       });
     }
 
-    // Preferences (viewable on any wishlist, editable only on your own)
-    if (onOpenPreferences) {
+    // Preferences (viewable on personal wishlists only, not on shared wishlists)
+    if (onOpenPreferences && !selectedSharedWishlist) {
       items.push({
         id: 'preferences',
         tutorialId: 'tutorial-preferences',
