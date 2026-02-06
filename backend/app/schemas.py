@@ -166,6 +166,7 @@ class UserRegisterRequest(BaseModel):
 class AuthResponse(BaseResponse):
     user_id: Optional[int] = None
     is_admin: Optional[bool] = None
+    requires_passphrase: Optional[bool] = None
 
 class PasswordResetRequest(BaseModel):
     username_or_email: str
@@ -609,6 +610,19 @@ class FirstTimeSetupResponse(BaseModel):
     success: bool
     message: str
     admin_user: FamilyMember
+    recovery_passphrase: Optional[str] = None
+
+class AdminPassphraseResetRequest(BaseModel):
+    passphrase: str
+    new_password: str = Field(..., min_length=8, max_length=72)
+    turnstile_token: Optional[str] = None
+
+class RecoveryPassphraseResponse(BaseModel):
+    success: bool
+    passphrase: str
+
+class RegeneratePassphraseRequest(BaseModel):
+    current_password: str
 
 class MaintenanceBroadcastRequest(BaseModel):
     maintenance_time: Optional[str] = None

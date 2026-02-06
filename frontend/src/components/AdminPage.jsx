@@ -45,7 +45,9 @@ import {
   getAllItems,
   deleteItemAsAdmin,
   clearAllWishlists,
-  broadcastMaintenanceNotice
+  broadcastMaintenanceNotice,
+  getRecoveryPassphrase,
+  regenerateRecoveryPassphrase
 } from '../services/api';
 import FamilyMemberManager from './admin/FamilyMemberManager';
 import Navbar from './Navbar';
@@ -1604,6 +1606,13 @@ const AdminPage = () => {
 
   const SystemTab = () => {
     const [isLoadingStatus, setIsLoadingStatus] = useState(false);
+    // Recovery passphrase management state
+    const [passphraseVisible, setPassphraseVisible] = useState(false);
+    const [currentPassphrase, setCurrentPassphrase] = useState('');
+    const [isLoadingPassphrase, setIsLoadingPassphrase] = useState(false);
+    const [showRegenConfirm, setShowRegenConfirm] = useState(false);
+    const [regenPassword, setRegenPassword] = useState('');
+    const [isRegenerating, setIsRegenerating] = useState(false);
 
     const handleRefreshStatus = async () => {
       setIsLoadingStatus(true);
@@ -1623,13 +1632,59 @@ const AdminPage = () => {
       }
     };
 
+    const handleViewPassphrase = async () => {
+      if (passphraseVisible) {
+        setPassphraseVisible(false);
+        setCurrentPassphrase('');
+        return;
+      }
+      setIsLoadingPassphrase(true);
+      try {
+        const res = await getRecoveryPassphrase();
+        setCurrentPassphrase(res.data.passphrase);
+        setPassphraseVisible(true);
+      } catch (err) {
+        console.error('Failed to fetch passphrase:', err);
+        const detail = err.response?.data?.detail;
+        if (detail === 'No recovery passphrase has been set') {
+          toast.warning('No recovery passphrase has been set. Click Regenerate to create one.');
+        } else {
+          toast.error(detail || 'Failed to retrieve recovery passphrase');
+        }
+      } finally {
+        setIsLoadingPassphrase(false);
+      }
+    };
+
+    const handleRegeneratePassphrase = async () => {
+      if (!regenPassword) {
+        toast.error('Please enter your current password');
+        return;
+      }
+      setIsRegenerating(true);
+      try {
+        const res = await regenerateRecoveryPassphrase(regenPassword);
+        setCurrentPassphrase(res.data.passphrase);
+        setPassphraseVisible(true);
+        setShowRegenConfirm(false);
+        setRegenPassword('');
+        toast.success('Recovery passphrase regenerated. Save it now!');
+      } catch (err) {
+        console.error('Failed to regenerate passphrase:', err);
+        const detail = err.response?.data?.detail;
+        toast.error(detail || 'Failed to regenerate passphrase');
+      } finally {
+        setIsRegenerating(false);
+      }
+    };
+
     return (
       <div className="space-y-6">
         <AdminCard title="System Status" icon={Settings}>
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h4 className="text-lg font-medium text-gray-900 dark:text-white">System Information</h4>
-              <button 
+              <button
                 onClick={handleRefreshStatus}
                 className="flex items-center justify-center w-8 h-8 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
                 disabled={isLoadingStatus}
@@ -1652,7 +1707,7 @@ const AdminPage = () => {
                     // Custom display for specific fields
                     let displayKey = key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
                     let displayValue = typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value.toString();
-                    
+
                     // Custom formatting for specific fields
                     if (key === 'uptime') {
                       displayKey = 'Server Uptime';
@@ -1668,7 +1723,7 @@ const AdminPage = () => {
                         displayValue = 'Never';
                       }
                     }
-                    
+
                     return (
                       <div key={key} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                         <h5 className="font-medium text-gray-900 dark:text-white mb-2">
@@ -1685,7 +1740,105 @@ const AdminPage = () => {
           </div>
         </AdminCard>
 
-        {/* Emergency Token Management */}
+        {/* Recovery Passphrase Management */}
+        <AdminCard title="Recovery Passphrase" icon={Shield}>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Your recovery passphrase is used to reset the admin password if you forget it.
+              It is stored encrypted and cannot be read from the database alone.
+            </p>
+
+            {/* View Passphrase */}
+            <div className="space-y-3">
+              <button
+                onClick={handleViewPassphrase}
+                disabled={isLoadingPassphrase}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+              >
+                {isLoadingPassphrase ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : passphraseVisible ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
+                {passphraseVisible ? 'Hide Passphrase' : 'View Passphrase'}
+              </button>
+
+              <AnimatePresence>
+                {passphraseVisible && currentPassphrase && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg space-y-2">
+                      <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
+                        Keep this passphrase secret. Do not share it.
+                      </p>
+                      <p className="font-mono text-lg text-gray-900 dark:text-white tracking-wide select-all text-center py-2 bg-white dark:bg-gray-900 rounded-md border border-amber-200 dark:border-amber-800">
+                        {currentPassphrase}
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Regenerate Passphrase */}
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-4 space-y-3">
+              {!showRegenConfirm ? (
+                <button
+                  onClick={() => setShowRegenConfirm(true)}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Regenerate Passphrase
+                </button>
+              ) : (
+                <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg space-y-3">
+                  <p className="text-sm text-red-700 dark:text-red-400 font-medium">
+                    This will replace your current recovery passphrase. The old passphrase will no longer work.
+                  </p>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Enter your current password to confirm
+                    </label>
+                    <input
+                      type="password"
+                      value={regenPassword}
+                      onChange={(e) => setRegenPassword(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                      placeholder="Current password"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleRegeneratePassphrase}
+                      disabled={isRegenerating || !regenPassword}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+                    >
+                      {isRegenerating ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Check className="w-4 h-4" />
+                      )}
+                      {isRegenerating ? 'Regenerating...' : 'Confirm Regenerate'}
+                    </button>
+                    <button
+                      onClick={() => { setShowRegenConfirm(false); setRegenPassword(''); }}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </AdminCard>
 
         {/* Application Logs */}
         <ApplicationLogViewer />

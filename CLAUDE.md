@@ -71,11 +71,12 @@ Use these line ranges to jump directly to relevant sections instead of searching
 | **Migrations** | 1108-1276 | `/api/admin/migrations/*` |
 | **Backups** | 1317-1401 | `/api/admin/backups/*` |
 | **System Setup** | 1414-1530 | `/api/health`, `/api/system/*`, first-time-setup |
-| **URL Scraping** | 1529-1578 | POST `/api/items/fetch-url-details` |
+| **Recovery Passphrase** | 1535-1600 | `/api/admin/recovery-passphrase`, regenerate |
+| **URL Scraping** | 1605-1650 | POST `/api/items/fetch-url-details` |
 | **External Wishlists** | 1579-1694 | `/api/members/{id}/external-wishlists`, `/api/external-wishlists/{id}` |
 | **Shared Wishlists** | 1713-2148 | `/api/shared-wishlists/*`, `/api/shared-wishlist-items/*` |
 | **User Preferences** | 2190-2230 | PUT `/api/members/{id}/preferences` |
-| **Authentication** | 2230-2552 | `/api/auth/login`, `/api/auth/register`, password reset |
+| **Authentication** | 2230-2650 | `/api/auth/login`, `/api/auth/register`, password reset, admin passphrase reset |
 | **Households (Admin)** | 2606-3416 | `/api/admin/households/*` |
 | **Email Admin** | 2785-2983 | `/api/admin/email/*` |
 | **System Admin** | 3027-3650 | `/api/admin/system/*`, stats, logs |
@@ -165,7 +166,7 @@ Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
 
 | Category | Functions |
 |----------|-----------|
-| **Auth** | `loginUser`, `registerUser`, `requestPasswordReset`, `confirmPasswordReset`, `logoutUser` |
+| **Auth** | `loginUser`, `registerUser`, `requestPasswordReset`, `confirmPasswordReset`, `adminResetPassword`, `logoutUser` |
 | **Family Members** | `getFamilyMembers`, `createFamilyMember`, `updateFamilyMember`, `deleteFamilyMember` |
 | **Wishlist Items** | `getWishlistItems`, `createWishlistItem`, `updateWishlistItem`, `deleteWishlistItem`, `toggleThinkingAbout`, `markPurchased` |
 | **Comments** | `addComment`, `deleteComment` |
@@ -174,7 +175,7 @@ Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
 | **Shopping Cart** | `getShoppingCartItems`, `createShoppingCartItem`, `addShoppingCartItemFromWishlistItem`, `addShoppingCartItemFromSharedWishlistItem`, `updateShoppingCartItem`, `deleteShoppingCartItem` |
 | **Households** | `getHouseholds`, `createHousehold`, `joinHousehold`, `leaveHousehold`, `setActiveHousehold` |
 | **External Wishlists** | `getExternalWishlists`, `createExternalWishlist`, `updateExternalWishlist`, `deleteExternalWishlist` |
-| **Admin** | Migrations, backups, email settings, system stats, logs |
+| **Admin** | Migrations, backups, email settings, system stats, logs, `getRecoveryPassphrase`, `regenerateRecoveryPassphrase` |
 
 ---
 
@@ -198,6 +199,9 @@ Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
 /api/admin/backups/*
 /api/admin/email/*
 /api/admin/system/*
+/api/admin/recovery-passphrase
+/api/admin/recovery-passphrase/regenerate
+/api/auth/admin-reset-password
 ```
 
 ---

@@ -3,7 +3,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, Header, Request, Bo
 from fastapi.responses import Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import func, text
 from typing import List, Optional, Dict, Any
 import logging
 import traceback
@@ -38,6 +38,7 @@ import json
 import time
 import pytz
 from .utils.timezone_utils import get_est_timestamp, get_est_timestamp_iso, get_est_timestamp_strftime, get_est_date, get_est_timedelta
+from .utils.passphrase_utils import generate_passphrase, encrypt_passphrase, decrypt_passphrase, verify_passphrase
 from .schemas import MaintenanceBroadcastRequest
 
 # Initialize the product scraper service
@@ -1496,11 +1497,16 @@ async def first_time_setup(
             email=request.admin_email,
             is_admin=True
         )
+
+        # Generate recovery passphrase for admin
+        plaintext_passphrase = generate_passphrase()
+        admin.recovery_passphrase_encrypted = encrypt_passphrase(plaintext_passphrase)
+
         db.add(admin)
 
         db.commit()
         db.refresh(admin)
-        
+
         return schemas.FirstTimeSetupResponse(
             success=True,
             message="System setup completed successfully",
@@ -1511,7 +1517,8 @@ async def first_time_setup(
                 email=admin.email,
                 is_admin=admin.is_admin,
                 wishlist_item_count=0
-            )
+            ),
+            recovery_passphrase=plaintext_passphrase
         )
         
     except HTTPException:
@@ -1523,6 +1530,75 @@ async def first_time_setup(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
+
+# --- Admin Recovery Passphrase Endpoints ---
+
+@app.get("/api/admin/recovery-passphrase",
+    response_model=schemas.RecoveryPassphraseResponse,
+    tags=["Admin"],
+    summary="View recovery passphrase"
+)
+async def get_recovery_passphrase(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """View the current admin recovery passphrase (admin only)."""
+    if not current_user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    admin = db.query(models.FamilyMember).filter(
+        models.FamilyMember.id == current_user_id,
+        models.FamilyMember.is_admin == True
+    ).first()
+
+    if not admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    if not admin.recovery_passphrase_encrypted:
+        raise HTTPException(status_code=404, detail="No recovery passphrase has been set")
+
+    try:
+        plaintext = decrypt_passphrase(admin.recovery_passphrase_encrypted)
+        return schemas.RecoveryPassphraseResponse(success=True, passphrase=plaintext)
+    except Exception as e:
+        logger.error(f"Failed to decrypt recovery passphrase: {e}")
+        raise HTTPException(status_code=500, detail="Failed to decrypt recovery passphrase")
+
+
+@app.post("/api/admin/recovery-passphrase/regenerate",
+    response_model=schemas.RecoveryPassphraseResponse,
+    tags=["Admin"],
+    summary="Regenerate recovery passphrase"
+)
+async def regenerate_recovery_passphrase(
+    request: schemas.RegeneratePassphraseRequest,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Regenerate the admin recovery passphrase (requires current password)."""
+    if not current_user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    admin = db.query(models.FamilyMember).filter(
+        models.FamilyMember.id == current_user_id,
+        models.FamilyMember.is_admin == True
+    ).first()
+
+    if not admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    # Verify current password
+    if not admin.password_hash or not auth.verify_password(request.current_password, admin.password_hash):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+
+    # Generate new passphrase
+    plaintext = generate_passphrase()
+    admin.recovery_passphrase_encrypted = encrypt_passphrase(plaintext)
+    db.commit()
+
+    auth.log_auth_event("PASSPHRASE_REGENERATED", admin.username, True, details="Admin regenerated recovery passphrase")
+    return schemas.RecoveryPassphraseResponse(success=True, passphrase=plaintext)
 
 
 # Add this new endpoint after other item endpoints
@@ -2470,13 +2546,28 @@ async def request_password_reset(
         # Log password reset request
         auth.log_auth_event("PASSWORD_RESET_REQUEST", request.username_or_email, True, client_ip)
         password_reset_rate_limiter.record_attempt(client_ip, request.username_or_email)
-        
+
+        # Check if this is an admin user — admin uses passphrase verification instead of email
+        admin_user = db.query(models.FamilyMember).filter(
+            func.lower(models.FamilyMember.username) == request.username_or_email.lower(),
+            models.FamilyMember.is_admin == True
+        ).first()
+
+        if admin_user and admin_user.recovery_passphrase_encrypted:
+            auth.log_auth_event("PASSWORD_RESET_ADMIN_PASSPHRASE", request.username_or_email, True, client_ip,
+                                "Admin reset requires passphrase verification")
+            return {
+                "success": True,
+                "requires_passphrase": True,
+                "message": "Admin password reset requires recovery passphrase verification."
+            }
+
         success, message = UserAuthService.create_reset_token(db, request.username_or_email)
-        
+
         # Log result
         status_msg = "Token generated and email sent" if success else "Failed to generate token"
         auth.log_auth_event("PASSWORD_RESET_TOKEN", request.username_or_email, success, client_ip, status_msg)
-        
+
         return {
             "success": success,
             "message": message
@@ -2548,6 +2639,80 @@ async def confirm_password_reset(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred during password reset confirmation"
         )
+
+
+@app.post("/api/auth/admin-reset-password",
+    tags=["Authentication"],
+    summary="Reset admin password using recovery passphrase"
+)
+async def admin_reset_password_with_passphrase(
+    request: schemas.AdminPassphraseResetRequest,
+    db: Session = Depends(get_db),
+    client_ip: str = Depends(get_client_ip)
+):
+    """Reset the admin password by verifying the recovery passphrase."""
+    try:
+        turnstile_valid = await verify_turnstile(request.turnstile_token, client_ip)
+        if not turnstile_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"message": "Turnstile verification failed.", "turnstile_required": True}
+            )
+
+        rate_limit_result = password_reset_rate_limiter.check_rate_limit(client_ip, "admin-passphrase")
+        if not rate_limit_result.allowed:
+            auth.log_auth_event("ADMIN_PASSPHRASE_RATE_LIMIT", "admin", False, client_ip,
+                                rate_limit_result.message or "Rate limit exceeded")
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "message": rate_limit_result.message or "Too many attempts. Please try again later.",
+                    "turnstile_required": True,
+                    "retry_after": rate_limit_result.retry_after,
+                },
+                headers={"Retry-After": str(rate_limit_result.retry_after or 900)}
+            )
+
+        password_reset_rate_limiter.record_attempt(client_ip, "admin-passphrase")
+
+        # Find admin user
+        admin = db.query(models.FamilyMember).filter(
+            models.FamilyMember.is_admin == True
+        ).first()
+
+        if not admin or not admin.recovery_passphrase_encrypted:
+            auth.log_auth_event("ADMIN_PASSPHRASE_RESET", "admin", False, client_ip, "No admin or passphrase found")
+            raise HTTPException(status_code=400, detail="Recovery passphrase is not configured")
+
+        # Verify passphrase
+        if not verify_passphrase(request.passphrase, admin.recovery_passphrase_encrypted):
+            auth.log_auth_event("ADMIN_PASSPHRASE_RESET", "admin", False, client_ip, "Incorrect passphrase")
+            raise HTTPException(status_code=401, detail="Incorrect recovery passphrase")
+
+        # Validate password strength
+        if not validate_password_strength(request.new_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must be at least 8 characters and include uppercase, lowercase, and numbers"
+            )
+
+        # Reset password
+        admin.password_hash = auth.get_password_hash(request.new_password)
+        db.commit()
+
+        auth.log_auth_event("ADMIN_PASSPHRASE_RESET", admin.username, True, client_ip, "Admin password reset via passphrase")
+
+        return {"success": True, "message": "Admin password has been reset successfully."}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Admin passphrase reset error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred during admin password reset"
+        )
+
 
 @app.post("/api/admin/schema/reset-hash", response_model=schemas.MigrationResponse)
 async def reset_schema_hash(

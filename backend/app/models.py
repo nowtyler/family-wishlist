@@ -41,6 +41,9 @@ class FamilyMember(Base):
     password_expires_at = Column(DateTime, nullable=True)
     temp_password_hash = Column(String, nullable=True)
     force_password_change = Column(Boolean, default=False)
+
+    # Recovery passphrase (Fernet-encrypted, for admin password reset)
+    recovery_passphrase_encrypted = Column(String, nullable=True)
     
     # Add JSON serialization/deserialization for preferences
     @property

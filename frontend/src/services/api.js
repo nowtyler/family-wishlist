@@ -251,6 +251,30 @@ export const confirmPasswordReset = async (token, newPassword) => {
     }
 };
 
+export const adminResetPassword = async (passphrase, newPassword, turnstileToken) => {
+    try {
+        const response = await apiClient.post('/auth/admin-reset-password', {
+            passphrase,
+            new_password: newPassword,
+            turnstile_token: turnstileToken || undefined,
+        });
+        return response;
+    } catch (error) {
+        console.error('Admin passphrase reset error:', error);
+        throw error;
+    }
+};
+
+export const getRecoveryPassphrase = async () => {
+    return apiClient.get('/admin/recovery-passphrase');
+};
+
+export const regenerateRecoveryPassphrase = async (currentPassword) => {
+    return apiClient.post('/admin/recovery-passphrase/regenerate', {
+        current_password: currentPassword,
+    });
+};
+
 // --- Family Members ---
 export const getFamilyMembers = () => {
   return apiClient.get('/family-members', {
