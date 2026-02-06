@@ -432,5 +432,118 @@ class TestDeleteSharedWishlist:
         assert result is True
 
 
+class TestSharedWishlistItemUpdate:
+    """Tests for updating shared wishlist items via crud.update_shared_wishlist_item"""
+
+    def _create_wishlist_with_item(self, db_session, owner, title="Lego Set", price=49.99):
+        """Helper to create a shared wishlist with one item"""
+        wishlist = crud.create_shared_wishlist(
+            db_session,
+            schemas.SharedWishlistCreate(name="Test Wishlist"),
+            owner.id
+        )
+        item = crud.create_shared_wishlist_item(
+            db_session,
+            wishlist.id,
+            schemas.SharedWishlistItemCreate(title=title, price=price, priority=1),
+            owner.id
+        )
+        return wishlist, item
+
+    def test_owner_can_update_item(self, db_session, test_users):
+        """Test that an owner can update a shared wishlist item"""
+        parent1 = test_users["parent1"]
+        wishlist, item = self._create_wishlist_with_item(db_session, parent1)
+
+        update_data = schemas.SharedWishlistItemUpdate(
+            title="Updated Lego Set",
+            description="Updated description",
+            priority=2,
+            price=59.99
+        )
+        updated = crud.update_shared_wishlist_item(db_session, item.id, update_data, parent1.id)
+
+        assert updated is not None
+        assert updated.title == "Updated Lego Set"
+        assert updated.description == "Updated description"
+        assert updated.priority == 2
+        assert updated.price == 5999  # Converted to cents
+
+    def test_co_owner_can_update_item(self, db_session, test_users):
+        """Test that a co-owner can update a shared wishlist item"""
+        parent1 = test_users["parent1"]
+        parent2 = test_users["parent2"]
+        wishlist, item = self._create_wishlist_with_item(db_session, parent1)
+
+        # Add parent2 as co-owner
+        crud.add_shared_wishlist_owner(db_session, wishlist.id, "parent2", parent1.id)
+
+        update_data = schemas.SharedWishlistItemUpdate(title="Co-owner Update")
+        updated = crud.update_shared_wishlist_item(db_session, item.id, update_data, parent2.id)
+
+        assert updated is not None
+        assert updated.title == "Co-owner Update"
+
+    def test_non_owner_cannot_update_item(self, db_session, test_users):
+        """Test that a non-owner cannot update a shared wishlist item"""
+        parent1 = test_users["parent1"]
+        family_member = test_users["family_member"]
+        wishlist, item = self._create_wishlist_with_item(db_session, parent1)
+
+        update_data = schemas.SharedWishlistItemUpdate(title="Unauthorized Update")
+        result = crud.update_shared_wishlist_item(db_session, item.id, update_data, family_member.id)
+
+        assert result is None
+
+    def test_admin_can_update_item(self, db_session, test_users):
+        """Test that admin can update any shared wishlist item"""
+        parent1 = test_users["parent1"]
+        admin = test_users["admin"]
+        wishlist, item = self._create_wishlist_with_item(db_session, parent1)
+
+        update_data = schemas.SharedWishlistItemUpdate(title="Admin Update")
+        updated = crud.update_shared_wishlist_item(db_session, item.id, update_data, admin.id)
+
+        assert updated is not None
+        assert updated.title == "Admin Update"
+
+    def test_update_nonexistent_item_returns_none(self, db_session, test_users):
+        """Test that updating a nonexistent item returns None"""
+        parent1 = test_users["parent1"]
+
+        update_data = schemas.SharedWishlistItemUpdate(title="Ghost Item")
+        result = crud.update_shared_wishlist_item(db_session, 99999, update_data, parent1.id)
+
+        assert result is None
+
+    def test_partial_update_preserves_other_fields(self, db_session, test_users):
+        """Test that a partial update only changes specified fields"""
+        parent1 = test_users["parent1"]
+        wishlist, item = self._create_wishlist_with_item(
+            db_session, parent1, title="Original Title", price=29.99
+        )
+
+        # Only update the title
+        update_data = schemas.SharedWishlistItemUpdate(title="New Title")
+        updated = crud.update_shared_wishlist_item(db_session, item.id, update_data, parent1.id)
+
+        assert updated is not None
+        assert updated.title == "New Title"
+        assert updated.price == 2999  # Original price preserved (in cents)
+        assert updated.priority == 1  # Original priority preserved
+
+    def test_update_price_to_null(self, db_session, test_users):
+        """Test that explicitly setting price to None clears the price"""
+        parent1 = test_users["parent1"]
+        wishlist, item = self._create_wishlist_with_item(db_session, parent1, price=49.99)
+
+        update_data = schemas.SharedWishlistItemUpdate(price=None)
+        updated = crud.update_shared_wishlist_item(db_session, item.id, update_data, parent1.id)
+
+        assert updated is not None
+        # price=None is explicitly set, so exclude_unset=True includes it
+        assert updated.price is None
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

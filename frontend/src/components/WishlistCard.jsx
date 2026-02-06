@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trash2, ExternalLink, MessageCircleHeart, Pencil, Check, X, Flag, MessageCircle, Send, Download, Upload, Link2, ShoppingCart } from 'lucide-react';
 import { toast } from 'react-toastify';
-import { updateWishlistItem, addComment, deleteComment, getWishlistItems, exportWishlist, importWishlist, addShoppingCartItemFromWishlistItem, getShoppingCartItems, deleteShoppingCartItem, markPurchased, addShoppingCartItemFromSharedWishlistItem, addSharedWishlistItemComment, getSharedWishlist, toggleSharedItemPurchased } from '../services/api';
+import { updateWishlistItem, updateSharedWishlistItem, addComment, deleteComment, getWishlistItems, exportWishlist, importWishlist, addShoppingCartItemFromWishlistItem, getShoppingCartItems, deleteShoppingCartItem, markPurchased, addShoppingCartItemFromSharedWishlistItem, addSharedWishlistItemComment, getSharedWishlist, toggleSharedItemPurchased } from '../services/api';
 
 // Constants
 const MAX_TITLE_LENGTH = 200;
@@ -221,8 +221,24 @@ const WishlistCard = (props) => {
         price: processedPrice  // Backend will convert to cents
       };
 
-      await updateWishlistItem(itemId, updatedData);
-      await onUpdateItems();
+      if (member.is_shared_wishlist) {
+        await updateSharedWishlistItem(itemId, updatedData);
+        // Optimistically update local state to avoid flash/reload
+        if (onOptimisticUpdateItem) {
+          onOptimisticUpdateItem(itemId, {
+            title: updatedData.title,
+            description: updatedData.description,
+            link: updatedData.link,
+            image_url: updatedData.image_url,
+            priority: updatedData.priority,
+            price: processedPrice !== null ? Math.round(processedPrice * 100) : null
+          });
+        }
+        await onUpdateItems(true); // skip reload
+      } else {
+        await updateWishlistItem(itemId, updatedData);
+        await onUpdateItems();
+      }
       setEditingItemId(null);
       setEditForm(/** @type {WishlistItem} */ ({}));
       // Reset size fields

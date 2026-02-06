@@ -964,7 +964,10 @@ const DashboardScreen = (props = {}) => {
       {/* Shared Wishlists Manager Modal */}
       <SharedWishlistManager
         isOpen={isSharedWishlistsOpen}
-        onClose={() => setIsSharedWishlistsOpen(false)}
+        onClose={() => {
+          setIsSharedWishlistsOpen(false);
+          refreshSharedWishlists();
+        }}
         onSelectWishlist={handleSelectSharedWishlist}
         currentUserId={selectedUser?.id}
       />

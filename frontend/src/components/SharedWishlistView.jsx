@@ -99,6 +99,16 @@ const SharedWishlistView = ({
     }
   }, [loadWishlist]);
 
+  const handleOptimisticUpdateItem = useCallback((itemId, updates) => {
+    setItems(prev => prev.map(item =>
+      item.id === itemId ? { ...item, ...updates } : item
+    ));
+    // Also update selectedItem if it's the one being modified
+    setSelectedItem(prev =>
+      prev && prev.id === itemId ? { ...prev, ...updates } : prev
+    );
+  }, []);
+
   // Create a "virtual member" object that WishlistCard expects
   const virtualMember = {
     id: `shared-${wishlist.id}`,
@@ -169,6 +179,7 @@ const SharedWishlistView = ({
           onItemModalClose={handleItemModalClose}
           selectedItem={selectedItem}
           currentUserName={currentUserName}
+          onOptimisticUpdateItem={handleOptimisticUpdateItem}
         />
       </div>
     </div>
