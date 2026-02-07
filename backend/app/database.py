@@ -101,6 +101,23 @@ def _apply_pending_migrations():
                 except Exception as hash_error:
                     logger.warning(f"Could not update schema hash after migration: {hash_error}")
 
+            # Migration 004: Add wishlist_type column to shared_wishlists
+            result = conn.execute(text("PRAGMA table_info(shared_wishlists)"))
+            sw_columns = [row[1] for row in result.fetchall()]
+
+            if 'wishlist_type' not in sw_columns:
+                logger.info("Applying migration: Adding wishlist_type column to shared_wishlists")
+                conn.execute(text(
+                    "ALTER TABLE shared_wishlists ADD COLUMN wishlist_type TEXT DEFAULT 'normal'"
+                ))
+                conn.commit()
+                logger.info("✓ Migration complete: wishlist_type column added")
+
+                try:
+                    _update_schema_hash_after_migration(conn)
+                except Exception as hash_error:
+                    logger.warning(f"Could not update schema hash after migration: {hash_error}")
+
     except Exception as e:
         logger.error(f"Migration error: {e}")
         # Don't fail startup if migration fails

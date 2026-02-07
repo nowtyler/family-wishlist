@@ -1816,6 +1816,9 @@ def get_shared_wishlists(
             description=wishlist.description,
             household_id=wishlist.household_id,
             household_name=household_name,
+            occasion_date=wishlist.occasion_date,
+            occasion_type=wishlist.occasion_type,
+            wishlist_type=wishlist.wishlist_type or "normal",
             created_at=wishlist.created_at,
             created_by=wishlist.created_by,
             owner_count=len(owners),
@@ -1855,6 +1858,9 @@ def create_shared_wishlist(
         description=db_wishlist.description,
         household_id=db_wishlist.household_id,
         household_name=household_name,
+        occasion_date=db_wishlist.occasion_date,
+        occasion_type=db_wishlist.occasion_type,
+        wishlist_type=db_wishlist.wishlist_type or "normal",
         created_at=db_wishlist.created_at,
         created_by=db_wishlist.created_by,
         owner_count=len(owners),
@@ -1918,6 +1924,9 @@ def get_shared_wishlist(
         description=db_wishlist.description,
         household_id=db_wishlist.household_id,
         household_name=household_name,
+        occasion_date=db_wishlist.occasion_date,
+        occasion_type=db_wishlist.occasion_type,
+        wishlist_type=db_wishlist.wishlist_type or "normal",
         created_at=db_wishlist.created_at,
         created_by=db_wishlist.created_by,
         owner_count=len(owners),
@@ -1967,6 +1976,9 @@ def update_shared_wishlist(
         description=db_wishlist.description,
         household_id=db_wishlist.household_id,
         household_name=household_name,
+        occasion_date=db_wishlist.occasion_date,
+        occasion_type=db_wishlist.occasion_type,
+        wishlist_type=db_wishlist.wishlist_type or "normal",
         created_at=db_wishlist.created_at,
         created_by=db_wishlist.created_by,
         owner_count=len(owners),
@@ -4817,9 +4829,10 @@ def create_shopping_cart_item_from_shared_wishlist(
     if not shared_wishlist:
         raise HTTPException(status_code=404, detail="Shared wishlist not found")
 
-    # Owners cannot add their own items to cart
+    # Owners cannot add their own items to cart (unless no_secrets mode)
     if crud.is_shared_wishlist_owner(db, shared_item.wishlist_id, current_user_id):
-        raise HTTPException(status_code=403, detail="Owners cannot reserve items from their own shared wishlist")
+        if (shared_wishlist.wishlist_type or "normal") != "no_secrets":
+            raise HTTPException(status_code=403, detail="Owners cannot reserve items from their own shared wishlist")
 
     # Check if already in cart
     existing_cart_item = db.query(models.ShoppingCartItem).filter(

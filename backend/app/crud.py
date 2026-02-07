@@ -1201,9 +1201,11 @@ def toggle_shared_item_thinking_about(db: Session, item_id: int, user_id: int) -
     if not user:
         return None
 
-    # Owners cannot mark their own items as thinking about
+    # Owners cannot mark their own items as thinking about (unless no_secrets mode)
     if is_shared_wishlist_owner(db, db_item.wishlist_id, user_id):
-        return None
+        wishlist = get_shared_wishlist(db, db_item.wishlist_id)
+        if not wishlist or (wishlist.wishlist_type or "normal") != "no_secrets":
+            return None
 
     thinking_list = db_item.thinking_about_by.split(',') if db_item.thinking_about_by else []
     thinking_list = [name.strip() for name in thinking_list if name.strip()]
@@ -1229,9 +1231,11 @@ def toggle_shared_item_purchased(db: Session, item_id: int, user_id: int) -> Opt
     if not user:
         return None
 
-    # Owners cannot mark their own items as purchased
+    # Owners cannot mark their own items as purchased (unless no_secrets mode)
     if is_shared_wishlist_owner(db, db_item.wishlist_id, user_id):
-        return None
+        wishlist = get_shared_wishlist(db, db_item.wishlist_id)
+        if not wishlist or (wishlist.wishlist_type or "normal") != "no_secrets":
+            return None
 
     if db_item.is_purchased:
         if db_item.purchased_by == user.name:

@@ -306,6 +306,7 @@ class SharedWishlist(Base):
     household_id = Column(Integer, ForeignKey("households.id"), nullable=True)
     occasion_date = Column(String, nullable=True)  # Format: YYYY-MM-DD (birthday, wedding date, etc.)
     occasion_type = Column(String, nullable=True)  # birthday, wedding, baby_shower, anniversary, holiday, other
+    wishlist_type = Column(String, nullable=True, default="normal")  # "normal" or "no_secrets"
 
     # Relationships
     creator = relationship("FamilyMember", foreign_keys=[created_by])

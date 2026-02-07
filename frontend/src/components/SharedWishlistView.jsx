@@ -119,6 +119,8 @@ const SharedWishlistView = ({
     owner_count: wishlistData?.owner_count || 0
   };
 
+  const noSecretsMode = isOwner && (wishlistData?.wishlist_type || wishlist.wishlist_type) === 'no_secrets';
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
@@ -166,6 +168,7 @@ const SharedWishlistView = ({
           items={items}
           isLoading={isLoading}
           isOwnWishlist={isOwner}
+          noSecretsMode={noSecretsMode}
           currentUserId={currentUserId}
           onUpdateItems={handleUpdateItems}
           onDeleteItem={handleDeleteItem}

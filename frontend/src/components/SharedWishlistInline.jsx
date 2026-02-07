@@ -187,6 +187,8 @@ const SharedWishlistInline = ({
     occasion_type: wishlistData?.occasion_type || wishlist.occasion_type
   };
 
+  const noSecretsMode = isOwner && (wishlistData?.wishlist_type || wishlist.wishlist_type) === 'no_secrets';
+
   return (
     <div className="relative">
       <WishlistCard
@@ -194,6 +196,7 @@ const SharedWishlistInline = ({
         items={items}
         isLoading={isLoading}
         isOwnWishlist={isOwner}
+        noSecretsMode={noSecretsMode}
         currentUserId={currentUserId}
         onUpdateItems={handleUpdateItems}
         onDeleteItem={handleDeleteItem}

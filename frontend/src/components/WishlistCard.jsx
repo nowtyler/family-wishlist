@@ -83,6 +83,7 @@ const WishlistCard = (props) => {
     items,
     isLoading,
     isOwnWishlist,
+    noSecretsMode,
     currentUserId,
     onUpdateItems,
     onDeleteItem,
@@ -94,6 +95,8 @@ const WishlistCard = (props) => {
     currentUserName,
     onOptimisticUpdateItem
   } = props;
+  // In no_secrets mode, owners can see and interact with purchase/thinking actions
+  const showPurchaseActions = !isOwnWishlist || noSecretsMode;
   /** @type {WishlistItem[]} */
   const safeItems = Array.isArray(items) ? items : [];
   // Change this from useState to use the passed-in value if available
@@ -362,7 +365,7 @@ const WishlistCard = (props) => {
   );
 
   const renderThinkingAbout = (item) => {
-    if (isOwnWishlist) return null;
+    if (!showPurchaseActions) return null;
     
     const isThinking = item.thinking_about_by_list?.includes(currentUserId);
     const thinkingCount = item.thinking_about_by_list?.length || 0;
@@ -708,19 +711,19 @@ const WishlistCard = (props) => {
   const renderActionButtons = (item) => {
     const hasComments = item.comments?.length > 0;
     const isReservedByOther =
-      !isOwnWishlist &&
+      showPurchaseActions &&
       item.purchased_by &&
       currentUserName &&
       item.purchased_by !== currentUserName;
     const isReservedBySelf =
-      !isOwnWishlist &&
+      showPurchaseActions &&
       item.purchased_by &&
       currentUserName &&
       item.purchased_by === currentUserName;
-    
+
     return (
       <div className="flex items-center gap-1 ml-auto shrink-0">
-        {!isOwnWishlist && (
+        {showPurchaseActions && (
           <div className="flex items-center gap-1">
             {renderThinkingAbout(item)}
             {isReservedBySelf ? (
@@ -1009,7 +1012,7 @@ const WishlistCard = (props) => {
                         {renderPriorityIcon(item.priority)}
                       </div>
                       <div className="flex items-center justify-end gap-2">
-                        {!isOwnWishlist && item.purchased_by && (
+                        {showPurchaseActions && item.purchased_by && (
                           <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded-full ${
                             currentUserName && item.purchased_by === currentUserName
                               ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200'
@@ -1135,8 +1138,8 @@ const WishlistCard = (props) => {
                   </p>
                 )}
 
-                {/* Only show Interest/Purchase sections when not viewing own wishlist */}
-                {!isOwnWishlist && (
+                {/* Show Interest/Purchase sections when not viewing own wishlist, or in no_secrets mode */}
+                {showPurchaseActions && (
                   <>
                     {/* Interested People Section */}
                     {selectedItem.thinking_about_by_list?.length > 0 && (

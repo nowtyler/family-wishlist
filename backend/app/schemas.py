@@ -646,6 +646,7 @@ class SharedWishlistBase(BaseModel):
     household_id: Optional[int] = None
     occasion_date: Optional[str] = Field(None, description="Date in YYYY-MM-DD format (birthday, wedding date, etc.)")
     occasion_type: Optional[str] = Field(None, description="Type: birthday, wedding, baby_shower, anniversary, holiday, other")
+    wishlist_type: Optional[str] = Field("normal", description="Wishlist type: normal (purchases hidden from owners) or no_secrets (everyone sees purchases)")
 
 
 class SharedWishlistCreate(SharedWishlistBase):
@@ -658,6 +659,7 @@ class SharedWishlistUpdate(BaseModel):
     household_id: Optional[int] = None
     occasion_date: Optional[str] = None
     occasion_type: Optional[str] = None
+    wishlist_type: Optional[str] = None
 
 
 class SharedWishlist(SharedWishlistBase):
