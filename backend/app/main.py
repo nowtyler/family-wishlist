@@ -2928,17 +2928,19 @@ def get_admin_stats(
         total_households = db.query(models.Household).count()
         total_wishlists = db.query(models.WishlistItem).count()
         total_emails_sent = db.query(models.EmailLog).filter(models.EmailLog.status == 'sent').count()
-        
+        total_cart_items = db.query(models.ShoppingCartItem).count()
+
         # Get active users in last 30 days (if you have login tracking)
         thirty_days_ago = get_est_timedelta(days=-30)
         active_users = db.query(models.FamilyMember).count()  # For now, just count all users
-        
+
         return {
             "total_users": total_users,
             "total_households": total_households,
             "total_wishlists": total_wishlists,
             "total_emails_sent": total_emails_sent,
-            "active_users_30d": active_users
+            "active_users_30d": active_users,
+            "total_cart_items": total_cart_items
         }
     except Exception as e:
         logger.error(f"Failed to get admin stats: {e}")

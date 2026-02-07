@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Users, Settings, Mail, Shield, Trash2, Plus, 
+import {
+  Users, Settings, Mail, Shield, Trash2, Plus,
   Edit, Eye, EyeOff, Check, X, TriangleAlert, RefreshCw,
   Home, UserPlus, UserMinus, Lock, Unlock, Send, TestTube,
   Calendar, Gift, FileText, Archive, Download, Upload, Save, ArrowUp,
   CircleCheck, CircleX, Database, CircleAlert, Box, RotateCcw,
-  AlertOctagon, Menu, LayoutDashboard
+  AlertOctagon, Menu, LayoutDashboard, ShoppingCart
 } from 'lucide-react';
 import { useAppContext } from '../contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
@@ -301,6 +301,12 @@ const AdminPage = () => {
           value={stats.total_emails_sent || 0}
           icon={Mail}
           color="blue"
+        />
+        <StatCard
+          title="Cart Items"
+          value={stats.total_cart_items || 0}
+          icon={ShoppingCart}
+          color="orange"
         />
       </div>
 
