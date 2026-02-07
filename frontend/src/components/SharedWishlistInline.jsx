@@ -80,12 +80,15 @@ const SharedWishlistInline = ({
 
   const handleDeleteItem = async (itemId) => {
     try {
+      setItems((prevItems) => prevItems.filter((item) => item.id !== itemId));
+      setIsLoading(false);
       await deleteSharedWishlistItem(itemId);
-      await loadWishlist();
+      await loadWishlist({ showLoading: false });
       toast.success('Item deleted');
     } catch (error) {
       console.error('Failed to delete item:', error);
       toast.error('Failed to delete item');
+      await loadWishlist({ showLoading: false });
     }
   };
 
