@@ -238,10 +238,19 @@ const AdminPage = () => {
     </motion.div>
   );
 
-  const StatCard = ({ title, value, icon: Icon, color = 'blue' }) => (
+  const StatCard = ({
+    title,
+    value,
+    icon: Icon,
+    color = 'blue',
+    iconContainerClassName = '',
+    iconContainerDarkClassName = ''
+  }) => (
     <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-md">
       <div className="flex items-center">
-        <div className={`p-2 bg-${color}-100 dark:bg-${color}-900/30 rounded-lg`}>
+        <div
+          className={`p-2 bg-${color}-100 dark:bg-${color}-900/30 rounded-lg ${iconContainerClassName} ${iconContainerDarkClassName}`}
+        >
           <Icon className={`w-5 h-5 text-${color}-600 dark:text-${color}-400`} />
         </div>
         <div className="ml-3">
@@ -277,7 +286,7 @@ const AdminPage = () => {
       </div>
 
       {/* App Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <StatCard
           title="Total Users"
           value={stats.total_users || 0}
@@ -295,6 +304,7 @@ const AdminPage = () => {
           value={stats.total_wishlists || 0}
           icon={Gift}
           color="purple"
+          iconContainerDarkClassName="dark:bg-purple-800/50"
         />
         <StatCard
           title="Emails Sent"
@@ -306,7 +316,7 @@ const AdminPage = () => {
           title="Cart Items"
           value={stats.total_cart_items || 0}
           icon={ShoppingCart}
-          color="orange"
+          color="blue"
         />
       </div>
 
