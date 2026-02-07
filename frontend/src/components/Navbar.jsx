@@ -3,11 +3,11 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
 import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPlus,
-         Trash2, AlertOctagon, Database, UserRound, User, Home, Download, Upload, HelpCircle } from 'lucide-react';
+         Trash2, AlertOctagon, Database, UserRound, User, Home, Download, Upload, HelpCircle, Baby, Users } from 'lucide-react';
 import { useTutorial } from '../contexts/TutorialContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems, 
-         getFamilyMembers, clearAllWishlists, exportWishlist, importWishlist } from '../services/api';
+import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems,
+         getFamilyMembers, clearAllWishlists, exportWishlist, importWishlist, deleteAllSharedWishlistItems } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import MigrationModal from './admin/MigrationModal';
 import FamilyMemberManager from './admin/FamilyMemberManager';
@@ -17,8 +17,10 @@ import UserHouseholdManager from './UserHouseholdManager';
 const Navbar = ({
   onClearWishlist = () => {},
   viewingMember = null,
+  selectedSharedWishlist = null,
   onHouseholdUpdate = () => {},
-  onRefreshWishlist = () => {}
+  onRefreshWishlist = () => {},
+  onOpenSharedWishlists = null
 } = {}) => {
   const { selectedUser, logout, setSelectedUser, setFamilyMembers } = useAppContext();
   const { darkMode, toggleDarkMode } = useTheme();
@@ -30,7 +32,7 @@ const Navbar = ({
   const [newVersion, setNewVersion] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleteMode, setDeleteMode] = useState(null); // 'all' or 'user'
+  const [deleteMode, setDeleteMode] = useState(null); // 'all', 'user', or 'shared'
   const [showMigrationModal, setShowMigrationModal] = useState(false);
   const [isDevEnvironment, setIsDevEnvironment] = useState(false);
   const [showFamilyManager, setShowFamilyManager] = useState(false);
@@ -38,6 +40,9 @@ const Navbar = ({
   const [showUserHouseholdManager, setShowUserHouseholdManager] = useState(false);
   const settingsRef = useRef(null);
   const isAdmin = selectedUser?.is_admin;
+  const isSharedWishlistOwner = selectedSharedWishlist?.owners?.some(
+    (owner) => owner.id === selectedUser?.id
+  );
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -126,6 +131,8 @@ const Navbar = ({
     try {
       if (deleteMode === 'all' && isAdmin) {
         await clearAllWishlists();
+      } else if (deleteMode === 'shared' && selectedSharedWishlist?.id) {
+        await deleteAllSharedWishlistItems(selectedSharedWishlist.id);
       } else {
         await deleteAllWishlistItems(selectedUser.id);
       }
@@ -164,12 +171,12 @@ const Navbar = ({
   const handleHouseholdUpdateComplete = async () => {
     // Close the modal
     setShowUserHouseholdManager(false);
-    
+
     // Refresh family members to reflect household changes
     try {
       const response = await getFamilyMembers();
       setFamilyMembers(response.data);
-      
+
       // Call the callback if provided (for dashboard refresh)
       if (onHouseholdUpdate) {
         onHouseholdUpdate();
@@ -351,7 +358,7 @@ const Navbar = ({
                         </div>
                       </div>
                     )}
-                    
+
                     {/* Import/Export Buttons for own wishlist only */}
                     {viewingMember && selectedUser && viewingMember.id === selectedUser.id && (
                       <>
@@ -417,17 +424,31 @@ const Navbar = ({
                         <span>Manage Users</span>
                       </button>
                     )}
-                    
+
+                    {/* Manage Shared Wishlists - available to everyone */}
+                    {onOpenSharedWishlists && (
+                      <button
+                        onClick={() => {
+                          setShowSettings(false);
+                          onOpenSharedWishlists();
+                        }}
+                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                      >
+                        <Users className="w-4 h-4 mr-2 text-fuchsia-500" />
+                        <span>Manage Shared Wishlists</span>
+                      </button>
+                    )}
+
                     <button
                       onClick={() => {
                         setShowSettings(false);
-                        setDeleteMode('user');
+                        setDeleteMode(isSharedWishlistOwner ? 'shared' : 'user');
                         setShowDeleteConfirm(true);
                       }}
                       className="flex items-center w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-600"
                     >
                       <Trash2 className="w-4 h-4 mr-2" />
-                      Clear Wishlist
+                      {isSharedWishlistOwner ? 'Clear Shared Wishlist' : 'Clear Wishlist'}
                     </button>
                     
                     {isAdmin && (
@@ -479,15 +500,18 @@ const Navbar = ({
           </div>
 
           {/* Wishlist Header - Second row blended into navbar */}
-          {viewingMember && selectedUser && (
+          {(viewingMember || selectedSharedWishlist) && selectedUser && (
             <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
               <div className="flex flex-col items-center">
                 <h2 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white drop-shadow-lg text-center">
-                  {viewingMember.id === selectedUser.id ? "Your Wishlist" : `${viewingMember.name || ''}'s Wishlist`}
+                  {selectedSharedWishlist
+                    ? selectedSharedWishlist.name
+                    : (viewingMember.id === selectedUser.id ? "Your Wishlist" : `${viewingMember.name || ''}'s Wishlist`)}
                 </h2>
                 <p className="hidden sm:block text-gray-600 dark:text-gray-300 text-sm text-center">
-                  {viewingMember.id === selectedUser.id ? "Manage your wishes or " : "Browse wishes and "}
-                  see what others are hoping for!
+                  {selectedSharedWishlist
+                    ? `Shared wishlist with ${selectedSharedWishlist.owner_count || 0} co-owner${(selectedSharedWishlist.owner_count || 0) !== 1 ? 's' : ''}`
+                    : (viewingMember.id === selectedUser.id ? "Manage your wishes or " : "Browse wishes and ") + "see what others are hoping for!"}
                 </p>
               </div>
             </div>
@@ -519,13 +543,19 @@ const Navbar = ({
               <div className="flex items-center gap-3 text-red-500 mb-4">
                 <AlertOctagon className="w-6 h-6" />
                 <h3 className="text-xl font-bold">
-                  {deleteMode === 'all' ? 'Delete All Wishlists' : 'Delete All Items'}
+                  {deleteMode === 'all'
+                    ? 'Delete All Wishlists'
+                    : deleteMode === 'shared'
+                      ? 'Clear Shared Wishlist'
+                      : 'Delete All Items'}
                 </h3>
               </div>
               <p className="text-gray-600 dark:text-gray-300 mb-6">
-                {deleteMode === 'all' 
+                {deleteMode === 'all'
                   ? 'Are you sure you want to delete ALL wishlists for ALL users? This action cannot be undone.'
-                  : 'Are you sure you want to delete all items from your wishlist? This action cannot be undone.'}
+                  : deleteMode === 'shared'
+                    ? 'Are you sure you want to clear all items from this shared wishlist? This action cannot be undone.'
+                    : 'Are you sure you want to delete all items from your wishlist? This action cannot be undone.'}
               </p>
               <div className="flex justify-end gap-3">
                 <button

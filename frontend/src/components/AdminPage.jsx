@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Users, Settings, Mail, Shield, Trash2, Plus, 
+import {
+  Users, Settings, Mail, Shield, Trash2, Plus,
   Edit, Eye, EyeOff, Check, X, TriangleAlert, RefreshCw,
   Home, UserPlus, UserMinus, Lock, Unlock, Send, TestTube,
-  Calendar, Gift, FileText, Archive, Download, Upload, Save, ArrowUp,
+  Calendar, Gift, FileText, Archive, Download, Upload, Save, ArrowUp, ChevronDown,
   CircleCheck, CircleX, Database, CircleAlert, Box, RotateCcw,
-  AlertOctagon, Menu, LayoutDashboard
+  AlertOctagon, Menu, LayoutDashboard, ShoppingCart
 } from 'lucide-react';
 import { useAppContext } from '../contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
@@ -44,8 +44,14 @@ import {
   updateSystemSettings,
   getAllItems,
   deleteItemAsAdmin,
+  getAdminCartItems,
+  deleteAdminCartItem,
+  clearAdminCarts,
+  clearAdminCartByBuyer,
   clearAllWishlists,
-  broadcastMaintenanceNotice
+  broadcastMaintenanceNotice,
+  getRecoveryPassphrase,
+  regenerateRecoveryPassphrase
 } from '../services/api';
 import FamilyMemberManager from './admin/FamilyMemberManager';
 import Navbar from './Navbar';
@@ -215,6 +221,7 @@ const AdminPage = () => {
     { id: 'users', label: 'Users', icon: Users },
     { id: 'households', label: 'Households', icon: Home },
     { id: 'items', label: 'Items', icon: Gift },
+    { id: 'carts', label: 'Carts', icon: ShoppingCart },
     { id: 'email', label: 'Email', icon: Mail },
     { id: 'database', label: 'Database', icon: Database },
     { id: 'system', label: 'System', icon: Settings }
@@ -236,10 +243,19 @@ const AdminPage = () => {
     </motion.div>
   );
 
-  const StatCard = ({ title, value, icon: Icon, color = 'blue' }) => (
+  const StatCard = ({
+    title,
+    value,
+    icon: Icon,
+    color = 'blue',
+    iconContainerClassName = '',
+    iconContainerDarkClassName = ''
+  }) => (
     <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-md">
       <div className="flex items-center">
-        <div className={`p-2 bg-${color}-100 dark:bg-${color}-900/30 rounded-lg`}>
+        <div
+          className={`p-2 bg-${color}-100 dark:bg-${color}-900/30 rounded-lg ${iconContainerClassName} ${iconContainerDarkClassName}`}
+        >
           <Icon className={`w-5 h-5 text-${color}-600 dark:text-${color}-400`} />
         </div>
         <div className="ml-3">
@@ -275,7 +291,7 @@ const AdminPage = () => {
       </div>
 
       {/* App Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <StatCard
           title="Total Users"
           value={stats.total_users || 0}
@@ -293,11 +309,18 @@ const AdminPage = () => {
           value={stats.total_wishlists || 0}
           icon={Gift}
           color="purple"
+          iconContainerDarkClassName="dark:bg-purple-800/50"
         />
         <StatCard
           title="Emails Sent"
           value={stats.total_emails_sent || 0}
           icon={Mail}
+          color="blue"
+        />
+        <StatCard
+          title="Cart Items"
+          value={stats.total_cart_items || 0}
+          icon={ShoppingCart}
           color="blue"
         />
       </div>
@@ -1604,6 +1627,13 @@ const AdminPage = () => {
 
   const SystemTab = () => {
     const [isLoadingStatus, setIsLoadingStatus] = useState(false);
+    // Recovery passphrase management state
+    const [passphraseVisible, setPassphraseVisible] = useState(false);
+    const [currentPassphrase, setCurrentPassphrase] = useState('');
+    const [isLoadingPassphrase, setIsLoadingPassphrase] = useState(false);
+    const [showRegenConfirm, setShowRegenConfirm] = useState(false);
+    const [regenPassword, setRegenPassword] = useState('');
+    const [isRegenerating, setIsRegenerating] = useState(false);
 
     const handleRefreshStatus = async () => {
       setIsLoadingStatus(true);
@@ -1623,13 +1653,59 @@ const AdminPage = () => {
       }
     };
 
+    const handleViewPassphrase = async () => {
+      if (passphraseVisible) {
+        setPassphraseVisible(false);
+        setCurrentPassphrase('');
+        return;
+      }
+      setIsLoadingPassphrase(true);
+      try {
+        const res = await getRecoveryPassphrase();
+        setCurrentPassphrase(res.data.passphrase);
+        setPassphraseVisible(true);
+      } catch (err) {
+        console.error('Failed to fetch passphrase:', err);
+        const detail = err.response?.data?.detail;
+        if (detail === 'No recovery passphrase has been set') {
+          toast.warning('No recovery passphrase has been set. Click Regenerate to create one.');
+        } else {
+          toast.error(detail || 'Failed to retrieve recovery passphrase');
+        }
+      } finally {
+        setIsLoadingPassphrase(false);
+      }
+    };
+
+    const handleRegeneratePassphrase = async () => {
+      if (!regenPassword) {
+        toast.error('Please enter your current password');
+        return;
+      }
+      setIsRegenerating(true);
+      try {
+        const res = await regenerateRecoveryPassphrase(regenPassword);
+        setCurrentPassphrase(res.data.passphrase);
+        setPassphraseVisible(true);
+        setShowRegenConfirm(false);
+        setRegenPassword('');
+        toast.success('Recovery passphrase regenerated. Save it now!');
+      } catch (err) {
+        console.error('Failed to regenerate passphrase:', err);
+        const detail = err.response?.data?.detail;
+        toast.error(detail || 'Failed to regenerate passphrase');
+      } finally {
+        setIsRegenerating(false);
+      }
+    };
+
     return (
       <div className="space-y-6">
         <AdminCard title="System Status" icon={Settings}>
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h4 className="text-lg font-medium text-gray-900 dark:text-white">System Information</h4>
-              <button 
+              <button
                 onClick={handleRefreshStatus}
                 className="flex items-center justify-center w-8 h-8 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
                 disabled={isLoadingStatus}
@@ -1652,7 +1728,7 @@ const AdminPage = () => {
                     // Custom display for specific fields
                     let displayKey = key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
                     let displayValue = typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value.toString();
-                    
+
                     // Custom formatting for specific fields
                     if (key === 'uptime') {
                       displayKey = 'Server Uptime';
@@ -1668,7 +1744,7 @@ const AdminPage = () => {
                         displayValue = 'Never';
                       }
                     }
-                    
+
                     return (
                       <div key={key} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                         <h5 className="font-medium text-gray-900 dark:text-white mb-2">
@@ -1685,10 +1761,378 @@ const AdminPage = () => {
           </div>
         </AdminCard>
 
-        {/* Emergency Token Management */}
+        {/* Recovery Passphrase Management */}
+        <AdminCard title="Recovery Passphrase" icon={Shield}>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Your recovery passphrase is used to reset the admin password if you forget it.
+              It is stored encrypted and cannot be read from the database alone.
+            </p>
+
+            {/* View Passphrase */}
+            <div className="space-y-3">
+              <button
+                onClick={handleViewPassphrase}
+                disabled={isLoadingPassphrase}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+              >
+                {isLoadingPassphrase ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : passphraseVisible ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
+                {passphraseVisible ? 'Hide Passphrase' : 'View Passphrase'}
+              </button>
+
+              <AnimatePresence>
+                {passphraseVisible && currentPassphrase && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg space-y-2">
+                      <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
+                        Keep this passphrase secret. Do not share it.
+                      </p>
+                      <p className="font-mono text-lg text-gray-900 dark:text-white tracking-wide select-all text-center py-2 bg-white dark:bg-gray-900 rounded-md border border-amber-200 dark:border-amber-800">
+                        {currentPassphrase}
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Regenerate Passphrase */}
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-4 space-y-3">
+              {!showRegenConfirm ? (
+                <button
+                  onClick={() => setShowRegenConfirm(true)}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Regenerate Passphrase
+                </button>
+              ) : (
+                <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg space-y-3">
+                  <p className="text-sm text-red-700 dark:text-red-400 font-medium">
+                    This will replace your current recovery passphrase. The old passphrase will no longer work.
+                  </p>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Enter your current password to confirm
+                    </label>
+                    <input
+                      type="password"
+                      value={regenPassword}
+                      onChange={(e) => setRegenPassword(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                      placeholder="Current password"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleRegeneratePassphrase}
+                      disabled={isRegenerating || !regenPassword}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+                    >
+                      {isRegenerating ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Check className="w-4 h-4" />
+                      )}
+                      {isRegenerating ? 'Regenerating...' : 'Confirm Regenerate'}
+                    </button>
+                    <button
+                      onClick={() => { setShowRegenConfirm(false); setRegenPassword(''); }}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </AdminCard>
 
         {/* Application Logs */}
         <ApplicationLogViewer />
+      </div>
+    );
+  };
+
+  const CartsTab = () => {
+    const [cartItems, setCartItems] = useState([]);
+    const [isLoadingCarts, setIsLoadingCarts] = useState(false);
+    const [showCartStatus, setShowCartStatus] = useState(false);
+    const [expandedCarts, setExpandedCarts] = useState({});
+    const [showClearCartsConfirm, setShowClearCartsConfirm] = useState(false);
+    const [isClearingCarts, setIsClearingCarts] = useState(false);
+
+    const fetchCartItems = async () => {
+      setIsLoadingCarts(true);
+      try {
+        const response = await getAdminCartItems();
+        setCartItems(response.data || []);
+      } catch (err) {
+        console.error('Failed to fetch cart items:', err);
+        toast.error('Failed to load cart items');
+      } finally {
+        setIsLoadingCarts(false);
+      }
+    };
+
+    useEffect(() => {
+      fetchCartItems();
+    }, []);
+
+    const handleRemoveCartItem = async (cartItemId) => {
+      if (!confirm('Remove this item from the cart?')) return;
+      try {
+        await deleteAdminCartItem(cartItemId);
+        setCartItems((prev) => prev.filter((item) => item.id !== cartItemId));
+        toast.success('Removed item from cart.');
+      } catch (err) {
+        console.error('Failed to remove cart item:', err);
+        toast.error(err.response?.data?.detail || 'Failed to remove cart item');
+      }
+    };
+
+    const handleClearBuyerCart = async (buyerId, buyerName) => {
+      if (!buyerId) {
+        toast.error('Unable to clear cart without a buyer.');
+        return;
+      }
+      if (!confirm(`Clear the entire cart for ${buyerName}?`)) return;
+      try {
+        const response = await clearAdminCartByBuyer(buyerId);
+        setCartItems((prev) => prev.filter((item) => item.buyer_id !== buyerId));
+        toast.success(response?.data?.message || 'Cart cleared.');
+      } catch (err) {
+        console.error('Failed to clear buyer cart:', err);
+        toast.error(err.response?.data?.detail || 'Failed to clear cart');
+      }
+    };
+
+    const handleClearAllCarts = async () => {
+      setIsClearingCarts(true);
+      try {
+        const response = await clearAdminCarts();
+        setCartItems([]);
+        toast.success(response?.data?.message || 'All carts cleared.');
+        setShowClearCartsConfirm(false);
+      } catch (err) {
+        console.error('Failed to clear all carts:', err);
+        toast.error(err.response?.data?.detail || 'Failed to clear all carts');
+      } finally {
+        setIsClearingCarts(false);
+      }
+    };
+
+    const formatPrice = (price) => {
+      if (price === null || price === undefined || Number.isNaN(Number(price))) {
+        return '—';
+      }
+      return `$${(Number(price) / 100).toFixed(2)}`;
+    };
+
+    const groupedCartItems = cartItems.reduce((acc, item) => {
+      const buyerName = item.buyer_name || 'Unknown';
+      if (!acc[buyerName]) {
+        acc[buyerName] = [];
+      }
+      acc[buyerName].push(item);
+      return acc;
+    }, {});
+
+    const getStatusStyle = (status) => {
+      if (String(status).toLowerCase() === 'purchased') {
+        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
+      }
+      return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
+    };
+
+    return (
+      <div className="space-y-6">
+        <AdminCard title="Shopping Carts" icon={ShoppingCart}>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h4 className="text-lg font-medium text-gray-900 dark:text-white">Cart Items</h4>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowCartStatus(!showCartStatus)}
+                  className="flex items-center justify-center w-8 h-8 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 transition-colors"
+                  title={showCartStatus ? "Hide status" : "Show status"}
+                >
+                  {showCartStatus ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+                <button
+                  onClick={fetchCartItems}
+                  className="flex items-center justify-center w-8 h-8 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+                  disabled={isLoadingCarts}
+                  title="Refresh carts"
+                >
+                  <RefreshCw size={20} className={isLoadingCarts ? 'animate-spin' : ''} />
+                </button>
+                <button
+                  onClick={() => setShowClearCartsConfirm(true)}
+                  className="flex items-center justify-center w-8 h-8 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors"
+                  disabled={isLoadingCarts}
+                  title="Clear all carts"
+                >
+                  <Trash2 size={20} />
+                </button>
+              </div>
+            </div>
+
+            {isLoadingCarts && !cartItems.length ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-2 text-gray-600 dark:text-gray-400">Loading cart items...</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {Object.entries(groupedCartItems).map(([buyerName, buyerItems]) => {
+                  const purchasedCount = buyerItems.filter((item) => item.status === 'purchased').length;
+                  const buyerId = buyerItems[0]?.buyer_id;
+                  const cartKey = `${buyerId ?? 'unknown'}:${buyerName}`;
+                  const isExpanded = Boolean(expandedCarts[cartKey]);
+                  return (
+                    <div key={buyerName} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                      <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 border-b border-gray-200 dark:border-gray-600">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h5 className="font-medium text-gray-900 dark:text-white">{buyerName}</h5>
+                            <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">
+                              {purchasedCount} purchased • {buyerItems.length - purchasedCount} pending
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                              {buyerItems.length} item{buyerItems.length !== 1 ? 's' : ''}
+                            </span>
+                            <button
+                              onClick={() => setExpandedCarts((prev) => ({ ...prev, [cartKey]: !isExpanded }))}
+                              className="flex items-center justify-center w-8 h-8 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                              title={isExpanded ? "Hide cart items" : "Show cart items"}
+                              aria-label={isExpanded ? "Hide cart items" : "Show cart items"}
+                            >
+                              <ChevronDown size={18} className={isExpanded ? 'rotate-180 transition-transform' : 'transition-transform'} />
+                            </button>
+                            <button
+                              onClick={() => handleClearBuyerCart(buyerId, buyerName)}
+                              className="inline-flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors disabled:opacity-50"
+                              title="Clear this cart"
+                              disabled={!buyerId}
+                            >
+                              <Trash2 size={14} />
+                              Clear cart
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="divide-y divide-gray-200 dark:divide-gray-600">
+                          {buyerItems.map((item) => (
+                            <div key={item.id} className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <h6 className="font-medium text-gray-900 dark:text-white truncate flex-1 min-w-0">
+                                      {item.title}
+                                    </h6>
+                                  {showCartStatus && (
+                                    <span className={`text-xs px-2 py-0.5 rounded ${getStatusStyle(item.status)}`}>
+                                      {item.status || 'pending'}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 flex flex-wrap gap-3">
+                                  <span>Recipient: {item.recipient_name || 'Unknown'}</span>
+                                  <span>Price: {formatPrice(item.price)}</span>
+                                  <span>Added: {formatDateEST(item.created_at)}</span>
+                                </div>
+                                {showCartStatus && item.notes && (
+                                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                                    {item.notes}
+                                  </p>
+                                  )}
+                                </div>
+                                <div className="flex flex-col items-end gap-2">
+                                  {item.link && (
+                                    <a
+                                      href={item.link}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm"
+                                    >
+                                      View
+                                    </a>
+                                  )}
+                                  <button
+                                    onClick={() => handleRemoveCartItem(item.id)}
+                                    className="inline-flex items-center text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
+                                    title="Remove item from cart"
+                                    aria-label="Remove item from cart"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {!cartItems.length && !isLoadingCarts && (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    No cart items available
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </AdminCard>
+
+        {showClearCartsConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+              <div className="flex items-center gap-3 text-red-500 mb-4">
+                <AlertOctagon className="w-6 h-6" />
+                <h3 className="text-xl font-bold">Clear All Carts</h3>
+              </div>
+              <p className="text-gray-600 dark:text-gray-300 mb-6">
+                Are you sure you want to remove every item from all carts? This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowClearCartsConfirm(false)}
+                  className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                  disabled={isClearingCarts}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleClearAllCarts}
+                  className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                  disabled={isClearingCarts}
+                >
+                  {isClearingCarts ? 'Clearing...' : 'Clear All'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -1700,6 +2144,7 @@ const AdminPage = () => {
     const [isDeleting, setIsDeleting] = useState(false);
     const [showPurchaseStatus, setShowPurchaseStatus] = useState(false);
     const [showClearConfirm, setShowClearConfirm] = useState(false);
+    const [expandedOwners, setExpandedOwners] = useState({});
 
     const fetchItems = async () => {
       setIsLoading(true);
@@ -1814,6 +2259,8 @@ const AdminPage = () => {
                 {Object.entries(groupedItems).map(([ownerName, ownerItems]) => {
                   const ownerItem = ownerItems[0];
                   const ownerHouseholds = getUserHouseholds(ownerItem.owner_id);
+                  const ownerKey = `${ownerItem.owner_id ?? 'unknown'}:${ownerName}`;
+                  const isExpanded = Boolean(expandedOwners[ownerKey]);
                   
                   return (
                     <div key={ownerName} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
@@ -1832,54 +2279,75 @@ const AdminPage = () => {
                               </div>
                             )}
                           </div>
-                          <span className="text-sm text-gray-500 dark:text-gray-400">
-                            {ownerItems.length} item{ownerItems.length !== 1 ? 's' : ''}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                              {ownerItems.length} item{ownerItems.length !== 1 ? 's' : ''}
+                            </span>
+                            <button
+                              onClick={() => setExpandedOwners((prev) => ({ ...prev, [ownerKey]: !isExpanded }))}
+                              className="flex items-center justify-center w-8 h-8 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                              title={isExpanded ? "Hide items" : "Show items"}
+                              aria-label={isExpanded ? "Hide items" : "Show items"}
+                            >
+                              <ChevronDown size={18} className={isExpanded ? 'rotate-180 transition-transform' : 'transition-transform'} />
+                            </button>
+                          </div>
                         </div>
                       </div>
                       
                       {/* Items List */}
-                      <div className="divide-y divide-gray-200 dark:divide-gray-600">
-                        {ownerItems.map(item => (
-                          <div key={item.id} className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <h6 className="font-medium text-gray-900 dark:text-white truncate">
-                                    {item.title}
-                                  </h6>
-                                  {showPurchaseStatus && (
-                                    <span className={`text-xs px-2 py-0.5 rounded ${
-                                      item.is_purchased 
-                                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                                        : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
-                                    }`}>
-                                      {item.is_purchased ? 'Purchased' : 'Available'}
-                                    </span>
-                                  )}
+                      {isExpanded && (
+                        <div className="divide-y divide-gray-200 dark:divide-gray-600">
+                          {ownerItems.map(item => (
+                            <div key={item.id} className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <h6 className="font-medium text-gray-900 dark:text-white truncate flex-1 min-w-0">
+                                      {item.title}
+                                    </h6>
+                                    {showPurchaseStatus && (
+                                      <span className={`text-xs px-2 py-0.5 rounded ${
+                                        item.is_purchased 
+                                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                                          : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
+                                      }`}>
+                                        {item.is_purchased
+                                          ? (item.purchased_by ? `In cart: ${item.purchased_by}` : 'In a cart')
+                                          : 'Available'}
+                                      </span>
+                                    )}
+                                    {showPurchaseStatus && item.thinking_about_by_list?.length > 0 && (
+                                      <span className="text-xs px-2 py-0.5 rounded bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-200">
+                                        {item.thinking_about_by_list.length === 1
+                                          ? `${item.thinking_about_by_list[0]} is interested`
+                                          : `Interested: ${item.thinking_about_by_list.join(', ')}`}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
+                                    {item.description || 'No description'}
+                                  </p>
+                                  <div className="flex items-center gap-4 mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                    <span>Priority: {item.priority}</span>
+                                    {item.price && (
+                                      <span>Price: ${(item.price / 100).toFixed(2)}</span>
+                                    )}
+                                  </div>
                                 </div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
-                                  {item.description || 'No description'}
-                                </p>
-                                <div className="flex items-center gap-4 mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                  <span>Priority: {item.priority}</span>
-                                  {item.price && (
-                                    <span>Price: ${(item.price / 100).toFixed(2)}</span>
-                                  )}
-                                </div>
+                                <button 
+                                  onClick={() => handleDeleteItem(item.id)}
+                                  className="ml-3 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                                  disabled={isDeleting}
+                                  title="Delete item"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
                               </div>
-                              <button 
-                                onClick={() => handleDeleteItem(item.id)}
-                                className="ml-3 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                                disabled={isDeleting}
-                                title="Delete item"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
                             </div>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1937,6 +2405,8 @@ const AdminPage = () => {
         return <HouseholdsTab />;
       case 'items':
         return <ItemsTab />;
+      case 'carts':
+        return <CartsTab />;
       case 'email':
         return <EmailTab />;
       case 'database':

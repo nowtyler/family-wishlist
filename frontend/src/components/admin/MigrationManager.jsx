@@ -370,10 +370,10 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
             <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
                 <h3 className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200 font-medium mb-2">
                     <CircleAlert size={18} />
-                    Important Safety Information
+                    Important Information
                 </h3>
                 <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                    A backup will be automatically created before each migration. 
+                    Check system logs for any migration errors as they are applied at run-time. 
                     Backups are stored in the <code className="px-1 py-0.5 bg-yellow-100 dark:bg-yellow-900 rounded">data/backups</code> directory.
                 </p>
             </div>

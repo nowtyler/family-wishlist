@@ -41,6 +41,9 @@ class FamilyMember(Base):
     password_expires_at = Column(DateTime, nullable=True)
     temp_password_hash = Column(String, nullable=True)
     force_password_change = Column(Boolean, default=False)
+
+    # Recovery passphrase (Fernet-encrypted, for admin password reset)
+    recovery_passphrase_encrypted = Column(String, nullable=True)
     
     # Add JSON serialization/deserialization for preferences
     @property
@@ -161,10 +164,12 @@ class Comment(Base):
     id = Column(Integer, primary_key=True, index=True)
     text = Column(Text, nullable=False)
     author_id = Column(Integer, ForeignKey("family_members.id")) # Who wrote the comment
-    item_id = Column(Integer, ForeignKey("wishlist_items.id"))
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)  # Add this line
+    item_id = Column(Integer, ForeignKey("wishlist_items.id"), nullable=True)  # For regular wishlist items
+    shared_item_id = Column(Integer, ForeignKey("shared_wishlist_items.id"), nullable=True)  # For shared wishlist items
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     item = relationship("WishlistItem", back_populates="comments")
+    shared_item = relationship("SharedWishlistItem", back_populates="comments")
     author = relationship("FamilyMember") # To show who wrote the comment
 
 class WishlistItemCreate(BaseModel):
@@ -218,6 +223,7 @@ class ShoppingCartItem(Base):
     recipient_id = Column(Integer, ForeignKey("family_members.id"), nullable=True)
     recipient_name = Column(String, nullable=True)
     wishlist_item_id = Column(Integer, ForeignKey("wishlist_items.id"), nullable=True)
+    shared_wishlist_item_id = Column(Integer, ForeignKey("shared_wishlist_items.id"), nullable=True)
     title = Column(String, nullable=False)
     notes = Column(Text, nullable=True)
     link = Column(String, nullable=True)
@@ -230,6 +236,13 @@ class ShoppingCartItem(Base):
     buyer = relationship("FamilyMember", foreign_keys=[buyer_id])
     recipient = relationship("FamilyMember", foreign_keys=[recipient_id])
     wishlist_item = relationship("WishlistItem")
+    shared_wishlist_item = relationship("SharedWishlistItem")
+
+    @property
+    def shared_wishlist_id(self):
+        if self.shared_wishlist_item:
+            return self.shared_wishlist_item.wishlist_id
+        return None
 
 class Notification(Base):
     __tablename__ = "notifications"
@@ -255,16 +268,83 @@ class SystemConfig(Base):
 
 class Session(Base):
     __tablename__ = "sessions"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("family_members.id"))
     session_id = Column(String, unique=True, index=True)
     data = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
     expires_at = Column(DateTime)
-    
+
     # Relationships
     user = relationship("FamilyMember")
 
     def __repr__(self):
         return f"<Session(id={self.id}, user_id={self.user_id})>"
+
+
+# Association table for shared wishlist owners (many-to-many)
+shared_wishlist_owners = Table(
+    'shared_wishlist_owners',
+    Base.metadata,
+    Column('wishlist_id', Integer, ForeignKey('shared_wishlists.id', ondelete='CASCADE'), primary_key=True),
+    Column('user_id', Integer, ForeignKey('family_members.id', ondelete='CASCADE'), primary_key=True),
+    Column('added_at', DateTime, default=datetime.utcnow),
+    Column('added_by', Integer, ForeignKey('family_members.id'), nullable=True)
+)
+
+
+class SharedWishlist(Base):
+    """A wishlist that can be co-owned by multiple users (e.g., parents managing a kid's wishlist)"""
+    __tablename__ = "shared_wishlists"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by = Column(Integer, ForeignKey("family_members.id"), nullable=False)
+    household_id = Column(Integer, ForeignKey("households.id"), nullable=True)
+    occasion_date = Column(String, nullable=True)  # Format: YYYY-MM-DD (birthday, wedding date, etc.)
+    occasion_type = Column(String, nullable=True)  # birthday, wedding, baby_shower, anniversary, holiday, other
+
+    # Relationships
+    creator = relationship("FamilyMember", foreign_keys=[created_by])
+    household = relationship("Household", foreign_keys=[household_id])
+    owners = relationship(
+        "FamilyMember",
+        secondary=shared_wishlist_owners,
+        primaryjoin="SharedWishlist.id == shared_wishlist_owners.c.wishlist_id",
+        secondaryjoin="FamilyMember.id == shared_wishlist_owners.c.user_id",
+        backref="shared_wishlists"
+    )
+    items = relationship("SharedWishlistItem", back_populates="wishlist", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<SharedWishlist(id={self.id}, name='{self.name}')>"
+
+
+class SharedWishlistItem(Base):
+    """An item in a shared wishlist"""
+    __tablename__ = "shared_wishlist_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    wishlist_id = Column(Integer, ForeignKey("shared_wishlists.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(200), nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    link = Column(String(2000), nullable=True)
+    image_url = Column(String(2000), nullable=True)
+    priority = Column(Integer, default=0)
+    price = Column(Integer, nullable=True)  # Stored in cents
+    is_purchased = Column(Boolean, default=False)
+    purchased_by = Column(String(100), nullable=True)
+    thinking_about_by = Column(String(500), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by = Column(Integer, ForeignKey("family_members.id"), nullable=True)
+
+    # Relationships
+    wishlist = relationship("SharedWishlist", back_populates="items")
+    creator = relationship("FamilyMember", foreign_keys=[created_by])
+    comments = relationship("Comment", back_populates="shared_item", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<SharedWishlistItem(id={self.id}, title='{self.title}')>"

@@ -86,6 +86,21 @@ def _apply_pending_migrations():
                     ))
                     conn.commit()
                     logger.info("✓ Migration complete: Plaintext reset tokens cleared")
+
+            # Migration 003: Add recovery_passphrase_encrypted column
+            if 'recovery_passphrase_encrypted' not in columns:
+                logger.info("Applying migration: Adding recovery_passphrase_encrypted column to family_members")
+                conn.execute(text(
+                    "ALTER TABLE family_members ADD COLUMN recovery_passphrase_encrypted TEXT"
+                ))
+                conn.commit()
+                logger.info("✓ Migration complete: recovery_passphrase_encrypted column added")
+
+                try:
+                    _update_schema_hash_after_migration(conn)
+                except Exception as hash_error:
+                    logger.warning(f"Could not update schema hash after migration: {hash_error}")
+
     except Exception as e:
         logger.error(f"Migration error: {e}")
         # Don't fail startup if migration fails

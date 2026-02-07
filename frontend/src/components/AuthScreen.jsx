@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
-import { verifyPassword, loginUser, registerUser, requestPasswordReset } from '../services/api';
+import { verifyPassword, loginUser, registerUser, requestPasswordReset, adminResetPassword } from '../services/api';
 import { motion } from 'framer-motion';
 import UserHouseholdManager from './UserHouseholdManager';
 import { validatePassword, validatePasswordMatch } from '../utils/passwordValidation';
@@ -12,7 +12,7 @@ const AuthScreen = () => {
   const navigate = useNavigate();
   
   // Authentication states
-  const [authMode, setAuthMode] = useState('login'); // login, register, reset
+  const [authMode, setAuthMode] = useState('login'); // login, register, reset, admin-reset
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -20,6 +20,10 @@ const AuthScreen = () => {
   const [email, setEmail] = useState('');
   const [birthday, setBirthday] = useState('');
   const [resetEmail, setResetEmail] = useState('');
+  // Admin passphrase reset states
+  const [adminPassphrase, setAdminPassphrase] = useState('');
+  const [adminNewPassword, setAdminNewPassword] = useState('');
+  const [adminConfirmPassword, setAdminConfirmPassword] = useState('');
   // UI states
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -249,7 +253,14 @@ const AuthScreen = () => {
         return;
       }
       const response = await requestPasswordReset(resetEmail, turnstileTokens.reset);
-      if (response.data.success) {
+      if (response.data.requires_passphrase) {
+        // Admin user — switch to passphrase verification form
+        setAuthMode('admin-reset');
+        setError('');
+        setSuccess('');
+        setWidgetResetCounter(prev => prev + 1);
+        setTurnstileTokens({ login: '', register: '', reset: '' });
+      } else if (response.data.success) {
         setSuccess('If an account with that email exists, password reset instructions have been sent.');
         setTurnstileTokens((prev) => ({ ...prev, reset: '' }));
       } else {
@@ -260,6 +271,62 @@ const AuthScreen = () => {
       const { message } = extractErrorDetail(
         err,
         'Failed to request password reset.'
+      );
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAdminPassphraseReset = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    // Validate password
+    const passwordValidation = validatePassword(adminNewPassword);
+    if (!passwordValidation.isValid) {
+      toast.error(passwordValidation.error);
+      return;
+    }
+
+    const passwordMatchValidation = validatePasswordMatch(adminNewPassword, adminConfirmPassword);
+    if (!passwordMatchValidation.isValid) {
+      toast.error(passwordMatchValidation.error);
+      return;
+    }
+
+    if (!adminPassphrase.trim()) {
+      setError('Please enter your recovery passphrase.');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const isDevelopment = import.meta.env.MODE === 'development' || window.__RUNTIME_ENV__?.mode === 'development';
+      if (!isDevelopment && !turnstileTokens.reset) {
+        setError('Please complete the Turnstile challenge.');
+        setIsLoading(false);
+        return;
+      }
+      const response = await adminResetPassword(adminPassphrase, adminNewPassword, turnstileTokens.reset);
+      if (response.data.success) {
+        setSuccess('Admin password has been reset successfully. Redirecting to login...');
+        setAdminPassphrase('');
+        setAdminNewPassword('');
+        setAdminConfirmPassword('');
+        setTimeout(() => {
+          switchAuthMode('login');
+        }, 3000);
+      } else {
+        setError(response.data.message || 'Password reset failed');
+      }
+    } catch (err) {
+      console.error('Admin passphrase reset error:', err);
+      const { message } = extractErrorDetail(
+        err,
+        'Failed to reset admin password.'
       );
       setError(message);
     } finally {
@@ -296,6 +363,7 @@ const AuthScreen = () => {
             {authMode === 'login' && "Sign in to your account"}
             {authMode === 'register' && "Create your account"}
             {authMode === 'reset' && "Reset your password"}
+            {authMode === 'admin-reset' && "Admin password reset"}
             {authMode === 'householdSetup' && "Set up your household"}
           </p>
         </div>
@@ -526,6 +594,94 @@ const AuthScreen = () => {
                 className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed dark:focus:ring-offset-gray-900"
               >
                 {isLoading ? 'Sending...' : 'Send Reset Link'}
+              </button>
+            </div>
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => switchAuthMode('login')}
+                className="text-sm font-medium text-primary hover:text-primary-dark dark:text-primary-light dark:hover:text-primary"
+              >
+                Back to login
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Admin Passphrase Reset Form */}
+        {authMode === 'admin-reset' && (
+          <form className="space-y-5" onSubmit={handleAdminPassphraseReset}>
+            <div className="rounded-md bg-blue-50 dark:bg-blue-900/20 p-3">
+              <p className="text-blue-700 dark:text-blue-300 text-xs">
+                Enter your recovery passphrase to reset the admin password. This is the passphrase you were given during initial setup.
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="admin-passphrase" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Recovery Passphrase
+              </label>
+              <input
+                id="admin-passphrase"
+                type="text"
+                required
+                autoComplete="off"
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700 font-mono"
+                placeholder="word1 word2 word3 word4 word5 word6"
+                value={adminPassphrase}
+                onChange={(e) => setAdminPassphrase(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="admin-new-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                New Password
+              </label>
+              <input
+                id="admin-new-password"
+                type="password"
+                required
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
+                placeholder="New password"
+                value={adminNewPassword}
+                onChange={(e) => setAdminNewPassword(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Password must be at least 8 characters with uppercase, lowercase and numbers
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="admin-confirm-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Confirm New Password
+              </label>
+              <input
+                id="admin-confirm-password"
+                type="password"
+                required
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm bg-white dark:bg-gray-700"
+                placeholder="Confirm new password"
+                value={adminConfirmPassword}
+                onChange={(e) => setAdminConfirmPassword(e.target.value)}
+              />
+            </div>
+
+            {error && (
+              <div className="text-red-500 dark:text-red-400 text-sm text-center">{error}</div>
+            )}
+            <TurnstileWidget
+              resetKey={`admin-reset-${widgetResetCounter}`}
+              onVerify={handleResetVerify}
+              onExpire={handleResetExpire}
+              onError={handleTurnstileError}
+            />
+            <div>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed dark:focus:ring-offset-gray-900"
+              >
+                {isLoading ? 'Resetting...' : 'Reset Admin Password'}
               </button>
             </div>
             <div className="text-center">

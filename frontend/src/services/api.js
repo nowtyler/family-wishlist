@@ -251,6 +251,30 @@ export const confirmPasswordReset = async (token, newPassword) => {
     }
 };
 
+export const adminResetPassword = async (passphrase, newPassword, turnstileToken) => {
+    try {
+        const response = await apiClient.post('/auth/admin-reset-password', {
+            passphrase,
+            new_password: newPassword,
+            turnstile_token: turnstileToken || undefined,
+        });
+        return response;
+    } catch (error) {
+        console.error('Admin passphrase reset error:', error);
+        throw error;
+    }
+};
+
+export const getRecoveryPassphrase = async () => {
+    return apiClient.get('/admin/recovery-passphrase');
+};
+
+export const regenerateRecoveryPassphrase = async (currentPassword) => {
+    return apiClient.post('/admin/recovery-passphrase/regenerate', {
+        current_password: currentPassword,
+    });
+};
+
 // --- Family Members ---
 export const getFamilyMembers = () => {
   return apiClient.get('/family-members', {
@@ -449,6 +473,10 @@ apiClient.interceptors.request.use((config) => {
 // --- Wishlist Items ---
 export const deleteAllWishlistItems = (ownerId) => {
   return apiClient.delete(`/members/${ownerId}/items`);
+};
+
+export const deleteAllSharedWishlistItems = (wishlistId) => {
+  return apiClient.delete(`/shared-wishlists/${wishlistId}/items`);
 };
 
 export const clearAllWishlists = () => {
@@ -750,6 +778,22 @@ export const getSystemStats = () => {
   return apiClient.get('/admin/stats');
 };
 
+export const getAdminCartItems = () => {
+  return apiClient.get('/admin/carts');
+};
+
+export const deleteAdminCartItem = (cartItemId) => {
+  return apiClient.delete(`/admin/carts/${cartItemId}`);
+};
+
+export const clearAdminCarts = () => {
+  return apiClient.delete('/admin/carts');
+};
+
+export const clearAdminCartByBuyer = (buyerId) => {
+  return apiClient.delete(`/admin/carts/buyer/${buyerId}`);
+};
+
 export const clearAllData = () => {
   return apiClient.post('/admin/system/clear-all');
 };
@@ -850,12 +894,116 @@ export const leaveHousehold = (householdId) => {
   return apiClient.delete(`/households/${householdId}/leave`);
 };
 
+export const setActiveHousehold = (householdId) => {
+  return apiClient.put('/households/active', null, {
+    params: { household_id: householdId }
+  });
+};
+
 export const getApplicationLogs = (params = {}) => {
     return apiClient.get('/admin/system/logs', { params });
 };
 
 export const broadcastMaintenanceNotice = (maintenance_time, expected_downtime) => {
   return apiClient.post('/admin/email/broadcast-maintenance', { maintenance_time, expected_downtime });
+};
+
+// --- Shared Wishlists (Kid Wishlists) ---
+export const getSharedWishlists = () => {
+  return apiClient.get('/shared-wishlists');
+};
+
+export const getSharedWishlist = (wishlistId) => {
+  return apiClient.get(`/shared-wishlists/${wishlistId}`);
+};
+
+export const createSharedWishlist = (wishlistData) => {
+  return apiClient.post('/shared-wishlists', wishlistData);
+};
+
+export const updateSharedWishlist = (wishlistId, wishlistData) => {
+  return apiClient.put(`/shared-wishlists/${wishlistId}`, wishlistData);
+};
+
+export const deleteSharedWishlist = (wishlistId) => {
+  return apiClient.delete(`/shared-wishlists/${wishlistId}`);
+};
+
+export const addSharedWishlistOwner = (wishlistId, username) => {
+  return apiClient.post(`/shared-wishlists/${wishlistId}/owners`, { username });
+};
+
+export const removeSharedWishlistOwner = (wishlistId, ownerId) => {
+  return apiClient.delete(`/shared-wishlists/${wishlistId}/owners/${ownerId}`);
+};
+
+export const getSharedWishlistItems = (wishlistId) => {
+  return apiClient.get(`/shared-wishlists/${wishlistId}/items`);
+};
+
+export const createSharedWishlistItem = async (wishlistId, itemData) => {
+  try {
+    const cleanData = {
+      ...itemData,
+      link: itemData.link || null,
+      image_url: itemData.image_url || null,
+      description: itemData.description || null,
+      price: itemData.price ? parseFloat(itemData.price) : null
+    };
+    const response = await apiClient.post(`/shared-wishlists/${wishlistId}/items`, cleanData);
+    return response;
+  } catch (error) {
+    console.error('Failed to create shared wishlist item:', error);
+    throw error;
+  }
+};
+
+export const updateSharedWishlistItem = async (itemId, itemData) => {
+  try {
+    const cleanData = {
+      ...itemData,
+      link: itemData.link || null,
+      image_url: itemData.image_url || null,
+      description: itemData.description || null,
+      price: itemData.price !== null && itemData.price !== undefined && itemData.price !== '' ?
+        parseFloat(itemData.price) : null
+    };
+    const response = await apiClient.put(`/shared-wishlist-items/${itemId}`, cleanData);
+    return response;
+  } catch (error) {
+    console.error('Failed to update shared wishlist item:', error);
+    throw error;
+  }
+};
+
+export const deleteSharedWishlistItem = (itemId) => {
+  return apiClient.delete(`/shared-wishlist-items/${itemId}`);
+};
+
+export const toggleSharedItemThinking = (itemId) => {
+  return apiClient.patch(`/shared-wishlist-items/${itemId}/toggle-thinking`);
+};
+
+export const toggleSharedItemPurchased = (itemId) => {
+  return apiClient.patch(`/shared-wishlist-items/${itemId}/toggle-purchased`);
+};
+
+// Add shopping cart item from shared wishlist item
+export const addShoppingCartItemFromSharedWishlistItem = async (itemId, sharedWishlistId) => {
+  try {
+    const response = await apiClient.post(`/shopping-cart/from-shared-wishlist-item/${itemId}`, {
+      shared_wishlist_id: sharedWishlistId,
+    });
+    return response;
+  } catch (error) {
+    console.error('Failed to add shared wishlist item to shopping cart:', error);
+    throw error;
+  }
+};
+
+// Add comment to shared wishlist item
+export const addSharedWishlistItemComment = (itemId, text) => {
+  return apiClient.post(`/shared-wishlist-items/${itemId}/comments`, { text });
 };
 
 export default apiClient;

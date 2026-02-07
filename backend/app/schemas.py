@@ -39,6 +39,7 @@ class FamilyMember(FamilyMemberBase):
     wishlist_item_count: Optional[int] = 0
     external_wishlist_count: Optional[int] = 0
     household_count: Optional[int] = 0
+    households: Optional[List[Dict[str, Any]]] = []
 
     class Config:
         from_attributes = True
@@ -165,6 +166,7 @@ class UserRegisterRequest(BaseModel):
 class AuthResponse(BaseResponse):
     user_id: Optional[int] = None
     is_admin: Optional[bool] = None
+    requires_passphrase: Optional[bool] = None
 
 class PasswordResetRequest(BaseModel):
     username_or_email: str
@@ -538,9 +540,10 @@ class ExternalWishlist(ExternalWishlistBase):
 # --- Shopping Cart ---
 class ShoppingCartItemBase(BaseModel):
     buyer_id: int
-    recipient_id: Optional[int] = None
+    recipient_id: Optional[Union[int, str]] = None
     recipient_name: Optional[str] = Field(None, max_length=100)
     wishlist_item_id: Optional[int] = None
+    shared_wishlist_item_id: Optional[int] = None
     title: str = Field(..., min_length=1, max_length=200)
     notes: Optional[str] = Field(None, max_length=2000)
     link: Optional[HttpUrl] = None
@@ -554,9 +557,10 @@ class ShoppingCartItemCreate(ShoppingCartItemBase):
 
 class ShoppingCartItemUpdate(BaseModel):
     buyer_id: Optional[int] = None
-    recipient_id: Optional[int] = None
+    recipient_id: Optional[Union[int, str]] = None
     recipient_name: Optional[str] = Field(None, max_length=100)
     wishlist_item_id: Optional[int] = None
+    shared_wishlist_item_id: Optional[int] = None
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     notes: Optional[str] = Field(None, max_length=2000)
     link: Optional[HttpUrl] = None
@@ -568,6 +572,7 @@ class ShoppingCartItemUpdate(BaseModel):
 class ShoppingCartItem(ShoppingCartItemBase):
     id: int
     created_at: datetime
+    shared_wishlist_id: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -605,7 +610,132 @@ class FirstTimeSetupResponse(BaseModel):
     success: bool
     message: str
     admin_user: FamilyMember
+    recovery_passphrase: Optional[str] = None
+
+class AdminPassphraseResetRequest(BaseModel):
+    passphrase: str
+    new_password: str = Field(..., min_length=8, max_length=72)
+    turnstile_token: Optional[str] = None
+
+class RecoveryPassphraseResponse(BaseModel):
+    success: bool
+    passphrase: str
+
+class RegeneratePassphraseRequest(BaseModel):
+    current_password: str
 
 class MaintenanceBroadcastRequest(BaseModel):
     maintenance_time: Optional[str] = None
     expected_downtime: Optional[str] = None
+
+
+# --- Shared Wishlist Schemas ---
+class SharedWishlistOwner(BaseModel):
+    id: int
+    name: str
+    username: Optional[str] = None
+    added_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SharedWishlistBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=2000)
+    household_id: Optional[int] = None
+    occasion_date: Optional[str] = Field(None, description="Date in YYYY-MM-DD format (birthday, wedding date, etc.)")
+    occasion_type: Optional[str] = Field(None, description="Type: birthday, wedding, baby_shower, anniversary, holiday, other")
+
+
+class SharedWishlistCreate(SharedWishlistBase):
+    pass
+
+
+class SharedWishlistUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=2000)
+    household_id: Optional[int] = None
+    occasion_date: Optional[str] = None
+    occasion_type: Optional[str] = None
+
+
+class SharedWishlist(SharedWishlistBase):
+    id: int
+    created_at: datetime
+    created_by: int
+    owner_count: Optional[int] = 0
+    item_count: Optional[int] = 0
+    owners: List[SharedWishlistOwner] = []
+    household_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SharedWishlistItemBase(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=2000)
+    link: Optional[HttpUrl] = None
+    image_url: Optional[HttpUrl] = None
+    priority: int = Field(default=1, ge=0, le=2)
+    price: Optional[float] = Field(None, ge=0, le=1000000)
+
+
+class SharedWishlistItemCreate(SharedWishlistItemBase):
+    pass
+
+
+class SharedWishlistItemUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=2000)
+    link: Optional[str] = None
+    image_url: Optional[str] = None
+    priority: Optional[int] = Field(None, ge=0, le=2)
+    price: Optional[float] = Field(None, ge=0)
+
+
+class SharedWishlistItemComment(BaseModel):
+    id: int
+    author_id: int
+    author_name: str
+    shared_item_id: int
+    text: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SharedWishlistItem(BaseModel):
+    id: int
+    wishlist_id: int
+    title: str
+    description: Optional[str] = None
+    link: Optional[str] = None
+    image_url: Optional[str] = None
+    priority: int = 0
+    price: Optional[int] = None
+    is_purchased: bool = False
+    purchased_by: Optional[str] = None
+    thinking_about_by_list: List[str] = []
+    comments: List[SharedWishlistItemComment] = []
+    created_at: Optional[datetime] = None
+    created_by: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SharedWishlistWithItems(SharedWishlist):
+    items: List[SharedWishlistItem] = []
+
+
+class AddOwnerRequest(BaseModel):
+    username: str = Field(..., min_length=1, max_length=100)
+
+
+class SharedWishlistResponse(BaseModel):
+    success: bool
+    message: str
+    wishlist: Optional[SharedWishlist] = None
