@@ -137,7 +137,7 @@ Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
 | **AuthScreen.jsx** | Login/registration with Turnstile CAPTCHA |
 | **FirstTimeSetupScreen.jsx** | Initial admin setup for new installations |
 | **UserSelectionScreen.jsx** | Switch between family members' wishlists |
-| **FloatingActionMenu.jsx** | FAB with quick actions (add item, browse, cart, etc.) |
+| **FloatingActionMenu.jsx** | FAB with quick actions (add item, browse, cart, My Shared Wishlists for owners, etc.) |
 | **Navbar.jsx** | Top nav - profile, logout, theme toggle |
 | **WishlistCard.jsx** | Individual item display with status, priority, actions |
 | **AddItemForm.jsx** | Add items with URL auto-fetch |
@@ -215,6 +215,7 @@ Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
 - Household management (switching, joining, leaving)
 - Shopping cart linking to wishlist items (optimistic updates)
 - Enhanced floating action menu with tabs
+- "My Shared Wishlists" FAB icon for quick access to owned shared wishlists
 
 **Files recently modified**:
 - `FloatingActionMenu.jsx` (currently has uncommitted changes)

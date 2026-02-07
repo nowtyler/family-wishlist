@@ -1,6 +1,5 @@
 // SharedWishlistInline.jsx - Inline component for viewing shared wishlist items in main dashboard
 import React, { useState, useEffect, useCallback } from 'react';
-import { Check, Users } from 'lucide-react';
 import { toast } from 'react-toastify';
 import {
   getSharedWishlist,
@@ -190,27 +189,6 @@ const SharedWishlistInline = ({
 
   return (
     <div className="relative">
-      {/* Purchase Visibility Notice for Owners */}
-      {isOwner && (
-        <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border
-          border-green-200 dark:border-green-800 text-sm text-green-700 dark:text-green-300
-          flex items-start gap-2">
-          <Check className="w-4 h-4 flex-shrink-0 mt-0.5" />
-          <span>As a co-owner, you can see which items have been purchased to coordinate gift-giving.</span>
-        </div>
-      )}
-
-      {/* Shared Wishlist Info Banner */}
-      <div className="mb-4 p-3 bg-fuchsia-50 dark:bg-fuchsia-900/20 rounded-lg border
-        border-fuchsia-200 dark:border-fuchsia-800 text-sm text-fuchsia-700 dark:text-fuchsia-300
-        flex items-center gap-2">
-        <Users className="w-4 h-4 flex-shrink-0" />
-        <span>
-          Shared wishlist with {wishlistData?.owner_count || wishlist.owner_count || 0} co-owner{(wishlistData?.owner_count || wishlist.owner_count || 0) !== 1 ? 's' : ''}
-          {isOwner && <span className="ml-2 px-2 py-0.5 bg-fuchsia-100 dark:bg-fuchsia-800 rounded-full text-xs font-medium">You're an owner</span>}
-        </span>
-      </div>
-
       <WishlistCard
         member={virtualMember}
         items={items}

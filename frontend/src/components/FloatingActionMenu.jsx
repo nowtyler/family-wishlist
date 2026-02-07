@@ -39,6 +39,7 @@ const FloatingActionMenu = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showMemberSubmenu, setShowMemberSubmenu] = useState(false);
+  const [showSharedWishlistSubmenu, setShowSharedWishlistSubmenu] = useState(false);
   const menuRef = useRef(null);
   const tutorial = useTutorial();
   const prefersReducedMotion = useReducedMotion();
@@ -55,12 +56,14 @@ const FloatingActionMenu = ({
     if (isTutorialMenuStep) {
       setIsOpen(true);
       setShowMemberSubmenu(false);
+      setShowSharedWishlistSubmenu(false);
       return;
     }
 
     if (tutorialTarget && tutorialTarget !== '#tutorial-fab-button') {
       setIsOpen(false);
       setShowMemberSubmenu(false);
+      setShowSharedWishlistSubmenu(false);
     }
   }, [tutorial?.run, tutorialTarget, isTutorialMenuStep]);
 
@@ -74,6 +77,7 @@ const FloatingActionMenu = ({
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setIsOpen(false);
         setShowMemberSubmenu(false);
+        setShowSharedWishlistSubmenu(false);
       }
     };
 
@@ -95,7 +99,9 @@ const FloatingActionMenu = ({
         if (isTutorialRunning) {
           return;
         }
-        if (showMemberSubmenu) {
+        if (showSharedWishlistSubmenu) {
+          setShowSharedWishlistSubmenu(false);
+        } else if (showMemberSubmenu) {
           setShowMemberSubmenu(false);
         } else {
           setIsOpen(false);
@@ -105,14 +111,46 @@ const FloatingActionMenu = ({
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [showMemberSubmenu, isTutorialRunning]);
+  }, [showMemberSubmenu, showSharedWishlistSubmenu, isTutorialRunning]);
+
+  // Filter shared wishlists that the current user owns
+  const ownedSharedWishlists = sharedWishlists.filter(wishlist =>
+    wishlist.owners && wishlist.owners.some(owner => owner.id === selectedUser?.id)
+  );
 
   // Build menu items based on context
   const getMenuItems = () => {
     const items = [];
 
-    if (isOwnWishlist) {
-      // Own wishlist context
+    // When viewing a shared wishlist as an owner, show BOTH Add Item and My Wishlist
+    if (selectedSharedWishlist && isOwnWishlist) {
+      // Add Item button (shown above home button)
+      items.push({
+        id: 'add',
+        tutorialId: 'tutorial-add-item',
+        icon: Plus,
+        label: 'Add Item',
+        onClick: () => {
+          setIsOpen(false);
+          onAddItem?.();
+        },
+        gradient: 'from-sky-500 to-indigo-500 dark:from-sky-400 dark:to-indigo-400',
+        hoverGradient: 'hover:from-sky-600 hover:to-indigo-600 dark:hover:from-sky-500 dark:hover:to-indigo-500',
+      });
+      // My Wishlist button (shown at bottom)
+      items.push({
+        id: 'home',
+        icon: Home,
+        label: 'My Wishlist',
+        onClick: () => {
+          setIsOpen(false);
+          onReturnHome?.();
+        },
+        gradient: 'from-emerald-500 to-teal-500 dark:from-emerald-400 dark:to-teal-400',
+        hoverGradient: 'hover:from-emerald-600 hover:to-teal-600 dark:hover:from-emerald-500 dark:hover:to-teal-500',
+      });
+    } else if (isOwnWishlist) {
+      // Own wishlist context (personal wishlist)
       items.push({
         id: 'add',
         tutorialId: 'tutorial-add-item',
@@ -126,7 +164,7 @@ const FloatingActionMenu = ({
         hoverGradient: 'hover:from-sky-600 hover:to-indigo-600 dark:hover:from-sky-500 dark:hover:to-indigo-500',
       });
     } else {
-      // Shopping mode context
+      // Shopping mode context (viewing someone else's wishlist)
       items.push({
         id: 'home',
         icon: Home,
@@ -190,6 +228,22 @@ const FloatingActionMenu = ({
         },
         gradient: 'from-violet-500 to-purple-500 dark:from-violet-400 dark:to-purple-400',
         hoverGradient: 'hover:from-violet-600 hover:to-purple-600 dark:hover:from-violet-500 dark:hover:to-purple-500',
+      });
+    }
+
+    // My Shared Wishlists (only for owners)
+    if (ownedSharedWishlists.length > 0) {
+      items.push({
+        id: 'my-shared-wishlists',
+        icon: Users,
+        label: 'My Shared Wishlists',
+        badge: ownedSharedWishlists.length,
+        badgeColorClass: 'bg-fuchsia-500 dark:bg-fuchsia-400 dark:text-gray-900',
+        onClick: () => {
+          setShowSharedWishlistSubmenu(true);
+        },
+        gradient: 'from-fuchsia-500 to-pink-500 dark:from-fuchsia-400 dark:to-pink-400',
+        hoverGradient: 'hover:from-fuchsia-600 hover:to-pink-600 dark:hover:from-fuchsia-500 dark:hover:to-pink-500',
       });
     }
 
@@ -348,6 +402,8 @@ const FloatingActionMenu = ({
             onClick={() => {
               if (!isTutorialRunning && !isTutorialMenuStep) {
                 setIsOpen(false);
+                setShowMemberSubmenu(false);
+                setShowSharedWishlistSubmenu(false);
               }
             }}
           />
@@ -365,7 +421,7 @@ const FloatingActionMenu = ({
       >
         {/* Action Items */}
         <AnimatePresence mode="popLayout">
-          {isOpen && !showMemberSubmenu && (
+          {isOpen && !showMemberSubmenu && !showSharedWishlistSubmenu && (
             <motion.div
               variants={containerVariants}
               initial="hidden"
@@ -564,6 +620,102 @@ const FloatingActionMenu = ({
           )}
         </AnimatePresence>
 
+        {/* My Shared Wishlists Submenu */}
+        <AnimatePresence mode="popLayout">
+          {isOpen && showSharedWishlistSubmenu && (
+            <motion.div
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="flex flex-col-reverse items-end gap-3 mb-2 max-h-[70vh] overflow-y-auto pr-2"
+              style={{
+                scrollbarWidth: 'thin',
+                scrollbarColor: 'rgba(156, 163, 175, 0.5) transparent',
+              }}
+            >
+              {/* Back button */}
+              <motion.div
+                variants={itemVariants}
+                layout="position"
+                className="flex items-center gap-4"
+              >
+                <motion.span
+                  variants={labelVariants}
+                  className="px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-lg shadow-lg whitespace-nowrap"
+                >
+                  Back
+                </motion.span>
+                <motion.button
+                  onClick={() => {
+                    triggerHaptic();
+                    setShowSharedWishlistSubmenu(false);
+                  }}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.95 }}
+                  whileFocus={{ scale: 1.1 }}
+                  aria-label="Back to main menu"
+                  className="w-10 h-10 rounded-full bg-gray-500 dark:bg-gray-600 hover:bg-gray-600 dark:hover:bg-gray-500 text-white shadow-lg flex items-center justify-center transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
+                >
+                  <ChevronLeft size={18} />
+                </motion.button>
+              </motion.div>
+
+              {/* Owned shared wishlists */}
+              {ownedSharedWishlists.map((wishlist) => {
+                const isCurrentWishlist = selectedSharedWishlist?.id === wishlist.id;
+                const displayName = wishlist.name.replace(/['']s\s+Wishlist$/i, '').replace(/\s+Wishlist$/i, '');
+                const itemCount = wishlist.item_count || wishlist.items?.length || 0;
+
+                return (
+                  <motion.div
+                    key={`owned-shared-${wishlist.id}`}
+                    variants={itemVariants}
+                    layout="position"
+                    className="flex items-center gap-4"
+                  >
+                    {/* Wishlist name label with shared indicator */}
+                    <motion.span
+                      variants={labelVariants}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-lg shadow-lg whitespace-nowrap flex items-center gap-1.5 ${
+                        isCurrentWishlist
+                          ? 'bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white'
+                          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200'
+                      }`}
+                    >
+                      <Users size={14} className={isCurrentWishlist ? 'text-white' : 'text-fuchsia-500'} />
+                      {displayName}
+                    </motion.span>
+
+                    {/* Select button */}
+                    <motion.button
+                      onClick={() => {
+                        triggerHaptic();
+                        setIsOpen(false);
+                        setShowSharedWishlistSubmenu(false);
+                        onSelectSharedWishlist?.(wishlist);
+                      }}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.95 }}
+                      whileFocus={{ scale: 1.1 }}
+                      aria-label={`View ${wishlist.name}`}
+                      className={`relative w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 text-white bg-gradient-to-r from-fuchsia-500 to-pink-500 hover:from-fuchsia-600 hover:to-pink-600 ${
+                        isCurrentWishlist ? 'ring-2 ring-white dark:ring-gray-900' : ''
+                      }`}
+                    >
+                      <Users size={18} />
+                      {/* Item count badge */}
+                      <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[20px] h-[20px] px-1 text-xs font-bold text-white bg-gray-700 dark:bg-gray-800 rounded-full shadow-md border-2 border-white dark:border-gray-900">
+                        {itemCount}
+                      </span>
+                    </motion.button>
+                  </motion.div>
+                );
+              })}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Main FAB Button */}
         <motion.button
           id="tutorial-fab-button"
@@ -571,6 +723,7 @@ const FloatingActionMenu = ({
             triggerHaptic();
             if (isOpen) {
               setShowMemberSubmenu(false);
+              setShowSharedWishlistSubmenu(false);
             }
             setIsOpen(!isOpen);
           }}

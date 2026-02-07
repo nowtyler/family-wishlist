@@ -508,11 +508,24 @@ const Navbar = ({
                     ? selectedSharedWishlist.name
                     : (viewingMember.id === selectedUser.id ? "Your Wishlist" : `${viewingMember.name || ''}'s Wishlist`)}
                 </h2>
-                <p className="hidden sm:block text-gray-600 dark:text-gray-300 text-sm text-center">
-                  {selectedSharedWishlist
-                    ? `Shared wishlist with ${selectedSharedWishlist.owner_count || 0} co-owner${(selectedSharedWishlist.owner_count || 0) !== 1 ? 's' : ''}`
-                    : (viewingMember.id === selectedUser.id ? "Manage your wishes or " : "Browse wishes and ") + "see what others are hoping for!"}
-                </p>
+                <div className="hidden sm:flex items-center gap-2 text-gray-600 dark:text-gray-300 text-sm">
+                  {selectedSharedWishlist ? (
+                    <span>
+                      Owned by {selectedSharedWishlist.owners?.map((owner, index) => {
+                        const isLast = index === selectedSharedWishlist.owners.length - 1;
+                        const isSecondToLast = index === selectedSharedWishlist.owners.length - 2;
+                        return (
+                          <span key={owner.id}>
+                            {owner.name}
+                            {!isLast && (isSecondToLast ? ' and ' : ', ')}
+                          </span>
+                        );
+                      })}
+                    </span>
+                  ) : (
+                    <span>{(viewingMember.id === selectedUser.id ? "Manage your wishes or " : "Browse wishes and ") + "see what others are hoping for!"}</span>
+                  )}
+                </div>
               </div>
             </div>
           )}

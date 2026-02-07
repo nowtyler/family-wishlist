@@ -1,6 +1,6 @@
 // SharedWishlistView.jsx - Component for viewing and managing shared wishlist items
 import React, { useState, useEffect, useCallback } from 'react';
-import { ChevronLeft, Check, Baby, Users } from 'lucide-react';
+import { ChevronLeft, Baby, Users } from 'lucide-react';
 import { toast } from 'react-toastify';
 import {
   getSharedWishlist,
@@ -141,26 +141,21 @@ const SharedWishlistView = ({
               </div>
               <div className="flex items-center gap-2 mt-1 text-sm text-gray-500 dark:text-gray-400">
                 <Users className="w-4 h-4" />
-                <span>{wishlistData?.owner_count || 0} co-owner{(wishlistData?.owner_count || 0) !== 1 ? 's' : ''}</span>
-                {isOwner && (
-                  <span className="px-2 py-0.5 bg-fuchsia-100 dark:bg-fuchsia-900/50 text-fuchsia-600
-                    dark:text-fuchsia-400 rounded-full text-xs font-medium">
-                    You're an owner
-                  </span>
-                )}
+                <span>
+                  Owned by {wishlistData?.owners?.map((owner, index) => {
+                    const isLast = index === wishlistData.owners.length - 1;
+                    const isSecondToLast = index === wishlistData.owners.length - 2;
+                    return (
+                      <span key={owner.id}>
+                        {owner.name}
+                        {!isLast && (isSecondToLast ? ' and ' : ', ')}
+                      </span>
+                    );
+                  })}
+                </span>
               </div>
             </div>
           </div>
-
-          {/* Purchase Visibility Notice for Owners */}
-          {isOwner && (
-            <div className="mt-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border
-              border-green-200 dark:border-green-800 text-sm text-green-700 dark:text-green-300
-              flex items-start gap-2">
-              <Check className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <span>As a co-owner, you can see which items have been purchased to coordinate gift-giving.</span>
-            </div>
-          )}
         </div>
       </div>
 
