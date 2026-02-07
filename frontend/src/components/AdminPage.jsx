@@ -2044,8 +2044,8 @@ const AdminPage = () => {
                             <div key={item.id} className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                               <div className="flex items-start justify-between gap-4">
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <h6 className="font-medium text-gray-900 dark:text-white truncate">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <h6 className="font-medium text-gray-900 dark:text-white truncate flex-1 min-w-0">
                                       {item.title}
                                     </h6>
                                   {showCartStatus && (
@@ -2302,8 +2302,8 @@ const AdminPage = () => {
                             <div key={item.id} className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                               <div className="flex items-center justify-between">
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <h6 className="font-medium text-gray-900 dark:text-white truncate">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <h6 className="font-medium text-gray-900 dark:text-white truncate flex-1 min-w-0">
                                       {item.title}
                                     </h6>
                                     {showPurchaseStatus && (
@@ -2312,7 +2312,16 @@ const AdminPage = () => {
                                           ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
                                           : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
                                       }`}>
-                                        {item.is_purchased ? 'Purchased' : 'Available'}
+                                        {item.is_purchased
+                                          ? (item.purchased_by ? `In cart: ${item.purchased_by}` : 'In a cart')
+                                          : 'Available'}
+                                      </span>
+                                    )}
+                                    {showPurchaseStatus && item.thinking_about_by_list?.length > 0 && (
+                                      <span className="text-xs px-2 py-0.5 rounded bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-200">
+                                        {item.thinking_about_by_list.length === 1
+                                          ? `${item.thinking_about_by_list[0]} is interested`
+                                          : `Interested: ${item.thinking_about_by_list.join(', ')}`}
                                       </span>
                                     )}
                                   </div>

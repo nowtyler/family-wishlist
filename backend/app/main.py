@@ -3704,6 +3704,8 @@ def get_all_items(
             ).filter(models.user_household_association.c.user_id == item.owner_id).all()
             
             household_names = [h.name for h in households] if households else ["No household"]
+            thinking_by_list = item.thinking_about_by.split(',') if item.thinking_about_by else []
+            thinking_by_list = [name.strip() for name in thinking_by_list if name.strip()]
             
             result.append({
                 "id": item.id,
@@ -3714,6 +3716,7 @@ def get_all_items(
                 "households": household_names,
                 "is_purchased": item.is_purchased,
                 "purchased_by": item.purchased_by,
+                "thinking_about_by_list": thinking_by_list,
                 "priority": item.priority,
                 "price": item.price,
                 "created_at": item.id  # Using ID as proxy for creation order since created_at isn't in model
