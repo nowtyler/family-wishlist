@@ -32,6 +32,13 @@ const truncateText = (value, maxLength = 60) => {
   return `${nextValue.slice(0, Math.max(0, maxLength - 1))}…`;
 };
 
+const formatPrice = (price) => {
+  if (price === null || price === undefined || Number.isNaN(Number(price))) {
+    return null;
+  }
+  return `$${(Number(price) / 100).toFixed(2)}`;
+};
+
 const ShoppingCartDrawer = ({
   isOpen,
   onClose,
@@ -79,6 +86,21 @@ const ShoppingCartDrawer = ({
   const notifiedItemIds = useMemo(() => {
     return new Set(notifications.map((n) => n.cart_item_id).filter(Boolean));
   }, [notifications]);
+
+  const cartTotalCents = useMemo(() => {
+    if (!Array.isArray(cartItems) || cartItems.length === 0) return 0;
+    return cartItems.reduce((sum, item) => {
+      const price = Number(item?.price);
+      if (!Number.isFinite(price) || price < 0) return sum;
+      return sum + price;
+    }, 0);
+  }, [cartItems]);
+
+  const cartTotalLabel = useMemo(() => formatPrice(cartTotalCents) || '$0.00', [cartTotalCents]);
+
+  const isAdminCartNotice = (message = '') => {
+    return message.toLowerCase().startsWith('an admin ');
+  };
 
   const previousCustomRecipientNames = useMemo(() => {
     if (!Array.isArray(cartItems)) return [];
@@ -175,13 +197,6 @@ const ShoppingCartDrawer = ({
     } finally {
       setIsRefreshing(false);
     }
-  };
-
-  const formatPrice = (price) => {
-    if (price === null || price === undefined || Number.isNaN(Number(price))) {
-      return null;
-    }
-    return `$${(Number(price) / 100).toFixed(2)}`;
   };
 
   const fetchCartItems = async () => {
@@ -477,6 +492,9 @@ const ShoppingCartDrawer = ({
                   <span className="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200">
                     {cartItems.length === 0 ? 'Empty' : `${cartItems.length} item${cartItems.length === 1 ? '' : 's'}`}
                   </span>
+                  <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
+                    Total {cartTotalLabel}
+                  </span>
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Review items or add a quick entry</p>
               </div>
@@ -531,7 +549,7 @@ const ShoppingCartDrawer = ({
                         <p className="text-xs text-amber-800 dark:text-amber-200">
                           {notification.message}
                         </p>
-                        {notification.cart_item_id && (
+                        {notification.cart_item_id && !isAdminCartNotice(notification.message) && (
                           <button
                             type="button"
                             onClick={() => handleRemoveNotifiedItem(notification)}

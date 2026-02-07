@@ -2,7 +2,7 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Header, Request, Body, Path, Query
 from fastapi.responses import Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, text
 from typing import List, Optional, Dict, Any
 import logging
@@ -3725,6 +3725,246 @@ def get_all_items(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get all items: {str(e)}"
+        )
+
+@app.get("/api/admin/carts")
+def get_all_cart_items(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get all shopping cart items across users (admin only)."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+
+    try:
+        cart_items = db.query(models.ShoppingCartItem).options(
+            joinedload(models.ShoppingCartItem.buyer),
+            joinedload(models.ShoppingCartItem.recipient),
+            joinedload(models.ShoppingCartItem.shared_wishlist_item)
+        ).order_by(models.ShoppingCartItem.created_at.desc()).all()
+
+        result = []
+        for item in cart_items:
+            buyer_name = item.buyer.name if item.buyer else "Unknown"
+            recipient_name = item.recipient.name if item.recipient else item.recipient_name
+            result.append({
+                "id": item.id,
+                "buyer_id": item.buyer_id,
+                "buyer_name": buyer_name,
+                "recipient_id": item.recipient_id,
+                "recipient_name": recipient_name,
+                "wishlist_item_id": item.wishlist_item_id,
+                "shared_wishlist_item_id": item.shared_wishlist_item_id,
+                "shared_wishlist_id": item.shared_wishlist_id,
+                "title": item.title,
+                "notes": item.notes,
+                "link": item.link,
+                "image_url": item.image_url,
+                "price": item.price,
+                "status": item.status,
+                "created_at": item.created_at,
+                "purchased_at": item.purchased_at
+            })
+
+        return result
+    except Exception as e:
+        logger.error(f"Failed to get all cart items: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get all cart items: {str(e)}"
+        )
+
+@app.delete("/api/admin/carts/{cart_item_id}")
+def delete_admin_cart_item(
+    cart_item_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Delete a shopping cart item as admin."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+
+    try:
+        db_item = db.query(models.ShoppingCartItem).filter(models.ShoppingCartItem.id == cart_item_id).first()
+        if not db_item:
+            raise HTTPException(status_code=404, detail="Shopping cart item not found")
+
+        buyer = db.query(models.FamilyMember).filter(models.FamilyMember.id == db_item.buyer_id).first()
+        buyer_name = buyer.name if buyer else None
+        item_title = db_item.title or "an item"
+
+        if db_item.wishlist_item_id and buyer_name:
+            wishlist_item = db.query(models.WishlistItem).filter(models.WishlistItem.id == db_item.wishlist_item_id).first()
+            if wishlist_item and wishlist_item.purchased_by == buyer_name:
+                wishlist_item.is_purchased = False
+                wishlist_item.purchased_by = None
+
+        if db_item.shared_wishlist_item_id and buyer_name:
+            shared_item = db.query(models.SharedWishlistItem).filter(
+                models.SharedWishlistItem.id == db_item.shared_wishlist_item_id
+            ).first()
+            if shared_item and shared_item.purchased_by == buyer_name:
+                shared_item.is_purchased = False
+                shared_item.purchased_by = None
+
+        if db_item.buyer_id:
+            notification = models.Notification(
+                recipient_id=db_item.buyer_id,
+                message=f'An admin removed "{item_title}" from your cart.',
+                cart_item_id=db_item.id,
+                is_read=False,
+            )
+            db.add(notification)
+
+        db.delete(db_item)
+        db.commit()
+        return {"success": True, "message": "Cart item removed."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to delete cart item: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete cart item: {str(e)}"
+        )
+
+@app.delete("/api/admin/carts/buyer/{buyer_id}")
+def clear_admin_cart(
+    buyer_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Clear all shopping cart items for a buyer (admin only)."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+
+    try:
+        buyer = db.query(models.FamilyMember).filter(models.FamilyMember.id == buyer_id).first()
+        buyer_name = buyer.name if buyer else None
+
+        cart_items = db.query(models.ShoppingCartItem).filter(
+            models.ShoppingCartItem.buyer_id == buyer_id
+        ).all()
+
+        if cart_items and buyer_id:
+            notification = models.Notification(
+                recipient_id=buyer_id,
+                message='An admin cleared your cart.',
+                is_read=False,
+            )
+            db.add(notification)
+
+        for db_item in cart_items:
+            if db_item.wishlist_item_id and buyer_name:
+                wishlist_item = db.query(models.WishlistItem).filter(
+                    models.WishlistItem.id == db_item.wishlist_item_id
+                ).first()
+                if wishlist_item and wishlist_item.purchased_by == buyer_name:
+                    wishlist_item.is_purchased = False
+                    wishlist_item.purchased_by = None
+
+            if db_item.shared_wishlist_item_id and buyer_name:
+                shared_item = db.query(models.SharedWishlistItem).filter(
+                    models.SharedWishlistItem.id == db_item.shared_wishlist_item_id
+                ).first()
+                if shared_item and shared_item.purchased_by == buyer_name:
+                    shared_item.is_purchased = False
+                    shared_item.purchased_by = None
+
+            db.delete(db_item)
+
+        db.commit()
+        removed_count = len(cart_items)
+        return {
+            "success": True,
+            "removed": removed_count,
+            "message": f"Cleared {removed_count} cart item{'' if removed_count == 1 else 's'}."
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to clear cart items: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to clear cart items: {str(e)}"
+        )
+
+@app.delete("/api/admin/carts")
+def clear_all_admin_carts(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Clear all shopping cart items for all buyers (admin only)."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+
+    try:
+        cart_items = db.query(models.ShoppingCartItem).all()
+        if not cart_items:
+            return {"success": True, "removed": 0, "message": "No cart items to clear."}
+
+        buyer_ids = {item.buyer_id for item in cart_items if item.buyer_id}
+        buyers = db.query(models.FamilyMember).filter(models.FamilyMember.id.in_(buyer_ids)).all()
+        buyer_names = {buyer.id: buyer.name for buyer in buyers}
+
+        for buyer_id in buyer_ids:
+            notification = models.Notification(
+                recipient_id=buyer_id,
+                message='An admin cleared your cart.',
+                is_read=False,
+            )
+            db.add(notification)
+
+        for db_item in cart_items:
+            buyer_name = buyer_names.get(db_item.buyer_id)
+
+            if db_item.wishlist_item_id and buyer_name:
+                wishlist_item = db.query(models.WishlistItem).filter(
+                    models.WishlistItem.id == db_item.wishlist_item_id
+                ).first()
+                if wishlist_item and wishlist_item.purchased_by == buyer_name:
+                    wishlist_item.is_purchased = False
+                    wishlist_item.purchased_by = None
+
+            if db_item.shared_wishlist_item_id and buyer_name:
+                shared_item = db.query(models.SharedWishlistItem).filter(
+                    models.SharedWishlistItem.id == db_item.shared_wishlist_item_id
+                ).first()
+                if shared_item and shared_item.purchased_by == buyer_name:
+                    shared_item.is_purchased = False
+                    shared_item.purchased_by = None
+
+            db.delete(db_item)
+
+        db.commit()
+        removed_count = len(cart_items)
+        return {
+            "success": True,
+            "removed": removed_count,
+            "message": f"Cleared {removed_count} cart item{'' if removed_count == 1 else 's'}."
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to clear cart items: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to clear cart items: {str(e)}"
         )
 
 @app.delete("/api/admin/items/{item_id}")

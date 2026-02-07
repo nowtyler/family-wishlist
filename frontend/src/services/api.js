@@ -778,6 +778,22 @@ export const getSystemStats = () => {
   return apiClient.get('/admin/stats');
 };
 
+export const getAdminCartItems = () => {
+  return apiClient.get('/admin/carts');
+};
+
+export const deleteAdminCartItem = (cartItemId) => {
+  return apiClient.delete(`/admin/carts/${cartItemId}`);
+};
+
+export const clearAdminCarts = () => {
+  return apiClient.delete('/admin/carts');
+};
+
+export const clearAdminCartByBuyer = (buyerId) => {
+  return apiClient.delete(`/admin/carts/buyer/${buyerId}`);
+};
+
 export const clearAllData = () => {
   return apiClient.post('/admin/system/clear-all');
 };

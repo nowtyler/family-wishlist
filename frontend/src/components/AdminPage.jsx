@@ -4,7 +4,7 @@ import {
   Users, Settings, Mail, Shield, Trash2, Plus,
   Edit, Eye, EyeOff, Check, X, TriangleAlert, RefreshCw,
   Home, UserPlus, UserMinus, Lock, Unlock, Send, TestTube,
-  Calendar, Gift, FileText, Archive, Download, Upload, Save, ArrowUp,
+  Calendar, Gift, FileText, Archive, Download, Upload, Save, ArrowUp, ChevronDown,
   CircleCheck, CircleX, Database, CircleAlert, Box, RotateCcw,
   AlertOctagon, Menu, LayoutDashboard, ShoppingCart
 } from 'lucide-react';
@@ -44,6 +44,10 @@ import {
   updateSystemSettings,
   getAllItems,
   deleteItemAsAdmin,
+  getAdminCartItems,
+  deleteAdminCartItem,
+  clearAdminCarts,
+  clearAdminCartByBuyer,
   clearAllWishlists,
   broadcastMaintenanceNotice,
   getRecoveryPassphrase,
@@ -217,6 +221,7 @@ const AdminPage = () => {
     { id: 'users', label: 'Users', icon: Users },
     { id: 'households', label: 'Households', icon: Home },
     { id: 'items', label: 'Items', icon: Gift },
+    { id: 'carts', label: 'Carts', icon: ShoppingCart },
     { id: 'email', label: 'Email', icon: Mail },
     { id: 'database', label: 'Database', icon: Database },
     { id: 'system', label: 'System', icon: Settings }
@@ -1862,6 +1867,276 @@ const AdminPage = () => {
     );
   };
 
+  const CartsTab = () => {
+    const [cartItems, setCartItems] = useState([]);
+    const [isLoadingCarts, setIsLoadingCarts] = useState(false);
+    const [showCartStatus, setShowCartStatus] = useState(false);
+    const [expandedCarts, setExpandedCarts] = useState({});
+    const [showClearCartsConfirm, setShowClearCartsConfirm] = useState(false);
+    const [isClearingCarts, setIsClearingCarts] = useState(false);
+
+    const fetchCartItems = async () => {
+      setIsLoadingCarts(true);
+      try {
+        const response = await getAdminCartItems();
+        setCartItems(response.data || []);
+      } catch (err) {
+        console.error('Failed to fetch cart items:', err);
+        toast.error('Failed to load cart items');
+      } finally {
+        setIsLoadingCarts(false);
+      }
+    };
+
+    useEffect(() => {
+      fetchCartItems();
+    }, []);
+
+    const handleRemoveCartItem = async (cartItemId) => {
+      if (!confirm('Remove this item from the cart?')) return;
+      try {
+        await deleteAdminCartItem(cartItemId);
+        setCartItems((prev) => prev.filter((item) => item.id !== cartItemId));
+        toast.success('Removed item from cart.');
+      } catch (err) {
+        console.error('Failed to remove cart item:', err);
+        toast.error(err.response?.data?.detail || 'Failed to remove cart item');
+      }
+    };
+
+    const handleClearBuyerCart = async (buyerId, buyerName) => {
+      if (!buyerId) {
+        toast.error('Unable to clear cart without a buyer.');
+        return;
+      }
+      if (!confirm(`Clear the entire cart for ${buyerName}?`)) return;
+      try {
+        const response = await clearAdminCartByBuyer(buyerId);
+        setCartItems((prev) => prev.filter((item) => item.buyer_id !== buyerId));
+        toast.success(response?.data?.message || 'Cart cleared.');
+      } catch (err) {
+        console.error('Failed to clear buyer cart:', err);
+        toast.error(err.response?.data?.detail || 'Failed to clear cart');
+      }
+    };
+
+    const handleClearAllCarts = async () => {
+      setIsClearingCarts(true);
+      try {
+        const response = await clearAdminCarts();
+        setCartItems([]);
+        toast.success(response?.data?.message || 'All carts cleared.');
+        setShowClearCartsConfirm(false);
+      } catch (err) {
+        console.error('Failed to clear all carts:', err);
+        toast.error(err.response?.data?.detail || 'Failed to clear all carts');
+      } finally {
+        setIsClearingCarts(false);
+      }
+    };
+
+    const formatPrice = (price) => {
+      if (price === null || price === undefined || Number.isNaN(Number(price))) {
+        return '—';
+      }
+      return `$${(Number(price) / 100).toFixed(2)}`;
+    };
+
+    const groupedCartItems = cartItems.reduce((acc, item) => {
+      const buyerName = item.buyer_name || 'Unknown';
+      if (!acc[buyerName]) {
+        acc[buyerName] = [];
+      }
+      acc[buyerName].push(item);
+      return acc;
+    }, {});
+
+    const getStatusStyle = (status) => {
+      if (String(status).toLowerCase() === 'purchased') {
+        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
+      }
+      return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
+    };
+
+    return (
+      <div className="space-y-6">
+        <AdminCard title="Shopping Carts" icon={ShoppingCart}>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h4 className="text-lg font-medium text-gray-900 dark:text-white">Cart Items</h4>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowCartStatus(!showCartStatus)}
+                  className="flex items-center justify-center w-8 h-8 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 transition-colors"
+                  title={showCartStatus ? "Hide status" : "Show status"}
+                >
+                  {showCartStatus ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+                <button
+                  onClick={fetchCartItems}
+                  className="flex items-center justify-center w-8 h-8 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+                  disabled={isLoadingCarts}
+                  title="Refresh carts"
+                >
+                  <RefreshCw size={20} className={isLoadingCarts ? 'animate-spin' : ''} />
+                </button>
+                <button
+                  onClick={() => setShowClearCartsConfirm(true)}
+                  className="flex items-center justify-center w-8 h-8 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors"
+                  disabled={isLoadingCarts}
+                  title="Clear all carts"
+                >
+                  <Trash2 size={20} />
+                </button>
+              </div>
+            </div>
+
+            {isLoadingCarts && !cartItems.length ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-2 text-gray-600 dark:text-gray-400">Loading cart items...</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {Object.entries(groupedCartItems).map(([buyerName, buyerItems]) => {
+                  const purchasedCount = buyerItems.filter((item) => item.status === 'purchased').length;
+                  const buyerId = buyerItems[0]?.buyer_id;
+                  const cartKey = `${buyerId ?? 'unknown'}:${buyerName}`;
+                  const isExpanded = Boolean(expandedCarts[cartKey]);
+                  return (
+                    <div key={buyerName} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                      <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 border-b border-gray-200 dark:border-gray-600">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h5 className="font-medium text-gray-900 dark:text-white">{buyerName}</h5>
+                            <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">
+                              {purchasedCount} purchased • {buyerItems.length - purchasedCount} pending
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                              {buyerItems.length} item{buyerItems.length !== 1 ? 's' : ''}
+                            </span>
+                            <button
+                              onClick={() => setExpandedCarts((prev) => ({ ...prev, [cartKey]: !isExpanded }))}
+                              className="flex items-center justify-center w-8 h-8 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                              title={isExpanded ? "Hide cart items" : "Show cart items"}
+                              aria-label={isExpanded ? "Hide cart items" : "Show cart items"}
+                            >
+                              <ChevronDown size={18} className={isExpanded ? 'rotate-180 transition-transform' : 'transition-transform'} />
+                            </button>
+                            <button
+                              onClick={() => handleClearBuyerCart(buyerId, buyerName)}
+                              className="inline-flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors disabled:opacity-50"
+                              title="Clear this cart"
+                              disabled={!buyerId}
+                            >
+                              <Trash2 size={14} />
+                              Clear cart
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="divide-y divide-gray-200 dark:divide-gray-600">
+                          {buyerItems.map((item) => (
+                            <div key={item.id} className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <h6 className="font-medium text-gray-900 dark:text-white truncate">
+                                      {item.title}
+                                    </h6>
+                                  {showCartStatus && (
+                                    <span className={`text-xs px-2 py-0.5 rounded ${getStatusStyle(item.status)}`}>
+                                      {item.status || 'pending'}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 flex flex-wrap gap-3">
+                                  <span>Recipient: {item.recipient_name || 'Unknown'}</span>
+                                  <span>Price: {formatPrice(item.price)}</span>
+                                  <span>Added: {formatDateEST(item.created_at)}</span>
+                                </div>
+                                {showCartStatus && item.notes && (
+                                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                                    {item.notes}
+                                  </p>
+                                  )}
+                                </div>
+                                <div className="flex flex-col items-end gap-2">
+                                  {item.link && (
+                                    <a
+                                      href={item.link}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm"
+                                    >
+                                      View
+                                    </a>
+                                  )}
+                                  <button
+                                    onClick={() => handleRemoveCartItem(item.id)}
+                                    className="inline-flex items-center text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
+                                    title="Remove item from cart"
+                                    aria-label="Remove item from cart"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {!cartItems.length && !isLoadingCarts && (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    No cart items available
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </AdminCard>
+
+        {showClearCartsConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+              <div className="flex items-center gap-3 text-red-500 mb-4">
+                <AlertOctagon className="w-6 h-6" />
+                <h3 className="text-xl font-bold">Clear All Carts</h3>
+              </div>
+              <p className="text-gray-600 dark:text-gray-300 mb-6">
+                Are you sure you want to remove every item from all carts? This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowClearCartsConfirm(false)}
+                  className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                  disabled={isClearingCarts}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleClearAllCarts}
+                  className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                  disabled={isClearingCarts}
+                >
+                  {isClearingCarts ? 'Clearing...' : 'Clear All'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const ItemsTab = () => {
     const [items, setItems] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -1869,6 +2144,7 @@ const AdminPage = () => {
     const [isDeleting, setIsDeleting] = useState(false);
     const [showPurchaseStatus, setShowPurchaseStatus] = useState(false);
     const [showClearConfirm, setShowClearConfirm] = useState(false);
+    const [expandedOwners, setExpandedOwners] = useState({});
 
     const fetchItems = async () => {
       setIsLoading(true);
@@ -1983,6 +2259,8 @@ const AdminPage = () => {
                 {Object.entries(groupedItems).map(([ownerName, ownerItems]) => {
                   const ownerItem = ownerItems[0];
                   const ownerHouseholds = getUserHouseholds(ownerItem.owner_id);
+                  const ownerKey = `${ownerItem.owner_id ?? 'unknown'}:${ownerName}`;
+                  const isExpanded = Boolean(expandedOwners[ownerKey]);
                   
                   return (
                     <div key={ownerName} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
@@ -2001,54 +2279,66 @@ const AdminPage = () => {
                               </div>
                             )}
                           </div>
-                          <span className="text-sm text-gray-500 dark:text-gray-400">
-                            {ownerItems.length} item{ownerItems.length !== 1 ? 's' : ''}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                              {ownerItems.length} item{ownerItems.length !== 1 ? 's' : ''}
+                            </span>
+                            <button
+                              onClick={() => setExpandedOwners((prev) => ({ ...prev, [ownerKey]: !isExpanded }))}
+                              className="flex items-center justify-center w-8 h-8 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                              title={isExpanded ? "Hide items" : "Show items"}
+                              aria-label={isExpanded ? "Hide items" : "Show items"}
+                            >
+                              <ChevronDown size={18} className={isExpanded ? 'rotate-180 transition-transform' : 'transition-transform'} />
+                            </button>
+                          </div>
                         </div>
                       </div>
                       
                       {/* Items List */}
-                      <div className="divide-y divide-gray-200 dark:divide-gray-600">
-                        {ownerItems.map(item => (
-                          <div key={item.id} className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <h6 className="font-medium text-gray-900 dark:text-white truncate">
-                                    {item.title}
-                                  </h6>
-                                  {showPurchaseStatus && (
-                                    <span className={`text-xs px-2 py-0.5 rounded ${
-                                      item.is_purchased 
-                                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                                        : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
-                                    }`}>
-                                      {item.is_purchased ? 'Purchased' : 'Available'}
-                                    </span>
-                                  )}
+                      {isExpanded && (
+                        <div className="divide-y divide-gray-200 dark:divide-gray-600">
+                          {ownerItems.map(item => (
+                            <div key={item.id} className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <h6 className="font-medium text-gray-900 dark:text-white truncate">
+                                      {item.title}
+                                    </h6>
+                                    {showPurchaseStatus && (
+                                      <span className={`text-xs px-2 py-0.5 rounded ${
+                                        item.is_purchased 
+                                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                                          : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
+                                      }`}>
+                                        {item.is_purchased ? 'Purchased' : 'Available'}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
+                                    {item.description || 'No description'}
+                                  </p>
+                                  <div className="flex items-center gap-4 mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                    <span>Priority: {item.priority}</span>
+                                    {item.price && (
+                                      <span>Price: ${(item.price / 100).toFixed(2)}</span>
+                                    )}
+                                  </div>
                                 </div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
-                                  {item.description || 'No description'}
-                                </p>
-                                <div className="flex items-center gap-4 mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                  <span>Priority: {item.priority}</span>
-                                  {item.price && (
-                                    <span>Price: ${(item.price / 100).toFixed(2)}</span>
-                                  )}
-                                </div>
+                                <button 
+                                  onClick={() => handleDeleteItem(item.id)}
+                                  className="ml-3 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                                  disabled={isDeleting}
+                                  title="Delete item"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
                               </div>
-                              <button 
-                                onClick={() => handleDeleteItem(item.id)}
-                                className="ml-3 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                                disabled={isDeleting}
-                                title="Delete item"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
                             </div>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -2106,6 +2396,8 @@ const AdminPage = () => {
         return <HouseholdsTab />;
       case 'items':
         return <ItemsTab />;
+      case 'carts':
+        return <CartsTab />;
       case 'email':
         return <EmailTab />;
       case 'database':
