@@ -7,7 +7,7 @@ import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPl
 import { useTutorial } from '../contexts/TutorialContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems,
-         getFamilyMembers, clearAllWishlists, exportWishlist, importWishlist } from '../services/api';
+         getFamilyMembers, clearAllWishlists, exportWishlist, importWishlist, deleteAllSharedWishlistItems } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import MigrationModal from './admin/MigrationModal';
 import FamilyMemberManager from './admin/FamilyMemberManager';
@@ -32,7 +32,7 @@ const Navbar = ({
   const [newVersion, setNewVersion] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleteMode, setDeleteMode] = useState(null); // 'all' or 'user'
+  const [deleteMode, setDeleteMode] = useState(null); // 'all', 'user', or 'shared'
   const [showMigrationModal, setShowMigrationModal] = useState(false);
   const [isDevEnvironment, setIsDevEnvironment] = useState(false);
   const [showFamilyManager, setShowFamilyManager] = useState(false);
@@ -40,6 +40,9 @@ const Navbar = ({
   const [showUserHouseholdManager, setShowUserHouseholdManager] = useState(false);
   const settingsRef = useRef(null);
   const isAdmin = selectedUser?.is_admin;
+  const isSharedWishlistOwner = selectedSharedWishlist?.owners?.some(
+    (owner) => owner.id === selectedUser?.id
+  );
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -128,6 +131,8 @@ const Navbar = ({
     try {
       if (deleteMode === 'all' && isAdmin) {
         await clearAllWishlists();
+      } else if (deleteMode === 'shared' && selectedSharedWishlist?.id) {
+        await deleteAllSharedWishlistItems(selectedSharedWishlist.id);
       } else {
         await deleteAllWishlistItems(selectedUser.id);
       }
@@ -437,13 +442,13 @@ const Navbar = ({
                     <button
                       onClick={() => {
                         setShowSettings(false);
-                        setDeleteMode('user');
+                        setDeleteMode(isSharedWishlistOwner ? 'shared' : 'user');
                         setShowDeleteConfirm(true);
                       }}
                       className="flex items-center w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-600"
                     >
                       <Trash2 className="w-4 h-4 mr-2" />
-                      Clear Wishlist
+                      {isSharedWishlistOwner ? 'Clear Shared Wishlist' : 'Clear Wishlist'}
                     </button>
                     
                     {isAdmin && (
@@ -538,13 +543,19 @@ const Navbar = ({
               <div className="flex items-center gap-3 text-red-500 mb-4">
                 <AlertOctagon className="w-6 h-6" />
                 <h3 className="text-xl font-bold">
-                  {deleteMode === 'all' ? 'Delete All Wishlists' : 'Delete All Items'}
+                  {deleteMode === 'all'
+                    ? 'Delete All Wishlists'
+                    : deleteMode === 'shared'
+                      ? 'Clear Shared Wishlist'
+                      : 'Delete All Items'}
                 </h3>
               </div>
               <p className="text-gray-600 dark:text-gray-300 mb-6">
-                {deleteMode === 'all' 
+                {deleteMode === 'all'
                   ? 'Are you sure you want to delete ALL wishlists for ALL users? This action cannot be undone.'
-                  : 'Are you sure you want to delete all items from your wishlist? This action cannot be undone.'}
+                  : deleteMode === 'shared'
+                    ? 'Are you sure you want to clear all items from this shared wishlist? This action cannot be undone.'
+                    : 'Are you sure you want to delete all items from your wishlist? This action cannot be undone.'}
               </p>
               <div className="flex justify-end gap-3">
                 <button

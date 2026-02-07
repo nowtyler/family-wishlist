@@ -475,6 +475,10 @@ export const deleteAllWishlistItems = (ownerId) => {
   return apiClient.delete(`/members/${ownerId}/items`);
 };
 
+export const deleteAllSharedWishlistItems = (wishlistId) => {
+  return apiClient.delete(`/shared-wishlists/${wishlistId}/items`);
+};
+
 export const clearAllWishlists = () => {
   return apiClient.delete('/admin/wishlists');
 };

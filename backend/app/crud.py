@@ -1172,6 +1172,25 @@ def delete_shared_wishlist_item(db: Session, item_id: int, current_user_id: int)
     return True
 
 
+def delete_all_shared_wishlist_items(db: Session, wishlist_id: int, current_user_id: int) -> bool:
+    """Delete all items from a shared wishlist (owners only)"""
+    if not is_shared_wishlist_owner(db, wishlist_id, current_user_id):
+        user = get_family_member(db, current_user_id)
+        if not user or not user.is_admin:
+            return False
+
+    shared_items = db.query(models.SharedWishlistItem).filter(
+        models.SharedWishlistItem.wishlist_id == wishlist_id
+    ).all()
+
+    for shared_item in shared_items:
+        notify_cart_buyers_on_shared_wishlist_delete(db, shared_item)
+        db.delete(shared_item)
+
+    db.commit()
+    return True
+
+
 def toggle_shared_item_thinking_about(db: Session, item_id: int, user_id: int) -> Optional[models.SharedWishlistItem]:
     """Toggle 'thinking about' status for a shared wishlist item"""
     db_item = db.query(models.SharedWishlistItem).filter(models.SharedWishlistItem.id == item_id).first()

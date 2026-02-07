@@ -69,6 +69,7 @@ const DashboardScreen = (props = {}) => {
   const [sharedWishlists, setSharedWishlists] = useState([]);
   const [selectedSharedWishlist, setSelectedSharedWishlist] = useState(null);
   const [sharedWishlistReloadTrigger, setSharedWishlistReloadTrigger] = useState(0);
+  const [sharedWishlistClearTrigger, setSharedWishlistClearTrigger] = useState(0);
   const [sharedWishlistOptimisticUpdate, setSharedWishlistOptimisticUpdate] = useState(null);
 
   const updateSearchParams = useCallback((updates, options = {}) => {
@@ -426,6 +427,16 @@ const DashboardScreen = (props = {}) => {
     }
   }, [viewingMember?.id, lastRefreshTimestamp, minRefreshInterval, isFetchingInProgress]);
 
+  const handleClearWishlist = useCallback(async () => {
+    if (selectedSharedWishlist) {
+      setSharedWishlistClearTrigger((prev) => prev + 1);
+      await refreshSharedWishlists();
+      return;
+    }
+
+    await refreshWishlistItems(true);
+  }, [selectedSharedWishlist, refreshSharedWishlists, refreshWishlistItems]);
+
   // Add effect to refresh items when viewingMember changes
   useEffect(() => {
     if (viewingMember?.id) {
@@ -758,7 +769,7 @@ const DashboardScreen = (props = {}) => {
     <>
       {/* Add Navbar component */}
       <Navbar
-        onClearWishlist={refreshWishlistItems}
+        onClearWishlist={handleClearWishlist}
         viewingMember={viewingMember}
         selectedSharedWishlist={selectedSharedWishlist}
         onHouseholdUpdate={handleHouseholdUpdate}
@@ -812,6 +823,7 @@ const DashboardScreen = (props = {}) => {
               onUpdateItems={refreshSharedWishlists}
               onCartUpdated={refreshCartCount}
               reloadTrigger={sharedWishlistReloadTrigger}
+              clearTrigger={sharedWishlistClearTrigger}
               optimisticUpdate={sharedWishlistOptimisticUpdate}
               openItemId={sharedWishlistItemIdFromParams}
               onClearOpenItemId={() => updateSearchParams({ sharedWishlistItemId: null }, { replace: false })}

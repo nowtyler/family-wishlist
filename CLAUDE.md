@@ -74,7 +74,7 @@ Use these line ranges to jump directly to relevant sections instead of searching
 | **Recovery Passphrase** | 1535-1600 | `/api/admin/recovery-passphrase`, regenerate |
 | **URL Scraping** | 1605-1650 | POST `/api/items/fetch-url-details` |
 | **External Wishlists** | 1579-1694 | `/api/members/{id}/external-wishlists`, `/api/external-wishlists/{id}` |
-| **Shared Wishlists** | 1713-2148 | `/api/shared-wishlists/*`, `/api/shared-wishlist-items/*` |
+| **Shared Wishlists** | 1713-2148 | `/api/shared-wishlists/*`, DELETE `/api/shared-wishlists/{id}/items`, `/api/shared-wishlist-items/*` |
 | **User Preferences** | 2190-2230 | PUT `/api/members/{id}/preferences` |
 | **Authentication** | 2230-2650 | `/api/auth/login`, `/api/auth/register`, password reset, admin passphrase reset |
 | **Households (Admin)** | 2606-3416 | `/api/admin/households/*` |
@@ -171,7 +171,7 @@ Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
 | **Wishlist Items** | `getWishlistItems`, `createWishlistItem`, `updateWishlistItem`, `deleteWishlistItem`, `toggleThinkingAbout`, `markPurchased` |
 | **Comments** | `addComment`, `deleteComment` |
 | **Shared Wishlists** | `getSharedWishlists`, `createSharedWishlist`, `updateSharedWishlist`, `deleteSharedWishlist`, `addSharedWishlistOwner`, `removeSharedWishlistOwner` |
-| **Shared Items** | `getSharedWishlistItems`, `createSharedWishlistItem`, `updateSharedWishlistItem`, `deleteSharedWishlistItem`, `toggleSharedItemThinking`, `toggleSharedItemPurchased` |
+| **Shared Items** | `getSharedWishlistItems`, `createSharedWishlistItem`, `updateSharedWishlistItem`, `deleteSharedWishlistItem`, `deleteAllSharedWishlistItems`, `toggleSharedItemThinking`, `toggleSharedItemPurchased` |
 | **Shopping Cart** | `getShoppingCartItems`, `createShoppingCartItem`, `addShoppingCartItemFromWishlistItem`, `addShoppingCartItemFromSharedWishlistItem`, `updateShoppingCartItem`, `deleteShoppingCartItem` |
 | **Households** | `getHouseholds`, `createHousehold`, `joinHousehold`, `leaveHousehold`, `setActiveHousehold` |
 | **External Wishlists** | `getExternalWishlists`, `createExternalWishlist`, `updateExternalWishlist`, `deleteExternalWishlist` |

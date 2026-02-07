@@ -17,6 +17,7 @@ const SharedWishlistInline = ({
   onUpdateItems,
   onCartUpdated,
   reloadTrigger = 0,
+  clearTrigger = 0,
   optimisticUpdate = null,
   openItemId = null,
   onClearOpenItemId = null
@@ -26,9 +27,11 @@ const SharedWishlistInline = ({
   const [isLoading, setIsLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState(null);
 
-  const loadWishlist = useCallback(async () => {
+  const loadWishlist = useCallback(async ({ showLoading = true } = {}) => {
     try {
-      setIsLoading(true);
+      if (showLoading) {
+        setIsLoading(true);
+      }
       const response = await getSharedWishlist(wishlist.id);
       setWishlistData(response.data);
       setItems(response.data.items || []);
@@ -39,7 +42,9 @@ const SharedWishlistInline = ({
       console.error('Failed to load shared wishlist:', error);
       toast.error('Failed to load wishlist items');
     } finally {
-      setIsLoading(false);
+      if (showLoading) {
+        setIsLoading(false);
+      }
     }
   }, [wishlist.id, onUpdateItems]);
 
@@ -58,9 +63,20 @@ const SharedWishlistInline = ({
   // Reload when reloadTrigger changes (e.g., item added)
   useEffect(() => {
     if (reloadTrigger > 0) {
-      loadWishlist();
+      loadWishlist({ showLoading: false });
     }
   }, [reloadTrigger, loadWishlist]);
+
+  useEffect(() => {
+    if (clearTrigger > 0) {
+      setItems([]);
+      setIsLoading(false);
+      if (onUpdateItems) {
+        onUpdateItems();
+      }
+      loadWishlist({ showLoading: false });
+    }
+  }, [clearTrigger, loadWishlist, onUpdateItems]);
 
   const handleDeleteItem = async (itemId) => {
     try {

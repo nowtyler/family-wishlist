@@ -2094,6 +2094,25 @@ def create_shared_wishlist_item(
     )
 
 
+@app.delete("/api/shared-wishlists/{wishlist_id}/items", status_code=status.HTTP_204_NO_CONTENT)
+def delete_shared_wishlist_items(
+    wishlist_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Delete all items from a shared wishlist (owners only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    if not crud.delete_all_shared_wishlist_items(db, wishlist_id, current_user_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You're not authorized to clear items from this wishlist"
+        )
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @app.put("/api/shared-wishlist-items/{item_id}", response_model=schemas.SharedWishlistItem)
 def update_shared_wishlist_item(
     item_id: int,

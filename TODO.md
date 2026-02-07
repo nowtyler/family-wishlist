@@ -1,4 +1,3 @@
-The clear wishlist button in the gear should switch to say "Clear Shared Wishlist" when viewing a shared wishlist that you own. Right now it is only routed to the owner's original wishlist and it clears their wishlist and not a shared wishlist that they are viewing and are the owner of.
 Import and export of a wishlist should change when viewing a shared wishlist that the owner owns or is a co-owner of. It should export that shared wishlist and import to that shared wishlist if that is the list they are on that they are an owner of.
 Add a FAB icon for shared wishlists to get to them faster as a shared wishlist owner. This would only be for a wishlist owner - we still want non-owners to only see the shared wishlist in the browse wishlist FAB menu.
 Admin does not need to see a clear wishlist option or app tutorial option in their gear menu.
