@@ -3272,7 +3272,7 @@ def get_system_status(
         
         return {
             "status": "healthy",
-            "version": "1.0.0",
+            "version": crud.get_system_version(db),
             "uptime": f"{uptime_hours}h {uptime_minutes}m",
             "memory_usage": f"{memory.percent}%",
             "disk_usage": f"{disk.percent}%",
