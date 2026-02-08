@@ -179,8 +179,12 @@ const Navbar = ({
 
       // Call the callback if provided (for dashboard refresh)
       if (onHouseholdUpdate) {
-        onHouseholdUpdate();
+        await onHouseholdUpdate();
       }
+
+      setTimeout(() => {
+        window.location.reload();
+      }, 150);
     } catch (error) {
       console.error('Error refreshing family members after household update:', error);
     }

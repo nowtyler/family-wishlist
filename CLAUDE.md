@@ -208,7 +208,7 @@ Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
 
 ## Recent Development Context
 
-**Current branch**: `claude/shared-kid-wishlist-1AoU8`
+**Current branch**: `dev`
 
 **Recent features added**:
 - Shared kid wishlists with multi-owner support
@@ -216,12 +216,20 @@ Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
 - Shopping cart linking to wishlist items (optimistic updates)
 - Enhanced floating action menu with tabs
 - "My Shared Wishlists" FAB icon for quick access to owned shared wishlists
+- **Auto-following shared wishlists**: Shared wishlists now appear in any household where at least one owner is a member (instead of being tied to a single household)
 
 **Files recently modified**:
+- `backend/app/crud.py` - Updated `get_all_shared_wishlists()` to filter by owner household memberships
 - `FloatingActionMenu.jsx` (currently has uncommitted changes)
 - `SharedWishlistView.jsx`, `SharedWishlistManager.jsx`
 - `ShoppingCartDrawer.jsx`
 - Backend shared wishlist routes (lines 1713-2148)
+
+**Shared Wishlist Behavior**:
+- When A and B own a shared wishlist X, it appears in any household where A or B is a member
+- If A is in H1 and B is in H2, the wishlist is visible to both households
+- If both move to H2, it only appears in H2
+- No manual reassignment needed—wishlists automatically follow their owners
 
 ---
 

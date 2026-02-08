@@ -30,14 +30,41 @@ const SharedWishlistManager = ({
   const [managingOwners, setManagingOwners] = useState(null);
   const [newWishlistName, setNewWishlistName] = useState('');
   const [newWishlistDescription, setNewWishlistDescription] = useState('');
-  const [newWishlistHouseholdId, setNewWishlistHouseholdId] = useState('');
   const [newOccasionDate, setNewOccasionDate] = useState('');
   const [newWishlistType, setNewWishlistType] = useState('normal');
+  const [newIsBirthdayWishlist, setNewIsBirthdayWishlist] = useState(false);
   const [selectedOwnerId, setSelectedOwnerId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Get current user's households
-  const currentUserHouseholds = familyMembers.find(m => m.id === currentUserId)?.households || [];
+  // Helper function to format a list with proper English grammar (Tyler, Emily, and Bob)
+  const formatList = (items) => {
+    if (items.length === 0) return '';
+    if (items.length === 1) return items[0];
+    if (items.length === 2) return `${items[0]} and ${items[1]}`;
+    return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
+  };
+
+  // Helper function to get all households where wishlist owners are members
+  const getVisibleHouseholds = (wishlist) => {
+    const visibleHouseholdIds = new Set();
+
+    wishlist.owners.forEach(owner => {
+      const ownerData = familyMembers.find(m => m.id === owner.id);
+      if (ownerData?.households) {
+        ownerData.households.forEach(household => {
+          visibleHouseholdIds.add(household.id);
+        });
+      }
+    });
+
+    return Array.from(visibleHouseholdIds)
+      .map(id => familyMembers
+        .flatMap(m => m.households || [])
+        .find(h => h.id === id)
+      )
+      .filter(Boolean)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  };
 
   const loadWishlists = useCallback(async () => {
     try {
@@ -61,6 +88,9 @@ const SharedWishlistManager = ({
       setEditingWishlist(null);
       setShowCreateForm(false);
       setSelectedOwnerId('');
+      setNewWishlistName('');
+      setNewWishlistDescription('');
+      setNewOccasionDate('');
     }
   }, [isOpen, loadWishlists]);
 
@@ -73,16 +103,17 @@ const SharedWishlistManager = ({
       const response = await createSharedWishlist({
         name: newWishlistName.trim(),
         description: newWishlistDescription.trim() || null,
-        household_id: newWishlistHouseholdId ? parseInt(newWishlistHouseholdId) : null,
+        household_id: null,
         occasion_date: newOccasionDate || null,
+        occasion_type: newIsBirthdayWishlist ? 'birthday' : null,
         wishlist_type: newWishlistType || 'normal'
       });
       setWishlists(prev => [...prev, response.data]);
       setNewWishlistName('');
       setNewWishlistDescription('');
-      setNewWishlistHouseholdId('');
       setNewOccasionDate('');
       setNewWishlistType('normal');
+      setNewIsBirthdayWishlist(false);
       setShowCreateForm(false);
       toast.success('Shared wishlist created');
     } catch (error) {
@@ -101,7 +132,10 @@ const SharedWishlistManager = ({
       const response = await updateSharedWishlist(wishlistId, {
         name: editingWishlist.name.trim(),
         description: editingWishlist.description?.trim() || null,
-        household_id: editingWishlist.household_id ? parseInt(editingWishlist.household_id) : null
+        household_id: null,
+        wishlist_type: editingWishlist.wishlist_type || 'normal',
+        occasion_date: editingWishlist.occasion_date || null,
+        occasion_type: editingWishlist.occasion_type || null
       });
       setWishlists(prev => prev.map(w => w.id === wishlistId ? response.data : w));
       setEditingWishlist(null);
@@ -248,29 +282,6 @@ const SharedWishlistManager = ({
                       maxLength={2000}
                     />
                   </div>
-                  {currentUserHouseholds.length > 0 && (
-                    <div>
-                      <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-                        Household (optional)
-                      </label>
-                      <select
-                        value={newWishlistHouseholdId}
-                        onChange={(e) => setNewWishlistHouseholdId(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600
-                          bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      >
-                        <option value="">No household (visible to all)</option>
-                        {currentUserHouseholds.map(household => (
-                          <option key={household.id} value={household.id}>
-                            {household.name}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Shared wishlists assigned to a household are only visible to members of that household
-                      </p>
-                    </div>
-                  )}
                   <div>
                     <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
                       Wishlist Type
@@ -305,6 +316,22 @@ const SharedWishlistManager = ({
                       Used for event reminders and countdown display
                     </p>
                   </div>
+                  <div>
+                    <label className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
+                      <input
+                        type="checkbox"
+                        checked={newIsBirthdayWishlist}
+                        onChange={(e) => setNewIsBirthdayWishlist(e.target.checked)}
+                        className="mt-1 h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                      />
+                      <span>
+                        Is this a birthday wishlist?
+                        <span className="block text-xs text-gray-500 dark:text-gray-400">
+                          When checked, the banner shows "{newWishlistName.trim() || 'Name'}'s Birthday".
+                        </span>
+                      </span>
+                    </label>
+                  </div>
                   <div className="flex gap-2">
                     <button
                       type="submit"
@@ -321,9 +348,9 @@ const SharedWishlistManager = ({
                         setShowCreateForm(false);
                         setNewWishlistName('');
                         setNewWishlistDescription('');
-                        setNewWishlistHouseholdId('');
                         setNewOccasionDate('');
                         setNewWishlistType('normal');
+                        setNewIsBirthdayWishlist(false);
                       }}
                       className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200
                         rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
@@ -381,26 +408,59 @@ const SharedWishlistManager = ({
                             bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
                           rows={2}
                         />
-                        {currentUserHouseholds.length > 0 && (
-                          <div>
-                            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-                              Household
-                            </label>
-                            <select
-                              value={editingWishlist.household_id || ''}
-                              onChange={(e) => setEditingWishlist({ ...editingWishlist, household_id: e.target.value })}
-                              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600
-                                bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                            >
-                              <option value="">No household (visible to all)</option>
-                              {currentUserHouseholds.map(household => (
-                                <option key={household.id} value={household.id}>
-                                  {household.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
+                        <div>
+                          <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                            Wishlist Type
+                          </label>
+                          <select
+                            value={editingWishlist.wishlist_type || 'normal'}
+                            onChange={(e) => setEditingWishlist({ ...editingWishlist, wishlist_type: e.target.value })}
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600
+                              bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          >
+                            <option value="normal">Normal</option>
+                            <option value="no_secrets">No Secrets</option>
+                          </select>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {editingWishlist.wishlist_type === 'no_secrets'
+                              ? 'Everyone (including owners) can see purchased gifts and mark items'
+                              : 'Purchases are hidden from owners to preserve surprise'}
+                          </p>
+                        </div>
+                        <div>
+                          <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                            Occasion Date (optional)
+                          </label>
+                          <input
+                            type="date"
+                            value={editingWishlist.occasion_date || ''}
+                            onChange={(e) => setEditingWishlist({ ...editingWishlist, occasion_date: e.target.value })}
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600
+                              bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          />
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Used for event reminders and countdown display
+                          </p>
+                        </div>
+                        <div>
+                          <label className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
+                            <input
+                              type="checkbox"
+                              checked={editingWishlist.occasion_type === 'birthday'}
+                              onChange={(e) => setEditingWishlist({
+                                ...editingWishlist,
+                                occasion_type: e.target.checked ? 'birthday' : null
+                              })}
+                              className="mt-1 h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                            />
+                            <span>
+                              Is this a birthday wishlist?
+                              <span className="block text-xs text-gray-500 dark:text-gray-400">
+                                When checked, the banner shows "{editingWishlist.name?.trim() || 'Name'}'s Birthday".
+                              </span>
+                            </span>
+                          </label>
+                        </div>
                         <div className="flex gap-2">
                           <button
                             onClick={() => handleUpdateWishlist(wishlist.id)}
@@ -525,7 +585,7 @@ const SharedWishlistManager = ({
                                 {wishlist.description}
                               </p>
                             )}
-                            <div className="flex items-center gap-3 mt-2 text-sm text-gray-500 dark:text-gray-400">
+                            <div className="flex items-center gap-3 mt-2 text-sm text-gray-500 dark:text-gray-400 flex-wrap">
                               <span className="flex items-center gap-1">
                                 <Users className="w-4 h-4" />
                                 {wishlist.owner_count} owner{wishlist.owner_count !== 1 ? 's' : ''}
@@ -537,11 +597,6 @@ const SharedWishlistManager = ({
                               {wishlist.wishlist_type === 'no_secrets' && (
                                 <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 text-xs rounded-full">
                                   No Secrets
-                                </span>
-                              )}
-                              {wishlist.household_name && (
-                                <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-xs rounded-full">
-                                  {wishlist.household_name}
                                 </span>
                               )}
                             </div>
@@ -584,19 +639,29 @@ const SharedWishlistManager = ({
                           </div>
                         </div>
 
-                        {/* Owners Preview */}
-                        <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
-                          <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                            <span>Owners:</span>
-                            {wishlist.owners.slice(0, 3).map((owner, idx) => (
-                              <span key={owner.id}>
-                                {owner.name}{idx < Math.min(wishlist.owners.length - 1, 2) ? ', ' : ''}
-                              </span>
-                            ))}
-                            {wishlist.owners.length > 3 && (
-                              <span>+{wishlist.owners.length - 3} more</span>
-                            )}
+                        {/* Owners and Visible Households */}
+                        <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600 space-y-1">
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            <span className="font-medium">Owners:</span>
+                            <span className="ml-1">
+                              {formatList(wishlist.owners.slice(0, 3).map((owner, idx) => owner.name))}
+                              {wishlist.owners.length > 3 && ` +${wishlist.owners.length - 3}`}
+                            </span>
                           </div>
+                          {(() => {
+                            const visibleHouseholds = getVisibleHouseholds(wishlist);
+                            if (visibleHouseholds.length > 0) {
+                              return (
+                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                  <span className="font-medium">Visible in these households:</span>
+                                  <span className="ml-1">
+                                      {formatList(visibleHouseholds.map(h => h.name))}
+                                  </span>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                       </>
                     )}

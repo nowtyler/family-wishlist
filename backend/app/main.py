@@ -4452,6 +4452,24 @@ def join_household(
             requested_at=get_est_timestamp(),
             status='active'
         ))
+
+        # Reassign any owned shared wishlists tied to households the user is no longer in.
+        active_household_ids = [
+            row[0] for row in db.query(models.user_household_association.c.household_id).filter(
+                models.user_household_association.c.user_id == current_user_id,
+                models.user_household_association.c.status == 'active'
+            ).all()
+        ]
+        if active_household_ids:
+            db.query(models.SharedWishlist).filter(
+                models.SharedWishlist.created_by == current_user_id,
+                models.SharedWishlist.household_id.isnot(None),
+                models.SharedWishlist.household_id.notin_(active_household_ids)
+            ).update(
+                {models.SharedWishlist.household_id: household_id},
+                synchronize_session=False
+            )
+
         db.commit()
         
         # Get updated member count
@@ -4509,7 +4527,32 @@ def leave_household(
         
         if result.rowcount == 0:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="You are not a member of this household")
-        
+
+        remaining_household_ids = [
+            row[0] for row in db.query(models.user_household_association.c.household_id).filter(
+                models.user_household_association.c.user_id == current_user_id,
+                models.user_household_association.c.status == 'active'
+            ).all()
+        ]
+        target_household_id = None
+        if remaining_household_ids:
+            user = crud.get_family_member(db, current_user_id)
+            preferences = user.preferences or {} if user else {}
+            preferred_household_id = preferences.get('active_household_id')
+            if preferred_household_id in remaining_household_ids:
+                target_household_id = preferred_household_id
+            elif len(remaining_household_ids) == 1:
+                target_household_id = remaining_household_ids[0]
+
+        if target_household_id:
+            db.query(models.SharedWishlist).filter(
+                models.SharedWishlist.created_by == current_user_id,
+                models.SharedWishlist.household_id == household_id
+            ).update(
+                {models.SharedWishlist.household_id: target_household_id},
+                synchronize_session=False
+            )
+
         db.commit()
         
         # Get updated member count

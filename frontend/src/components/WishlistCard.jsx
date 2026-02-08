@@ -559,7 +559,7 @@ const WishlistCard = (props) => {
       <div className="flex flex-col">
         <label className="text-sm text-gray-600 dark:text-gray-400">Description</label>
         <textarea
-          value={editForm.description}
+          value={editForm.description ?? ''}
           onChange={e => setEditForm({ ...editForm, description: e.target.value })}
           className="w-full px-2 py-1 border rounded dark:bg-gray-600 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary"
           rows={2}
