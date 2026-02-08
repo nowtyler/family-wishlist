@@ -913,6 +913,12 @@ export const getSharedWishlists = () => {
   return apiClient.get('/shared-wishlists');
 };
 
+export const getSharedWishlistsAdmin = () => {
+  return apiClient.get('/shared-wishlists', {
+    params: { include_all: true }
+  });
+};
+
 export const getSharedWishlist = (wishlistId) => {
   return apiClient.get(`/shared-wishlists/${wishlistId}`);
 };

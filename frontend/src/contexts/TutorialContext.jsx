@@ -241,7 +241,7 @@ const tutorialSteps = [
   {
     target: '#tutorial-settings',
     title: 'Settings & Profile',
-    content: 'Access your profile settings, edit your account, manage households, and import/export your wishlist data.',
+    content: 'Access your profile settings, edit your account, manage households, manage shared wishlists, and import/export your wishlist data.',
     disableBeacon: true,
     placement: 'bottom',
   },

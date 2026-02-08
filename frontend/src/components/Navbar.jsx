@@ -443,17 +443,19 @@ const Navbar = ({
                       </button>
                     )}
 
-                    <button
-                      onClick={() => {
-                        setShowSettings(false);
-                        setDeleteMode(isSharedWishlistOwner ? 'shared' : 'user');
-                        setShowDeleteConfirm(true);
-                      }}
-                      className="flex items-center w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-600"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      {isSharedWishlistOwner ? 'Clear Shared Wishlist' : 'Clear Wishlist'}
-                    </button>
+                    {!isAdmin && (
+                      <button
+                        onClick={() => {
+                          setShowSettings(false);
+                          setDeleteMode(isSharedWishlistOwner ? 'shared' : 'user');
+                          setShowDeleteConfirm(true);
+                        }}
+                        className="flex items-center w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-600"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        {isSharedWishlistOwner ? 'Clear Shared Wishlist' : 'Clear Wishlist'}
+                      </button>
+                    )}
                     
                     {isAdmin && (
                       <>
@@ -470,18 +472,22 @@ const Navbar = ({
                       </>
                     )}
                     {/* Tutorial Button */}
-                    {tutorial && (
+                    {tutorial && !isAdmin && (
                       <button
                         onClick={() => {
                           setShowSettings(false);
-                          // If viewing someone else's wishlist, navigate to own wishlist first
-                          if (viewingMember && selectedUser && viewingMember.id !== selectedUser.id) {
+                          const needsOwnerWishlist =
+                            Boolean(selectedSharedWishlist)
+                            || (viewingMember && selectedUser && viewingMember.id !== selectedUser.id);
+
+                          if (needsOwnerWishlist) {
                             navigate('/');
                             // Start tutorial after navigation completes
                             setTimeout(() => tutorial.startTutorial(), 300);
-                          } else {
-                            tutorial.startTutorial();
+                            return;
                           }
+
+                          tutorial.startTutorial();
                         }}
                         className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
                       >

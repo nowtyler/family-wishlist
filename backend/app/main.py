@@ -1788,14 +1788,21 @@ def delete_external_wishlist_endpoint(
 
 @app.get("/api/shared-wishlists", response_model=List[schemas.SharedWishlist])
 def get_shared_wishlists(
+    include_all: bool = Query(False),
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id_from_header)
 ):
-    """Get all shared wishlists (filtered by user's households)"""
+    """Get all shared wishlists (filtered by user's households unless admin requests all)"""
     if current_user_id is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
 
-    wishlists = crud.get_all_shared_wishlists(db, user_id=current_user_id)
+    if include_all:
+        user = crud.get_family_member(db, current_user_id)
+        if not user or not user.is_admin:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+        wishlists = crud.get_all_shared_wishlists(db, user_id=None)
+    else:
+        wishlists = crud.get_all_shared_wishlists(db, user_id=current_user_id)
     result = []
     for wishlist in wishlists:
         owners = crud.get_shared_wishlist_owners(db, wishlist.id)
@@ -2960,18 +2967,15 @@ def get_admin_stats(
         total_wishlists = db.query(models.WishlistItem).count()
         total_emails_sent = db.query(models.EmailLog).filter(models.EmailLog.status == 'sent').count()
         total_cart_items = db.query(models.ShoppingCartItem).count()
-
-        # Get active users in last 30 days (if you have login tracking)
-        thirty_days_ago = get_est_timedelta(days=-30)
-        active_users = db.query(models.FamilyMember).count()  # For now, just count all users
+        total_shared_wishlists = db.query(models.SharedWishlist).count()
 
         return {
             "total_users": total_users,
             "total_households": total_households,
             "total_wishlists": total_wishlists,
             "total_emails_sent": total_emails_sent,
-            "active_users_30d": active_users,
-            "total_cart_items": total_cart_items
+            "total_cart_items": total_cart_items,
+            "total_shared_wishlists": total_shared_wishlists
         }
     except Exception as e:
         logger.error(f"Failed to get admin stats: {e}")
@@ -3704,12 +3708,13 @@ def get_all_items(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
     
     try:
-        # Get all items with owner information
         items = db.query(models.WishlistItem).join(models.FamilyMember).all()
+        shared_items = db.query(models.SharedWishlistItem).options(
+            joinedload(models.SharedWishlistItem.wishlist).joinedload(models.SharedWishlist.owners)
+        ).all()
         
         result = []
         for item in items:
-            # Get households for the owner
             households = db.query(models.Household).join(
                 models.user_household_association,
                 models.Household.id == models.user_household_association.c.household_id
@@ -3725,15 +3730,54 @@ def get_all_items(
                 "description": item.description,
                 "owner_id": item.owner_id,
                 "owner_name": item.owner.name,
+                "group_label": item.owner.name,
+                "group_type": "user",
                 "households": household_names,
                 "is_purchased": item.is_purchased,
                 "purchased_by": item.purchased_by,
                 "thinking_about_by_list": thinking_by_list,
                 "priority": item.priority,
                 "price": item.price,
-                "created_at": item.id  # Using ID as proxy for creation order since created_at isn't in model
+                "created_at": item.id,
+                "item_type": "personal"
             })
-        
+
+        for shared_item in shared_items:
+            wishlist = shared_item.wishlist
+            owner_ids = [owner.id for owner in (wishlist.owners or [])]
+            owner_names = [owner.name for owner in (wishlist.owners or [])]
+            households = []
+            if owner_ids:
+                households = db.query(models.Household).join(
+                    models.user_household_association,
+                    models.Household.id == models.user_household_association.c.household_id
+                ).filter(models.user_household_association.c.user_id.in_(owner_ids)).distinct().all()
+
+            household_names = [h.name for h in households] if households else ["No household"]
+            thinking_by_list = shared_item.thinking_about_by.split(',') if shared_item.thinking_about_by else []
+            thinking_by_list = [name.strip() for name in thinking_by_list if name.strip()]
+
+            result.append({
+                "id": shared_item.id,
+                "title": shared_item.title,
+                "description": shared_item.description,
+                "owner_id": None,
+                "owner_name": None,
+                "group_label": wishlist.name,
+                "group_type": "shared",
+                "shared_wishlist_id": wishlist.id,
+                "shared_wishlist_name": wishlist.name,
+                "shared_owner_names": owner_names,
+                "households": household_names,
+                "is_purchased": shared_item.is_purchased,
+                "purchased_by": shared_item.purchased_by,
+                "thinking_about_by_list": thinking_by_list,
+                "priority": shared_item.priority,
+                "price": shared_item.price,
+                "created_at": shared_item.id,
+                "item_type": "shared"
+            })
+
         return result
     except Exception as e:
         logger.error(f"Failed to get all items: {e}")

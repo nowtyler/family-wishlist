@@ -6,7 +6,7 @@ import {
   Home, UserPlus, UserMinus, Lock, Unlock, Send, TestTube,
   Calendar, Gift, FileText, Archive, Download, Upload, Save, ArrowUp, ChevronDown,
   CircleCheck, CircleX, Database, CircleAlert, Box, RotateCcw,
-  AlertOctagon, Menu, LayoutDashboard, ShoppingCart
+  AlertOctagon, Menu, LayoutDashboard, ShoppingCart, Share2
 } from 'lucide-react';
 import { useAppContext } from '../contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
@@ -44,6 +44,7 @@ import {
   updateSystemSettings,
   getAllItems,
   deleteItemAsAdmin,
+  deleteSharedWishlistItem,
   getAdminCartItems,
   deleteAdminCartItem,
   clearAdminCarts,
@@ -54,6 +55,7 @@ import {
   regenerateRecoveryPassphrase
 } from '../services/api';
 import FamilyMemberManager from './admin/FamilyMemberManager';
+import AdminSharedWishlistManager from './admin/AdminSharedWishlistManager';
 import Navbar from './Navbar';
 import MigrationManager from './admin/MigrationManager';
 import ApplicationLogViewer from './admin/ApplicationLogViewer';
@@ -220,6 +222,7 @@ const AdminPage = () => {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'users', label: 'Users', icon: Users },
     { id: 'households', label: 'Households', icon: Home },
+    { id: 'shared-wishlists', label: 'Shared', icon: Users },
     { id: 'items', label: 'Items', icon: Gift },
     { id: 'carts', label: 'Carts', icon: ShoppingCart },
     { id: 'email', label: 'Email', icon: Mail },
@@ -291,7 +294,7 @@ const AdminPage = () => {
       </div>
 
       {/* App Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard
           title="Total Users"
           value={stats.total_users || 0}
@@ -305,6 +308,15 @@ const AdminPage = () => {
           color="green"
         />
         <StatCard
+          title="Emails Sent"
+          value={stats.total_emails_sent || 0}
+          icon={Mail}
+          color="blue"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <StatCard
           title="Wishlist Items"
           value={stats.total_wishlists || 0}
           icon={Gift}
@@ -312,16 +324,16 @@ const AdminPage = () => {
           iconContainerDarkClassName="dark:bg-purple-800/50"
         />
         <StatCard
-          title="Emails Sent"
-          value={stats.total_emails_sent || 0}
-          icon={Mail}
-          color="blue"
-        />
-        <StatCard
           title="Cart Items"
           value={stats.total_cart_items || 0}
           icon={ShoppingCart}
           color="blue"
+        />
+        <StatCard
+          title="Shared Wishlists"
+          value={stats.total_shared_wishlists || 0}
+          icon={Share2}
+          color="indigo"
         />
       </div>
 
@@ -2137,6 +2149,12 @@ const AdminPage = () => {
     );
   };
 
+  const SharedWishlistsTab = () => (
+    <div className="space-y-6">
+      <AdminSharedWishlistManager familyMembers={users} />
+    </div>
+  );
+
   const ItemsTab = () => {
     const [items, setItems] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -2163,13 +2181,17 @@ const AdminPage = () => {
       fetchItems();
     }, []);
 
-    const handleDeleteItem = async (itemId) => {
+    const handleDeleteItem = async (item) => {
       if (!confirm('Are you sure you want to delete this item?')) return;
       
       setIsDeleting(true);
       try {
-        await deleteItemAsAdmin(itemId);
-        setItems(prevItems => prevItems.filter(item => item.id !== itemId));
+        if (item.item_type === 'shared') {
+          await deleteSharedWishlistItem(item.id);
+        } else {
+          await deleteItemAsAdmin(item.id);
+        }
+        setItems(prevItems => prevItems.filter(existing => existing.id !== item.id || existing.item_type !== item.item_type));
         toast.success('Item deleted successfully');
       } catch (err) {
         console.error('Failed to delete item:', err);
@@ -2198,11 +2220,11 @@ const AdminPage = () => {
 
     // Group items by owner
     const groupedItems = items.reduce((acc, item) => {
-      const ownerName = item.owner_name || 'Unknown';
-      if (!acc[ownerName]) {
-        acc[ownerName] = [];
+      const groupLabel = item.group_label || item.owner_name || 'Unknown';
+      if (!acc[groupLabel]) {
+        acc[groupLabel] = [];
       }
-      acc[ownerName].push(item);
+      acc[groupLabel].push(item);
       return acc;
     }, {});
 
@@ -2256,27 +2278,41 @@ const AdminPage = () => {
               </div>
             ) : (
               <div className="space-y-6">
-                {Object.entries(groupedItems).map(([ownerName, ownerItems]) => {
+                {Object.entries(groupedItems).map(([groupLabel, ownerItems]) => {
                   const ownerItem = ownerItems[0];
-                  const ownerHouseholds = getUserHouseholds(ownerItem.owner_id);
-                  const ownerKey = `${ownerItem.owner_id ?? 'unknown'}:${ownerName}`;
+                  const ownerHouseholds = ownerItem.households?.length
+                    ? ownerItem.households
+                    : getUserHouseholds(ownerItem.owner_id).map(household => household.name);
+                  const ownerKey = `${ownerItem.group_type || 'user'}:${ownerItem.owner_id ?? 'unknown'}:${groupLabel}`;
                   const isExpanded = Boolean(expandedOwners[ownerKey]);
                   
                   return (
-                    <div key={ownerName} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                    <div key={ownerKey} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                       {/* Owner Header */}
                       <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 border-b border-gray-200 dark:border-gray-600">
                         <div className="flex items-center justify-between">
                           <div>
-                            <h5 className="font-medium text-gray-900 dark:text-white">{ownerName}</h5>
+                            <div className="flex items-center gap-2">
+                              <h5 className="font-medium text-gray-900 dark:text-white">{groupLabel}</h5>
+                              {ownerItem.group_type === 'shared' && (
+                                <span className="text-xs bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200 px-2 py-0.5 rounded">
+                                  Shared
+                                </span>
+                              )}
+                            </div>
                             {ownerHouseholds.length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-1">
-                                {ownerHouseholds.map(household => (
-                                  <span key={household.id} className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 px-2 py-0.5 rounded">
-                                    {household.name}
+                                {ownerHouseholds.map((householdName, index) => (
+                                  <span key={`${ownerKey}-household-${index}`} className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 px-2 py-0.5 rounded">
+                                    {householdName}
                                   </span>
                                 ))}
                               </div>
+                            )}
+                            {ownerItem.group_type === 'shared' && ownerItem.shared_owner_names?.length > 0 && (
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                Owners: {ownerItem.shared_owner_names.join(', ')}
+                              </p>
                             )}
                           </div>
                           <div className="flex items-center gap-2">
@@ -2306,6 +2342,11 @@ const AdminPage = () => {
                                     <h6 className="font-medium text-gray-900 dark:text-white truncate flex-1 min-w-0">
                                       {item.title}
                                     </h6>
+                                    {item.item_type === 'shared' && (
+                                      <span className="text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200">
+                                        Shared
+                                      </span>
+                                    )}
                                     {showPurchaseStatus && (
                                       <span className={`text-xs px-2 py-0.5 rounded ${
                                         item.is_purchased 
@@ -2336,7 +2377,7 @@ const AdminPage = () => {
                                   </div>
                                 </div>
                                 <button 
-                                  onClick={() => handleDeleteItem(item.id)}
+                                  onClick={() => handleDeleteItem(item)}
                                   className="ml-3 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
                                   disabled={isDeleting}
                                   title="Delete item"
@@ -2403,6 +2444,8 @@ const AdminPage = () => {
         return <UsersTab />;
       case 'households':
         return <HouseholdsTab />;
+      case 'shared-wishlists':
+        return <SharedWishlistsTab />;
       case 'items':
         return <ItemsTab />;
       case 'carts':
