@@ -1007,6 +1007,32 @@ export const addShoppingCartItemFromSharedWishlistItem = async (itemId, sharedWi
   }
 };
 
+// Export shared wishlist
+export const exportSharedWishlist = async (wishlistId) => {
+  try {
+    console.log('Exporting shared wishlist:', wishlistId);
+    const response = await apiClient.get(`/shared-wishlists/${wishlistId}/export`);
+    console.log('Export response:', response.data);
+    return response;
+  } catch (error) {
+    console.error('Failed to export shared wishlist:', error?.response?.data || error);
+    throw error;
+  }
+};
+
+// Import shared wishlist
+export const importSharedWishlist = async (wishlistId, wishlistData) => {
+  try {
+    console.log('Importing shared wishlist:', wishlistId);
+    const response = await apiClient.post(`/shared-wishlists/${wishlistId}/import`, wishlistData);
+    console.log('Import response:', response.data);
+    return response;
+  } catch (error) {
+    console.error('Failed to import shared wishlist:', error?.response?.data || error);
+    throw error;
+  }
+};
+
 // Add comment to shared wishlist item
 export const addSharedWishlistItemComment = (itemId, text) => {
   return apiClient.post(`/shared-wishlist-items/${itemId}/comments`, { text });

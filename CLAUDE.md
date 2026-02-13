@@ -168,9 +168,9 @@ Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
 |----------|-----------|
 | **Auth** | `loginUser`, `registerUser`, `requestPasswordReset`, `confirmPasswordReset`, `adminResetPassword`, `logoutUser` |
 | **Family Members** | `getFamilyMembers`, `createFamilyMember`, `updateFamilyMember`, `deleteFamilyMember` |
-| **Wishlist Items** | `getWishlistItems`, `createWishlistItem`, `updateWishlistItem`, `deleteWishlistItem`, `toggleThinkingAbout`, `markPurchased` |
+| **Wishlist Items** | `getWishlistItems`, `createWishlistItem`, `updateWishlistItem`, `deleteWishlistItem`, `toggleThinkingAbout`, `markPurchased`, `exportWishlist`, `importWishlist` |
 | **Comments** | `addComment`, `deleteComment` |
-| **Shared Wishlists** | `getSharedWishlists`, `createSharedWishlist`, `updateSharedWishlist`, `deleteSharedWishlist`, `addSharedWishlistOwner`, `removeSharedWishlistOwner` |
+| **Shared Wishlists** | `getSharedWishlists`, `createSharedWishlist`, `updateSharedWishlist`, `deleteSharedWishlist`, `addSharedWishlistOwner`, `removeSharedWishlistOwner`, `exportSharedWishlist`, `importSharedWishlist` |
 | **Shared Items** | `getSharedWishlistItems`, `createSharedWishlistItem`, `updateSharedWishlistItem`, `deleteSharedWishlistItem`, `deleteAllSharedWishlistItems`, `toggleSharedItemThinking`, `toggleSharedItemPurchased` |
 | **Shopping Cart** | `getShoppingCartItems`, `createShoppingCartItem`, `addShoppingCartItemFromWishlistItem`, `addShoppingCartItemFromSharedWishlistItem`, `updateShoppingCartItem`, `deleteShoppingCartItem` |
 | **Households** | `getHouseholds`, `createHousehold`, `joinHousehold`, `leaveHousehold`, `setActiveHousehold` |
@@ -191,6 +191,8 @@ Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
 /api/shared-wishlists/{wishlist_id}
 /api/shared-wishlists/{wishlist_id}/items
 /api/shared-wishlists/{wishlist_id}/owners
+/api/shared-wishlists/{wishlist_id}/export
+/api/shared-wishlists/{wishlist_id}/import
 /api/shared-wishlist-items/{item_id}
 /api/shopping-cart/{cart_item_id}
 /api/households/{household_id}
@@ -217,13 +219,17 @@ Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
 - Enhanced floating action menu with tabs
 - "My Shared Wishlists" FAB icon for quick access to owned shared wishlists
 - **Auto-following shared wishlists**: Shared wishlists now appear in any household where at least one owner is a member (instead of being tied to a single household)
+- **Shared Wishlist Export/Import**: Owners of shared wishlists can now export shared wishlist items to JSON and import from JSON files (new feature)
 
 **Files recently modified**:
-- `backend/app/crud.py` - Updated `get_all_shared_wishlists()` to filter by owner household memberships
+- `backend/app/main.py` - Added `/api/shared-wishlists/{wishlist_id}/export` and `/api/shared-wishlists/{wishlist_id}/import` endpoints (lines 2264-2385)
+- `frontend/src/services/api.js` - Added `exportSharedWishlist()` and `importSharedWishlist()` functions
+- `frontend/src/components/Navbar.jsx` - Updated export/import button visibility and handlers to support shared wishlists
+- `backend/app/crud.py` - No changes (uses existing functions)
 - `FloatingActionMenu.jsx` (currently has uncommitted changes)
 - `SharedWishlistView.jsx`, `SharedWishlistManager.jsx`
 - `ShoppingCartDrawer.jsx`
-- Backend shared wishlist routes (lines 1713-2148)
+- Backend shared wishlist routes (lines 1713-2148, expanded to 2388)
 
 **Shared Wishlist Behavior**:
 - When A and B own a shared wishlist X, it appears in any household where A or B is a member

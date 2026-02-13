@@ -427,6 +427,17 @@ const DashboardScreen = (props = {}) => {
     }
   }, [viewingMember?.id, lastRefreshTimestamp, minRefreshInterval, isFetchingInProgress]);
 
+  // Unified refresh handler that detects context (personal vs shared wishlist)
+  const handleRefreshWishlist = useCallback(async (sharedWishlistIdParam = null) => {
+    if (selectedSharedWishlist?.id) {
+      // Refreshing shared wishlist - increment the reload trigger to refresh SharedWishlistInline
+      setSharedWishlistReloadTrigger(prev => prev + 1);
+    } else if (viewingMember?.id) {
+      // Refreshing personal wishlist
+      await refreshWishlistItems(true, viewingMember.id);
+    }
+  }, [selectedSharedWishlist?.id, viewingMember?.id, refreshWishlistItems]);
+
   const handleClearWishlist = useCallback(async () => {
     if (selectedSharedWishlist) {
       setSharedWishlistClearTrigger((prev) => prev + 1);
@@ -773,7 +784,7 @@ const DashboardScreen = (props = {}) => {
         viewingMember={viewingMember}
         selectedSharedWishlist={selectedSharedWishlist}
         onHouseholdUpdate={handleHouseholdUpdate}
-        onRefreshWishlist={refreshWishlistItems}
+        onRefreshWishlist={handleRefreshWishlist}
         onOpenSharedWishlists={() => setIsSharedWishlistsOpen(true)}
       />
       

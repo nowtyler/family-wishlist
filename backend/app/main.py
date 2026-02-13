@@ -2259,6 +2259,141 @@ def toggle_shared_item_purchased(
     )
 
 
+# --- Shared Wishlist Export/Import ---
+
+@app.get("/api/shared-wishlists/{wishlist_id}/export", response_model=schemas.WishlistExport)
+def export_shared_wishlist(
+    wishlist_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Export a shared wishlist to a portable format (owners only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required.")
+
+    # Check if user is an owner
+    if not crud.is_shared_wishlist_owner(db, wishlist_id, current_user_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You must be an owner to export this shared wishlist."
+        )
+
+    # Get all items for the shared wishlist
+    items = crud.get_shared_wishlist_items(db, wishlist_id, current_user_id)
+
+    # Create export data
+    export_data = {
+        "items": [
+            {
+                "title": item.title,
+                "description": item.description,
+                "link": str(item.link) if item.link else None,
+                "image_url": str(item.image_url) if item.image_url else None,
+                "priority": item.priority,
+                "price": item.price
+            }
+            for item in items
+        ],
+        "export_date": datetime.utcnow().isoformat(),
+        "version": "1.0"
+    }
+
+    return schemas.WishlistExport(**export_data)
+
+
+@app.post("/api/shared-wishlists/{wishlist_id}/import", response_model=schemas.WishlistImportResponse)
+def import_shared_wishlist(
+    wishlist_id: int,
+    wishlist_data: schemas.WishlistExport,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Import items into a shared wishlist (owners only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required.")
+
+    # Check if user is an owner
+    if not crud.is_shared_wishlist_owner(db, wishlist_id, current_user_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You must be an owner to import to this shared wishlist."
+        )
+
+    # Validate version compatibility
+    if not wishlist_data.version.startswith("1."):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported wishlist format version: {wishlist_data.version}"
+        )
+
+    # Get existing items for duplicate checking
+    existing_items = db.query(models.SharedWishlistItem).filter(
+        models.SharedWishlistItem.wishlist_id == wishlist_id
+    ).all()
+
+    imported_items = []
+    skipped_items = []
+    for item_data in wishlist_data.items:
+        try:
+            # Check for exact duplicate
+            is_duplicate = any(
+                existing_item.title == item_data.title and
+                existing_item.description == item_data.description and
+                (str(existing_item.link) if existing_item.link else None) == (str(item_data.link) if item_data.link else None) and
+                (str(existing_item.image_url) if existing_item.image_url else None) == (str(item_data.image_url) if item_data.image_url else None) and
+                existing_item.priority == item_data.priority and
+                existing_item.price == item_data.price
+                for existing_item in existing_items
+            )
+
+            if is_duplicate:
+                skipped_items.append(item_data.title)
+                continue
+
+            # Create item if not a duplicate
+            # Convert price from cents (in export) to dollars for the schema
+            price_in_dollars = item_data.price / 100 if item_data.price else None
+            item_create = schemas.SharedWishlistItemCreate(
+                title=item_data.title,
+                description=item_data.description,
+                link=item_data.link,
+                image_url=item_data.image_url,
+                priority=item_data.priority,
+                price=price_in_dollars
+            )
+            db_item = crud.create_shared_wishlist_item(db, wishlist_id, item_create, current_user_id)
+
+            if db_item:
+                # For shared wishlist imports, return minimal item data compatible with WishlistImportResponse
+                imported_items.append({
+                    'id': db_item.id,
+                    'title': db_item.title,
+                    'description': db_item.description,
+                    'link': str(db_item.link) if db_item.link else None,
+                    'image_url': str(db_item.image_url) if db_item.image_url else None,
+                    'priority': db_item.priority,
+                    'price': db_item.price,
+                    'owner_id': current_user_id,  # Use current user as the "owner" for response schema
+                    'is_purchased': False  # New imported items are not purchased
+                })
+
+        except Exception as e:
+            logger.error(f"Failed to import shared wishlist item: {str(e)}")
+            # Continue with next item if one fails
+            continue
+
+    if not imported_items and not skipped_items:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to import any items from the file."
+        )
+
+    return schemas.WishlistImportResponse(
+        imported_items=imported_items,
+        skipped_items=skipped_items
+    )
+
+
 @app.post("/api/shared-wishlist-items/{item_id}/comments", response_model=schemas.SharedWishlistItemComment)
 def add_shared_wishlist_item_comment(
     item_id: int,

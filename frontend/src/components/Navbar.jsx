@@ -7,7 +7,8 @@ import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPl
 import { useTutorial } from '../contexts/TutorialContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems,
-         getFamilyMembers, clearAllWishlists, exportWishlist, importWishlist, deleteAllSharedWishlistItems } from '../services/api';
+         getFamilyMembers, clearAllWishlists, exportWishlist, importWishlist, deleteAllSharedWishlistItems,
+         exportSharedWishlist, importSharedWishlist } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import MigrationModal from './admin/MigrationModal';
 import FamilyMemberManager from './admin/FamilyMemberManager';
@@ -192,21 +193,40 @@ const Navbar = ({
 
   // Export wishlist handler
   const handleExport = async () => {
-    if (!viewingMember?.id) return;
-    try {
-      const response = await exportWishlist(viewingMember.id);
-      const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `wishlist-${new Date().toISOString().split('T')[0]}-${viewingMember.name?.toLowerCase() || 'user'}.json`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (error) {
-      console.error('Failed to export wishlist:', error);
-      alert('Failed to export wishlist. Please try again.');
+    if (selectedSharedWishlist?.id && isSharedWishlistOwner) {
+      // Export shared wishlist
+      try {
+        const response = await exportSharedWishlist(selectedSharedWishlist.id);
+        const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `wishlist-${new Date().toISOString().split('T')[0]}-${selectedSharedWishlist.name?.toLowerCase() || 'shared'}.json`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } catch (error) {
+        console.error('Failed to export shared wishlist:', error);
+        alert('Failed to export shared wishlist. Please try again.');
+      }
+    } else if (viewingMember?.id) {
+      // Export personal wishlist
+      try {
+        const response = await exportWishlist(viewingMember.id);
+        const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `wishlist-${new Date().toISOString().split('T')[0]}-${viewingMember.name?.toLowerCase() || 'user'}.json`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } catch (error) {
+        console.error('Failed to export wishlist:', error);
+        alert('Failed to export wishlist. Please try again.');
+      }
     }
   };
 
@@ -217,36 +237,79 @@ const Navbar = ({
 
   const handleFileSelect = async (event) => {
     const file = event.target.files?.[0];
-    if (!file || !viewingMember?.id) return;
+    if (!file) return;
+
+    // Check if we're importing to a shared wishlist or personal wishlist
+    const isImportingToSharedWishlist = selectedSharedWishlist?.id && isSharedWishlistOwner;
+    const isImportingToPersonal = viewingMember?.id && selectedUser && viewingMember.id === selectedUser.id;
+
+    if (!isImportingToSharedWishlist && !isImportingToPersonal) return;
+
     setIsImporting(true);
     try {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const { result } = e.target || {};
-          if (typeof result !== 'string') {
-            throw new Error('Invalid wishlist file');
+      const result = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const { result: fileContent } = e.target || {};
+            if (typeof fileContent !== 'string') {
+              throw new Error('Invalid wishlist file');
+            }
+            resolve(fileContent);
+          } catch (error) {
+            reject(error);
           }
-          const wishlistData = JSON.parse(result);
-          const response = await importWishlist(viewingMember.id, wishlistData);
-          if (onRefreshWishlist) await onRefreshWishlist();
-          const { imported_items, skipped_items } = response.data;
-          if (imported_items.length === 0 && skipped_items.length > 0) {
-            alert('All items were already in your wishlist. No new items were imported.');
-          } else if (skipped_items.length > 0) {
-            alert(`Successfully imported ${imported_items.length} items.\n\nSkipped ${skipped_items.length} duplicate items:\n${skipped_items.join('\n')}`);
-          } else {
-            alert(`Successfully imported ${imported_items.length} items!`);
-          }
-        } catch (error) {
-          console.error('Failed to import wishlist:', error);
-          alert('Failed to import wishlist. Please check the file format and try again.');
-        }
-      };
-      reader.readAsText(file);
+        };
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsText(file);
+      });
+
+      const wishlistData = JSON.parse(result);
+
+      let response;
+      if (isImportingToSharedWishlist) {
+        // Import to shared wishlist
+        response = await importSharedWishlist(selectedSharedWishlist.id, wishlistData);
+      } else {
+        // Import to personal wishlist
+        response = await importWishlist(viewingMember.id, wishlistData);
+      }
+
+      // Extract response data - handle both direct response and response.data
+      const responseData = response.data || response;
+      console.log('Import response data:', responseData);
+
+      // Handle response structure
+      let imported_items = [];
+      let skipped_items = [];
+
+      if (Array.isArray(responseData)) {
+        // If response is an array, it's likely the imported items
+        imported_items = responseData;
+      } else if (responseData && typeof responseData === 'object') {
+        // If it's an object, extract imported_items and skipped_items
+        imported_items = responseData.imported_items || [];
+        skipped_items = responseData.skipped_items || [];
+      }
+
+      // Show success message
+      if (imported_items.length === 0 && skipped_items.length > 0) {
+        alert('All items were already in your wishlist. No new items were imported.');
+      } else if (skipped_items.length > 0) {
+        alert(`Successfully imported ${imported_items.length} items.\n\nSkipped ${skipped_items.length} duplicate items:\n${skipped_items.join('\n')}`);
+      } else if (imported_items.length > 0) {
+        alert(`Successfully imported ${imported_items.length} items!`);
+      } else {
+        alert('Import completed but no items were imported.');
+      }
+
+      // Refresh wishlist data - pass the shared wishlist ID if applicable
+      if (onRefreshWishlist) {
+        await onRefreshWishlist(selectedSharedWishlist?.id);
+      }
     } catch (error) {
-      console.error('Failed to read file:', error);
-      alert('Failed to read file. Please try again.');
+      console.error('Failed to import wishlist:', error);
+      alert('Failed to import wishlist. Please check the file format and try again.');
     } finally {
       setIsImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -363,8 +426,9 @@ const Navbar = ({
                       </div>
                     )}
 
-                    {/* Import/Export Buttons for own wishlist only */}
-                    {viewingMember && selectedUser && viewingMember.id === selectedUser.id && (
+                    {/* Import/Export Buttons for own wishlist or shared wishlist owner */}
+                    {((viewingMember && selectedUser && viewingMember.id === selectedUser.id) ||
+                      (selectedSharedWishlist && isSharedWishlistOwner)) && (
                       <>
                         <button
                           onClick={handleExport}
