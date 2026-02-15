@@ -19,6 +19,11 @@ class ShoppingCartStatus(str, Enum):
     PURCHASED = "purchased"
     CANCELLED = "cancelled"
 
+class TutorialStatus(str, Enum):
+    NEW = "new"
+    SKIPPED = "skipped"
+    COMPLETED = "completed"
+
 # Base models first
 class FamilyMemberBase(BaseModel):
     name: str
@@ -29,6 +34,7 @@ class FamilyMemberBase(BaseModel):
     email: Optional[str] = None
     force_password_change: Optional[bool] = False
     first_login: Optional[bool] = False
+    tutorial_status: Optional[str] = "new"  # new, skipped, or completed
 
 class HouseholdBase(BaseModel):
     name: str

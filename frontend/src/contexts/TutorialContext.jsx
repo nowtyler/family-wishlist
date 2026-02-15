@@ -11,47 +11,27 @@ import Joyride, { STATUS, ACTIONS, EVENTS } from 'react-joyride';
 import { useTheme } from './ThemeContext';
 import { useAppContext } from './AppContext';
 import { HelpCircle, X, ChevronLeft, ChevronRight, SkipForward } from 'lucide-react';
+import { completeTutorial as completeTutorialAPI, skipTutorial as skipTutorialAPI, resetTutorial as resetTutorialAPI } from '../services/api';
 
 const TutorialContext = createContext(null);
 
 export const useTutorial = () => useContext(TutorialContext);
 
-// Base localStorage key - will be combined with user ID for per-user tracking
-const TUTORIAL_COMPLETED_KEY_BASE = 'wishlist_tutorial_completed';
-const MENU_STEP_TARGETS = new Set([
-  '#tutorial-add-item',
+// Targets that require the Browse sheet to be open
+const BROWSE_SHEET_TARGETS = new Set([
+  '#tutorial-browse-tab',
   '#tutorial-browse-wishlists',
+]);
+
+// Targets that require the More sheet to be open
+const MORE_SHEET_TARGETS = new Set([
+  '#tutorial-more-tab',
   '#tutorial-external-wishlists',
-  '#tutorial-shopping-cart',
   '#tutorial-preferences',
 ]);
 
-const isMenuStep = (step) => MENU_STEP_TARGETS.has(step?.target);
-
-const requestMenuOpenForTutorial = () => {
-  ensureMenuOpenForTutorial();
-  requestAnimationFrame(() => {
-    ensureMenuOpenForTutorial();
-  });
-};
-
-const ensureMenuOpenForTutorial = () => {
-  for (const target of MENU_STEP_TARGETS) {
-    if (document.querySelector(target)) {
-      return;
-    }
-  }
-
-  const fabButton = document.querySelector('#tutorial-fab-button');
-  if (!fabButton) {
-    return;
-  }
-
-  const isExpanded = fabButton.getAttribute('aria-expanded') === 'true';
-  if (!isExpanded && fabButton instanceof HTMLElement) {
-    fabButton.click();
-  }
-};
+const isBrowseSheetStep = (step) => BROWSE_SHEET_TARGETS.has(step?.target);
+const isMoreSheetStep = (step) => MORE_SHEET_TARGETS.has(step?.target);
 
 // Custom tooltip component matching the app's design
 const CustomTooltip = ({
@@ -70,9 +50,7 @@ const CustomTooltip = ({
   const { onClick: primaryOnClick, ...primaryButtonProps } = primaryProps || {};
 
   const handlePrimaryClick = (event) => {
-    if (step?.target === '#tutorial-fab-button') {
-      ensureMenuOpenForTutorial();
-    }
+    // BottomTabNav handles opening sheets automatically based on tutorial context
     primaryOnClick?.(event);
   };
 
@@ -198,57 +176,50 @@ const CustomTooltip = ({
 const tutorialSteps = [
   {
     target: '#tutorial-fab-button',
-    title: 'Quick Actions Menu',
-    content: 'Tap this button to access quick actions like adding items, browsing wishlists, and viewing external links. It\'s your main hub for navigation!',
+    title: 'Welcome to Family Wishlist!',
+    content: 'This is your navigation bar at the bottom with all your main features.',
+    disableBeacon: true,
+    placement: 'top',
+  },
+  {
+    target: '#tutorial-home-tab',
+    title: 'Home',
+    content: 'View your personal wishlist here. This is where you add items you\'d like to receive.',
+    disableBeacon: true,
+    placement: 'top',
+  },
+  {
+    target: '#tutorial-browse-tab',
+    title: 'Browse',
+    content: 'Browse family members\' wishlists and see what everyone is hoping for.',
     disableBeacon: true,
     placement: 'top',
   },
   {
     target: '#tutorial-add-item',
-    title: 'Add Wishlist Items',
-    content: 'When viewing your own wishlist, use this button to add new items. You can paste a URL to auto-fill product details, or enter them manually.',
-    disableBeacon: true,
-    placement: 'top',
-  },
-  {
-    target: '#tutorial-browse-wishlists',
-    title: 'Browse Family Wishlists',
-    content: 'Switch between family members\' wishlists to see what they\'re hoping for. You can mark items as "thinking about" or "purchased" to coordinate gifts!',
-    disableBeacon: true,
-    placement: 'top',
-  },
-  {
-    target: '#tutorial-external-wishlists',
-    title: 'External Wishlists',
-    content: 'Some family members have wishlists on other sites like Amazon. Find links to those external wishlists here.',
+    title: 'Add Item',
+    content: 'Tap the + button to add new items to your wishlist. Paste a product link to auto-fill details or enter information manually.',
     disableBeacon: true,
     placement: 'top',
   },
   {
     target: '#tutorial-shopping-cart',
     title: 'Shopping Cart',
-    content: 'Collect gift ideas here while browsing others\' wishlists. Review, edit, and track what you plan to buy.',
+    content: 'Collect and organize gift ideas while browsing. Track everything you\'re planning to buy in one place.',
     disableBeacon: true,
     placement: 'top',
   },
   {
-    target: '#tutorial-preferences',
-    title: 'Sizes & Preferences',
-    content: 'View and edit clothing sizes, favorite colors, and other gift preferences. Helpful info for finding the perfect gift!',
+    target: '#tutorial-more-tab',
+    title: 'More',
+    content: 'Access additional options like external wishlists, preferences, and shared wishlists.',
     disableBeacon: true,
     placement: 'top',
   },
   {
     target: '#tutorial-settings',
-    title: 'Settings & Profile',
-    content: 'Access your profile settings, edit your account, manage households, manage shared wishlists, and import/export your wishlist data.',
-    disableBeacon: true,
-    placement: 'bottom',
-  },
-  {
-    target: '#tutorial-theme-toggle',
-    title: 'Dark/Light Mode',
-    content: 'Toggle between dark and light themes based on your preference.',
+    title: 'Settings',
+    content: 'Tap the gear icon to access your account settings, profile, households, and other options.',
     disableBeacon: true,
     placement: 'bottom',
   },
@@ -259,65 +230,61 @@ export const TutorialProvider = ({ children }) => {
   const { selectedUser } = useAppContext();
   const [run, setRun] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
-  const [tutorialCompleted, setTutorialCompleted] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
   const [joyrideKey, setJoyrideKey] = useState(0);
   const menuRetryRef = useRef(null);
   const autoStartAttemptedRef = useRef(false);
 
-  // Get user-specific localStorage key
-  const getTutorialKey = useCallback(() => {
-    if (!selectedUser?.id) return null;
-    return `${TUTORIAL_COMPLETED_KEY_BASE}_${selectedUser.id}`;
-  }, [selectedUser?.id]);
+  // Check if tutorial should be shown based on tutorial_status from database
+  // Show if status is "new" or if it was "completed" and being reset
+  const shouldShowTutorial = selectedUser?.tutorial_status === "new";
 
-  // Check localStorage when user changes
-  useEffect(() => {
-    const key = getTutorialKey();
-    if (!key) {
-      // No user yet, reset state
-      setTutorialCompleted(false);
-      setIsInitialized(false);
-      autoStartAttemptedRef.current = false;
-      return;
-    }
-
-    const completed = localStorage.getItem(key);
-    setTutorialCompleted(completed === 'true');
-    setIsInitialized(true);
-    // Reset auto-start attempt when user changes
-    autoStartAttemptedRef.current = false;
-  }, [getTutorialKey]);
-
-  // Auto-start tutorial for users who haven't completed/skipped it
+  // Auto-start tutorial for first-time users
   useEffect(() => {
     // Only attempt auto-start once per session per user
     if (autoStartAttemptedRef.current) {
       return;
     }
 
-    if (!isInitialized || tutorialCompleted || run) {
+    if (!selectedUser?.id || !shouldShowTutorial || run) {
+      console.log('Tutorial auto-start check:', {
+        hasUser: !!selectedUser?.id,
+        shouldShow: shouldShowTutorial,
+        isRunning: run,
+        firstLogin: selectedUser?.first_login
+      });
       return;
     }
 
     // Mark that we've attempted auto-start
     autoStartAttemptedRef.current = true;
+    console.log('Tutorial auto-start: Waiting for DOM to be ready...');
 
     // Wait for DOM elements to be ready before starting
-    const timeoutId = setTimeout(() => {
-      // Check if FAB button exists (DOM is ready)
+    let retries = 0;
+    const maxRetries = 10;
+
+    const checkDOMReady = () => {
+      retries++;
       const fabButton = document.querySelector('#tutorial-fab-button');
+      console.log(`Tutorial DOM check (attempt ${retries}/${maxRetries}):`, { found: !!fabButton });
+
       if (fabButton) {
+        console.log('Tutorial DOM ready! Starting tutorial...');
         setStepIndex(0);
         setRun(true);
+      } else if (retries < maxRetries) {
+        // Retry after 500ms
+        setTimeout(checkDOMReady, 500);
       } else {
-        // DOM not ready, reset flag to try again
-        autoStartAttemptedRef.current = false;
+        console.warn('Tutorial: DOM not ready after multiple retries');
       }
-    }, 1500);
+    };
 
-    return () => clearTimeout(timeoutId);
-  }, [isInitialized, tutorialCompleted, run]);
+    // Start checking after initial delay
+    const initialTimeoutId = setTimeout(checkDOMReady, 500);
+
+    return () => clearTimeout(initialTimeoutId);
+  }, [selectedUser?.id, shouldShowTutorial, run]);
 
   useLayoutEffect(() => {
     if (!run) {
@@ -325,25 +292,22 @@ export const TutorialProvider = ({ children }) => {
     }
 
     const step = tutorialSteps[stepIndex];
-    if (isMenuStep(step)) {
-      requestMenuOpenForTutorial();
+    if (!step) {
+      return;
+    }
+
+    // Scroll element into view within its sheet if it's a sheet-based step
+    const isSheetStep = isBrowseSheetStep(step) || isMoreSheetStep(step);
+    if (isSheetStep && step.target !== '#tutorial-browse-tab' && step.target !== '#tutorial-more-tab') {
+      // Scroll immediately so element is ready for Joyride
+      const element = document.querySelector(step.target);
+      if (element) {
+        element.scrollIntoView({ behavior: 'auto', block: 'center' });
+      }
     }
 
     menuRetryRef.current = null;
   }, [run, stepIndex]);
-
-  // Start tutorial for all users who haven't completed/skipped it (after a short delay)
-  const startTutorialForNewUser = useCallback(() => {
-    // Wait until localStorage check is complete, then show if not completed/skipped
-    if (!isInitialized || tutorialCompleted || run) {
-      return;
-    }
-    // Small delay to ensure DOM elements are rendered
-    setTimeout(() => {
-      setStepIndex(0);
-      setRun(true);
-    }, 1500);
-  }, [isInitialized, tutorialCompleted, run]);
 
   // Manually start the tutorial
   const startTutorial = useCallback(() => {
@@ -356,24 +320,29 @@ export const TutorialProvider = ({ children }) => {
     setRun(false);
   }, []);
 
-  // Reset tutorial (for testing or re-showing)
-  const resetTutorial = useCallback(() => {
-    const key = getTutorialKey();
-    if (key) {
-      localStorage.removeItem(key);
-    }
-    setTutorialCompleted(false);
-    autoStartAttemptedRef.current = false;
-  }, [getTutorialKey]);
+  // Mark tutorial as completed
+  const completeTutorial = useCallback(async () => {
+    if (!selectedUser?.id) return;
 
-  // Mark tutorial as completed (either finished or skipped)
-  const completeTutorial = useCallback(() => {
-    const key = getTutorialKey();
-    if (key) {
-      localStorage.setItem(key, 'true');
+    try {
+      await completeTutorialAPI(selectedUser.id);
+      setRun(false);
+    } catch (error) {
+      console.error('Failed to mark tutorial as completed:', error);
     }
-    setTutorialCompleted(true);
-  }, [getTutorialKey]);
+  }, [selectedUser?.id]);
+
+  // Mark tutorial as skipped
+  const skipTutorial = useCallback(async () => {
+    if (!selectedUser?.id) return;
+
+    try {
+      await skipTutorialAPI(selectedUser.id);
+      setRun(false);
+    } catch (error) {
+      console.error('Failed to mark tutorial as skipped:', error);
+    }
+  }, [selectedUser?.id]);
 
   const queueStepChange = useCallback((nextIndex) => {
     if (nextIndex < 0 || nextIndex >= tutorialSteps.length) {
@@ -381,11 +350,14 @@ export const TutorialProvider = ({ children }) => {
     }
 
     const nextStep = tutorialSteps[nextIndex];
-    if (isMenuStep(nextStep)) {
-      requestMenuOpenForTutorial();
+    const needsSheetOpen = isBrowseSheetStep(nextStep) || isMoreSheetStep(nextStep);
+
+    if (needsSheetOpen) {
+      // Give BottomTabNav time to animate the sheet open, scroll content, and Joyride to find the element
+      // Sheet animation: ~300ms, scroll into view: ~200ms, buffer: ~100ms
       setTimeout(() => {
         setStepIndex(nextIndex);
-      }, 0);
+      }, 600);
       return;
     }
 
@@ -398,15 +370,18 @@ export const TutorialProvider = ({ children }) => {
     const isLastStep = index === tutorialSteps.length - 1;
 
     // Handle tour completion or skip first
-    if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status)) {
+    if (status === STATUS.FINISHED) {
       setRun(false);
       setStepIndex(0);
       completeTutorial();
       return;
     }
 
-    if (type === EVENTS.STEP_BEFORE && isMenuStep(step)) {
-      requestMenuOpenForTutorial();
+    if (status === STATUS.SKIPPED) {
+      setRun(false);
+      setStepIndex(0);
+      skipTutorial();
+      return;
     }
 
     // Handle close action - stop the tour WITHOUT marking complete
@@ -433,20 +408,25 @@ export const TutorialProvider = ({ children }) => {
       }
     }
 
-    // Handle target not found - skip to next step
+    // Handle target not found - skip to next step or retry
     if (type === EVENTS.TARGET_NOT_FOUND) {
-      if (isMenuStep(step)) {
+      const isSheetStep = isBrowseSheetStep(step) || isMoreSheetStep(step);
+
+      if (isSheetStep) {
+        // Give the sheet a moment to open (BottomTabNav handles this via context)
         if (menuRetryRef.current === index) {
+          // Already retried, skip to next step
           setStepIndex(index + 1);
           return;
         }
 
         menuRetryRef.current = index;
-        requestMenuOpenForTutorial();
+        // Force Joyride to re-check by incrementing key
         setJoyrideKey((current) => current + 1);
         return;
       }
 
+      // For non-sheet steps, just skip
       setStepIndex(index + 1);
     }
   }, [completeTutorial, queueStepChange]);
@@ -457,13 +437,21 @@ export const TutorialProvider = ({ children }) => {
     run,
     stepIndex,
     currentStep,
-    tutorialCompleted,
-    isInitialized,
     startTutorial,
     stopTutorial,
-    resetTutorial,
     completeTutorial,
-    startTutorialForNewUser,
+    skipTutorial,
+    resetTutorial: async () => {
+      if (!selectedUser?.id) return;
+      try {
+        await resetTutorialAPI(selectedUser.id);
+        // After resetting, start the tutorial automatically
+        setStepIndex(0);
+        setRun(true);
+      } catch (error) {
+        console.error('Failed to reset tutorial:', error);
+      }
+    },
   };
 
   return (

@@ -129,16 +129,21 @@ const AuthScreen = () => {
           // Log the navigation attempt
           console.log('Login successful, user data:', {
             is_admin: userData.is_admin,
+            tutorial_status: userData.tutorial_status,
             first_login: userData.first_login,
-            target: userData.is_admin ? '/admin' : '/'
+            target: userData.is_admin ? '/admin' : '/',
+            fullUser: userData
           });
 
-          // Check if this is the user's first login
-          if (userData.first_login && !userData.is_admin) {
+          // Check if this is the user's first login based on tutorial_status
+          // Show household setup if they haven't completed the tutorial yet
+          if ((userData.tutorial_status === "new" || userData.tutorial_status === "skipped") && !userData.is_admin) {
             // Show household setup modal for first-time non-admin users
+            console.log('First-time user detected (tutorial_status:', userData.tutorial_status, '), showing household setup modal');
             setShowHouseholdSetup(true);
           } else {
             // Redirect admin users to admin page, others to main dashboard
+            console.log('Navigating to:', userData.is_admin ? '/admin' : '/');
             if (userData.is_admin) {
               navigate('/admin');
             } else {

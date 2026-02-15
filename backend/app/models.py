@@ -35,8 +35,9 @@ class FamilyMember(Base):
     email = Column(String, index=True, nullable=True)
     reset_token = Column(String, nullable=True)
     reset_token_expires = Column(DateTime, nullable=True)
-    first_login = Column(Boolean, default=True)
-    
+    first_login = Column(Boolean, default=True)  # Deprecated, kept for backward compatibility
+    tutorial_status = Column(String, default="new")  # new, skipped, or completed
+
     # New fields for password management
     password_expires_at = Column(DateTime, nullable=True)
     temp_password_hash = Column(String, nullable=True)

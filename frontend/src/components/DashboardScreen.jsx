@@ -24,13 +24,13 @@ import SchemaAlertModal from './SchemaAlertModal';
 import ExternalWishlistsButton from './ExternalWishlistsButton';
 import ShoppingCartDrawer from './ShoppingCartDrawer';
 import UserPreferencesDropdown from './UserPreferencesDropdown';
-import FloatingActionMenu from './FloatingActionMenu';
+import BottomTabNav from './BottomTabNav';
 import SharedWishlistManager from './SharedWishlistManager';
 import SharedWishlistInline from './SharedWishlistInline';
 import Navbar from './Navbar';
 import { useTutorial } from '../contexts/TutorialContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, TriangleAlert } from 'lucide-react';
+import { TriangleAlert } from 'lucide-react';
 import { toast } from 'react-toastify';
 
 /**
@@ -788,7 +788,7 @@ const DashboardScreen = (props = {}) => {
         onOpenSharedWishlists={() => setIsSharedWishlistsOpen(true)}
       />
       
-      <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-24">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -859,55 +859,26 @@ const DashboardScreen = (props = {}) => {
             </div>
           ) : null}
 
-          {/* Floating Action Menu - Unified menu for all quick actions */}
-          {(viewingMember || selectedSharedWishlist) && (
-            <>
-              <FloatingActionMenu
-                isOwnWishlist={
-                  selectedSharedWishlist
-                    ? selectedSharedWishlist.owners?.some(o => o.id === selectedUser?.id)
-                    : (viewingMember?.id === selectedUser?.id || isAdmin)
-                }
-                viewingMember={viewingMember}
-                selectedSharedWishlist={selectedSharedWishlist}
-                onAddItem={handleOpenAddItemForm}
-                onReturnHome={() => handleSelectViewingMember(selectedUser)}
-                onOpenShoppingCart={() => setIsCartOpen(true)}
-                onOpenExternalWishlists={() => setIsExternalWishlistsOpen(true)}
-                onOpenPreferences={() => setIsPreferencesOpen(true)}
-                onOpenSharedWishlists={() => setIsSharedWishlistsOpen(true)}
-                onSelectMember={handleSelectViewingMember}
-                onSelectSharedWishlist={handleSelectSharedWishlist}
-                familyMembers={familyMembers}
-                sharedWishlists={sharedWishlists}
-                selectedUser={selectedUser}
-                isHidden={isAddingItem || selectedItem}
-                cartCount={cartCount}
-                notificationCount={notificationCount}
-              />
+          {/* Hidden External Wishlists Button - Only renders modal, triggered from BottomTabNav */}
+          {viewingMember && (
+            <ExternalWishlistsButton
+              member={viewingMember}
+              variant="hidden"
+              externalOpen={isExternalWishlistsOpen}
+              onExternalClose={() => setIsExternalWishlistsOpen(false)}
+            />
+          )}
 
-              {/* Hidden External Wishlists Button - Only renders modal, triggered from FloatingActionMenu */}
-              {viewingMember && (
-                <ExternalWishlistsButton
-                  member={viewingMember}
-                  variant="hidden"
-                  externalOpen={isExternalWishlistsOpen}
-                  onExternalClose={() => setIsExternalWishlistsOpen(false)}
-                />
-              )}
-
-              {viewingMember && (
-                <UserPreferencesDropdown
-                  member={viewingMember}
-                  isOwner={viewingMember.id === selectedUser.id || isAdmin}
-                  currentUserId={selectedUser.id}
-                  onUpdateSuccess={handlePreferencesUpdate}
-                  isOpen={isPreferencesOpen}
-                  onOpenChange={setIsPreferencesOpen}
-                  hideTrigger
-                />
-              )}
-            </>
+          {viewingMember && (
+            <UserPreferencesDropdown
+              member={viewingMember}
+              isOwner={viewingMember.id === selectedUser.id || isAdmin}
+              currentUserId={selectedUser.id}
+              onUpdateSuccess={handlePreferencesUpdate}
+              isOpen={isPreferencesOpen}
+              onOpenChange={setIsPreferencesOpen}
+              hideTrigger
+            />
           )}
 
           {/* Add Item Form Modal */}
@@ -969,6 +940,33 @@ const DashboardScreen = (props = {}) => {
           </AnimatePresence>
         </motion.div>
       </div>
+
+      {/* Bottom Tab Navigation - Mobile-friendly fixed navigation */}
+      {(viewingMember || selectedSharedWishlist) && (
+        <BottomTabNav
+          isOwnWishlist={
+            selectedSharedWishlist
+              ? selectedSharedWishlist.owners?.some(o => o.id === selectedUser?.id)
+              : (viewingMember?.id === selectedUser?.id || isAdmin)
+          }
+          viewingMember={viewingMember}
+          selectedSharedWishlist={selectedSharedWishlist}
+          onAddItem={handleOpenAddItemForm}
+          onReturnHome={() => handleSelectViewingMember(selectedUser)}
+          onOpenShoppingCart={() => setIsCartOpen(true)}
+          onOpenExternalWishlists={() => setIsExternalWishlistsOpen(true)}
+          onOpenPreferences={() => setIsPreferencesOpen(true)}
+          onOpenSharedWishlists={() => setIsSharedWishlistsOpen(true)}
+          onSelectMember={handleSelectViewingMember}
+          onSelectSharedWishlist={handleSelectSharedWishlist}
+          familyMembers={familyMembers}
+          sharedWishlists={sharedWishlists}
+          selectedUser={selectedUser}
+          isHidden={isAddingItem || selectedItem}
+          cartCount={cartCount}
+          notificationCount={notificationCount}
+        />
+      )}
 
       {viewingMember && (
         <ShoppingCartDrawer

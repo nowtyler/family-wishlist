@@ -76,6 +76,7 @@ Use these line ranges to jump directly to relevant sections instead of searching
 | **External Wishlists** | 1579-1694 | `/api/members/{id}/external-wishlists`, `/api/external-wishlists/{id}` |
 | **Shared Wishlists** | 1713-2148 | `/api/shared-wishlists/*`, DELETE `/api/shared-wishlists/{id}/items`, `/api/shared-wishlist-items/*` |
 | **User Preferences** | 2190-2230 | PUT `/api/members/{id}/preferences` |
+| **Tutorial** | 2478-2615 | POST `/api/members/{id}/complete-tutorial`, `/api/members/{id}/skip-tutorial`, `/api/members/{id}/reset-tutorial` |
 | **Authentication** | 2230-2650 | `/api/auth/login`, `/api/auth/register`, password reset, admin passphrase reset |
 | **Households (Admin)** | 2606-3416 | `/api/admin/households/*` |
 | **Email Admin** | 2785-2983 | `/api/admin/email/*` |
@@ -137,7 +138,7 @@ Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
 | **AuthScreen.jsx** | Login/registration with Turnstile CAPTCHA |
 | **FirstTimeSetupScreen.jsx** | Initial admin setup for new installations |
 | **UserSelectionScreen.jsx** | Switch between family members' wishlists |
-| **FloatingActionMenu.jsx** | FAB with quick actions (add item, browse, cart, My Shared Wishlists for owners, etc.) |
+| **BottomTabNav.jsx** | Mobile-friendly bottom tab navigation (Home, Browse, Add +, Cart, More) with slide-up sheets |
 | **Navbar.jsx** | Top nav - profile, logout, theme toggle |
 | **WishlistCard.jsx** | Individual item display with status, priority, actions |
 | **AddItemForm.jsx** | Add items with URL auto-fetch |
@@ -216,26 +217,32 @@ Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
 - Shared kid wishlists with multi-owner support
 - Household management (switching, joining, leaving)
 - Shopping cart linking to wishlist items (optimistic updates)
-- Enhanced floating action menu with tabs
-- "My Shared Wishlists" FAB icon for quick access to owned shared wishlists
+- **Bottom Tab Navigation**: Replaced FAB menu with mobile-friendly anchored bottom tab bar (Home, Browse, Add +, Cart, More)
+- "My Shared Wishlists" accessible from More menu for quick access to owned shared wishlists
 - **Auto-following shared wishlists**: Shared wishlists now appear in any household where at least one owner is a member (instead of being tied to a single household)
-- **Shared Wishlist Export/Import**: Owners of shared wishlists can now export shared wishlist items to JSON and import from JSON files (new feature)
+- **Shared Wishlist Export/Import**: Owners of shared wishlists can now export shared wishlist items to JSON and import from JSON files
+- **Tutorial Status System**: Replaced boolean `first_login` with three-state `tutorial_status` field: "new" (show tutorial and household setup), "skipped" (show household setup on next login), "completed" (never show tutorial or household setup unless user manually resets)
 
 **Files recently modified**:
-- `backend/app/main.py` - Added `/api/shared-wishlists/{wishlist_id}/export` and `/api/shared-wishlists/{wishlist_id}/import` endpoints (lines 2264-2385)
-- `frontend/src/services/api.js` - Added `exportSharedWishlist()` and `importSharedWishlist()` functions
-- `frontend/src/components/Navbar.jsx` - Updated export/import button visibility and handlers to support shared wishlists
-- `backend/app/crud.py` - No changes (uses existing functions)
-- `FloatingActionMenu.jsx` (currently has uncommitted changes)
-- `SharedWishlistView.jsx`, `SharedWishlistManager.jsx`
-- `ShoppingCartDrawer.jsx`
-- Backend shared wishlist routes (lines 1713-2148, expanded to 2388)
+- `backend/app/models.py` - Added `tutorial_status` field (String, default "new") to FamilyMember model
+- `backend/app/schemas.py` - Added `TutorialStatus` enum and `tutorial_status` field to schemas
+- `backend/migrations/versions/009_replace_first_login_with_tutorial_status.py` - Migration that adds tutorial_status column and migrates data from first_login boolean
+- `backend/app/main.py` - Updated tutorial endpoints: `complete-tutorial` sets status to "completed", `skip-tutorial` sets to "skipped", `reset-tutorial` sets to "new". Login endpoint returns tutorial_status.
+- `frontend/src/services/api.js` - Added `skipTutorial()` and `resetTutorial()` API functions
+- `frontend/src/contexts/TutorialContext.jsx` - Updated to use `tutorial_status` instead of `first_login`. Separate handlers for FINISHED (complete) vs SKIPPED (skip) events. Exports `resetTutorial` function that sets status to "new" and auto-starts tutorial.
+- `frontend/src/components/BottomTabNav.jsx` - Added "App Tutorial" button to More menu that calls resetTutorial() to allow users to re-run tutorial
+- `frontend/src/components/AuthScreen.jsx` - Updated to check `tutorial_status === "new" || "skipped"` for household setup logic instead of `first_login`
 
 **Shared Wishlist Behavior**:
 - When A and B own a shared wishlist X, it appears in any household where A or B is a member
 - If A is in H1 and B is in H2, the wishlist is visible to both households
 - If both move to H2, it only appears in H2
 - No manual reassignment needed—wishlists automatically follow their owners
+
+**Tutorial Status States**:
+- **"new"**: Tutorial not yet run. Show household setup and auto-start tutorial on first login.
+- **"skipped"**: User skipped the tutorial. Show household setup again on next login if they don't complete it, but don't auto-start tutorial.
+- **"completed"**: Tutorial completed. Never show household setup or tutorial again unless user clicks "App Tutorial" in More menu.
 
 ---
 

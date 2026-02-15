@@ -2475,6 +2475,145 @@ def update_member_preferences(
     
     return member_schema
 
+@app.post("/api/members/{member_id}/complete-tutorial")
+def complete_tutorial(
+    member_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Mark tutorial as completed for the current user by setting first_login to false"""
+    if current_user_id is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    # Only allow users to mark their own tutorial as completed
+    if current_user_id != member_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only mark your own tutorial as completed"
+        )
+
+    # Get the member
+    member = crud.get_family_member(db, member_id)
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    # Update tutorial_status to "completed" and first_login to False for backward compatibility
+    member.tutorial_status = "completed"
+    member.first_login = False
+    db.add(member)
+    db.commit()
+    db.refresh(member)
+
+    # Get current wishlist count for response
+    count = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == member.id).count()
+    member_data = {
+        "id": member.id,
+        "name": member.name,
+        "birthday": member.birthday,
+        "is_admin": member.is_admin,
+        "preferences": member.preferences,
+        "username": member.username,
+        "email": member.email,
+        "force_password_change": member.force_password_change,
+        "first_login": member.first_login,
+        "tutorial_status": member.tutorial_status,
+        "wishlist_item_count": count,
+        "households": []
+    }
+    return schemas.FamilyMember(**member_data)
+
+@app.post("/api/members/{member_id}/skip-tutorial")
+def skip_tutorial(
+    member_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Mark tutorial as skipped for the current user by setting tutorial_status to skipped"""
+    if current_user_id is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    # Only allow users to mark their own tutorial as skipped
+    if current_user_id != member_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only mark your own tutorial as skipped"
+        )
+
+    # Get the member
+    member = crud.get_family_member(db, member_id)
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    # Update tutorial_status to "skipped"
+    member.tutorial_status = "skipped"
+    db.add(member)
+    db.commit()
+    db.refresh(member)
+
+    # Get current wishlist count for response
+    count = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == member.id).count()
+    member_data = {
+        "id": member.id,
+        "name": member.name,
+        "birthday": member.birthday,
+        "is_admin": member.is_admin,
+        "preferences": member.preferences,
+        "username": member.username,
+        "email": member.email,
+        "force_password_change": member.force_password_change,
+        "first_login": member.first_login,
+        "tutorial_status": member.tutorial_status,
+        "wishlist_item_count": count,
+        "households": []
+    }
+    return schemas.FamilyMember(**member_data)
+
+@app.post("/api/members/{member_id}/reset-tutorial")
+def reset_tutorial(
+    member_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Reset tutorial to 'new' state to allow user to run it again"""
+    if current_user_id is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    # Only allow users to reset their own tutorial
+    if current_user_id != member_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only reset your own tutorial"
+        )
+
+    # Get the member
+    member = crud.get_family_member(db, member_id)
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    # Update tutorial_status to "new"
+    member.tutorial_status = "new"
+    db.add(member)
+    db.commit()
+    db.refresh(member)
+
+    # Get current wishlist count for response
+    count = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == member.id).count()
+    member_data = {
+        "id": member.id,
+        "name": member.name,
+        "birthday": member.birthday,
+        "is_admin": member.is_admin,
+        "preferences": member.preferences,
+        "username": member.username,
+        "email": member.email,
+        "force_password_change": member.force_password_change,
+        "first_login": member.first_login,
+        "tutorial_status": member.tutorial_status,
+        "wishlist_item_count": count,
+        "households": []
+    }
+    return schemas.FamilyMember(**member_data)
+
 # --- User Authentication ---
 @app.post("/api/auth/login", response_model=schemas.LoginResponse)
 async def login(
@@ -2547,14 +2686,6 @@ async def login(
         auth.log_auth_event("LOGIN", user.username, True, client_ip,
                             f"User ID: {user.id}, Admin: {user.is_admin}")
 
-        # Capture first_login status before clearing it
-        is_first_login = user.first_login if hasattr(user, 'first_login') else False
-
-        # Clear first_login flag after successful login
-        if is_first_login:
-            user.first_login = False
-            db.commit()
-
         return schemas.LoginResponse(
             success=True,
             message=message,
@@ -2564,7 +2695,8 @@ async def login(
                 username=user.username,
                 email=user.email,
                 is_admin=user.is_admin,
-                first_login=is_first_login,
+                first_login=user.first_login,
+                tutorial_status=user.tutorial_status or "new",
                 wishlist_item_count=0
             )
         )

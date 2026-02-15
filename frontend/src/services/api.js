@@ -288,6 +288,18 @@ export const updateFamilyMemberPreferences = (memberId, preferences) => {
   return apiClient.put(`/members/${memberId}/preferences`, { preferences });
 };
 
+export const completeTutorial = (memberId) => {
+  return apiClient.post(`/members/${memberId}/complete-tutorial`);
+};
+
+export const skipTutorial = (memberId) => {
+  return apiClient.post(`/members/${memberId}/skip-tutorial`);
+};
+
+export const resetTutorial = (memberId) => {
+  return apiClient.post(`/members/${memberId}/reset-tutorial`);
+};
+
 // New API functions for family member management
 export const createFamilyMember = (memberData) => {
   return apiClient.post('/family-members', memberData);
