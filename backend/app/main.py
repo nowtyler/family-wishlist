@@ -348,10 +348,35 @@ def read_family_member(member_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Family member not found")
     count = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == db_member.id).count()
     external_wishlist_count = db.query(models.ExternalWishlist).filter(models.ExternalWishlist.owner_id == db_member.id).count()
-    member_schema = schemas.FamilyMember.from_orm(db_member)
-    member_schema.wishlist_item_count = count
-    member_schema.external_wishlist_count = external_wishlist_count
-    return member_schema
+    household_count = db.query(models.user_household_association).filter(
+        models.user_household_association.c.user_id == db_member.id
+    ).count()
+    member_households = db.query(models.Household).join(
+        models.user_household_association,
+        models.Household.id == models.user_household_association.c.household_id
+    ).filter(
+        models.user_household_association.c.user_id == db_member.id,
+        models.user_household_association.c.status == 'active'
+    ).all()
+    households_data = [{"id": h.id, "name": h.name} for h in member_households]
+
+    member_dict = {
+        "id": db_member.id,
+        "name": db_member.name,
+        "birthday": db_member.birthday,
+        "is_admin": db_member.is_admin,
+        "preferences": db_member.preferences,
+        "username": db_member.username,
+        "email": db_member.email,
+        "force_password_change": db_member.force_password_change,
+        "first_login": db_member.first_login,
+        "tutorial_status": db_member.tutorial_status,
+        "wishlist_item_count": count,
+        "external_wishlist_count": external_wishlist_count,
+        "household_count": household_count,
+        "households": households_data
+    }
+    return schemas.FamilyMember.model_validate(member_dict)
 
 
 @app.post("/api/family-members", response_model=schemas.FamilyMember)
@@ -2686,6 +2711,20 @@ async def login(
         auth.log_auth_event("LOGIN", user.username, True, client_ip,
                             f"User ID: {user.id}, Admin: {user.is_admin}")
 
+        household_count = db.query(models.user_household_association).filter(
+            models.user_household_association.c.user_id == user.id,
+            models.user_household_association.c.status == 'active'
+        ).count()
+
+        member_households = db.query(models.Household).join(
+            models.user_household_association,
+            models.Household.id == models.user_household_association.c.household_id
+        ).filter(
+            models.user_household_association.c.user_id == user.id,
+            models.user_household_association.c.status == 'active'
+        ).all()
+        households_data = [{"id": h.id, "name": h.name} for h in member_households]
+
         return schemas.LoginResponse(
             success=True,
             message=message,
@@ -2697,7 +2736,9 @@ async def login(
                 is_admin=user.is_admin,
                 first_login=user.first_login,
                 tutorial_status=user.tutorial_status or "new",
-                wishlist_item_count=0
+                wishlist_item_count=0,
+                household_count=household_count,
+                households=households_data
             )
         )
     except HTTPException:
