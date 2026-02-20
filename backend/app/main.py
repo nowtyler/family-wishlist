@@ -1925,19 +1925,25 @@ def get_shared_wishlist(
     is_admin = user and user.is_admin
 
     if not is_owner and not is_admin:
-        # Check household access if wishlist has a household
-        if db_wishlist.household_id:
-            current_user_households = {
-                row[0] for row in db.query(models.user_household_association.c.household_id).filter(
-                    models.user_household_association.c.user_id == current_user_id,
-                    models.user_household_association.c.status == 'active'
-                ).all()
-            }
+        # Match the shared wishlist list and item visibility rules:
+        # allow access when user shares at least one active household with any owner.
+        owners = crud.get_shared_wishlist_owners(db, wishlist_id)
+        owner_ids = [o.id for o in owners]
 
-            if db_wishlist.household_id not in current_user_households:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-        else:
-            # No household set - deny access if not owner or admin
+        current_user_households = {
+            row[0] for row in db.query(models.user_household_association.c.household_id).filter(
+                models.user_household_association.c.user_id == current_user_id,
+                models.user_household_association.c.status == 'active'
+            ).all()
+        }
+        owner_households = {
+            row[0] for row in db.query(models.user_household_association.c.household_id).filter(
+                models.user_household_association.c.user_id.in_(owner_ids),
+                models.user_household_association.c.status == 'active'
+            ).all()
+        }
+
+        if not current_user_households.intersection(owner_households):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     owners = crud.get_shared_wishlist_owners(db, wishlist_id)
@@ -2426,7 +2432,7 @@ def add_shared_wishlist_item_comment(
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id_from_header)
 ):
-    """Add a comment to a shared wishlist item. Non-owners and admin can comment."""
+    """Add a comment to a shared wishlist item. Non-creators and admin can comment."""
     if current_user_id is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
 
@@ -2442,9 +2448,10 @@ def add_shared_wishlist_item_comment(
 
     is_admin = current_user.name.lower() == 'admin'
 
-    # Check if user is an owner (owners can't comment unless they're admin)
-    if crud.is_shared_wishlist_owner(db, shared_item.wishlist_id, current_user_id) and not is_admin:
-        raise HTTPException(status_code=400, detail="Owners cannot comment on their own wishlist items")
+    # Match standard wishlist behavior:
+    # item creators cannot comment on their own items unless they are admin.
+    if shared_item.created_by == current_user_id and not is_admin:
+        raise HTTPException(status_code=400, detail="Item creators cannot comment on their own shared wishlist items")
 
     # Create the comment
     db_comment = crud.create_shared_wishlist_item_comment(db, item_id, comment.text, current_user_id)

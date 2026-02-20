@@ -262,40 +262,47 @@ const WishlistCard = (props) => {
 
     try {
       setCommentError('');
+      const commentText = newComment.trim();
 
       // Use appropriate API based on wishlist type
+      let createdComment = null;
       if (member.is_shared_wishlist) {
-        await addSharedWishlistItemComment(itemId, newComment.trim());
+        const response = await addSharedWishlistItemComment(itemId, commentText);
+        createdComment = response?.data || null;
       } else {
-        await addComment(itemId, newComment.trim());
+        const response = await addComment(itemId, commentText);
+        createdComment = response?.data || null;
       }
 
-      await onUpdateItems(); // Refresh the list to show new comment
       setNewComment('');
-      // Don't close the modal - improved!
 
-      // Re-fetch the updated item to show the new comment immediately
-      if (selectedItem && selectedItem.id === itemId) {
-        let updatedItem = null;
+      if (createdComment) {
+        // Update item comments immediately to prevent modal flash/reload
+        const matchedItem = (selectedItem && selectedItem.id === itemId)
+          ? selectedItem
+          : safeItems.find(item => item.id === itemId);
+        const baseComments = Array.isArray(matchedItem?.comments) ? matchedItem.comments : [];
+        const nextComments = [...baseComments, createdComment];
+        const updatedItem = selectedItem && selectedItem.id === itemId
+          ? { ...selectedItem, comments: nextComments }
+          : null;
 
-        if (member.is_shared_wishlist) {
-          // For shared wishlists, get items from the shared wishlist
-          const response = await getSharedWishlist(member.shared_wishlist_id);
-          const items = response.data?.items || [];
-          updatedItem = items.find(item => item.id === itemId);
-        } else {
-          // For regular wishlists
-          const updatedItems = await getWishlistItems(Number(member.id));
-          updatedItem = updatedItems.data.find(item => item.id === itemId);
-        }
-
-        // Update the selected item with the latest data
         if (updatedItem) {
-          // Update internal state
           setInternalSelectedItem(updatedItem);
-          // Also update parent state if available
           if (onItemClick) onItemClick(updatedItem);
         }
+
+        if (onOptimisticUpdateItem) {
+          onOptimisticUpdateItem(itemId, {
+            comments: updatedItem?.comments || nextComments
+          });
+        }
+      }
+
+      if (member.is_shared_wishlist) {
+        await onUpdateItems(true);
+      } else {
+        await onUpdateItems();
       }
     } catch (err) {
       console.error('Failed to add comment:', err);
