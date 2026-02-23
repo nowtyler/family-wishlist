@@ -805,13 +805,15 @@ const WishlistCard = (props) => {
   };
 
   const formatCommentTime = (timestamp) => {
-    // Make sure we're working with a valid ISO string from the backend
     if (!timestamp) return '';
     
     try {
-    const commentDate = new Date(timestamp + 'Z'); // Add 'Z' to handle UTC time properly
-    const now = new Date();
-    const diffMinutes = Math.floor((now.getTime() - commentDate.getTime()) / (1000 * 60));
+      // Do not force UTC; parse whatever the backend provided.
+      const commentDate = new Date(String(timestamp));
+      if (Number.isNaN(commentDate.getTime())) return '';
+
+      const now = new Date();
+      const diffMinutes = Math.floor((now.getTime() - commentDate.getTime()) / (1000 * 60));
       const diffHours = Math.floor(diffMinutes / 60);
       const diffDays = Math.floor(diffHours / 24);
 
