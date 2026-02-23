@@ -48,6 +48,7 @@ const BottomTabNav = ({
   const [showMoreSheet, setShowMoreSheet] = useState(false);
   const browseSheetRef = useRef(null);
   const moreSheetRef = useRef(null);
+  const navRef = useRef(null);
   const prefersReducedMotion = useReducedMotion();
 
   const tutorial = useTutorial();
@@ -81,6 +82,7 @@ const BottomTabNav = ({
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (isTutorialRunning) return;
+      if (navRef.current && navRef.current.contains(event.target)) return;
 
       if (browseSheetRef.current && !browseSheetRef.current.contains(event.target)) {
         setShowBrowseSheet(false);
@@ -459,6 +461,7 @@ const BottomTabNav = ({
       {/* Bottom Tab Bar */}
       <nav
         id="tutorial-fab-button"
+        ref={navRef}
         className="fixed left-0 right-0 bottom-0 z-50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-lg border-t border-gray-200/50 dark:border-gray-700/50"
         style={{
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
