@@ -478,12 +478,15 @@ const ShoppingCartDrawer = ({
             onClick={onClose}
           />
           <motion.aside
-            className="fixed right-0 top-0 h-full w-full max-w-md bg-white dark:bg-gray-900 shadow-2xl z-50 flex flex-col"
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', stiffness: 260, damping: 28 }}
-            aria-label="Shopping cart drawer"
+            className="fixed left-0 right-0 top-0 z-50 bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl overflow-hidden flex flex-col"
+            style={{
+              bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))',
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            aria-label="Shopping cart panel"
           >
             <div className="flex items-start justify-between gap-3 px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-800">
               <div className="pt-0.5">
@@ -498,13 +501,6 @@ const ShoppingCartDrawer = ({
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Review items or add a quick entry</p>
               </div>
-              <button
-                onClick={onClose}
-                className="hidden sm:inline-flex p-2 rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 self-start sm:self-center"
-                aria-label="Close cart drawer"
-              >
-                <X size={18} />
-              </button>
             </div>
 
             <form
@@ -782,7 +778,7 @@ const ShoppingCartDrawer = ({
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 16 }}
                       transition={{ duration: 0.25 }}
-                      className="absolute left-4 right-4 bottom-20 sm:bottom-24 z-10 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl p-4 space-y-4"
+                      className="absolute left-4 right-4 bottom-20 sm:bottom-24 z-10 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl p-4 space-y-4 max-h-[calc(100%-6rem)] overflow-y-auto"
                       id="shopping-cart-manual-entry"
                     >
                       <div className="flex items-center justify-between">
@@ -948,29 +944,19 @@ const ShoppingCartDrawer = ({
               </AnimatePresence>
             </form>
             <div className="sticky bottom-0 left-0 right-0 border-t border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur px-4 py-3">
-              <div className="flex items-center gap-3">
-                <button
-                  type={isManualEntryOpen ? 'submit' : 'button'}
-                  form={isManualEntryOpen ? 'shopping-cart-entry-form' : undefined}
-                  disabled={isSubmitting}
-                  className={`flex-1 rounded-md py-2.5 text-sm font-medium transition disabled:opacity-60 disabled:cursor-not-allowed ${
-                    isManualEntryOpen
-                      ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                      : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-200'
-                  }`}
-                  onClick={!isManualEntryOpen ? () => setIsManualEntryOpen(true) : undefined}
-                >
-                  {isManualEntryOpen ? (isSubmitting ? 'Adding...' : 'Add to cart') : 'Add item'}
-                </button>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="inline-flex items-center justify-center rounded-md border border-gray-200 dark:border-gray-700 px-3 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-                  aria-label="Close cart drawer"
-                >
-                  <X size={16} />
-                </button>
-              </div>
+              <button
+                type={isManualEntryOpen ? 'submit' : 'button'}
+                form={isManualEntryOpen ? 'shopping-cart-entry-form' : undefined}
+                disabled={isSubmitting}
+                className={`w-full rounded-md py-2.5 text-sm font-medium transition disabled:opacity-60 disabled:cursor-not-allowed ${
+                  isManualEntryOpen
+                    ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                    : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-200'
+                }`}
+                onClick={!isManualEntryOpen ? () => setIsManualEntryOpen(true) : undefined}
+              >
+                {isManualEntryOpen ? (isSubmitting ? 'Adding...' : 'Add to cart') : 'Add item'}
+              </button>
             </div>
           </motion.aside>
         </>

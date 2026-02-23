@@ -953,7 +953,8 @@ const DashboardScreen = (props = {}) => {
           selectedSharedWishlist={selectedSharedWishlist}
           onAddItem={handleOpenAddItemForm}
           onReturnHome={() => handleSelectViewingMember(selectedUser)}
-          onOpenShoppingCart={() => setIsCartOpen(true)}
+          onToggleShoppingCart={() => setIsCartOpen((prev) => !prev)}
+          onCloseShoppingCart={() => setIsCartOpen(false)}
           onOpenExternalWishlists={() => setIsExternalWishlistsOpen(true)}
           onOpenPreferences={() => setIsPreferencesOpen(true)}
           onOpenSharedWishlists={() => setIsSharedWishlistsOpen(true)}
@@ -965,6 +966,7 @@ const DashboardScreen = (props = {}) => {
           isHidden={isAddingItem || selectedItem}
           cartCount={cartCount}
           notificationCount={notificationCount}
+          isCartOpen={isCartOpen}
         />
       )}
 

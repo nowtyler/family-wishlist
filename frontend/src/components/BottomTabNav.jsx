@@ -31,7 +31,8 @@ const BottomTabNav = ({
   selectedSharedWishlist = null,
   onAddItem,
   onReturnHome,
-  onOpenShoppingCart,
+  onToggleShoppingCart,
+  onCloseShoppingCart,
   onOpenExternalWishlists,
   onOpenPreferences = null,
   onOpenSharedWishlists = null,
@@ -43,6 +44,7 @@ const BottomTabNav = ({
   isHidden = false,
   cartCount = 0,
   notificationCount = 0,
+  isCartOpen = false,
 }) => {
   const [showBrowseSheet, setShowBrowseSheet] = useState(false);
   const [showMoreSheet, setShowMoreSheet] = useState(false);
@@ -176,44 +178,49 @@ const BottomTabNav = ({
     triggerHaptic();
     setShowBrowseSheet(false);
     setShowMoreSheet(false);
+    onCloseShoppingCart?.();
     onReturnHome?.();
-  }, [onReturnHome]);
+  }, [onCloseShoppingCart, onReturnHome]);
 
   const handleBrowsePress = useCallback(() => {
     triggerHaptic();
     setShowMoreSheet(false);
     setShowBrowseSheet(prev => !prev);
-  }, []);
+    onCloseShoppingCart?.();
+  }, [onCloseShoppingCart]);
 
   const handleAddPress = useCallback(() => {
     triggerHaptic();
     setShowBrowseSheet(false);
     setShowMoreSheet(false);
+    onCloseShoppingCart?.();
     onAddItem?.();
-  }, [onAddItem]);
+  }, [onAddItem, onCloseShoppingCart]);
 
   const handleCartPress = useCallback(() => {
     triggerHaptic();
     setShowBrowseSheet(false);
     setShowMoreSheet(false);
-    onOpenShoppingCart?.();
-  }, [onOpenShoppingCart]);
+    onToggleShoppingCart?.();
+  }, [onToggleShoppingCart]);
 
   const handleMorePress = useCallback(() => {
     triggerHaptic();
     setShowBrowseSheet(false);
     setShowMoreSheet(prev => !prev);
-  }, []);
+    onCloseShoppingCart?.();
+  }, [onCloseShoppingCart]);
 
   const handleSelectItem = useCallback((item) => {
     triggerHaptic();
     setShowBrowseSheet(false);
+    onCloseShoppingCart?.();
     if (item.type === 'member') {
       onSelectMember?.(item.data);
     } else {
       onSelectSharedWishlist?.(item.data);
     }
-  }, [onSelectMember, onSelectSharedWishlist]);
+  }, [onCloseShoppingCart, onSelectMember, onSelectSharedWishlist]);
 
   // Sheet animation variants
   const sheetVariants = prefersReducedMotion
@@ -552,12 +559,21 @@ const BottomTabNav = ({
           <motion.button
             id="tutorial-shopping-cart"
             onClick={handleCartPress}
-            className="flex flex-col items-center justify-center flex-1 h-full gap-0.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors duration-300 relative"
+            className={`flex flex-col items-center justify-center flex-1 h-full gap-0.5 relative transition-colors duration-300 ${
+              isCartOpen
+                ? 'text-indigo-600 dark:text-indigo-400'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
             aria-label={`Shopping cart${totalCartBadge ? `, ${totalCartBadge} items` : ''}`}
+            aria-expanded={isCartOpen}
             whileTap={{ scale: 0.95 }}
           >
-            <div className="relative">
-              <ShoppingCart size={24} strokeWidth={2} />
+            <motion.div
+              className="relative"
+              animate={{ scale: isCartOpen ? 1.1 : 1 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            >
+              <ShoppingCart size={24} strokeWidth={isCartOpen ? 2.5 : 2} />
               {totalCartBadge && (
                 <motion.span
                   initial={{ scale: 0 }}
@@ -570,8 +586,15 @@ const BottomTabNav = ({
                   {totalCartBadge > 99 ? '99+' : totalCartBadge}
                 </motion.span>
               )}
-            </div>
+            </motion.div>
             <span className="text-[10px] font-semibold tracking-tight">Cart</span>
+            {isCartOpen && (
+              <motion.div
+                layoutId="activeIndicator"
+                className="absolute -bottom-0.5 w-6 h-0.5 bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-500 rounded-full"
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              />
+            )}
           </motion.button>
 
           {/* More Tab */}
