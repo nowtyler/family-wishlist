@@ -501,6 +501,14 @@ const ShoppingCartDrawer = ({
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Review items or add a quick entry</p>
               </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                aria-label="Close cart panel"
+              >
+                <X size={20} className="text-gray-500 dark:text-gray-400" />
+              </button>
             </div>
 
             <form
@@ -778,7 +786,7 @@ const ShoppingCartDrawer = ({
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 16 }}
                       transition={{ duration: 0.25 }}
-                      className="absolute left-4 right-4 bottom-20 sm:bottom-24 z-10 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl p-4 space-y-4 max-h-[calc(100%-6rem)] overflow-y-auto"
+                      className="absolute left-4 right-4 bottom-4 sm:bottom-5 z-10 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl p-4 space-y-4 max-h-[calc(100%-2rem)] overflow-y-auto"
                       id="shopping-cart-manual-entry"
                     >
                       <div className="flex items-center justify-between">
@@ -799,8 +807,8 @@ const ShoppingCartDrawer = ({
                           className="text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
                         >
                           <span className="inline-flex items-center gap-1">
-                            Hide
-                            <ChevronDown
+                            Close
+                            <X
                               size={14}
                               className="transition-transform rotate-180"
                             />

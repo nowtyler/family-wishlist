@@ -269,10 +269,9 @@ const BottomTabNav = ({
             initial="hidden"
             animate="visible"
             exit="exit"
-            className="fixed left-0 right-0 z-50 bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl overflow-hidden"
+            className="fixed left-0 right-0 top-0 z-50 bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl overflow-hidden flex flex-col"
             style={{
               bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))',
-              maxHeight: '60vh',
             }}
           >
             {/* Sheet header */}
@@ -290,7 +289,7 @@ const BottomTabNav = ({
             </div>
 
             {/* Sheet content */}
-            <div className="overflow-y-auto px-4 py-3 pb-6" style={{ maxHeight: 'calc(60vh - 4rem)' }}>
+            <div className="overflow-y-auto px-4 py-3 pb-6 flex-1">
               <div className="space-y-2">
                 {unifiedBrowseList.map((item, index) => {
                   const isSelected = item.type === 'member'
