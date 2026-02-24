@@ -1020,16 +1020,23 @@ const WishlistCard = (props) => {
                       <div className="flex items-center gap-2 flex-wrap">
                         {renderPriorityIcon(item.priority)}
                       </div>
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-2 min-w-0">
                         {showPurchaseActions && item.purchased_by && (
-                          <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded-full ${
+                          <span
+                            className={`inline-flex items-center text-[11px] leading-none font-semibold px-2 py-1 rounded-full max-w-[140px] sm:max-w-[180px] whitespace-nowrap overflow-hidden text-ellipsis ${
                             currentUserName && item.purchased_by === currentUserName
                               ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200'
                               : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
-                          }`}>
+                            }`}
+                            title={
+                              currentUserName && item.purchased_by === currentUserName
+                                ? 'Reserved by you'
+                                : `Reserved by ${item.purchased_by}`
+                            }
+                          >
                             {currentUserName && item.purchased_by === currentUserName
-                              ? 'Reserved by you'
-                              : `Reserved by ${item.purchased_by}`}
+                              ? 'In your cart'
+                              : `Reserved: ${item.purchased_by}`}
                           </span>
                         )}
                         {renderActionButtons(item)}
