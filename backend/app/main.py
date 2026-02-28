@@ -5123,6 +5123,79 @@ def broadcast_maintenance_email(
         message=f"Maintenance notice sent to {sent_count} users."
     )
 
+@app.post("/api/admin/reminders/wishlist-update", response_model=schemas.WishlistReminderBroadcastResponse)
+def broadcast_wishlist_update_reminder(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Create an in-app wishlist update reminder for all wishlist owners (admin only)."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+
+    reminder_prefix = "[WISHLIST_UPDATE_REMINDER]"
+    reminder_message = f"{reminder_prefix} Please review and update your wishlist."
+
+    # Non-admin users own personal wishlists by default.
+    recipient_ids = {
+        row[0] for row in db.query(models.FamilyMember.id).filter(models.FamilyMember.is_admin == False).all()
+    }
+
+    # Also include explicit shared wishlist co-owners (in case any are admins).
+    shared_owner_ids = {
+        row[0] for row in db.query(models.shared_wishlist_owners.c.user_id).distinct().all()
+    }
+    recipient_ids.update(shared_owner_ids)
+
+    if not recipient_ids:
+        return schemas.WishlistReminderBroadcastResponse(
+            success=True,
+            message="No wishlist owners found to notify.",
+            sent_count=0,
+            skipped_count=0
+        )
+
+    existing_unread_recipient_ids = {
+        row[0]
+        for row in db.query(models.Notification.recipient_id)
+        .filter(
+            models.Notification.recipient_id.in_(recipient_ids),
+            models.Notification.is_read == False,
+            models.Notification.message.like(f"{reminder_prefix}%")
+        )
+        .all()
+    }
+
+    sent_count = 0
+    skipped_count = 0
+
+    for recipient_id in recipient_ids:
+        if recipient_id in existing_unread_recipient_ids:
+            skipped_count += 1
+            continue
+
+        db.add(
+            models.Notification(
+                recipient_id=recipient_id,
+                message=reminder_message,
+                cart_item_id=None,
+                is_read=False,
+            )
+        )
+        sent_count += 1
+
+    db.commit()
+
+    return schemas.WishlistReminderBroadcastResponse(
+        success=True,
+        message=f"Wishlist update reminder sent to {sent_count} owner(s).",
+        sent_count=sent_count,
+        skipped_count=skipped_count
+    )
+
 # --- Shopping Cart ---
 
 @app.get("/api/shopping-cart", response_model=List[schemas.ShoppingCartItem])

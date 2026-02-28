@@ -920,6 +920,10 @@ export const broadcastMaintenanceNotice = (maintenance_time, expected_downtime) 
   return apiClient.post('/admin/email/broadcast-maintenance', { maintenance_time, expected_downtime });
 };
 
+export const broadcastWishlistUpdateReminder = () => {
+  return apiClient.post('/admin/reminders/wishlist-update');
+};
+
 // --- Shared Wishlists (Kid Wishlists) ---
 export const getSharedWishlists = () => {
   return apiClient.get('/shared-wishlists');

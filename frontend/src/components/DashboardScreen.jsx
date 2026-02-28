@@ -13,6 +13,7 @@ import {
   getShoppingCartItems,
   getUserProfile,
   getNotifications,
+  markNotificationRead,
   getSharedWishlists,
   getSharedWishlistItems,
   createSharedWishlistItem
@@ -28,10 +29,14 @@ import BottomTabNav from './BottomTabNav';
 import SharedWishlistManager from './SharedWishlistManager';
 import SharedWishlistInline from './SharedWishlistInline';
 import Navbar from './Navbar';
+import PostEventWishlistReminderModal from './PostEventWishlistReminderModal';
 import { useTutorial } from '../contexts/TutorialContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TriangleAlert } from 'lucide-react';
 import { toast } from 'react-toastify';
+import { getPostEventReminderInfo } from '../utils/dateUtils';
+
+const WISHLIST_REMINDER_PREFIX = '[WISHLIST_UPDATE_REMINDER]';
 
 /**
  * @param {{ onViewingMemberChange?: (member: any) => void }} props
@@ -72,6 +77,8 @@ const DashboardScreen = (props = {}) => {
   const [sharedWishlistReloadTrigger, setSharedWishlistReloadTrigger] = useState(0);
   const [sharedWishlistClearTrigger, setSharedWishlistClearTrigger] = useState(0);
   const [sharedWishlistOptimisticUpdate, setSharedWishlistOptimisticUpdate] = useState(null);
+  const [postEventReminder, setPostEventReminder] = useState(null);
+  const [adminWishlistReminderNotification, setAdminWishlistReminderNotification] = useState(null);
 
   const updateSearchParams = useCallback((updates, options = {}) => {
     const nextParams = new URLSearchParams(searchParams);
@@ -105,7 +112,25 @@ const DashboardScreen = (props = {}) => {
     if (!selectedUser?.id) return;
     try {
       const response = await getNotifications(selectedUser.id);
-      setNotificationCount(Array.isArray(response?.data) ? response.data.length : 0);
+      const nextNotifications = Array.isArray(response?.data) ? response.data : [];
+      setNotificationCount(nextNotifications.length);
+
+      const reminderNotification = nextNotifications.find((notification) =>
+        typeof notification?.message === 'string'
+        && notification.message.startsWith(WISHLIST_REMINDER_PREFIX)
+      );
+
+      if (reminderNotification) {
+        const cleanedMessage = reminderNotification.message
+          .slice(WISHLIST_REMINDER_PREFIX.length)
+          .trim();
+        setAdminWishlistReminderNotification({
+          id: reminderNotification.id,
+          message: cleanedMessage || 'Please review and update your wishlist.'
+        });
+      } else {
+        setAdminWishlistReminderNotification(null);
+      }
     } catch (error) {
       // silently fail — notifications are non-critical
     }
@@ -143,6 +168,97 @@ const DashboardScreen = (props = {}) => {
     );
     refreshSharedWishlists();
   }, [refreshSharedWishlists, updateSearchParams, selectedUser]);
+
+  useEffect(() => {
+    if (!selectedUser?.id) {
+      setPostEventReminder(null);
+      return;
+    }
+
+    let reminderCandidate = null;
+
+    if (selectedSharedWishlist) {
+      const isOwner = selectedSharedWishlist.owners?.some(
+        owner => owner.id === selectedUser.id
+      );
+      if (!isOwner || !selectedSharedWishlist.occasion_date) {
+        setPostEventReminder(null);
+        return;
+      }
+
+      const reminderInfo = getPostEventReminderInfo(selectedSharedWishlist.occasion_date);
+      if (!reminderInfo?.shouldShow) {
+        setPostEventReminder(null);
+        return;
+      }
+
+      const displayName = selectedSharedWishlist.name
+        ?.replace(/['']s\s+Wishlist$/i, '')
+        ?.replace(/\s+Wishlist$/i, '')
+        ?.trim() || selectedSharedWishlist.name || 'This wishlist';
+
+      reminderCandidate = {
+        storageKey: `wishlist-cleanup:shared:${selectedSharedWishlist.id}:owner:${selectedUser.id}:year:${reminderInfo.occurrenceYear}`,
+        wishlistName: selectedSharedWishlist.name || `${displayName}'s Wishlist`
+      };
+    } else if (viewingMember?.id === selectedUser.id && viewingMember?.birthday) {
+      const reminderInfo = getPostEventReminderInfo(viewingMember.birthday);
+      if (!reminderInfo?.shouldShow) {
+        setPostEventReminder(null);
+        return;
+      }
+
+      const name = viewingMember.name || 'Your';
+      reminderCandidate = {
+        storageKey: `wishlist-cleanup:member:${viewingMember.id}:owner:${selectedUser.id}:year:${reminderInfo.occurrenceYear}`,
+        wishlistName: `${name}'s Wishlist`
+      };
+    } else {
+      setPostEventReminder(null);
+      return;
+    }
+
+    try {
+      const isDismissed = window.localStorage.getItem(reminderCandidate.storageKey) === '1';
+      setPostEventReminder(isDismissed ? null : reminderCandidate);
+    } catch (error) {
+      // If storage is unavailable, still show the reminder.
+      setPostEventReminder(reminderCandidate);
+    }
+  }, [
+    selectedUser?.id,
+    selectedSharedWishlist?.id,
+    selectedSharedWishlist?.occasion_date,
+    selectedSharedWishlist?.name,
+    viewingMember?.id,
+    viewingMember?.birthday,
+    viewingMember?.name
+  ]);
+
+  const handleDismissPostEventReminder = useCallback(async () => {
+    if (adminWishlistReminderNotification?.id) {
+      try {
+        await markNotificationRead(adminWishlistReminderNotification.id);
+      } catch (error) {
+        // Best effort: dismiss locally even if mark-as-read fails.
+      }
+      setAdminWishlistReminderNotification(null);
+      refreshNotificationCount();
+      return;
+    }
+
+    if (!postEventReminder?.storageKey) {
+      setPostEventReminder(null);
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(postEventReminder.storageKey, '1');
+    } catch (error) {
+      // Ignore storage write failures and close the modal.
+    }
+    setPostEventReminder(null);
+  }, [adminWishlistReminderNotification?.id, postEventReminder, refreshNotificationCount]);
 
   // Replace the initialization effect with a more robust version
   useEffect(() => {
@@ -231,6 +347,13 @@ const DashboardScreen = (props = {}) => {
     refreshNotificationCount();
     refreshSharedWishlists();
   }, [refreshCartCount, refreshNotificationCount, refreshSharedWishlists]);
+
+  useEffect(() => {
+    if (!selectedUser?.id) {
+      setNotificationCount(0);
+      setAdminWishlistReminderNotification(null);
+    }
+  }, [selectedUser?.id]);
 
 
   const handleSelectViewingMember = (member) => {
@@ -802,6 +925,14 @@ const DashboardScreen = (props = {}) => {
 
   return (
     <>
+      <PostEventWishlistReminderModal
+        isOpen={Boolean(adminWishlistReminderNotification || postEventReminder)}
+        title="Wishlist update reminder"
+        wishlistName={adminWishlistReminderNotification ? 'Your Wishlist' : (postEventReminder?.wishlistName || 'Your Wishlist')}
+        message={adminWishlistReminderNotification?.message || 'Please review this wishlist and remove or update anything already received.'}
+        secondaryMessage="Keeping your list current helps everyone shop accurately."
+        onDismiss={handleDismissPostEventReminder}
+      />
       {/* Add Navbar component */}
       <Navbar
         onClearWishlist={handleClearWishlist}

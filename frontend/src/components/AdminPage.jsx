@@ -53,6 +53,7 @@ import {
   clearAdminCartByBuyer,
   clearAllWishlists,
   broadcastMaintenanceNotice,
+  broadcastWishlistUpdateReminder,
   getRecoveryPassphrase,
   regenerateRecoveryPassphrase
 } from '../services/api';
@@ -150,6 +151,7 @@ const AdminPage = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isLoading, setIsLoading] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSendingWishlistReminder, setIsSendingWishlistReminder] = useState(false);
 
   // Data states
   const [stats, setStats] = useState({
@@ -219,6 +221,22 @@ const AdminPage = () => {
 
     fetchData();
   }, []);
+
+  const handleBroadcastWishlistReminder = useCallback(async () => {
+    if (isSendingWishlistReminder) return;
+    setIsSendingWishlistReminder(true);
+    try {
+      const response = await broadcastWishlistUpdateReminder();
+      const sent = response?.data?.sent_count ?? 0;
+      const skipped = response?.data?.skipped_count ?? 0;
+      toast.success(`Wishlist reminder sent to ${sent} owner(s).${skipped ? ` ${skipped} already had an unread reminder.` : ''}`);
+    } catch (error) {
+      console.error('Failed to broadcast wishlist reminder:', error);
+      toast.error(error?.response?.data?.detail || 'Failed to send wishlist reminder.');
+    } finally {
+      setIsSendingWishlistReminder(false);
+    }
+  }, [isSendingWishlistReminder]);
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -338,6 +356,30 @@ const AdminPage = () => {
           color="indigo"
         />
       </div>
+
+      <AdminCard title="Wishlist Reminder" icon={Calendar}>
+        <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+          Send an in-app prompt to all wishlist owners asking them to review and update their wishlist.
+        </p>
+        <button
+          type="button"
+          onClick={handleBroadcastWishlistReminder}
+          disabled={isSendingWishlistReminder}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
+        >
+          {isSendingWishlistReminder ? (
+            <>
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              Sending...
+            </>
+          ) : (
+            <>
+              <Send className="w-4 h-4" />
+              Send Wishlist Reminder
+            </>
+          )}
+        </button>
+      </AdminCard>
 
       {/* Enhanced Upcoming Events Banner - Shows all users' events */}
       {users.length > 0 && (

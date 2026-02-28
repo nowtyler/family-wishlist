@@ -48,6 +48,7 @@ const ShoppingCartDrawer = ({
   onOpenWishlistItem = null,
   onNotificationCountUpdate = null,
 }) => {
+  const wishlistReminderPrefix = '[WISHLIST_UPDATE_REMINDER]';
   const { familyMembers, selectedUser } = useAppContext();
   const [formState, setFormState] = useState(emptyFormState);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -102,6 +103,14 @@ const ShoppingCartDrawer = ({
     return message.toLowerCase().startsWith('an admin ');
   };
 
+  const getDisplayNotificationMessage = (message = '') => {
+    if (typeof message !== 'string') return '';
+    if (message.startsWith(wishlistReminderPrefix)) {
+      return message.slice(wishlistReminderPrefix.length).trim() || 'Please review and update your wishlist.';
+    }
+    return message;
+  };
+
   const previousCustomRecipientNames = useMemo(() => {
     if (!Array.isArray(cartItems)) return [];
     const seen = new Map();
@@ -121,7 +130,7 @@ const ShoppingCartDrawer = ({
   const getDaysUntilBirthday = (birthday) => {
     if (!birthday) return null;
     try {
-      const [year, month, day] = birthday.split('-').map((num) => Number.parseInt(num, 10));
+      const [, month, day] = birthday.split('-').map((num) => Number.parseInt(num, 10));
       if (!month || !day) return null;
       const today = new Date();
       const birthdayThisYear = new Date(today.getFullYear(), month - 1, day);
@@ -551,7 +560,7 @@ const ShoppingCartDrawer = ({
                       <AlertCircle size={16} className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-amber-800 dark:text-amber-200">
-                          {notification.message}
+                          {getDisplayNotificationMessage(notification.message)}
                         </p>
                         {notification.cart_item_id && !isAdminCartNotice(notification.message) && (
                           <button
@@ -646,7 +655,7 @@ const ShoppingCartDrawer = ({
                               />
                             </span>
                           </button>
-                          {!isCollapsed && group.items.map((item, index) => {
+                          {!isCollapsed && group.items.map((item) => {
                             const priceLabel = formatPrice(item.price);
                             return (
                               <React.Fragment key={item.id}>

@@ -634,6 +634,12 @@ class MaintenanceBroadcastRequest(BaseModel):
     maintenance_time: Optional[str] = None
     expected_downtime: Optional[str] = None
 
+class WishlistReminderBroadcastResponse(BaseModel):
+    success: bool
+    message: str
+    sent_count: int = 0
+    skipped_count: int = 0
+
 
 # --- Shared Wishlist Schemas ---
 class SharedWishlistOwner(BaseModel):

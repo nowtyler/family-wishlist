@@ -12,7 +12,7 @@ export const getDaysUntilBirthday = (birthday) => {
   
   try {
     // Parse the birthday (format: YYYY-MM-DD)
-    const [year, month, day] = birthday.split('-').map(num => parseInt(num, 10));
+    const [, month, day] = birthday.split('-').map(num => parseInt(num, 10));
     
     // Create date objects for today and the next birthday
     const today = new Date();
@@ -132,6 +132,53 @@ export const getCountdownDisplay = (daysUntil, eventDate) => {
   } else {
     return `is in ${daysUntil} days (${eventDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`;
   }
+};
+
+/**
+ * Determine whether a post-event wishlist reminder should be shown.
+ * Reminder starts the day after the most recent annual occurrence.
+ * @param {string} eventDateString - Date in YYYY-MM-DD format
+ * @param {Date} [now] - Optional current date for deterministic testing
+ * @returns {{shouldShow: boolean, daysSince: number, occurrenceYear: number, occurrenceDate: Date}|null}
+ */
+export const getPostEventReminderInfo = (eventDateString, now = new Date()) => {
+  if (!eventDateString || typeof eventDateString !== 'string') {
+    return null;
+  }
+
+  const [year, month, day] = eventDateString
+    .split('-')
+    .map((part) => Number.parseInt(part, 10));
+
+  if (!year || !month || !day) {
+    return null;
+  }
+
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let mostRecentOccurrence = new Date(today.getFullYear(), month - 1, day);
+
+  // Reject impossible dates like 2025-02-31.
+  if (
+    Number.isNaN(mostRecentOccurrence.getTime()) ||
+    mostRecentOccurrence.getMonth() !== month - 1 ||
+    mostRecentOccurrence.getDate() !== day
+  ) {
+    return null;
+  }
+
+  if (mostRecentOccurrence > today) {
+    mostRecentOccurrence = new Date(today.getFullYear() - 1, month - 1, day);
+  }
+
+  const millisecondsPerDay = 1000 * 60 * 60 * 24;
+  const daysSince = Math.floor((today.getTime() - mostRecentOccurrence.getTime()) / millisecondsPerDay);
+
+  return {
+    shouldShow: daysSince >= 1,
+    daysSince,
+    occurrenceYear: mostRecentOccurrence.getFullYear(),
+    occurrenceDate: mostRecentOccurrence
+  };
 };
 
 /**
