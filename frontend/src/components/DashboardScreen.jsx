@@ -51,6 +51,7 @@ const DashboardScreen = (props = {}) => {
   const [showUpgradeAlert, setShowUpgradeAlert] = useState(false);
   const [isDragging, setIsDragging] = useState(false); // Track drag operations
   const [isAddingItem, setIsAddingItem] = useState(false); // State to control AddItemForm visibility
+  const [isEditingItemModalOpen, setIsEditingItemModalOpen] = useState(false);
   const [isExternalWishlistsOpen, setIsExternalWishlistsOpen] = useState(false); // State for external wishlists modal
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false); // State for preferences modal
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -459,6 +460,16 @@ const DashboardScreen = (props = {}) => {
     }
   }, [viewingMember?.id]);
 
+  useEffect(() => {
+    if (!isAddingItem) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isAddingItem]);
+
   // Make it available to the props passed from parent
   React.useEffect(() => {
     if (window.refreshWishlistItems !== refreshWishlistItems) {
@@ -542,6 +553,19 @@ const DashboardScreen = (props = {}) => {
       refreshWishlistItems(true);
     }
   };
+
+  const handleOptimisticUpdateItem = useCallback((itemId, updates) => {
+    if (!itemId || !updates) return;
+
+    setWishlistItems((prevItems) =>
+      prevItems.map((item) => (item.id === itemId ? { ...item, ...updates } : item))
+    );
+
+    setSelectedItem((prevSelected) => {
+      if (!prevSelected || prevSelected.id !== itemId) return prevSelected;
+      return { ...prevSelected, ...updates };
+    });
+  }, []);
 
   // Check for schema upgrades
   useEffect(() => {
@@ -855,6 +879,8 @@ const DashboardScreen = (props = {}) => {
                 selectedItem={selectedItem}
                 onCartUpdated={refreshCartCount}
                 currentUserName={selectedUser?.name}
+                onOptimisticUpdateItem={handleOptimisticUpdateItem}
+                onEditModalStateChange={setIsEditingItemModalOpen}
               />
             </div>
           ) : null}
@@ -963,7 +989,7 @@ const DashboardScreen = (props = {}) => {
           familyMembers={familyMembers}
           sharedWishlists={sharedWishlists}
           selectedUser={selectedUser}
-          isHidden={isAddingItem || selectedItem}
+          isHidden={isAddingItem || selectedItem || isEditingItemModalOpen}
           cartCount={cartCount}
           notificationCount={notificationCount}
           isCartOpen={isCartOpen}

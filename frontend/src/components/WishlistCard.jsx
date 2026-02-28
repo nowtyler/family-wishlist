@@ -1,7 +1,7 @@
 // WishlistCard.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, ExternalLink, MessageCircleHeart, Pencil, Check, X, Flag, MessageCircle, Send, Download, Upload, Link2, ShoppingCart } from 'lucide-react';
+import { Trash2, ExternalLink, MessageCircleHeart, Pencil, Check, X, Flag, MessageCircle, Send, Download, Upload, Link2, ShoppingCart, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { updateWishlistItem, updateSharedWishlistItem, addComment, deleteComment, getWishlistItems, exportWishlist, importWishlist, addShoppingCartItemFromWishlistItem, getShoppingCartItems, deleteShoppingCartItem, markPurchased, addShoppingCartItemFromSharedWishlistItem, addSharedWishlistItemComment, getSharedWishlist, toggleSharedItemPurchased } from '../services/api';
 
@@ -72,7 +72,8 @@ const sizeOptions = {
  *   selectedItem?: WishlistItem|null,
  *   onCartUpdated?: (nextCount?: number) => void,
  *   currentUserName?: string,
- *   onOptimisticUpdateItem?: (itemId: number|string, updates: Partial<WishlistItem>) => void
+ *   onOptimisticUpdateItem?: (itemId: number|string, updates: Partial<WishlistItem>) => void,
+ *   onEditModalStateChange?: (isOpen: boolean) => void
  * }} WishlistCardProps
  */
 
@@ -93,7 +94,8 @@ const WishlistCard = (props) => {
     selectedItem: externalSelectedItem,
     onCartUpdated,
     currentUserName,
-    onOptimisticUpdateItem
+    onOptimisticUpdateItem,
+    onEditModalStateChange
   } = props;
   // In no_secrets mode, owners can see and interact with purchase/thinking actions
   const showPurchaseActions = !isOwnWishlist || noSecretsMode;
@@ -115,12 +117,14 @@ const WishlistCard = (props) => {
   const [sizeValue, setSizeValue] = useState('');
   const [sizeGender, setSizeGender] = useState('unspecified');
   const [showSizeFields, setShowSizeFields] = useState(false);
+  const [showAdvancedFields, setShowAdvancedFields] = useState(false);
   const [pendingDeleteItemId, setPendingDeleteItemId] = useState(null); // Track item pending deletion
   const modalRef = useRef(null);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef(null);
   const [addingToCartItemId, setAddingToCartItemId] = useState(null);
   const [removingFromCartItemId, setRemovingFromCartItemId] = useState(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   // Check for duplicate titles when editing
   useEffect(() => {
@@ -137,6 +141,20 @@ const WishlistCard = (props) => {
     
     setIsDuplicateTitle(isDuplicate);
   }, [editForm.title, editingItemId, safeItems]);
+
+  useEffect(() => {
+    onEditModalStateChange?.(Boolean(editingItemId));
+  }, [editingItemId, onEditModalStateChange]);
+
+  useEffect(() => {
+    if (!editingItemId) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [editingItemId]);
 
   const handleItemClick = (item) => {
     setInternalSelectedItem(item);
@@ -164,17 +182,19 @@ const WishlistCard = (props) => {
     setSizeValue('');
     setSizeGender('unspecified');
     setShowSizeFields(false);
+    setShowAdvancedFields(false);
   };
 
-  const handleCancelEdit = (e) => {
-    e.stopPropagation();
+  const handleCancelEdit = () => {
     setEditingItemId(null);
     setEditForm(/** @type {WishlistItem} */ ({}));
+    setIsSavingEdit(false);
+    setShowAdvancedFields(false);
   };
 
-  const handleSaveEdit = async (e, itemId) => {
-    e.stopPropagation();
+  const handleSaveEdit = async (itemId) => {
     try {
+      setIsSavingEdit(true);
       if (!editForm.title?.trim()) {
         throw new Error('Title is required');
       }
@@ -223,24 +243,26 @@ const WishlistCard = (props) => {
         priority: Number(editForm.priority),
         price: processedPrice  // Backend will convert to cents
       };
+      const optimisticUpdates = {
+        title: updatedData.title,
+        description: updatedData.description,
+        link: updatedData.link,
+        image_url: updatedData.image_url,
+        priority: updatedData.priority,
+        price: processedPrice !== null ? Math.round(processedPrice * 100) : null
+      };
+
+      // Update UI immediately so edits are visible as soon as Save is clicked.
+      if (onOptimisticUpdateItem) {
+        onOptimisticUpdateItem(itemId, optimisticUpdates);
+      }
 
       if (member.is_shared_wishlist) {
         await updateSharedWishlistItem(itemId, updatedData);
-        // Optimistically update local state to avoid flash/reload
-        if (onOptimisticUpdateItem) {
-          onOptimisticUpdateItem(itemId, {
-            title: updatedData.title,
-            description: updatedData.description,
-            link: updatedData.link,
-            image_url: updatedData.image_url,
-            priority: updatedData.priority,
-            price: processedPrice !== null ? Math.round(processedPrice * 100) : null
-          });
-        }
         await onUpdateItems(true); // skip reload
       } else {
         await updateWishlistItem(itemId, updatedData);
-        await onUpdateItems();
+        await onUpdateItems(true); // skip immediate reload to preserve optimistic UI
       }
       setEditingItemId(null);
       setEditForm(/** @type {WishlistItem} */ ({}));
@@ -250,7 +272,11 @@ const WishlistCard = (props) => {
       setSizeGender('unspecified');
     } catch (error) {
       console.error('Failed to update item:', error);
+      // Re-sync from server if optimistic update was applied but save failed.
+      await onUpdateItems?.();
       alert(error.userMessage || error.message || 'Failed to update item. Please try again.');
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -538,183 +564,6 @@ const WishlistCard = (props) => {
     return sizeOptions[type] || [];
   };
 
-  const renderEditableContent = (item) => (
-    <div onClick={e => e.stopPropagation()} className="space-y-3">
-      <div className="flex flex-col">
-        <label className="text-sm text-gray-600 dark:text-gray-400">
-          Title* 
-          <span className="text-xs text-gray-500 ml-1">
-            ({editForm.title ? editForm.title.length : 0}/{MAX_TITLE_LENGTH})
-          </span>
-        </label>
-        <input
-          type="text"
-          value={editForm.title}
-          maxLength={MAX_TITLE_LENGTH}
-          onChange={e => setEditForm({ ...editForm, title: e.target.value.substring(0, MAX_TITLE_LENGTH) })}
-          className={`w-full px-2 py-1 border rounded dark:bg-gray-600 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary ${
-            isDuplicateTitle ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-500'
-          }`}
-          required
-        />
-        {isDuplicateTitle && (
-          <p className="text-xs text-red-500 dark:text-red-400 mt-1">
-            An item with this title already exists
-          </p>
-        )}
-      </div>
-      <div className="flex flex-col">
-        <label className="text-sm text-gray-600 dark:text-gray-400">Description</label>
-        <textarea
-          value={editForm.description ?? ''}
-          onChange={e => setEditForm({ ...editForm, description: e.target.value })}
-          className="w-full px-2 py-1 border rounded dark:bg-gray-600 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary"
-          rows={2}
-        />
-      </div>
-      <div className="flex flex-col">
-        <label className="text-sm text-gray-600 dark:text-gray-400">Item URL</label>
-        <input
-          type="url"
-          value={editForm.link}
-          onChange={e => setEditForm({ ...editForm, link: e.target.value })}
-          placeholder="Item URL"
-          className="w-full px-2 py-1 border rounded dark:bg-gray-600 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary"
-        />
-      </div>
-      <div className="flex flex-col">
-        <label className="text-sm text-gray-600 dark:text-gray-400">Image URL</label>
-        <input
-          type="url"
-          value={editForm.image_url}
-          onChange={e => setEditForm({ ...editForm, image_url: e.target.value })}
-          placeholder="Image URL"
-          className="w-full px-2 py-1 border rounded dark:bg-gray-600 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary"
-        />
-      </div>
-      <div className="flex flex-col">
-        <label className="text-sm text-gray-600 dark:text-gray-400">Price</label>
-        <input
-          type="number"
-          step="0.01"
-          min="0"
-          value={editForm.price !== null && editForm.price !== undefined ? editForm.price : ''}
-          onChange={e => {
-            const nextValue = e.target.value === '' ? null : Number(e.target.value);
-            setEditForm({ ...editForm, price: Number.isNaN(nextValue) ? null : nextValue });
-          }}
-          className="w-full px-2 py-1 border rounded dark:bg-gray-600 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary"
-        />
-      </div>
-      <div className="flex flex-col">
-        <label className="text-sm text-gray-600 dark:text-gray-400">Priority</label>
-        <select
-          value={editForm.priority}
-          onChange={e => setEditForm({ ...editForm, priority: Number(e.target.value) })}
-          className="w-full px-2 py-1 border rounded dark:bg-gray-600 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary"
-        >
-          <option value={2}>High Priority</option>
-          <option value={1}>Medium Priority</option>
-          <option value={0}>Low Priority</option>
-        </select>
-      </div>
-
-      {/* Size Fields - New Addition */}
-      <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
-        <div className="flex items-center mb-2">
-          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Size Information</span>
-          <button 
-            type="button"
-            onClick={() => setShowSizeFields(!showSizeFields)}
-            className="ml-auto text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-          >
-            {showSizeFields ? 'Hide' : 'Show'}
-          </button>
-        </div>
-        
-        {showSizeFields && (
-          <div className="space-y-2">
-            <div>
-              <label className="block text-xs text-gray-600 dark:text-gray-400">Size Type</label>
-              <select
-                value={sizeType}
-                onChange={(e) => {
-                  setSizeType(e.target.value);
-                  setSizeValue('');
-                }}
-                className="w-full px-2 py-1 border rounded text-sm dark:bg-gray-600 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary"
-              >
-                <option value="">Not specified</option>
-                <option value="tshirt">T-Shirt</option>
-                <option value="hoodie">Hoodie/Sweatshirt</option>
-                <option value="dress">Dress</option>
-                <option value="pants">Pants</option>
-                <option value="shoes">Shoes</option>
-              </select>
-            </div>
-            
-            {(sizeType === 'pants' || sizeType === 'shoes') && (
-              <div>
-                <label className="block text-xs text-gray-600 dark:text-gray-400">Gender</label>
-                <div className="flex items-center space-x-4">
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="sizeGender"
-                      value="men"
-                      checked={sizeGender === 'men'}
-                      onChange={() => {
-                        setSizeGender('men');
-                        setSizeValue('');
-                      }}
-                      className="mr-1"
-                    />
-                    <span className="text-xs text-gray-700 dark:text-gray-300">Men's</span>
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="sizeGender"
-                      value="women"
-                      checked={sizeGender === 'women'}
-                      onChange={() => {
-                        setSizeGender('women');
-                        setSizeValue('');
-                      }}
-                      className="mr-1"
-                    />
-                    <span className="text-xs text-gray-700 dark:text-gray-300">Women's</span>
-                  </label>
-                </div>
-              </div>
-            )}
-            
-            {sizeType && (
-              <div>
-                <label className="block text-xs text-gray-600 dark:text-gray-400">Size</label>
-                <select
-                  value={sizeValue}
-                  onChange={(e) => setSizeValue(e.target.value)}
-                  className="w-full px-2 py-1 border rounded text-sm dark:bg-gray-600 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary"
-                >
-                  <option value="">Select size</option>
-                  {getSizeOptions(sizeType, sizeGender).map((size) => (
-                    <option key={size} value={size}>
-                      {size}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-500 mt-1">
-                  This will be added to the item description.
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
   const renderActionButtons = (item) => {
     const hasComments = item.comments?.length > 0;
     const isReservedByOther =
@@ -932,123 +781,381 @@ const WishlistCard = (props) => {
             items.map(item => (
               <motion.div
                 key={item.id}
-                onClick={() => editingItemId !== item.id && handleItemClick(item)}
+                onClick={() => handleItemClick(item)}
                 className={`bg-white dark:bg-gray-800 rounded-lg p-4 shadow-[0_4px_12px_-2px_rgba(0,0,0,0.12),0_3px_6px_-3px_rgba(0,0,0,0.15)] hover:shadow-[0_10px_25px_-6px_rgba(0,0,0,0.2),0_8px_16px_-8px_rgba(0,0,0,0.2)] transition-all duration-300 cursor-pointer ${
                   item.purchased_by && !isOwnWishlist ? 'opacity-60' : ''
                 }`}
                 whileHover={{ y: -3, transition: { duration: 0.2 } }}
               >
                 <div className="flex justify-between items-start">
-                  {editingItemId === item.id ? (
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={(e) => handleSaveEdit(e, item.id)}
-                        className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 ${isDuplicateTitle ? 'text-gray-400 cursor-not-allowed' : 'text-green-500 hover:text-green-700'}`}
-                        title="Save changes"
-                        disabled={isDuplicateTitle}
-                      >
-                        <Check size={20} />
-                      </button>
-                      <button
-                        onClick={handleCancelEdit}
-                        className="text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
-                        title="Cancel edit"
-                      >
-                        <X size={20} />
-                      </button>
+                  <div className="flex flex-wrap items-start justify-between w-full gap-2">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-2 line-clamp-2 break-words overflow-hidden">{item.title}</h3>
                     </div>
-                  ) : (
-                    <>
-                      <div className="flex flex-wrap items-start justify-between w-full gap-2">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-2 line-clamp-2 break-words overflow-hidden">{item.title}</h3>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {item.price !== null && item.price !== undefined && !Number.isNaN(Number(item.price)) && (
+                        <span className="inline-flex text-sm font-medium px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
+                          ${(Number(item.price) / 100).toFixed(2)}
+                        </span>
+                      )}
+                      {isOwnWishlist && (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={(e) => handleEditClick(e, item)}
+                            className="text-blue-500 hover:text-blue-700 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                            title="Edit item"
+                          >
+                            <Pencil size={20} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPendingDeleteItemId(item.id);
+                            }}
+                            className="text-red-500 hover:text-red-700 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                            title="Delete item"
+                          >
+                            <Trash2 size={20} />
+                          </button>
                         </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          {item.price !== null && item.price !== undefined && !Number.isNaN(Number(item.price)) && (
-                            <span className="inline-flex text-sm font-medium px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
-                              ${(Number(item.price) / 100).toFixed(2)}
-                            </span>
-                          )}
-                          {isOwnWishlist && (
-                            <div className="flex gap-2">
-                              <button
-                                onClick={(e) => handleEditClick(e, item)}
-                                className="text-blue-500 hover:text-blue-700 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
-                                title="Edit item"
-                              >
-                                <Pencil size={20} />
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setPendingDeleteItemId(item.id);
-                                }}
-                                className="text-red-500 hover:text-red-700 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
-                                title="Delete item"
-                              >
-                                <Trash2 size={20} />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </>
-                  )}
+                      )}
+                    </div>
+                  </div>
                 </div>
 
-                {editingItemId === item.id ? (
-                  renderEditableContent(item)
-                ) : (
-                  <>
-                    {item.description && (
-                      <p className="text-gray-600 dark:text-gray-300 text-sm mb-2 line-clamp-3 break-words whitespace-pre-wrap">{item.description}</p>
-                    )}
+                <>
+                  {item.description && (
+                    <p className="text-gray-600 dark:text-gray-300 text-sm mb-2 line-clamp-3 break-words whitespace-pre-wrap">{item.description}</p>
+                  )}
 
-                    {item.image_url && (
-                      <img 
-                        src={item.image_url} 
-                        alt={item.title}
-                        className="w-full h-32 object-cover rounded-md mb-2"
-                      />
-                    )}
-                  </>
-                )}
+                  {item.image_url && (
+                    <img 
+                      src={item.image_url} 
+                      alt={item.title}
+                      className="w-full h-32 object-cover rounded-md mb-2"
+                    />
+                  )}
+                </>
 
                 <div className="flex items-center flex-wrap justify-between gap-1 mt-2">
-                  {!editingItemId && (
-                    <>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {renderPriorityIcon(item.priority)}
-                      </div>
-                      <div className="flex items-center justify-end gap-2 min-w-0">
-                        {showPurchaseActions && item.purchased_by && (
-                          <span
-                            className={`inline-flex items-center text-[11px] leading-none font-semibold px-2 py-1 rounded-full max-w-[140px] sm:max-w-[180px] whitespace-nowrap overflow-hidden text-ellipsis ${
+                  <>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {renderPriorityIcon(item.priority)}
+                    </div>
+                    <div className="flex items-center justify-end gap-2 min-w-0">
+                      {showPurchaseActions && item.purchased_by && (
+                        <span
+                          className={`inline-flex items-center text-[11px] leading-none font-semibold px-2 py-1 rounded-full max-w-[140px] sm:max-w-[180px] whitespace-nowrap overflow-hidden text-ellipsis ${
                             currentUserName && item.purchased_by === currentUserName
                               ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200'
                               : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
-                            }`}
-                            title={
-                              currentUserName && item.purchased_by === currentUserName
-                                ? 'Reserved by you'
-                                : `Reserved by ${item.purchased_by}`
-                            }
-                          >
-                            {currentUserName && item.purchased_by === currentUserName
-                              ? 'In your cart'
-                              : `Reserved: ${item.purchased_by}`}
-                          </span>
-                        )}
-                        {renderActionButtons(item)}
-                      </div>
-                    </>
-                  )}
+                          }`}
+                          title={
+                            currentUserName && item.purchased_by === currentUserName
+                              ? 'Reserved by you'
+                              : `Reserved by ${item.purchased_by}`
+                          }
+                        >
+                          {currentUserName && item.purchased_by === currentUserName
+                            ? 'In your cart'
+                            : `Reserved: ${item.purchased_by}`}
+                        </span>
+                      )}
+                      {renderActionButtons(item)}
+                    </div>
+                  </>
                 </div>
               </motion.div>
             ))
           )}
         </div>
       </div>
+
+      {/* Full-Card Edit Modal */}
+      {editingItemId && (
+        <AnimatePresence>
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+            onClick={handleCancelEdit}
+          >
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 z-[100]"
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-2xl mx-auto my-8 max-h-[90vh] overflow-hidden z-[110] bg-white dark:bg-gray-800 rounded-xl flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="overflow-y-auto p-5">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                      Edit Wishlist Item
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      {member?.is_shared_wishlist ? 'Shared wishlist item' : 'Personal wishlist item'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleCancelEdit}
+                    className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                    aria-label="Close edit modal"
+                    disabled={isSavingEdit}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                <div className="space-y-4 pb-4">
+                  <div>
+                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                      Title
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.title ?? ''}
+                      onChange={(e) =>
+                        setEditForm((prev) => ({
+                          ...prev,
+                          title: e.target.value.substring(0, MAX_TITLE_LENGTH)
+                        }))
+                      }
+                      className={`w-full px-3 py-2 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+                        isDuplicateTitle
+                          ? 'border-red-300 dark:border-red-600'
+                          : 'border-gray-300 dark:border-gray-600'
+                      }`}
+                      maxLength={MAX_TITLE_LENGTH}
+                    />
+                    {isDuplicateTitle && (
+                      <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+                        An item with this title already exists.
+                      </p>
+                    )}
+                  </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                      Price (USD)
+                    </label>
+                    <input
+                      type="number"
+                      value={editForm.price ?? ''}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, price: e.target.value }))}
+                      step="0.01"
+                      min="0"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                      Priority
+                    </label>
+                    <select
+                      value={String(editForm.priority ?? 1)}
+                      onChange={(e) =>
+                        setEditForm((prev) => ({ ...prev, priority: Number(e.target.value) }))
+                      }
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                      <option value={2}>High (2)</option>
+                      <option value={1}>Medium (1)</option>
+                      <option value={0}>Low (0)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedFields((prev) => !prev)}
+                  className="flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                >
+                  {showAdvancedFields ? (
+                    <>
+                      <ChevronUp size={16} className="mr-1" />
+                      Hide additional details
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown size={16} className="mr-1" />
+                      Show additional details
+                    </>
+                  )}
+                </button>
+
+                {showAdvancedFields && (
+                  <>
+                    <div>
+                      <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                        Description
+                      </label>
+                      <textarea
+                        value={editForm.description ?? ''}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, description: e.target.value }))}
+                        rows={4}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-y"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                        Product URL
+                      </label>
+                      <input
+                        type="url"
+                        value={editForm.link ?? ''}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, link: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        placeholder="https://example.com/item"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                        Image URL
+                      </label>
+                      <input
+                        type="url"
+                        value={editForm.image_url ?? ''}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, image_url: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        placeholder="https://example.com/image.jpg"
+                      />
+                      {editForm.image_url && (
+                        <img
+                          src={editForm.image_url}
+                          alt="Wishlist item preview"
+                          className="mt-2 w-24 h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
+                        />
+                      )}
+                    </div>
+
+                    <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center mb-2">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Size Information</span>
+                        <button
+                          type="button"
+                          onClick={() => setShowSizeFields(!showSizeFields)}
+                          className="ml-auto text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                        >
+                          {showSizeFields ? 'Hide' : 'Show'}
+                        </button>
+                      </div>
+
+                      {showSizeFields && (
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                              Size Type
+                            </label>
+                            <select
+                              value={sizeType}
+                              onChange={(e) => {
+                                setSizeType(e.target.value);
+                                setSizeValue('');
+                              }}
+                              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            >
+                              <option value="">Not specified</option>
+                              <option value="tshirt">T-Shirt</option>
+                              <option value="hoodie">Hoodie/Sweatshirt</option>
+                              <option value="dress">Dress</option>
+                              <option value="pants">Pants</option>
+                              <option value="shoes">Shoes</option>
+                            </select>
+                          </div>
+
+                          {(sizeType === 'pants' || sizeType === 'shoes') && (
+                            <div>
+                              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                                Gender
+                              </label>
+                              <div className="flex items-center gap-4">
+                                <label className="flex items-center">
+                                  <input
+                                    type="radio"
+                                    name="sizeGender"
+                                    value="men"
+                                    checked={sizeGender === 'men'}
+                                    onChange={() => {
+                                      setSizeGender('men');
+                                      setSizeValue('');
+                                    }}
+                                    className="mr-1"
+                                  />
+                                  <span className="text-sm text-gray-700 dark:text-gray-300">Men's</span>
+                                </label>
+                                <label className="flex items-center">
+                                  <input
+                                    type="radio"
+                                    name="sizeGender"
+                                    value="women"
+                                    checked={sizeGender === 'women'}
+                                    onChange={() => {
+                                      setSizeGender('women');
+                                      setSizeValue('');
+                                    }}
+                                    className="mr-1"
+                                  />
+                                  <span className="text-sm text-gray-700 dark:text-gray-300">Women's</span>
+                                </label>
+                              </div>
+                            </div>
+                          )}
+
+                          {sizeType && (
+                            <div>
+                              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                                Size
+                              </label>
+                              <select
+                                value={sizeValue}
+                                onChange={(e) => setSizeValue(e.target.value)}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                              >
+                                <option value="">Select size</option>
+                                {getSizeOptions(sizeType, sizeGender).map((size) => (
+                                  <option key={size} value={size}>
+                                    {size}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+                </div>
+              </div>
+
+              <div className="shrink-0 px-5 py-3 border-t border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 flex justify-end gap-2">
+                <button
+                  onClick={handleCancelEdit}
+                  className="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                  disabled={isSavingEdit}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleSaveEdit(editingItemId)}
+                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                  disabled={isSavingEdit || isDuplicateTitle}
+                >
+                  {isSavingEdit ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        </AnimatePresence>
+      )}
 
       {/* Item Detail Modal */}
       {selectedItem && (
