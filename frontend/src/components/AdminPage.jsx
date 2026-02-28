@@ -44,6 +44,8 @@ import {
   updateSystemSettings,
   getAllItems,
   deleteItemAsAdmin,
+  updateWishlistItem,
+  updateSharedWishlistItem,
   deleteSharedWishlistItem,
   getAdminCartItems,
   deleteAdminCartItem,
@@ -2159,7 +2161,16 @@ const AdminPage = () => {
     const [items, setItems] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [selectedItem, setSelectedItem] = useState(null);
+    const [editForm, setEditForm] = useState({
+      title: '',
+      description: '',
+      link: '',
+      image_url: '',
+      price: '',
+      priority: 2
+    });
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [showPurchaseStatus, setShowPurchaseStatus] = useState(false);
     const [showClearConfirm, setShowClearConfirm] = useState(false);
     const [expandedOwners, setExpandedOwners] = useState({});
@@ -2198,6 +2209,96 @@ const AdminPage = () => {
         toast.error(err.response?.data?.detail || 'Failed to delete item');
       } finally {
         setIsDeleting(false);
+      }
+    };
+
+    const handleOpenEditItem = (item) => {
+      setSelectedItem(item);
+      setEditForm({
+        title: item.title || '',
+        description: item.description || '',
+        link: item.link || '',
+        image_url: item.image_url || '',
+        price: item.price !== null && item.price !== undefined ? (item.price / 100).toFixed(2) : '',
+        priority: item.priority ?? 2
+      });
+    };
+
+    const handleCloseEditItem = () => {
+      setSelectedItem(null);
+      setEditForm({
+        title: '',
+        description: '',
+        link: '',
+        image_url: '',
+        price: '',
+        priority: 2
+      });
+    };
+
+    const handleSaveItem = async () => {
+      if (!selectedItem) return;
+
+      const trimmedTitle = editForm.title.trim();
+      if (!trimmedTitle) {
+        toast.error('Title is required');
+        return;
+      }
+
+      let parsedPrice = null;
+      if (editForm.price !== '' && editForm.price !== null && editForm.price !== undefined) {
+        const numericPrice = parseFloat(String(editForm.price));
+        if (Number.isNaN(numericPrice) || numericPrice < 0) {
+          toast.error('Price must be a valid positive number');
+          return;
+        }
+        parsedPrice = numericPrice;
+      }
+
+      const parsedPriority = Number(editForm.priority);
+      const normalizedPriority = Number.isInteger(parsedPriority) && parsedPriority >= 1 && parsedPriority <= 3
+        ? parsedPriority
+        : 2;
+
+      const payload = {
+        title: trimmedTitle,
+        description: editForm.description?.trim() || null,
+        link: editForm.link?.trim() || null,
+        image_url: editForm.image_url?.trim() || null,
+        price: parsedPrice,
+        priority: normalizedPriority
+      };
+
+      setIsSaving(true);
+      try {
+        if (selectedItem.item_type === 'shared') {
+          await updateSharedWishlistItem(selectedItem.id, payload);
+        } else {
+          await updateWishlistItem(selectedItem.id, payload);
+        }
+
+        setItems((prevItems) => prevItems.map((item) => {
+          if (item.id !== selectedItem.id || item.item_type !== selectedItem.item_type) {
+            return item;
+          }
+          return {
+            ...item,
+            title: payload.title,
+            description: payload.description,
+            link: payload.link,
+            image_url: payload.image_url,
+            priority: payload.priority,
+            price: payload.price !== null ? Math.round(payload.price * 100) : null
+          };
+        }));
+
+        toast.success('Item updated successfully');
+        handleCloseEditItem();
+      } catch (err) {
+        console.error('Failed to update item:', err);
+        toast.error(err.response?.data?.detail || 'Failed to update item');
+      } finally {
+        setIsSaving(false);
       }
     };
 
@@ -2376,14 +2477,23 @@ const AdminPage = () => {
                                     )}
                                   </div>
                                 </div>
-                                <button 
-                                  onClick={() => handleDeleteItem(item)}
-                                  className="ml-3 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                                  disabled={isDeleting}
-                                  title="Delete item"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                <div className="ml-3 flex items-center gap-2">
+                                  <button
+                                    onClick={() => handleOpenEditItem(item)}
+                                    className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                                    title="Edit item"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteItem(item)}
+                                    className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                                    disabled={isDeleting}
+                                    title="Delete item"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           ))}
@@ -2428,6 +2538,131 @@ const AdminPage = () => {
                 >
                   {isLoading ? 'Clearing...' : 'Clear All'}
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {selectedItem && (
+          <div
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+            onClick={handleCloseEditItem}
+          >
+            <div
+              className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Edit Wishlist Item
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    {selectedItem.item_type === 'shared' ? 'Shared wishlist item' : 'Personal wishlist item'}
+                  </p>
+                </div>
+                <button
+                  onClick={handleCloseEditItem}
+                  className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                  aria-label="Close edit modal"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Title</label>
+                  <input
+                    type="text"
+                    value={editForm.title}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, title: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    maxLength={200}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Description</label>
+                  <textarea
+                    value={editForm.description}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, description: e.target.value }))}
+                    rows={4}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-y"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Price (USD)</label>
+                    <input
+                      type="number"
+                      value={editForm.price}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, price: e.target.value }))}
+                      step="0.01"
+                      min="0"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Priority</label>
+                    <select
+                      value={String(editForm.priority)}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, priority: Number(e.target.value) }))}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                      <option value="1">High (1)</option>
+                      <option value="2">Medium (2)</option>
+                      <option value="3">Low (3)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Product URL</label>
+                  <input
+                    type="url"
+                    value={editForm.link}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, link: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="https://example.com/item"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Image URL</label>
+                  <input
+                    type="url"
+                    value={editForm.image_url}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, image_url: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="https://example.com/image.jpg"
+                  />
+                  {editForm.image_url && (
+                    <img
+                      src={editForm.image_url}
+                      alt="Wishlist item preview"
+                      className="mt-2 w-24 h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
+                    />
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    onClick={handleCloseEditItem}
+                    className="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                    disabled={isSaving}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveItem}
+                    className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                    disabled={isSaving}
+                  >
+                    {isSaving ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

@@ -285,6 +285,23 @@ def create_wishlist_item(db: Session, item: schemas.WishlistItemCreate, owner_id
 def get_wishlist_item(db: Session, item_id: int) -> Optional[models.WishlistItem]:
     return db.query(models.WishlistItem).filter(models.WishlistItem.id == item_id).first()
 
+def sync_cart_items_from_wishlist_item(db: Session, wishlist_item: models.WishlistItem) -> int:
+    """Sync mirrored fields from a wishlist item onto linked shopping cart items."""
+    if not wishlist_item:
+        return 0
+
+    linked_cart_items = db.query(models.ShoppingCartItem).filter(
+        models.ShoppingCartItem.wishlist_item_id == wishlist_item.id
+    ).all()
+
+    for cart_item in linked_cart_items:
+        cart_item.title = wishlist_item.title
+        cart_item.link = wishlist_item.link
+        cart_item.image_url = wishlist_item.image_url
+        cart_item.price = wishlist_item.price
+
+    return len(linked_cart_items)
+
 def update_wishlist_item(db: Session, item_id: int, item_update: schemas.WishlistItemUpdate, current_user_id: int):
     """Update a wishlist item with proper authorization checks"""
     db_item = db.query(models.WishlistItem).filter(models.WishlistItem.id == item_id).first()
@@ -307,6 +324,8 @@ def update_wishlist_item(db: Session, item_id: int, item_update: schemas.Wishlis
     
     for key, value in update_data.items():
         setattr(db_item, key, value)
+
+    sync_cart_items_from_wishlist_item(db, db_item)
     
     db.commit()
     db.refresh(db_item)
@@ -327,6 +346,7 @@ def toggle_thinking_about(db: Session, item_id: int, user_id: int) -> Optional[m
         thinking_list.append(user.name)
     
     db_item.thinking_about_by = ",".join(thinking_list)
+    sync_cart_items_from_wishlist_item(db, db_item)
     db.commit()
     db.refresh(db_item)
     return db_item
@@ -351,6 +371,7 @@ def toggle_item_purchased(db: Session, item_id: int, user_id: int) -> Optional[m
         db_item.is_purchased = True
         db_item.purchased_by = user.name
     
+    sync_cart_items_from_wishlist_item(db, db_item)
     db.commit()
     db.refresh(db_item)
     return db_item
@@ -1141,9 +1162,28 @@ def update_shared_wishlist_item(db: Session, item_id: int, item_update: schemas.
     for key, value in update_data.items():
         setattr(db_item, key, value)
 
+    sync_cart_items_from_shared_wishlist_item(db, db_item)
     db.commit()
     db.refresh(db_item)
     return db_item
+
+
+def sync_cart_items_from_shared_wishlist_item(db: Session, shared_item: models.SharedWishlistItem) -> int:
+    """Sync mirrored fields from a shared wishlist item onto linked shopping cart items."""
+    if not shared_item:
+        return 0
+
+    linked_cart_items = db.query(models.ShoppingCartItem).filter(
+        models.ShoppingCartItem.shared_wishlist_item_id == shared_item.id
+    ).all()
+
+    for cart_item in linked_cart_items:
+        cart_item.title = shared_item.title
+        cart_item.link = shared_item.link
+        cart_item.image_url = shared_item.image_url
+        cart_item.price = shared_item.price
+
+    return len(linked_cart_items)
 
 
 def notify_cart_buyers_on_shared_wishlist_delete(db: Session, shared_item: models.SharedWishlistItem) -> None:
@@ -1233,6 +1273,7 @@ def toggle_shared_item_thinking_about(db: Session, item_id: int, user_id: int) -
         thinking_list.append(user.name)
 
     db_item.thinking_about_by = ",".join(thinking_list)
+    sync_cart_items_from_shared_wishlist_item(db, db_item)
     db.commit()
     db.refresh(db_item)
     return db_item
@@ -1264,6 +1305,7 @@ def toggle_shared_item_purchased(db: Session, item_id: int, user_id: int) -> Opt
         db_item.is_purchased = True
         db_item.purchased_by = user.name
 
+    sync_cart_items_from_shared_wishlist_item(db, db_item)
     db.commit()
     db.refresh(db_item)
     return db_item
