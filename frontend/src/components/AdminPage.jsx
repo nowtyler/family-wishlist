@@ -289,6 +289,40 @@ const AdminPage = () => {
     </div>
   );
 
+  const WishlistReminderCard = ({ compact = false }) => (
+    <AdminCard
+      title="Wishlist Reminder"
+      icon={Calendar}
+      className={compact ? 'p-4 sm:p-5' : ''}
+    >
+      <div className={compact ? 'space-y-3' : 'space-y-4'}>
+        <p className="text-sm text-gray-600 dark:text-gray-300">
+          Send an in-app prompt to all wishlist owners asking them to review and update their wishlist.
+        </p>
+        <button
+          type="button"
+          onClick={handleBroadcastWishlistReminder}
+          disabled={isSendingWishlistReminder}
+          className={`inline-flex items-center justify-center gap-2 rounded-lg bg-orange-500 text-white text-sm font-medium transition-colors hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed ${
+            compact ? 'w-full sm:w-auto px-3 py-2' : 'px-4 py-2'
+          }`}
+        >
+          {isSendingWishlistReminder ? (
+            <>
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              Sending...
+            </>
+          ) : (
+            <>
+              <Send className="w-4 h-4" />
+              Send Wishlist Reminder
+            </>
+          )}
+        </button>
+      </div>
+    </AdminCard>
+  );
+
   const DashboardTab = () => (
     <div className="space-y-6">
       {/* System Stats Cards */}
@@ -356,30 +390,6 @@ const AdminPage = () => {
           color="indigo"
         />
       </div>
-
-      <AdminCard title="Wishlist Reminder" icon={Calendar}>
-        <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-          Send an in-app prompt to all wishlist owners asking them to review and update their wishlist.
-        </p>
-        <button
-          type="button"
-          onClick={handleBroadcastWishlistReminder}
-          disabled={isSendingWishlistReminder}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
-        >
-          {isSendingWishlistReminder ? (
-            <>
-              <RefreshCw className="w-4 h-4 animate-spin" />
-              Sending...
-            </>
-          ) : (
-            <>
-              <Send className="w-4 h-4" />
-              Send Wishlist Reminder
-            </>
-          )}
-        </button>
-      </AdminCard>
 
       {/* Enhanced Upcoming Events Banner - Shows all users' events */}
       {users.length > 0 && (
@@ -1816,6 +1826,8 @@ const AdminPage = () => {
             )}
           </div>
         </AdminCard>
+
+        <WishlistReminderCard compact />
 
         {/* Recovery Passphrase Management */}
         <AdminCard title="Recovery Passphrase" icon={Shield}>
