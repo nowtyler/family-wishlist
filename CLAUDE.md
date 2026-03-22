@@ -74,6 +74,7 @@ Use these line ranges to jump directly to relevant sections instead of searching
 | **Recovery Passphrase** | 1535-1600 | `/api/admin/recovery-passphrase`, regenerate |
 | **URL Scraping** | 1605-1650 | POST `/api/items/fetch-url-details` |
 | **External Wishlists** | 1579-1694 | `/api/members/{id}/external-wishlists`, `/api/external-wishlists/{id}` |
+| **Shared Wishlist External Wishlists** | 1812-1862 | GET/POST `/api/shared-wishlists/{id}/external-wishlists` |
 | **Shared Wishlists** | 1713-2148 | `/api/shared-wishlists/*`, DELETE `/api/shared-wishlists/{id}/items`, `/api/shared-wishlist-items/*` |
 | **User Preferences** | 2190-2230 | PUT `/api/members/{id}/preferences` |
 | **Tutorial** | 2478-2615 | POST `/api/members/{id}/complete-tutorial`, `/api/members/{id}/skip-tutorial`, `/api/members/{id}/reset-tutorial` |
@@ -111,7 +112,8 @@ SharedWishlist
 ├── N:1 → FamilyMember (creator)
 ├── N:1 → Household (optional)
 ├── M:N → FamilyMember (owners)
-└── 1:N → SharedWishlistItem
+├── 1:N → SharedWishlistItem
+└── 1:N → ExternalWishlist
 
 SharedWishlistItem
 ├── N:1 → SharedWishlist
@@ -175,7 +177,7 @@ Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
 | **Shared Items** | `getSharedWishlistItems`, `createSharedWishlistItem`, `updateSharedWishlistItem`, `deleteSharedWishlistItem`, `deleteAllSharedWishlistItems`, `toggleSharedItemThinking`, `toggleSharedItemPurchased` |
 | **Shopping Cart** | `getShoppingCartItems`, `createShoppingCartItem`, `addShoppingCartItemFromWishlistItem`, `addShoppingCartItemFromSharedWishlistItem`, `updateShoppingCartItem`, `deleteShoppingCartItem` |
 | **Households** | `getHouseholds`, `createHousehold`, `joinHousehold`, `leaveHousehold`, `setActiveHousehold` |
-| **External Wishlists** | `getExternalWishlists`, `createExternalWishlist`, `updateExternalWishlist`, `deleteExternalWishlist` |
+| **External Wishlists** | `getExternalWishlists`, `createExternalWishlist`, `updateExternalWishlist`, `deleteExternalWishlist`, `getSharedWishlistExternalWishlists`, `createSharedWishlistExternalWishlist` |
 | **Admin** | Migrations, backups, email settings, system stats, logs, `getRecoveryPassphrase`, `regenerateRecoveryPassphrase` |
 
 ---
@@ -192,6 +194,7 @@ Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
 /api/shared-wishlists/{wishlist_id}
 /api/shared-wishlists/{wishlist_id}/items
 /api/shared-wishlists/{wishlist_id}/owners
+/api/shared-wishlists/{wishlist_id}/external-wishlists
 /api/shared-wishlists/{wishlist_id}/export
 /api/shared-wishlists/{wishlist_id}/import
 /api/shared-wishlist-items/{item_id}

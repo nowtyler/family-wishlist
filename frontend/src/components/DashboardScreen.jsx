@@ -1017,9 +1017,10 @@ const DashboardScreen = (props = {}) => {
           ) : null}
 
           {/* Hidden External Wishlists Button - Only renders modal, triggered from BottomTabNav */}
-          {viewingMember && (
+          {(viewingMember || selectedSharedWishlist) && (
             <ExternalWishlistsButton
               member={viewingMember}
+              sharedWishlist={selectedSharedWishlist}
               variant="hidden"
               externalOpen={isExternalWishlistsOpen}
               onExternalClose={() => setIsExternalWishlistsOpen(false)}

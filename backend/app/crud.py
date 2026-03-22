@@ -700,15 +700,28 @@ def get_external_wishlist(db: Session, wishlist_id: int) -> Optional[models.Exte
     """Get a specific external wishlist by ID"""
     return db.query(models.ExternalWishlist).filter(models.ExternalWishlist.id == wishlist_id).first()
 
+def _is_shared_wishlist_owner(db: Session, shared_wishlist_id: int, user_id: int) -> bool:
+    """Check if a user is an owner of a shared wishlist"""
+    from . import models as m
+    return db.query(m.shared_wishlist_owners).filter(
+        m.shared_wishlist_owners.c.wishlist_id == shared_wishlist_id,
+        m.shared_wishlist_owners.c.user_id == user_id
+    ).first() is not None
+
 def update_external_wishlist(db: Session, wishlist_id: int, wishlist_update: schemas.ExternalWishlistUpdate, current_user_id: int) -> Optional[models.ExternalWishlist]:
     """Update an external wishlist with authorization check"""
     db_wishlist = get_external_wishlist(db, wishlist_id)
     if not db_wishlist:
         return None
-    
-    # Check authorization (owner or admin)
+
+    # Check authorization (owner, shared wishlist owner, or admin)
     user = get_family_member(db, current_user_id)
-    if not user or (user.name.lower() != 'admin' and db_wishlist.owner_id != current_user_id):
+    if not user:
+        return None
+    is_admin = user.name.lower() == 'admin'
+    is_member_owner = db_wishlist.owner_id and db_wishlist.owner_id == current_user_id
+    is_sw_owner = db_wishlist.shared_wishlist_id and _is_shared_wishlist_owner(db, db_wishlist.shared_wishlist_id, current_user_id)
+    if not (is_admin or is_member_owner or is_sw_owner):
         return None
     
     update_data = wishlist_update.model_dump(exclude_unset=True)
@@ -729,15 +742,43 @@ def delete_external_wishlist(db: Session, wishlist_id: int, current_user_id: int
     db_wishlist = get_external_wishlist(db, wishlist_id)
     if not db_wishlist:
         return False
-    
-    # Check authorization (owner or admin)
+
+    # Check authorization (owner, shared wishlist owner, or admin)
     user = get_family_member(db, current_user_id)
-    if not user or (user.name.lower() != 'admin' and db_wishlist.owner_id != current_user_id):
+    if not user:
+        return False
+    is_admin = user.name.lower() == 'admin'
+    is_member_owner = db_wishlist.owner_id and db_wishlist.owner_id == current_user_id
+    is_sw_owner = db_wishlist.shared_wishlist_id and _is_shared_wishlist_owner(db, db_wishlist.shared_wishlist_id, current_user_id)
+    if not (is_admin or is_member_owner or is_sw_owner):
         return False
     
     db.delete(db_wishlist)
     db.commit()
     return True
+
+def get_shared_wishlist_external_wishlists(db: Session, shared_wishlist_id: int) -> List[models.ExternalWishlist]:
+    """Get all external wishlists for a shared wishlist"""
+    try:
+        wishlists = db.query(models.ExternalWishlist).filter(
+            models.ExternalWishlist.shared_wishlist_id == shared_wishlist_id
+        ).all()
+        return wishlists if wishlists else []
+    except Exception as e:
+        logger.error(f"Error fetching shared wishlist external wishlists: {str(e)}")
+        return []
+
+def create_shared_wishlist_external_wishlist(db: Session, wishlist: schemas.ExternalWishlistCreate, shared_wishlist_id: int) -> models.ExternalWishlist:
+    """Create a new external wishlist link for a shared wishlist"""
+    db_wishlist = models.ExternalWishlist(
+        shared_wishlist_id=shared_wishlist_id,
+        name=wishlist.name,
+        url=str(wishlist.url)
+    )
+    db.add(db_wishlist)
+    db.commit()
+    db.refresh(db_wishlist)
+    return db_wishlist
 
 def update_member_preferences(db: Session, member_id: int, preferences: dict):
     """Update a family member's preferences"""

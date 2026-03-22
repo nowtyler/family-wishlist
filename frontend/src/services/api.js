@@ -696,6 +696,15 @@ export const deleteExternalWishlist = (wishlistId) => {
   return apiClient.delete(`/external-wishlists/${wishlistId}`);
 };
 
+// --- Shared Wishlist External Wishlists ---
+export const getSharedWishlistExternalWishlists = (wishlistId) => {
+  return apiClient.get(`/shared-wishlists/${wishlistId}/external-wishlists`);
+};
+
+export const createSharedWishlistExternalWishlist = (wishlistId, wishlistData) => {
+  return apiClient.post(`/shared-wishlists/${wishlistId}/external-wishlists`, wishlistData);
+};
+
 // --- Shopping Cart ---
 export const getShoppingCartItems = (buyerId) => {
   return apiClient.get('/shopping-cart', {

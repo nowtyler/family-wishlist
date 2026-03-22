@@ -205,14 +205,16 @@ class ExternalWishlist(Base):
     __tablename__ = "external_wishlists"
     
     id = Column(Integer, primary_key=True, index=True)
-    owner_id = Column(Integer, ForeignKey("family_members.id"), nullable=False)
+    owner_id = Column(Integer, ForeignKey("family_members.id"), nullable=True)
+    shared_wishlist_id = Column(Integer, ForeignKey("shared_wishlists.id"), nullable=True)
     name = Column(String, nullable=False)  # e.g., "Amazon", "Etsy", etc.
     url = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     # Relationship to owner - use back_populates instead of backref
     owner = relationship("FamilyMember", back_populates="external_wishlists")
-    
+    shared_wishlist = relationship("SharedWishlist", backref="external_wishlists")
+
     def __repr__(self):
         return f"<ExternalWishlist(id={self.id}, name='{self.name}', owner_id={self.owner_id})>"
 

@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link2, ExternalLink, Plus, Edit2, Trash2, Check, X, Info } from 'lucide-react';
 import { useAppContext } from '../contexts/AppContext';
-import { getExternalWishlists, createExternalWishlist, updateExternalWishlist, deleteExternalWishlist } from '../services/api';
+import { getExternalWishlists, createExternalWishlist, updateExternalWishlist, deleteExternalWishlist, getSharedWishlistExternalWishlists, createSharedWishlistExternalWishlist } from '../services/api';
 
-const ExternalWishlistsButton = ({ member, variant = "default", externalOpen = false, onExternalClose }) => {
+const ExternalWishlistsButton = ({ member, sharedWishlist, variant = "default", externalOpen = false, onExternalClose }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   // Support external control of the modal
@@ -36,8 +36,12 @@ const ExternalWishlistsButton = ({ member, variant = "default", externalOpen = f
   const modalRef = useRef(null);
   
   const isAdmin = selectedUser?.name?.toLowerCase() === 'admin';
-  const canEdit = isAdmin || selectedUser?.id === member.id;
-  
+  const isSharedMode = !!sharedWishlist;
+  const canEdit = isAdmin || (isSharedMode
+    ? sharedWishlist.owners?.some(o => o.id === selectedUser?.id)
+    : selectedUser?.id === member?.id);
+  const displayName = isSharedMode ? sharedWishlist.name : member?.name;
+
   // Close modal when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -49,16 +53,16 @@ const ExternalWishlistsButton = ({ member, variant = "default", externalOpen = f
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [handleClose]);
-  
+
   // Fetch external wishlists when modal is opened
   useEffect(() => {
-    if (isOpen && member?.id) {
+    if (isOpen && (member?.id || sharedWishlist?.id)) {
       fetchWishlists();
     }
-  }, [isOpen, member?.id]);
-  
+  }, [isOpen, member?.id, sharedWishlist?.id]);
+
   const fetchWishlists = async (force = false) => {
-    if (!member?.id) return;
+    if (!member?.id && !sharedWishlist?.id) return;
     
     // Prevent too frequent refreshes unless forced
     const now = Date.now();
@@ -71,7 +75,9 @@ const ExternalWishlistsButton = ({ member, variant = "default", externalOpen = f
     setLastFetchTimestamp(now);
     
     try {
-      const response = await getExternalWishlists(member.id);
+      const response = isSharedMode
+        ? await getSharedWishlistExternalWishlists(sharedWishlist.id)
+        : await getExternalWishlists(member.id);
       // Ensure we have an array even if the API returns null or undefined
       setWishlists(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
@@ -200,10 +206,12 @@ const ExternalWishlistsButton = ({ member, variant = "default", externalOpen = f
     setUrlError('');
     
     try {
-      await createExternalWishlist(member.id, { 
-        name: formData.name.trim(), 
-        url: formattedUrl // Use the formatted URL
-      });
+      const createData = { name: formData.name.trim(), url: formattedUrl };
+      if (isSharedMode) {
+        await createSharedWishlistExternalWishlist(sharedWishlist.id, createData);
+      } else {
+        await createExternalWishlist(member.id, createData);
+      }
       
       // Add a small delay before fetching to avoid rate limits
       setTimeout(async () => {
@@ -342,7 +350,7 @@ const ExternalWishlistsButton = ({ member, variant = "default", externalOpen = f
                 {/* Remove the X button from the top */}
                 
                 <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 pr-8 mb-4">
-                  {member.name}'s External Wishlists
+                  {displayName}'s External Wishlists
                 </h3>
                 
                 {isLoading && (

@@ -538,8 +538,9 @@ class ExternalWishlistUpdate(BaseModel):
 
 class ExternalWishlist(ExternalWishlistBase):
     id: int
-    owner_id: int
-    
+    owner_id: Optional[int] = None
+    shared_wishlist_id: Optional[int] = None
+
     class Config:
         from_attributes = True
 
@@ -680,6 +681,7 @@ class SharedWishlist(SharedWishlistBase):
     created_by: int
     owner_count: Optional[int] = 0
     item_count: Optional[int] = 0
+    external_wishlist_count: Optional[int] = 0
     owners: List[SharedWishlistOwner] = []
     household_name: Optional[str] = None
 

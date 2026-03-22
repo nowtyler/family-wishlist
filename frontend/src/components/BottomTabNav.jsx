@@ -370,7 +370,7 @@ const BottomTabNav = ({
             {/* Sheet content */}
             <div className="overflow-y-auto px-4 py-3 space-y-2 pb-6" style={{ maxHeight: 'calc(70vh - 4rem)' }}>
               {/* External Wishlists */}
-              {viewingMember && (isOwnWishlist || viewingMember.external_wishlist_count > 0) && (
+              {(viewingMember ? (isOwnWishlist || viewingMember.external_wishlist_count > 0) : (selectedSharedWishlist && (isOwnWishlist || selectedSharedWishlist.external_wishlist_count > 0))) && (
                 <button
                   id="tutorial-external-wishlists"
                   onClick={() => {
@@ -387,9 +387,9 @@ const BottomTabNav = ({
                     <span className="font-medium text-gray-900 dark:text-white">External Wishlists</span>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Amazon, Etsy, and other sites</p>
                   </div>
-                  {viewingMember.external_wishlist_count > 0 && (
+                  {((viewingMember?.external_wishlist_count || 0) + (selectedSharedWishlist?.external_wishlist_count || 0)) > 0 && (
                     <span className="px-2.5 py-1 rounded-full bg-amber-500 text-white text-sm font-medium">
-                      {viewingMember.external_wishlist_count}
+                      {viewingMember?.external_wishlist_count || selectedSharedWishlist?.external_wishlist_count || 0}
                     </span>
                   )}
                 </button>
@@ -616,14 +616,14 @@ const BottomTabNav = ({
               >
                 <MoreHorizontal size={24} strokeWidth={showMoreSheet ? 2.5 : 2} />
               </motion.div>
-              {viewingMember?.external_wishlist_count > 0 && (
+              {(viewingMember?.external_wishlist_count > 0 || selectedSharedWishlist?.external_wishlist_count > 0) && (
                 <motion.span
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ type: 'spring', stiffness: 500, damping: 20 }}
                   className="absolute -top-1.5 -right-2 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white rounded-full bg-amber-500"
                 >
-                  {viewingMember.external_wishlist_count}
+                  {viewingMember?.external_wishlist_count || selectedSharedWishlist?.external_wishlist_count || 0}
                 </motion.span>
               )}
             </div>

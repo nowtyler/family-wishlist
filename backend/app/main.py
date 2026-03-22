@@ -1809,6 +1809,57 @@ def delete_external_wishlist_endpoint(
     )
 
 
+# --- Shared Wishlist External Wishlists ---
+
+@app.get("/api/shared-wishlists/{wishlist_id}/external-wishlists", response_model=List[schemas.ExternalWishlist])
+def get_shared_wishlist_external_wishlists(
+    wishlist_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get all external wishlists for a shared wishlist"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    # Verify shared wishlist exists
+    shared_wl = db.query(models.SharedWishlist).filter(models.SharedWishlist.id == wishlist_id).first()
+    if not shared_wl:
+        raise HTTPException(status_code=404, detail="Shared wishlist not found")
+
+    return crud.get_shared_wishlist_external_wishlists(db, shared_wishlist_id=wishlist_id)
+
+
+@app.post("/api/shared-wishlists/{wishlist_id}/external-wishlists", response_model=schemas.ExternalWishlist)
+def create_shared_wishlist_external_wishlist(
+    wishlist_id: int,
+    wishlist: schemas.ExternalWishlistCreate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Create a new external wishlist link for a shared wishlist (owners only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    # Verify shared wishlist exists
+    shared_wl = db.query(models.SharedWishlist).filter(models.SharedWishlist.id == wishlist_id).first()
+    if not shared_wl:
+        raise HTTPException(status_code=404, detail="Shared wishlist not found")
+
+    # Check authorization: must be owner of the shared wishlist or admin
+    user = crud.get_family_member(db, current_user_id)
+    is_admin = user and user.name.lower() == 'admin'
+    owners = crud.get_shared_wishlist_owners(db, wishlist_id)
+    is_owner = any(o.id == current_user_id for o in owners)
+
+    if not is_admin and not is_owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owners can add external wishlists")
+
+    try:
+        return crud.create_shared_wishlist_external_wishlist(db=db, wishlist=wishlist, shared_wishlist_id=wishlist_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to create external wishlist: {str(e)}")
+
+
 # --- Shared Wishlists (Kid Wishlists) ---
 
 @app.get("/api/shared-wishlists", response_model=List[schemas.SharedWishlist])
@@ -1834,6 +1885,9 @@ def get_shared_wishlists(
         item_count = db.query(models.SharedWishlistItem).filter(
             models.SharedWishlistItem.wishlist_id == wishlist.id
         ).count()
+        ext_wishlist_count = db.query(models.ExternalWishlist).filter(
+            models.ExternalWishlist.shared_wishlist_id == wishlist.id
+        ).count()
 
         # Get household name if household_id is set
         household_name = None
@@ -1855,6 +1909,7 @@ def get_shared_wishlists(
             created_by=wishlist.created_by,
             owner_count=len(owners),
             item_count=item_count,
+            external_wishlist_count=ext_wishlist_count,
             owners=[schemas.SharedWishlistOwner(
                 id=o.id,
                 name=o.name,
