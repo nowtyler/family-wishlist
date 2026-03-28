@@ -83,7 +83,7 @@ Use these line ranges to jump directly to relevant sections instead of searching
 | **Email Admin** | 2785-2983 | `/api/admin/email/*` |
 | **System Admin** | 3027-3650 | `/api/admin/system/*`, stats, logs |
 | **Households (User)** | 3844-4103 | `/api/households/*`, join, leave, set active |
-| **Logout/Broadcast** | 4184-4280 | POST `/api/auth/logout`, broadcast-maintenance |
+| **Logout/Broadcast** | 4184-4280 | POST `/api/auth/logout`, broadcast-maintenance, broadcast-update |
 | **Shopping Cart** | 4281-4459 | `/api/shopping-cart/*` |
 
 ---

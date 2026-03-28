@@ -937,6 +937,10 @@ export const broadcastMaintenanceNotice = (maintenance_time, expected_downtime) 
   return apiClient.post('/admin/email/broadcast-maintenance', { maintenance_time, expected_downtime });
 };
 
+export const broadcastUpdateNotice = (version, changes) => {
+  return apiClient.post('/admin/email/broadcast-update', { version, changes });
+};
+
 export const broadcastWishlistUpdateReminder = () => {
   return apiClient.post('/admin/reminders/wishlist-update');
 };

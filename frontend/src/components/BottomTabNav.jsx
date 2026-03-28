@@ -418,7 +418,7 @@ const BottomTabNav = ({
 
               {/* My Shared Wishlists */}
               {ownedSharedWishlists.length > 0 && (
-                <div className="pt-2 border-t border-gray-100 dark:border-gray-800 mt-2">
+                <div className="pt-2 border-t border-gray-100 dark:border-gray-800 mt-2 space-y-2">
                   <p className="px-4 py-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
                     My Shared Wishlists
                   </p>

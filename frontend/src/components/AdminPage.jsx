@@ -53,6 +53,7 @@ import {
   clearAdminCartByBuyer,
   clearAllWishlists,
   broadcastMaintenanceNotice,
+  broadcastUpdateNotice,
   broadcastWishlistUpdateReminder,
   getRecoveryPassphrase,
   regenerateRecoveryPassphrase
@@ -144,6 +145,84 @@ const MaintenanceNoticeBroadcaster = memo((props) => {
 });
 
 MaintenanceNoticeBroadcaster.displayName = 'MaintenanceNoticeBroadcaster';
+
+// Memoized Update Notice Broadcaster Component
+const UpdateNoticeBroadcaster = memo((props) => {
+  const { isBroadcasting, setIsBroadcasting } = props;
+  const [version, setVersion] = useState('');
+  const [changes, setChanges] = useState('');
+
+  const handleBroadcastUpdateNotice = useCallback(async () => {
+    if (isBroadcasting) return;
+    if (!version.trim() || !changes.trim()) {
+      toast.error("Please fill out both the version and what's new.");
+      return;
+    }
+
+    setIsBroadcasting(true);
+    try {
+      const response = await broadcastUpdateNotice(
+        version.trim(),
+        changes.trim()
+      );
+      toast.success(response.data?.message || "Update notice sent successfully!");
+      setVersion('');
+      setChanges('');
+    } catch (err) {
+      console.error("Broadcast failed:", err);
+      toast.error(err.response?.data?.detail || "Failed to send update notice.");
+    } finally {
+      setIsBroadcasting(false);
+    }
+  }, [version, changes, isBroadcasting, setIsBroadcasting]);
+
+  return (
+    <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+      <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Broadcast Update Notice</h4>
+      <div className="flex flex-col gap-2 mb-2">
+        <input
+          type="text"
+          value={version}
+          onChange={(e) => setVersion(e.target.value)}
+          placeholder="Version (e.g. v2.5.0)"
+          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          disabled={isBroadcasting}
+        />
+        <textarea
+          value={changes}
+          onChange={(e) => setChanges(e.target.value)}
+          placeholder="What's new? (e.g. Added shopping cart, improved search...)"
+          rows={3}
+          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-vertical"
+          disabled={isBroadcasting}
+        />
+      </div>
+      <button
+        type="button"
+        onClick={handleBroadcastUpdateNotice}
+        className="flex items-center px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors text-sm font-medium w-fit"
+        disabled={isBroadcasting}
+      >
+        {isBroadcasting ? (
+          <>
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+            Sending...
+          </>
+        ) : (
+          <>
+            <Send className="w-4 h-4 mr-1" />
+            Send Update Notice
+          </>
+        )}
+      </button>
+      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+        This will send the update notice template to all users announcing a new release.
+      </p>
+    </div>
+  );
+});
+
+UpdateNoticeBroadcaster.displayName = 'UpdateNoticeBroadcaster';
 
 const AdminPage = () => {
   const { selectedUser } = useAppContext();
@@ -274,16 +353,16 @@ const AdminPage = () => {
     iconContainerClassName = '',
     iconContainerDarkClassName = ''
   }) => (
-    <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-md">
+    <div className="bg-white dark:bg-gray-800 rounded-lg p-3 sm:p-4 shadow-md">
       <div className="flex items-center">
         <div
-          className={`p-2 bg-${color}-100 dark:bg-${color}-900/30 rounded-lg ${iconContainerClassName} ${iconContainerDarkClassName}`}
+          className={`p-1.5 sm:p-2 bg-${color}-100 dark:bg-${color}-900/30 rounded-lg ${iconContainerClassName} ${iconContainerDarkClassName}`}
         >
-          <Icon className={`w-5 h-5 text-${color}-600 dark:text-${color}-400`} />
+          <Icon className={`w-4 h-4 sm:w-5 sm:h-5 text-${color}-600 dark:text-${color}-400`} />
         </div>
-        <div className="ml-3">
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{title}</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
+        <div className="ml-2 sm:ml-3 min-w-0">
+          <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">{title}</p>
+          <p className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white truncate">{value}</p>
         </div>
       </div>
     </div>
@@ -324,9 +403,9 @@ const AdminPage = () => {
   );
 
   const DashboardTab = () => (
-    <div className="space-y-6">
-      {/* System Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="space-y-3 sm:space-y-6">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
         <StatCard
           title="System Status"
           value={systemStatus?.status || "Unknown"}
@@ -345,10 +424,6 @@ const AdminPage = () => {
           icon={Database}
           color="purple"
         />
-      </div>
-
-      {/* App Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard
           title="Total Users"
           value={stats.total_users || 0}
@@ -367,9 +442,6 @@ const AdminPage = () => {
           icon={Mail}
           color="blue"
         />
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard
           title="Wishlist Items"
           value={stats.total_wishlists || 0}
@@ -1207,6 +1279,9 @@ const AdminPage = () => {
 
                 {/* Broadcast Maintenance Notice */}
                 <MaintenanceNoticeBroadcaster isBroadcasting={isBroadcasting} setIsBroadcasting={setIsBroadcasting} />
+
+                {/* Broadcast Update Notice */}
+                <UpdateNoticeBroadcaster isBroadcasting={isBroadcasting} setIsBroadcasting={setIsBroadcasting} />
               </>
             )}
           </div>
@@ -1787,7 +1862,7 @@ const AdminPage = () => {
                 <p className="mt-2 text-gray-600 dark:text-gray-400">Loading system status...</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
                 {Object.entries(systemStatus)
                   .filter(([key, value]) => key !== 'debug_mode') // Remove debug mode
                   .map(([key, value]) => {
@@ -1812,11 +1887,11 @@ const AdminPage = () => {
                     }
 
                     return (
-                      <div key={key} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                        <h5 className="font-medium text-gray-900 dark:text-white mb-2">
+                      <div key={key} className="p-3 sm:p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <h5 className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white mb-1 sm:mb-2">
                           {displayKey}
                         </h5>
-                        <p className="text-gray-600 dark:text-gray-400">
+                        <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 truncate">
                           {displayValue}
                         </p>
                       </div>

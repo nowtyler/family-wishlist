@@ -636,6 +636,10 @@ class MaintenanceBroadcastRequest(BaseModel):
     maintenance_time: Optional[str] = None
     expected_downtime: Optional[str] = None
 
+class UpdateNoticeBroadcastRequest(BaseModel):
+    version: Optional[str] = None
+    changes: Optional[str] = None
+
 class WishlistReminderBroadcastResponse(BaseModel):
     success: bool
     message: str

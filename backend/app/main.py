@@ -39,7 +39,7 @@ import time
 import pytz
 from .utils.timezone_utils import get_est_timestamp, get_est_timestamp_iso, get_est_timestamp_strftime, get_est_date, get_est_timedelta
 from .utils.passphrase_utils import generate_passphrase, encrypt_passphrase, decrypt_passphrase, verify_passphrase
-from .schemas import MaintenanceBroadcastRequest
+from .schemas import MaintenanceBroadcastRequest, UpdateNoticeBroadcastRequest
 
 # Initialize the product scraper service
 product_scraper = ProductScraper()
@@ -5176,6 +5176,28 @@ def broadcast_maintenance_email(
     return schemas.EmailResponse(
         success=True,
         message=f"Maintenance notice sent to {sent_count} users."
+    )
+
+@app.post("/api/admin/email/broadcast-update", response_model=schemas.EmailResponse)
+def broadcast_update_email(
+    request: UpdateNoticeBroadcastRequest,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Send an update/release notice email to all users (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    email_service = EmailService(db)
+    sent_count = email_service.send_update_notice_to_all_users(
+        version=request.version,
+        changes=request.changes
+    )
+    return schemas.EmailResponse(
+        success=True,
+        message=f"Update notice sent to {sent_count} users."
     )
 
 @app.post("/api/admin/reminders/wishlist-update", response_model=schemas.WishlistReminderBroadcastResponse)

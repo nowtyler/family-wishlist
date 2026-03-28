@@ -309,6 +309,30 @@ class EmailService:
                 sent_count += 1
         return sent_count
 
+    def send_update_notice_to_all_users(self, version: str = None, changes: str = None) -> int:
+        """Send update/release notice email to all users with an email address. Returns number of emails sent."""
+        users = self.db.query(FamilyMember).filter(FamilyMember.email != None).all()
+        if not users:
+            logger.warning("No users with email addresses found for update notice.")
+            return 0
+        template_vars = {
+            "version": version or "latest",
+            "changes": changes or "Various improvements and bug fixes."
+        }
+        sent_count = 0
+        for user in users:
+            vars_for_user = template_vars.copy()
+            vars_for_user["user_name"] = user.name or "User"
+            log = self.send_template_email(
+                "update_notice",
+                user.email,
+                user.name,
+                vars_for_user
+            )
+            if log and getattr(log, 'status', None) == "sent":
+                sent_count += 1
+        return sent_count
+
 def generate_reset_token() -> str:
     """Generate a secure reset token"""
     return ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(32))
@@ -831,6 +855,62 @@ def create_default_templates(db: Session):
                                             </ul>
                                         </div>
                                         <p style="margin:30px 0 0;color:#64748b;font-size:14px;">Thank you for your patience and support!</p>
+                                    </td>
+                                </tr>
+                                <!-- Footer -->
+                                <tr>
+                                    <td style="background-color:#f1f5f9;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">
+                                        <p style="margin:0;color:#64748b;font-size:14px;">
+                                            &copy; {{copyright_year}} Family Wishlist. All rights reserved.
+                                        </p>
+                                        <p style="margin:10px 0 0;color:#94a3b8;font-size:12px;">
+                                            This is an automated message, please do not reply.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+            </body>
+            </html>
+            """
+        },
+        {
+            "name": "update_notice",
+            "subject": "Family Wishlist Update — What's New",
+            "body": """
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Update Notice</title>
+            </head>
+            <body style="margin:0;padding:0;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#f5f7fa;color:#333333;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f5f7fa;">
+                    <tr>
+                        <td align="center" style="padding:40px 0;">
+                            <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1);max-width:90%;">
+                                <!-- Header -->
+                                <tr>
+                                    <td style="background:linear-gradient(to right, #0ea5e9, #6366f1);padding:30px 40px;text-align:center;">
+                                        <h1 style="color:#ffffff;margin:0;font-weight:700;font-size:28px;">Family Wishlist</h1>
+                                        <p style="color:#e0f2fe;margin:10px 0 0;font-size:16px;">New Update Available</p>
+                                    </td>
+                                </tr>
+                                <!-- Content -->
+                                <tr>
+                                    <td style="padding:40px;">
+                                        <h2 style="margin:0 0 15px;color:#334155;font-size:24px;font-weight:600;">Hey {{user_name}}!</h2>
+                                        <p style="margin:0 0 25px;color:#64748b;font-size:16px;line-height:1.6;">
+                                            Family Wishlist has been updated to version <b>{{version}}</b> with new features and improvements!
+                                        </p>
+                                        <div style="background-color:#ecfdf5;border:1px solid #a7f3d0;border-radius:6px;padding:15px;margin:25px 0;text-align:left;">
+                                            <h4 style="margin:0 0 10px;color:#047857;font-size:16px;">What's New:</h4>
+                                            <p style="margin:0;color:#334155;font-size:14px;line-height:1.6;white-space:pre-line;">{{changes}}</p>
+                                        </div>
+                                        <p style="margin:30px 0 0;color:#64748b;font-size:14px;">Enjoy the new features!</p>
                                     </td>
                                 </tr>
                                 <!-- Footer -->
