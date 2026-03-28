@@ -5256,9 +5256,38 @@ def broadcast_update_email(
     if not user or not user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     email_service = EmailService(db)
+    if request.send_test_to_admin:
+        if not user.email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Your admin account does not have an email address configured."
+            )
+        log = email_service.send_update_notice_to_user(
+            user=user,
+            version=request.version,
+            changes=request.changes,
+            headline=request.headline,
+            intro=request.intro,
+            highlights=request.highlights,
+            closing=request.closing
+        )
+        if not log or getattr(log, "status", None) != "sent":
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to send test update email."
+            )
+        return schemas.EmailResponse(
+            success=True,
+            message=f"Test update email sent to {user.email}."
+        )
+
     sent_count = email_service.send_update_notice_to_all_users(
         version=request.version,
-        changes=request.changes
+        changes=request.changes,
+        headline=request.headline,
+        intro=request.intro,
+        highlights=request.highlights,
+        closing=request.closing
     )
     return schemas.EmailResponse(
         success=True,

@@ -639,6 +639,11 @@ class MaintenanceBroadcastRequest(BaseModel):
 class UpdateNoticeBroadcastRequest(BaseModel):
     version: Optional[str] = None
     changes: Optional[str] = None
+    headline: Optional[str] = None
+    intro: Optional[str] = None
+    highlights: Optional[List[str]] = None
+    closing: Optional[str] = None
+    send_test_to_admin: bool = False
 
 class WishlistReminderBroadcastResponse(BaseModel):
     success: bool

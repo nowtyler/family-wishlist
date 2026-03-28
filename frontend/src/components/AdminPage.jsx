@@ -150,31 +150,49 @@ MaintenanceNoticeBroadcaster.displayName = 'MaintenanceNoticeBroadcaster';
 const UpdateNoticeBroadcaster = memo((props) => {
   const { isBroadcasting, setIsBroadcasting } = props;
   const [version, setVersion] = useState('');
-  const [changes, setChanges] = useState('');
+  const [headline, setHeadline] = useState('');
+  const [intro, setIntro] = useState('');
+  const [highlights, setHighlights] = useState('');
+  const [closing, setClosing] = useState('');
 
-  const handleBroadcastUpdateNotice = useCallback(async () => {
+  const handleBroadcastUpdateNotice = useCallback(async (sendTestToAdmin = false) => {
     if (isBroadcasting) return;
-    if (!version.trim() || !changes.trim()) {
-      toast.error("Please fill out both the version and what's new.");
+    if (!version.trim() || !headline.trim() || !intro.trim() || !highlights.trim()) {
+      toast.error("Please fill out the version, headline, intro, and highlights.");
       return;
     }
 
+    const parsedHighlights = highlights
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
     setIsBroadcasting(true);
     try {
-      const response = await broadcastUpdateNotice(
-        version.trim(),
-        changes.trim()
-      );
+      const response = await broadcastUpdateNotice({
+        version: version.trim(),
+        headline: headline.trim(),
+        intro: intro.trim(),
+        highlights: parsedHighlights,
+        closing: closing.trim() || undefined,
+        changes: parsedHighlights.join('\n'),
+        send_test_to_admin: sendTestToAdmin
+      });
       toast.success(response.data?.message || "Update notice sent successfully!");
-      setVersion('');
-      setChanges('');
+      if (!sendTestToAdmin) {
+        setVersion('');
+        setHeadline('');
+        setIntro('');
+        setHighlights('');
+        setClosing('');
+      }
     } catch (err) {
       console.error("Broadcast failed:", err);
       toast.error(err.response?.data?.detail || "Failed to send update notice.");
     } finally {
       setIsBroadcasting(false);
     }
-  }, [version, changes, isBroadcasting, setIsBroadcasting]);
+  }, [version, headline, intro, highlights, closing, isBroadcasting, setIsBroadcasting]);
 
   return (
     <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
@@ -189,34 +207,78 @@ const UpdateNoticeBroadcaster = memo((props) => {
           disabled={isBroadcasting}
         />
         <textarea
-          value={changes}
-          onChange={(e) => setChanges(e.target.value)}
-          placeholder="What's new? (e.g. Added shopping cart, improved search...)"
+          value={headline}
+          onChange={(e) => setHeadline(e.target.value)}
+          placeholder="Headline (e.g. A big Family Wishlist update is here)"
+          rows={2}
+          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-vertical"
+          disabled={isBroadcasting}
+        />
+        <textarea
+          value={intro}
+          onChange={(e) => setIntro(e.target.value)}
+          placeholder="Intro paragraph for the email hero section"
           rows={3}
           className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-vertical"
           disabled={isBroadcasting}
         />
+        <textarea
+          value={highlights}
+          onChange={(e) => setHighlights(e.target.value)}
+          placeholder={"Highlights, one per line\n- New bottom navigation for easier mobile use\n- Shared wishlists with co-owner tools\n- Shopping cart and reminders"}
+          rows={3}
+          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-vertical"
+          disabled={isBroadcasting}
+        />
+        <textarea
+          value={closing}
+          onChange={(e) => setClosing(e.target.value)}
+          placeholder="Optional closing note about what users will notice right away"
+          rows={2}
+          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-vertical"
+          disabled={isBroadcasting}
+        />
       </div>
-      <button
-        type="button"
-        onClick={handleBroadcastUpdateNotice}
-        className="flex items-center px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors text-sm font-medium w-fit"
-        disabled={isBroadcasting}
-      >
-        {isBroadcasting ? (
-          <>
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-            Sending...
-          </>
-        ) : (
-          <>
-            <Send className="w-4 h-4 mr-1" />
-            Send Update Notice
-          </>
-        )}
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => handleBroadcastUpdateNotice(true)}
+          className="flex items-center px-3 py-1.5 bg-slate-600 hover:bg-slate-700 text-white rounded transition-colors text-sm font-medium"
+          disabled={isBroadcasting}
+        >
+          {isBroadcasting ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+              Sending...
+            </>
+          ) : (
+            <>
+              <TestTube className="w-4 h-4 mr-1" />
+              Send Test To Admin
+            </>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => handleBroadcastUpdateNotice(false)}
+          className="flex items-center px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors text-sm font-medium"
+          disabled={isBroadcasting}
+        >
+          {isBroadcasting ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+              Sending...
+            </>
+          ) : (
+            <>
+              <Send className="w-4 h-4 mr-1" />
+              Send Update Notice
+            </>
+          )}
+        </button>
+      </div>
       <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-        This will send the update notice template to all users announcing a new release.
+        Send a test to the current admin email first to verify formatting, then send the polished release-update template to everyone.
       </p>
     </div>
   );
