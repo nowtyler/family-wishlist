@@ -1910,37 +1910,67 @@ def get_shared_wishlists(
         wishlists = crud.get_all_shared_wishlists(db, user_id=None)
     else:
         wishlists = crud.get_all_shared_wishlists(db, user_id=current_user_id)
+    if not wishlists:
+        return []
+
+    wishlist_ids = [w.id for w in wishlists]
+
+    # Batch load item counts
+    item_counts_q = db.query(
+        models.SharedWishlistItem.wishlist_id,
+        func.count(models.SharedWishlistItem.id)
+    ).filter(
+        models.SharedWishlistItem.wishlist_id.in_(wishlist_ids)
+    ).group_by(models.SharedWishlistItem.wishlist_id).all()
+    item_counts = dict(item_counts_q)
+
+    # Batch load external wishlist counts
+    ext_counts_q = db.query(
+        models.ExternalWishlist.shared_wishlist_id,
+        func.count(models.ExternalWishlist.id)
+    ).filter(
+        models.ExternalWishlist.shared_wishlist_id.in_(wishlist_ids)
+    ).group_by(models.ExternalWishlist.shared_wishlist_id).all()
+    ext_counts = dict(ext_counts_q)
+
+    # Batch load owners
+    owners_q = db.query(
+        models.shared_wishlist_owners.c.wishlist_id,
+        models.FamilyMember
+    ).join(
+        models.FamilyMember,
+        models.FamilyMember.id == models.shared_wishlist_owners.c.user_id
+    ).filter(
+        models.shared_wishlist_owners.c.wishlist_id.in_(wishlist_ids)
+    ).all()
+    owners_map = {}
+    for wid, owner in owners_q:
+        owners_map.setdefault(wid, []).append(owner)
+
+    # Batch load households
+    household_ids = [w.household_id for w in wishlists if w.household_id]
+    households_map = {}
+    if household_ids:
+        households = db.query(models.Household).filter(models.Household.id.in_(household_ids)).all()
+        households_map = {h.id: h.name for h in households}
+
     result = []
     for wishlist in wishlists:
-        owners = crud.get_shared_wishlist_owners(db, wishlist.id)
-        item_count = db.query(models.SharedWishlistItem).filter(
-            models.SharedWishlistItem.wishlist_id == wishlist.id
-        ).count()
-        ext_wishlist_count = db.query(models.ExternalWishlist).filter(
-            models.ExternalWishlist.shared_wishlist_id == wishlist.id
-        ).count()
-
-        # Get household name if household_id is set
-        household_name = None
-        if wishlist.household_id:
-            household = db.query(models.Household).filter(models.Household.id == wishlist.household_id).first()
-            if household:
-                household_name = household.name
-
+        owners = owners_map.get(wishlist.id, [])
         result.append(schemas.SharedWishlist(
             id=wishlist.id,
             name=wishlist.name,
             description=wishlist.description,
             household_id=wishlist.household_id,
-            household_name=household_name,
+            household_name=households_map.get(wishlist.household_id),
             occasion_date=wishlist.occasion_date,
             occasion_type=wishlist.occasion_type,
             wishlist_type=wishlist.wishlist_type or "normal",
             created_at=wishlist.created_at,
             created_by=wishlist.created_by,
             owner_count=len(owners),
-            item_count=item_count,
-            external_wishlist_count=ext_wishlist_count,
+            item_count=item_counts.get(wishlist.id, 0),
+            external_wishlist_count=ext_counts.get(wishlist.id, 0),
             owners=[schemas.SharedWishlistOwner(
                 id=o.id,
                 name=o.name,

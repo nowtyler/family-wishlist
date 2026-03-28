@@ -1,5 +1,5 @@
 // frontend/src/App.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppProvider, useAppContext } from './contexts/AppContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -8,13 +8,14 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import AuthScreen from './components/AuthScreen';
 import DashboardScreen from './components/DashboardScreen';
-import PasswordResetScreen from './components/PasswordResetScreen';
-import AdminPage from './components/AdminPage';
-import FirstTimeSetupScreen from './components/FirstTimeSetupScreen';
-import Navbar from './components/Navbar';
 import ErrorBoundary from './components/ErrorBoundary';
 import { checkSetupStatus } from './services/api';
 import { logEnvironmentVariables } from './debug-env';
+
+// Lazy-load routes that aren't needed on initial page load
+const PasswordResetScreen = lazy(() => import('./components/PasswordResetScreen'));
+const AdminPage = lazy(() => import('./components/AdminPage'));
+const FirstTimeSetupScreen = lazy(() => import('./components/FirstTimeSetupScreen'));
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, selectedUser } = useAppContext();
@@ -161,6 +162,7 @@ const AppContent = () => {
   
   return (
     <>
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="text-gray-600">Loading...</div></div>}>
       <Routes>
         <Route path="/setup" element={<ErrorBoundary name="Setup"><FirstTimeSetupScreen /></ErrorBoundary>} />
         <Route path="/auth" element={<ErrorBoundary name="Login"><AuthScreen /></ErrorBoundary>} />
@@ -186,6 +188,7 @@ const AppContent = () => {
           }
         />
       </Routes>
+      </Suspense>
     </>
   );
 };
