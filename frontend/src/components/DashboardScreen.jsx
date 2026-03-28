@@ -35,6 +35,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { TriangleAlert } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { getPostEventReminderInfo } from '../utils/dateUtils';
+import { log } from '../utils/logger';
 
 const WISHLIST_REMINDER_PREFIX = '[WISHLIST_UPDATE_REMINDER]';
 
@@ -450,7 +451,7 @@ const DashboardScreen = (props = {}) => {
       // Find the current viewing member in the fresh family members data
       const freshMemberData = familyMembers.find(m => m.id === viewingMember.id);
       if (freshMemberData && JSON.stringify(freshMemberData) !== JSON.stringify(viewingMember)) {
-        console.log('Updating viewingMember with fresh data from familyMembers');
+        log('Updating viewingMember with fresh data from familyMembers');
         setViewingMember(freshMemberData);
       }
     }
@@ -512,13 +513,13 @@ const DashboardScreen = (props = {}) => {
     // Prevent too frequent refreshes unless forced
     const now = Date.now();
     if (!force && now - lastRefreshTimestamp < minRefreshInterval) {
-      console.log('Refresh throttled. Try again in a moment.');
+      log('Refresh throttled. Try again in a moment.');
       return;
     }
 
     // For member changes, allow overriding the concurrent fetch check
     if (!force && isFetchingInProgress) {
-      console.log('Fetch already in progress. Skipping redundant refresh.');
+      log('Fetch already in progress. Skipping redundant refresh.');
       return;
     }
 

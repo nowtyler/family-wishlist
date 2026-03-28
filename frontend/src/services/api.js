@@ -1,13 +1,14 @@
 // frontend/src/services/api.js
 import axios from 'axios';
+import { log } from '../utils/logger';
 
 // Fix the API base URL handling - use relative URL instead of absolute URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 // Add clearer debugging for API client creation
-console.log('Environment:', import.meta.env.MODE);
-console.log('API Base URL from env:', import.meta.env.VITE_API_BASE_URL);
-console.log('API Base URL used:', API_BASE_URL);
+log('Environment:', import.meta.env.MODE);
+log('API Base URL from env:', import.meta.env.VITE_API_BASE_URL);
+log('API Base URL used:', API_BASE_URL);
 
 const apiClient = axios.create({
     baseURL: API_BASE_URL,
@@ -30,7 +31,7 @@ apiClient.interceptors.request.use(
             ? `${config.baseURL}${config.url.substring(1)}` 
             : `${config.baseURL}${config.url}`;
             
-        console.log('API Request:', {
+        log('API Request:', {
             method: config.method?.toUpperCase(),
             url: config.url,
             resolvedUrl: fullUrl, // Changed to be more descriptive
@@ -50,7 +51,7 @@ let rateLimitRetries = {};
 
 apiClient.interceptors.response.use(
   (response) => {
-    console.log('API Response:', response.status, response.data);
+    log('API Response:', response.status, response.data);
     return response;
   },
   async (error) => {
@@ -79,7 +80,7 @@ apiClient.interceptors.response.use(
       // Max 3 retries with exponential backoff
       if (rateLimitRetries[requestId] <= 3) {
         const retryDelay = Math.pow(2, rateLimitRetries[requestId]) * 1000; // Exponential backoff
-        console.log(`Rate limited. Retrying in ${retryDelay/1000} seconds...`);
+        log(`Rate limited. Retrying in ${retryDelay/1000} seconds...`);
         
         // Wait for the delay time
         await new Promise(resolve => setTimeout(resolve, retryDelay));
@@ -136,10 +137,10 @@ export const logoutUser = async (username) => {
 // --- Auth ---
 export const verifyPassword = async (password) => {
     try {
-        console.log('Attempting password verification...');
+        log('Attempting password verification...');
         // Fix the endpoint path - should be consistent with backend
         const response = await apiClient.post('/auth/verify-password', { password });
-        console.log('Verification response:', response);
+        log('Verification response:', response);
         return response;
     } catch (error) {
         console.error('Detailed error:', {
@@ -155,13 +156,8 @@ export const verifyPassword = async (password) => {
 // New function to get complete user data including preferences
 export const getUserProfile = async (userId) => {
   try {
-    // Use a fresh request with cache busting to ensure we get the latest data
-    const response = await apiClient.get(`/family-members/${userId}`, {
-      params: {
-        _t: new Date().getTime()
-      }
-    });
-    console.log('Got user profile with complete preferences:', response.data);
+    const response = await apiClient.get(`/family-members/${userId}`);
+    log('Got user profile with complete preferences:', response.data);
     return response;
   } catch (error) {
     console.error('Failed to get user profile:', error);
@@ -277,11 +273,7 @@ export const regenerateRecoveryPassphrase = async (currentPassword) => {
 
 // --- Family Members ---
 export const getFamilyMembers = () => {
-  return apiClient.get('/family-members', {
-    params: {
-      _t: new Date().getTime() // Add cache-busting timestamp for fresh data
-    }
-  });
+  return apiClient.get('/family-members');
 };
 
 export const updateFamilyMemberPreferences = (memberId, preferences) => {
@@ -333,16 +325,12 @@ export const updateUserProfile = (memberId, userData) => {
  * @returns {Promise} API response with wishlist items
  */
 export const getWishlistItems = (ownerId) => {
-  return apiClient.get(`/members/${ownerId}/items`, {
-    params: {
-      _t: new Date().getTime() // Add cache-busting timestamp for fresh data
-    }
-  });
+  return apiClient.get(`/members/${ownerId}/items`);
 };
 
 export const createWishlistItem = async (ownerId, itemData) => {
   try {
-    console.log('Creating wishlist item:', { ownerId, itemData });
+    log('Creating wishlist item:', { ownerId, itemData });
     const cleanData = {
       ...itemData,
       link: itemData.link || null,
@@ -350,9 +338,9 @@ export const createWishlistItem = async (ownerId, itemData) => {
       description: itemData.description || null,
       price: itemData.price ? parseFloat(itemData.price) : null  // Backend will convert to cents
     };
-    console.log('Sending data to API:', cleanData);
+    log('Sending data to API:', cleanData);
     const response = await apiClient.post(`/members/${ownerId}/items`, cleanData);
-    console.log('Create item response:', response.data);
+    log('Create item response:', response.data);
     return response;
   } catch (error) {
     console.error('Failed to create item:', error?.response?.data || error);
@@ -362,7 +350,7 @@ export const createWishlistItem = async (ownerId, itemData) => {
 
 export const updateWishlistItem = async (itemId, itemData) => {
   try {
-    console.log('Updating wishlist item:', { itemId, itemData });
+    log('Updating wishlist item:', { itemId, itemData });
     const cleanData = {
       ...itemData,
       link: itemData.link || null,
@@ -372,9 +360,9 @@ export const updateWishlistItem = async (itemId, itemData) => {
       price: itemData.price !== null && itemData.price !== undefined && itemData.price !== '' ? 
         parseFloat(itemData.price) : null  // Backend will convert to cents
     };
-    console.log('Sending data to API:', cleanData);
+    log('Sending data to API:', cleanData);
     const response = await apiClient.put(`/items/${itemId}`, cleanData);
-    console.log('Update response:', response.data);
+    log('Update response:', response.data);
     return response;
   } catch (error) {
     console.error('Failed to update item:', error?.response?.data || error);
@@ -388,9 +376,9 @@ export const deleteWishlistItem = (itemId) => {
 
 export const exportWishlist = async (ownerId) => {
   try {
-    console.log('Exporting wishlist for owner:', ownerId);
+    log('Exporting wishlist for owner:', ownerId);
     const response = await apiClient.get(`/members/${ownerId}/export`);
-    console.log('Export response:', response.data);
+    log('Export response:', response.data);
     return response;
   } catch (error) {
     console.error('Failed to export wishlist:', error?.response?.data || error);
@@ -400,9 +388,9 @@ export const exportWishlist = async (ownerId) => {
 
 export const importWishlist = async (ownerId, wishlistData) => {
   try {
-    console.log('Importing wishlist for owner:', ownerId);
+    log('Importing wishlist for owner:', ownerId);
     const response = await apiClient.post(`/members/${ownerId}/import`, wishlistData);
-    console.log('Import response:', response.data);
+    log('Import response:', response.data);
     return response;
   } catch (error) {
     console.error('Failed to import wishlist:', error?.response?.data || error);
@@ -413,7 +401,7 @@ export const importWishlist = async (ownerId, wishlistData) => {
 export const toggleThinkingAbout = async (itemId) => {
   try {
     const response = await apiClient.patch(`/items/${itemId}/toggle-thinking`);
-    console.log('Toggle thinking_about response:', response.data);
+    log('Toggle thinking_about response:', response.data);
     return response;
   } catch (error) {
     console.error('Failed to toggle thinking_about status:', error?.response?.data || error);
@@ -424,7 +412,7 @@ export const toggleThinkingAbout = async (itemId) => {
 export const markPurchased = async (itemId) => {
   try {
     const response = await apiClient.patch(`/items/${itemId}/toggle-purchased`);
-    console.log('Toggle purchased response:', response.data);
+    log('Toggle purchased response:', response.data);
     return response;
   } catch (error) {
     console.error('Failed to toggle purchase status:', error?.response?.data || error);
@@ -459,11 +447,11 @@ export const getSystemVersion = () => {
 };
 
 export const updateSystemVersion = (version) => {
-  console.log('Updating system version to:', version);
-  console.log('Current headers:', apiClient.defaults.headers);
+  log('Updating system version to:', version);
+  log('Current headers:', apiClient.defaults.headers);
   
   const userId = apiClient.defaults.headers.common['X-Current-User-Id'];
-  console.log('Current user ID from header:', userId);
+  log('Current user ID from header:', userId);
   
   return apiClient.put('/system/version', { version });
 };
@@ -626,9 +614,9 @@ export const getSchemaHash = () => {
 // --- URL Import ---
 export const fetchProductDetailsFromUrl = async (url) => {
   try {
-    console.log('Fetching product details from URL:', url);
+    log('Fetching product details from URL:', url);
     const response = await apiClient.post('/items/fetch-url-details', { url });
-    console.log('Product details response:', response.data);
+    log('Product details response:', response.data);
     
     // We always return the response data, even if it contains an error
     // This allows the UI to handle the error in a user-friendly way
@@ -648,9 +636,9 @@ export const fetchProductDetailsFromUrl = async (url) => {
 // --- External Wishlist Import ---
 export const importExternalWishlist = async (url) => {
   try {
-    console.log('Importing external wishlist:', url);
+    log('Importing external wishlist:', url);
     const response = await apiClient.post('/wishlists/import', { url });
-    console.log('Import response:', response.data);
+    log('Import response:', response.data);
     return response;
   } catch (error) {
     console.error('Failed to import wishlist:', error?.response?.data || error);
@@ -661,7 +649,7 @@ export const importExternalWishlist = async (url) => {
 export const syncExternalWishlist = async (url, ownerId, options = {}) => {
   try {
     const { addNewItems = true, removeMissingItems = false, defaultPriority = 1 } = options;
-    console.log('Syncing external wishlist:', { url, ownerId, addNewItems, removeMissingItems, defaultPriority });
+    log('Syncing external wishlist:', { url, ownerId, addNewItems, removeMissingItems, defaultPriority });
     
     const response = await apiClient.post('/wishlists/sync', { 
       url, 
@@ -671,7 +659,7 @@ export const syncExternalWishlist = async (url, ownerId, options = {}) => {
       default_priority: defaultPriority
     });
     
-    console.log('Sync response:', response.data);
+    log('Sync response:', response.data);
     return response;
   } catch (error) {
     console.error('Failed to sync wishlist:', error?.response?.data || error);
@@ -710,7 +698,6 @@ export const getShoppingCartItems = (buyerId) => {
   return apiClient.get('/shopping-cart', {
     params: {
       buyer_id: buyerId,
-      _t: new Date().getTime(),
     },
   });
 };
@@ -1047,9 +1034,9 @@ export const addShoppingCartItemFromSharedWishlistItem = async (itemId, sharedWi
 // Export shared wishlist
 export const exportSharedWishlist = async (wishlistId) => {
   try {
-    console.log('Exporting shared wishlist:', wishlistId);
+    log('Exporting shared wishlist:', wishlistId);
     const response = await apiClient.get(`/shared-wishlists/${wishlistId}/export`);
-    console.log('Export response:', response.data);
+    log('Export response:', response.data);
     return response;
   } catch (error) {
     console.error('Failed to export shared wishlist:', error?.response?.data || error);
@@ -1060,9 +1047,9 @@ export const exportSharedWishlist = async (wishlistId) => {
 // Import shared wishlist
 export const importSharedWishlist = async (wishlistId, wishlistData) => {
   try {
-    console.log('Importing shared wishlist:', wishlistId);
+    log('Importing shared wishlist:', wishlistId);
     const response = await apiClient.post(`/shared-wishlists/${wishlistId}/import`, wishlistData);
-    console.log('Import response:', response.data);
+    log('Import response:', response.data);
     return response;
   } catch (error) {
     console.error('Failed to import shared wishlist:', error?.response?.data || error);

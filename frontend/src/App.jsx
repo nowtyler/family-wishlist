@@ -12,6 +12,7 @@ import PasswordResetScreen from './components/PasswordResetScreen';
 import AdminPage from './components/AdminPage';
 import FirstTimeSetupScreen from './components/FirstTimeSetupScreen';
 import Navbar from './components/Navbar';
+import ErrorBoundary from './components/ErrorBoundary';
 import { checkSetupStatus } from './services/api';
 import { logEnvironmentVariables } from './debug-env';
 
@@ -161,14 +162,16 @@ const AppContent = () => {
   return (
     <>
       <Routes>
-        <Route path="/setup" element={<FirstTimeSetupScreen />} />
-        <Route path="/auth" element={<AuthScreen />} />
-        <Route path="/reset-password/:token" element={<PasswordResetScreen />} />
+        <Route path="/setup" element={<ErrorBoundary name="Setup"><FirstTimeSetupScreen /></ErrorBoundary>} />
+        <Route path="/auth" element={<ErrorBoundary name="Login"><AuthScreen /></ErrorBoundary>} />
+        <Route path="/reset-password/:token" element={<ErrorBoundary name="Password Reset"><PasswordResetScreen /></ErrorBoundary>} />
         <Route
           path="/admin/*"
           element={
             <AdminRoute>
-              <AdminPage />
+              <ErrorBoundary name="Admin">
+                <AdminPage />
+              </ErrorBoundary>
             </AdminRoute>
           }
         />
@@ -176,7 +179,9 @@ const AppContent = () => {
           path="/"
           element={
             <ProtectedRoute>
-              <DashboardScreen />
+              <ErrorBoundary name="Dashboard">
+                <DashboardScreen />
+              </ErrorBoundary>
             </ProtectedRoute>
           }
         />

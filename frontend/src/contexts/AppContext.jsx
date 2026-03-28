@@ -1,6 +1,7 @@
 // frontend/src/contexts/AppContext.jsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { setCurrentUserHeader, getFamilyMembers, clearApiCache, logoutUser, getUserProfile } from '../services/api';
+import { log } from '../utils/logger';
 
 const AppContext = createContext(null);
 
@@ -62,10 +63,10 @@ export const AppProvider = ({ children }) => {
     const refreshUserProfileOnMount = async () => {
       if (isAuthenticated && selectedUser?.id) {
         try {
-          console.log('AppContext: Refreshing user profile from API on mount...');
+          log('AppContext: Refreshing user profile from API on mount...');
           const response = await getUserProfile(selectedUser.id);
           if (response.data) {
-            console.log('AppContext: User profile refreshed, first_login:', response.data.first_login);
+            log('AppContext: User profile refreshed, first_login:', response.data.first_login);
             // Update selectedUser with fresh data from API
             setSelectedUser(response.data);
           }

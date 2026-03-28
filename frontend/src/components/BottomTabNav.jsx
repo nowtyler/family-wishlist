@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Home, Users, Plus, ShoppingCart, MoreHorizontal, Link2, User, X, ChevronRight } from 'lucide-react';
 import { useTutorial } from '../contexts/TutorialContext';
@@ -131,15 +131,17 @@ const BottomTabNav = ({
   }, [showBrowseSheet, showMoreSheet]);
 
   // Filter shared wishlists that the current user owns
-  const ownedSharedWishlists = sharedWishlists.filter(wishlist =>
-    wishlist.owners && wishlist.owners.some(owner => owner.id === selectedUser?.id)
-  );
+  const ownedSharedWishlists = useMemo(() =>
+    sharedWishlists.filter(wishlist =>
+      wishlist.owners && wishlist.owners.some(owner => owner.id === selectedUser?.id)
+    ), [sharedWishlists, selectedUser?.id]);
 
   // Get non-admin family members
-  const browsableMembers = familyMembers.filter(m => !m.is_admin);
+  const browsableMembers = useMemo(() =>
+    familyMembers.filter(m => !m.is_admin), [familyMembers]);
 
   // Unified browse list
-  const unifiedBrowseList = [
+  const unifiedBrowseList = useMemo(() => [
     ...browsableMembers.map(member => ({
       type: 'member',
       id: member.id,
@@ -154,7 +156,7 @@ const BottomTabNav = ({
       itemCount: wishlist.item_count || wishlist.items?.length || 0,
       data: wishlist
     }))
-  ].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  ].sort((a, b) => (a.name || '').localeCompare(b.name || '')), [browsableMembers, sharedWishlists]);
 
   // Color palette for member avatars
   const memberColors = [

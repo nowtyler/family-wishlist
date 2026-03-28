@@ -60,9 +60,6 @@ frontend/node_modules/
 *.sublime-workspace
 *.sublime-project
 
-# Docker related
-.dockerignore
-
 # Logs
 logs/
 *.log

@@ -7,6 +7,7 @@ import UserHouseholdManager from './UserHouseholdManager';
 import { validatePassword, validatePasswordMatch } from '../utils/passwordValidation';
 import { toast } from 'react-toastify';
 import TurnstileWidget from './TurnstileWidget';
+import { log } from '../utils/logger';
 
 const AuthScreen = () => {
   const navigate = useNavigate();
@@ -127,7 +128,7 @@ const AuthScreen = () => {
           setSelectedUser(userData);
 
           // Log the navigation attempt
-          console.log('Login successful, user data:', {
+          log('Login successful, user data:', {
             is_admin: userData.is_admin,
             tutorial_status: userData.tutorial_status,
             first_login: userData.first_login,
@@ -140,11 +141,11 @@ const AuthScreen = () => {
 
           // Show household setup only for truly new, non-admin users without a household.
           if (userData.tutorial_status === "new" && !hasHousehold && !userData.is_admin) {
-            console.log('New user without household detected, showing household setup modal');
+            log('New user without household detected, showing household setup modal');
             setShowHouseholdSetup(true);
           } else {
             // Redirect admin users to admin page, others to main dashboard
-            console.log('Navigating to:', userData.is_admin ? '/admin' : '/');
+            log('Navigating to:', userData.is_admin ? '/admin' : '/');
             if (userData.is_admin) {
               navigate('/admin');
             } else {

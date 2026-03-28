@@ -298,29 +298,55 @@ def read_family_members(
             # Fallback: only show current user
             members = [current_user]
     
+    member_ids = [m.id for m in members]
+
+    # Batch query: wishlist item counts per member
+    item_counts = dict(
+        db.query(models.WishlistItem.owner_id, func.count(models.WishlistItem.id))
+        .filter(models.WishlistItem.owner_id.in_(member_ids))
+        .group_by(models.WishlistItem.owner_id)
+        .all()
+    )
+
+    # Batch query: household counts per member
+    household_counts = dict(
+        db.query(
+            models.user_household_association.c.user_id,
+            func.count(models.user_household_association.c.household_id)
+        )
+        .filter(models.user_household_association.c.user_id.in_(member_ids))
+        .group_by(models.user_household_association.c.user_id)
+        .all()
+    )
+
+    # Batch query: external wishlist counts per member
+    ext_counts = dict(
+        db.query(models.ExternalWishlist.owner_id, func.count(models.ExternalWishlist.id))
+        .filter(models.ExternalWishlist.owner_id.in_(member_ids))
+        .group_by(models.ExternalWishlist.owner_id)
+        .all()
+    )
+
+    # Batch query: household details per member (active only)
+    household_rows = (
+        db.query(
+            models.user_household_association.c.user_id,
+            models.Household.id,
+            models.Household.name
+        )
+        .join(models.Household, models.Household.id == models.user_household_association.c.household_id)
+        .filter(
+            models.user_household_association.c.user_id.in_(member_ids),
+            models.user_household_association.c.status == 'active'
+        )
+        .all()
+    )
+    households_by_member = {}
+    for user_id, h_id, h_name in household_rows:
+        households_by_member.setdefault(user_id, []).append({"id": h_id, "name": h_name})
+
     members_with_counts = []
     for member in members:
-        count = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == member.id).count()
-        # Get household count for this member
-        household_count = db.query(models.user_household_association).filter(
-            models.user_household_association.c.user_id == member.id
-        ).count()
-        # Get external wishlist count for this member
-        external_wishlist_count = db.query(models.ExternalWishlist).filter(
-            models.ExternalWishlist.owner_id == member.id
-        ).count()
-        # Get household details for this member
-        member_households = db.query(models.Household).join(
-            models.user_household_association,
-            models.Household.id == models.user_household_association.c.household_id
-        ).filter(
-            models.user_household_association.c.user_id == member.id,
-            models.user_household_association.c.status == 'active'
-        ).all()
-
-        households_data = [{"id": h.id, "name": h.name} for h in member_households]
-
-        # Build member dict manually to avoid ORM relationship serialization issues
         member_dict = {
             "id": member.id,
             "name": member.name,
@@ -331,10 +357,10 @@ def read_family_members(
             "email": member.email,
             "force_password_change": member.force_password_change,
             "first_login": member.first_login,
-            "wishlist_item_count": count,
-            "external_wishlist_count": external_wishlist_count,
-            "household_count": household_count,
-            "households": households_data
+            "wishlist_item_count": item_counts.get(member.id, 0),
+            "external_wishlist_count": ext_counts.get(member.id, 0),
+            "household_count": household_counts.get(member.id, 0),
+            "households": households_by_member.get(member.id, [])
         }
         member_schema = schemas.FamilyMember.model_validate(member_dict)
         members_with_counts.append(member_schema)
@@ -697,18 +723,21 @@ def create_item_for_member(
 @app.get("/api/members/{owner_id}/items", response_model=List[schemas.WishlistItem])
 def read_items_for_member(
     owner_id: int,
+    skip: int = Query(0, ge=0, description="Number of items to skip"),
+    limit: int = Query(200, ge=1, le=500, description="Maximum number of items to return"),
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id_from_header) # Who is viewing
 ):
     if current_user_id is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current user context (X-Current-User-Id header) is required.")
-    
+
     db_member = crud.get_family_member(db, member_id=owner_id)
     if not db_member:
         raise HTTPException(status_code=404, detail="Family member not found")
-    
+
     # crud function handles hiding purchased items from owner and comments
-    return crud.get_wishlist_items_by_owner(db, owner_id=owner_id, current_user_id=current_user_id)
+    items = crud.get_wishlist_items_by_owner(db, owner_id=owner_id, current_user_id=current_user_id)
+    return items[skip:skip + limit]
 
 @app.put("/api/items/{item_id}", response_model=schemas.WishlistItem)
 def update_item(
@@ -725,7 +754,7 @@ def update_item(
         raise HTTPException(status_code=404, detail="Item not found")
 
     # Log the raw update data for debugging
-    logger.info(f"Update data received: {item_update.dict()}")
+    logger.debug(f"Update data received: {item_update.dict()}")
     
     # Process the update data - similar to create logic
     update_data = item_update.dict(exclude_unset=True)
@@ -735,7 +764,7 @@ def update_item(
         try:
             # Store price in cents as integer
             update_data['price'] = int(float(update_data['price']) * 100)
-            logger.info(f"Processed price: {update_data['price']} cents")
+            logger.debug(f"Processed price: {update_data['price']} cents")
         except (ValueError, TypeError) as e:
             logger.error(f"Price conversion error: {e}")
             raise HTTPException(status_code=400, detail=f"Invalid price format: {str(e)}")
@@ -1509,7 +1538,7 @@ async def first_time_setup(
         setup_status = await check_setup_status(db)
         if setup_status["is_setup_complete"]:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=status.HTTP_410_GONE,
                 detail="System is already set up"
             )
         
@@ -1553,7 +1582,7 @@ async def first_time_setup(
         logger.error(f"First-time setup error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail="An error occurred during system setup"
         )
 
 
@@ -1865,6 +1894,8 @@ def create_shared_wishlist_external_wishlist(
 @app.get("/api/shared-wishlists", response_model=List[schemas.SharedWishlist])
 def get_shared_wishlists(
     include_all: bool = Query(False),
+    skip: int = Query(0, ge=0, description="Number of wishlists to skip"),
+    limit: int = Query(100, ge=1, le=200, description="Maximum number of wishlists to return"),
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id_from_header)
 ):
@@ -1916,7 +1947,7 @@ def get_shared_wishlists(
                 username=o.username
             ) for o in owners]
         ))
-    return result
+    return result[skip:skip + limit]
 
 
 @app.post("/api/shared-wishlists", response_model=schemas.SharedWishlist, status_code=status.HTTP_201_CREATED)

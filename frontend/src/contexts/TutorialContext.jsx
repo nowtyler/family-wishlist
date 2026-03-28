@@ -12,6 +12,7 @@ import { useTheme } from './ThemeContext';
 import { useAppContext } from './AppContext';
 import { HelpCircle, X, ChevronLeft, ChevronRight, SkipForward } from 'lucide-react';
 import { completeTutorial as completeTutorialAPI, skipTutorial as skipTutorialAPI, resetTutorial as resetTutorialAPI } from '../services/api';
+import { log } from '../utils/logger';
 
 const TutorialContext = createContext(null);
 
@@ -258,7 +259,7 @@ export const TutorialProvider = ({ children }) => {
     }
 
     if (!selectedUser?.id || !shouldShowTutorial || run) {
-      console.log('Tutorial auto-start check:', {
+      log('Tutorial auto-start check:', {
         hasUser: !!selectedUser?.id,
         shouldShow: shouldShowTutorial,
         isRunning: run,
@@ -269,7 +270,7 @@ export const TutorialProvider = ({ children }) => {
 
     // Mark that we've attempted auto-start
     autoStartAttemptedRef.current = true;
-    console.log('Tutorial auto-start: Waiting for DOM to be ready...');
+    log('Tutorial auto-start: Waiting for DOM to be ready...');
 
     // Wait for DOM elements to be ready before starting
     let retries = 0;
@@ -278,10 +279,10 @@ export const TutorialProvider = ({ children }) => {
     const checkDOMReady = () => {
       retries++;
       const fabButton = document.querySelector('#tutorial-fab-button');
-      console.log(`Tutorial DOM check (attempt ${retries}/${maxRetries}):`, { found: !!fabButton });
+      log(`Tutorial DOM check (attempt ${retries}/${maxRetries}):`, { found: !!fabButton });
 
       if (fabButton) {
-        console.log('Tutorial DOM ready! Starting tutorial...');
+        log('Tutorial DOM ready! Starting tutorial...');
         setStepIndex(0);
         setRun(true);
       } else if (retries < maxRetries) {

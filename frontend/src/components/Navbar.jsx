@@ -14,6 +14,7 @@ import MigrationModal from './admin/MigrationModal';
 import FamilyMemberManager from './admin/FamilyMemberManager';
 import UserProfileModal from './UserProfileModal';
 import UserHouseholdManager from './UserHouseholdManager';
+import { log } from '../utils/logger';
 
 const Navbar = ({
   onClearWishlist = () => {},
@@ -106,13 +107,13 @@ const Navbar = ({
   const handleUpdateVersion = async () => {
     try {
       setIsEditingVersion(false); // Hide form immediately for better UX
-      console.log('Updating version to:', newVersion);
-      console.log('Current user:', selectedUser);
+      log('Updating version to:', newVersion);
+      log('Current user:', selectedUser);
       
       const response = await updateSystemVersion(newVersion);
       if (response && response.data) {
         setVersion(response.data.version);
-        console.log('Version updated successfully');
+        log('Version updated successfully');
       } else {
         console.error('Invalid response from server:', response);
         alert('Failed to update version: Invalid server response');
@@ -277,7 +278,7 @@ const Navbar = ({
 
       // Extract response data - handle both direct response and response.data
       const responseData = response.data || response;
-      console.log('Import response data:', responseData);
+      log('Import response data:', responseData);
 
       // Handle response structure
       let imported_items = [];

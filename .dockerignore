@@ -1,0 +1,62 @@
+# Version control
+.git
+.gitignore
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+data/
+data-dev/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
+.venv/
+backend/venv/
+
+# Node.js
+node_modules/
+frontend/node_modules/
+frontend/dist/
+npm-debug.log*
+yarn-debug.log*
+package-lock.json
+yarn.lock
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+*.sublime-workspace
+*.sublime-project
+
+# Documentation and notes
+*.md
+TODO.md
+CLAUDE.md
+
+# Logs
+logs/
+*.log
+
+# Backup files
+*.bak
+*~
+*.orig
+*.backup
+
+# Claude Code
+.claude/
