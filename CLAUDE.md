@@ -176,6 +176,7 @@ Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
 | **Shared Wishlists** | `getSharedWishlists`, `createSharedWishlist`, `updateSharedWishlist`, `deleteSharedWishlist`, `addSharedWishlistOwner`, `removeSharedWishlistOwner`, `exportSharedWishlist`, `importSharedWishlist` |
 | **Shared Items** | `getSharedWishlistItems`, `createSharedWishlistItem`, `updateSharedWishlistItem`, `deleteSharedWishlistItem`, `deleteAllSharedWishlistItems`, `toggleSharedItemThinking`, `toggleSharedItemPurchased` |
 | **Shopping Cart** | `getShoppingCartItems`, `createShoppingCartItem`, `addShoppingCartItemFromWishlistItem`, `addShoppingCartItemFromSharedWishlistItem`, `updateShoppingCartItem`, `deleteShoppingCartItem` |
+| **Reminders** | `sendWishlistReminder`, `sendSharedWishlistOwnerReminder` |
 | **Households** | `getHouseholds`, `createHousehold`, `joinHousehold`, `leaveHousehold`, `setActiveHousehold` |
 | **External Wishlists** | `getExternalWishlists`, `createExternalWishlist`, `updateExternalWishlist`, `deleteExternalWishlist`, `getSharedWishlistExternalWishlists`, `createSharedWishlistExternalWishlist` |
 | **Admin** | Migrations, backups, email settings, system stats, logs, `getRecoveryPassphrase`, `regenerateRecoveryPassphrase` |
@@ -197,6 +198,7 @@ Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
 /api/shared-wishlists/{wishlist_id}/external-wishlists
 /api/shared-wishlists/{wishlist_id}/export
 /api/shared-wishlists/{wishlist_id}/import
+/api/shared-wishlists/{wishlist_id}/send-owner-reminder
 /api/shared-wishlist-items/{item_id}
 /api/shopping-cart/{cart_item_id}
 /api/households/{household_id}

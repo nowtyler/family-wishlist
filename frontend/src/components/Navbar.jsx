@@ -579,7 +579,9 @@ const Navbar = ({
               <div className="flex flex-col items-center">
                 <h2 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white drop-shadow-lg text-center">
                   {selectedSharedWishlist
-                    ? selectedSharedWishlist.name
+                    ? (selectedSharedWishlist.occasion_type === 'birthday'
+                      ? `${selectedSharedWishlist.name}'s Wishlist`
+                      : selectedSharedWishlist.name)
                     : (viewingMember.id === selectedUser.id ? "Your Wishlist" : `${viewingMember.name || ''}'s Wishlist`)}
                 </h2>
                 <div className="hidden sm:flex items-center gap-2 text-gray-600 dark:text-gray-300 text-sm">

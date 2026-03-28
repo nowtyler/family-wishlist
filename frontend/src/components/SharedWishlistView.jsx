@@ -138,7 +138,9 @@ const SharedWishlistView = ({
               <div className="flex items-center gap-2">
                 <Baby className="w-5 h-5 text-fuchsia-500" />
                 <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  {wishlistData?.name || wishlist.name}
+                  {(wishlistData?.occasion_type || wishlist.occasion_type) === 'birthday'
+                    ? `${wishlistData?.name || wishlist.name}'s Wishlist`
+                    : wishlistData?.name || wishlist.name}
                 </h1>
               </div>
               <div className="flex items-center gap-2 mt-1 text-sm text-gray-500 dark:text-gray-400">

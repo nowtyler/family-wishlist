@@ -247,6 +247,12 @@ class ShoppingCartItem(Base):
             return self.shared_wishlist_item.wishlist_id
         return None
 
+    @property
+    def shared_wishlist_owner_ids(self):
+        if self.shared_wishlist_item and self.shared_wishlist_item.wishlist:
+            return [o.id for o in self.shared_wishlist_item.wishlist.owners]
+        return []
+
 class Notification(Base):
     __tablename__ = "notifications"
 

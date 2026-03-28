@@ -12,11 +12,11 @@ const PostEventWishlistReminderModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-end sm:items-center justify-center sm:p-4">
+    <div className="fixed inset-0 z-[130] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onDismiss} />
 
       <div
-        className="relative w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-5 sm:p-6 shadow-2xl"
+        className="relative w-full max-w-lg rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-5 sm:p-6 shadow-2xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="post-event-reminder-title"
@@ -55,7 +55,7 @@ const PostEventWishlistReminderModal = ({
           <button
             type="button"
             onClick={onDismiss}
-            className="px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium transition-colors"
+            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors"
           >
             Got it
           </button>

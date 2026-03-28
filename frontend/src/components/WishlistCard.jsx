@@ -1181,8 +1181,9 @@ const WishlistCard = (props) => {
               animate={{ scale: 1 }}
               exit={{ scale: 0.95 }}
               onClick={handleModalClick}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-4 sm:p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] relative flex flex-col"
             >
+              <div className="overflow-y-auto flex-1 p-4 sm:p-6 pb-0">
               <div className="pr-6 mb-4 w-full">
                 {selectedItem.title.length > MAX_TITLE_DISPLAY_LENGTH && !showFullTitle ? (
                   <div>
@@ -1387,9 +1388,10 @@ const WishlistCard = (props) => {
                   )}
                 </div>
               </div>
-              
-              {/* Sticky footer with View Item and Close buttons */}
-              <div className="sticky bottom-0 left-0 right-0 mt-6 pt-3 pb-2 bg-gradient-to-t from-white dark:from-gray-800 to-transparent">
+              </div>
+
+              {/* Fixed footer with View Item and Close buttons */}
+              <div className="flex-shrink-0 px-4 sm:px-6 pt-3 pb-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-b-lg">
                 <div className="flex gap-3">
                   {selectedItem.link && (
                     <a

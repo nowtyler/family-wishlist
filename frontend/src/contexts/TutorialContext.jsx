@@ -234,6 +234,18 @@ export const TutorialProvider = ({ children }) => {
   const menuRetryRef = useRef(null);
   const autoStartAttemptedRef = useRef(false);
 
+  // Lock background scrolling while tutorial is active
+  useEffect(() => {
+    if (run) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [run]);
+
   // Check if tutorial should be shown based on tutorial_status from database
   // Show if status is "new" or if it was "completed" and being reset
   const shouldShowTutorial = selectedUser?.tutorial_status === "new";
@@ -465,7 +477,7 @@ export const TutorialProvider = ({ children }) => {
         continuous
         showSkipButton
         showProgress
-        scrollToFirstStep
+        disableScrolling
         disableOverlayClose
         spotlightClicks
         callback={handleJoyrideCallback}

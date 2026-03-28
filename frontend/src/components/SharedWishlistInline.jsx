@@ -147,6 +147,10 @@ const SharedWishlistInline = ({
   }, [loadWishlist, onUpdateItems]);
 
   const handleOptimisticUpdateItem = useCallback((itemId, updates) => {
+    if (updates?._deleted) {
+      setItems((prevItems) => prevItems.filter((item) => item.id !== itemId));
+      return;
+    }
     setItems((prevItems) =>
       prevItems.map((item) =>
         item.id === itemId ? { ...item, ...updates } : item

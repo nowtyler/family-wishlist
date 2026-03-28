@@ -5524,3 +5524,83 @@ def mark_notification_read(
     notification.is_read = True
     db.commit()
     return {"success": True}
+
+
+@app.post("/api/members/{member_id}/send-wishlist-reminder")
+def send_wishlist_reminder_to_member(
+    member_id: int = Path(...),
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header),
+):
+    """Send a generic wishlist update reminder to a specific member."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current user context required.")
+
+    recipient = crud.get_family_member(db, member_id)
+    if not recipient:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    reminder_prefix = "[WISHLIST_UPDATE_REMINDER]"
+    existing = db.query(models.Notification).filter(
+        models.Notification.recipient_id == member_id,
+        models.Notification.is_read == False,
+        models.Notification.message.like(f"{reminder_prefix}%"),
+    ).first()
+    if existing:
+        return {"success": True, "already_sent": True}
+
+    reminder_message = f"{reminder_prefix} Please review and update your wishlist."
+    db.add(models.Notification(
+        recipient_id=member_id,
+        message=reminder_message,
+        cart_item_id=None,
+        is_read=False,
+    ))
+    db.commit()
+    return {"success": True, "already_sent": False}
+
+
+@app.post("/api/shared-wishlists/{wishlist_id}/send-owner-reminder")
+def send_shared_wishlist_owner_reminder(
+    wishlist_id: int = Path(...),
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header),
+):
+    """Send a wishlist update reminder to all owners of a shared wishlist."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current user context required.")
+
+    shared_wishlist = db.query(models.SharedWishlist).filter(models.SharedWishlist.id == wishlist_id).first()
+    if not shared_wishlist:
+        raise HTTPException(status_code=404, detail="Shared wishlist not found")
+
+    owners = crud.get_shared_wishlist_owners(db, wishlist_id)
+    if not owners:
+        raise HTTPException(status_code=404, detail="No owners found for this shared wishlist")
+
+    reminder_prefix = "[WISHLIST_UPDATE_REMINDER]"
+    reminder_message = f"{reminder_prefix} Please review and update the shared wishlist \"{shared_wishlist.name}\"."
+    sent_count = 0
+    already_sent_count = 0
+
+    for owner in owners:
+        if owner.id == current_user_id:
+            continue
+        existing = db.query(models.Notification).filter(
+            models.Notification.recipient_id == owner.id,
+            models.Notification.is_read == False,
+            models.Notification.message.like(f"{reminder_prefix}%{shared_wishlist.name}%"),
+        ).first()
+        if existing:
+            already_sent_count += 1
+            continue
+        db.add(models.Notification(
+            recipient_id=owner.id,
+            message=reminder_message,
+            cart_item_id=None,
+            is_read=False,
+        ))
+        sent_count += 1
+
+    db.commit()
+    return {"success": True, "sent_count": sent_count, "already_sent_count": already_sent_count}

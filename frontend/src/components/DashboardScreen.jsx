@@ -604,7 +604,7 @@ const DashboardScreen = (props = {}) => {
     if (selectedSharedWishlist && change?.sharedWishlistItemId) {
       setSharedWishlistOptimisticUpdate({
         itemId: change.sharedWishlistItemId,
-        updates: { purchased_by: null },
+        updates: change.deleted ? { _deleted: true } : { purchased_by: null },
         nonce: Date.now()
       });
       if (change.revert) {

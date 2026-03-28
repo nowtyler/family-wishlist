@@ -736,6 +736,14 @@ export const markNotificationRead = (notificationId) => {
   return apiClient.patch(`/notifications/${notificationId}`);
 };
 
+export const sendWishlistReminder = (memberId) => {
+  return apiClient.post(`/members/${memberId}/send-wishlist-reminder`);
+};
+
+export const sendSharedWishlistOwnerReminder = (wishlistId) => {
+  return apiClient.post(`/shared-wishlists/${wishlistId}/send-owner-reminder`);
+};
+
 // --- Admin Household Management ---
 export const getHouseholds = () => {
   return apiClient.get('/admin/households');

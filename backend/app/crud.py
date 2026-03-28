@@ -1227,7 +1227,7 @@ def sync_cart_items_from_shared_wishlist_item(db: Session, shared_item: models.S
     return len(linked_cart_items)
 
 
-def notify_cart_buyers_on_shared_wishlist_delete(db: Session, shared_item: models.SharedWishlistItem) -> None:
+def notify_cart_buyers_on_shared_wishlist_delete(db: Session, shared_item: models.SharedWishlistItem, exclude_user_id: int = None) -> None:
     """Disconnect cart items from a deleted shared wishlist item and notify each buyer."""
     cart_items = db.query(models.ShoppingCartItem).filter(
         models.ShoppingCartItem.shared_wishlist_item_id == shared_item.id
@@ -1242,6 +1242,8 @@ def notify_cart_buyers_on_shared_wishlist_delete(db: Session, shared_item: model
 
     for cart_item in cart_items:
         cart_item.shared_wishlist_item_id = None
+        if exclude_user_id and cart_item.buyer_id == exclude_user_id:
+            continue
         notification = models.Notification(
             recipient_id=cart_item.buyer_id,
             message=f'"{shared_item.title}" was removed from "{wishlist_name}".',
@@ -1262,8 +1264,8 @@ def delete_shared_wishlist_item(db: Session, item_id: int, current_user_id: int)
         if not user or not user.is_admin:
             return False
 
-    # Notify cart buyers before deletion
-    notify_cart_buyers_on_shared_wishlist_delete(db, db_item)
+    # Notify cart buyers before deletion (skip notifying the user who initiated the delete)
+    notify_cart_buyers_on_shared_wishlist_delete(db, db_item, exclude_user_id=current_user_id)
 
     db.delete(db_item)
     db.commit()

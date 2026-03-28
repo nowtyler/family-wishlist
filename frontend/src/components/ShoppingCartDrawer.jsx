@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, ArrowRight, CheckCircle2, ChevronDown, ChevronsDown, ChevronsUp, Circle, Link, Loader, Trash2, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ChevronsDown, ChevronsUp, Circle, Link, Loader, Send, Trash2, X } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useAppContext } from '../contexts/AppContext';
-import { createShoppingCartItem, deleteShoppingCartItem, fetchProductDetailsFromUrl, getShoppingCartItems, getNotifications, markNotificationRead, updateShoppingCartItem } from '../services/api';
+import { createShoppingCartItem, deleteShoppingCartItem, deleteSharedWishlistItem, fetchProductDetailsFromUrl, getShoppingCartItems, getNotifications, markNotificationRead, sendWishlistReminder, sendSharedWishlistOwnerReminder, updateShoppingCartItem } from '../services/api';
 
 const emptyFormState = {
   title: '',
@@ -290,7 +290,11 @@ const ShoppingCartDrawer = ({
     }
   };
 
-  const handleRemoveItem = async (item) => {
+  const [confirmDeleteItem, setConfirmDeleteItem] = useState(null);
+  const [sentReminders, setSentReminders] = useState(new Set());
+  const [sendingReminder, setSendingReminder] = useState(false);
+
+  const executeRemoveItem = async (item) => {
     const cartItemId = item?.id;
     const changePayload = {
       wishlistItemId: item?.wishlist_item_id ?? null,
@@ -310,6 +314,15 @@ const ShoppingCartDrawer = ({
       console.error('Failed to remove cart item:', error);
       onCartChanged?.({ ...changePayload, revert: true });
       toast.error('Failed to remove item from cart.');
+    }
+  };
+
+  const handleRemoveItem = (item) => {
+    const isLinked = item?.wishlist_item_id || item?.shared_wishlist_item_id;
+    if (item?.status === 'purchased' && isLinked) {
+      setConfirmDeleteItem(item);
+    } else {
+      executeRemoveItem(item);
     }
   };
 
@@ -476,6 +489,7 @@ const ShoppingCartDrawer = ({
   };
 
   return (
+    <>
     <AnimatePresence>
       {isOpen && (
         <>
@@ -660,7 +674,11 @@ const ShoppingCartDrawer = ({
                             return (
                               <React.Fragment key={item.id}>
                         <div
-                                  className={`rounded-md border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/60 p-2.5 leading-snug ${
+                                  className={`rounded-md border p-2.5 leading-snug ${
+                                    item.status === 'purchased'
+                                      ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-900/20 opacity-60'
+                                      : 'border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/60'
+                                  } ${
                                   (item.wishlist_item_id || item.shared_wishlist_item_id) ? 'cursor-pointer hover:shadow-md' : ''
                                 } ${notifiedItemIds.has(item.id) ? 'border-l-[3px] border-l-amber-400 dark:border-l-amber-500' : ''}`}
                                 role={(item.wishlist_item_id || item.shared_wishlist_item_id) ? 'button' : undefined}
@@ -979,6 +997,140 @@ const ShoppingCartDrawer = ({
         </>
       )}
     </AnimatePresence>
+    {confirmDeleteItem && (() => {
+      const recipientId = confirmDeleteItem.recipient_id;
+      const isSharedItem = Boolean(confirmDeleteItem.shared_wishlist_item_id);
+      const isSharedOwner = isSharedItem && Array.isArray(confirmDeleteItem.shared_wishlist_owner_ids) && confirmDeleteItem.shared_wishlist_owner_ids.includes(selectedUser?.id);
+      const sharedWishlistId = confirmDeleteItem.shared_wishlist_id;
+      const reminderKey = isSharedItem ? `shared:${sharedWishlistId}` : recipientId;
+      const alreadySent = sentReminders.has(reminderKey);
+      const recipientName = recipientId ? (recipientLookup.get(String(recipientId))?.name || 'them') : null;
+      const sharedListName = isSharedItem ? (confirmDeleteItem.recipient_name || 'the shared wishlist') : null;
+      return (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="mx-4 max-w-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl p-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={16} className="text-amber-500 shrink-0" />
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Remove purchased item?</h3>
+            </div>
+            <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+              This will mark <strong>{truncateText(confirmDeleteItem.title, 40)}</strong> as available again on the wishlist, so someone else could buy it.
+            </p>
+            {!isSharedItem && recipientId && (
+              <p className="text-xs text-gray-500 dark:text-gray-500 leading-relaxed">
+                Tip: Ask {recipientName} to update their wishlist instead. Send them a reminder.
+              </p>
+            )}
+            {isSharedItem && !isSharedOwner && (
+              <p className="text-xs text-gray-500 dark:text-gray-500 leading-relaxed">
+                Tip: Ask the owners of {sharedListName} to update their list instead. Send them a reminder.
+              </p>
+            )}
+            {isSharedItem && isSharedOwner && (
+              <p className="text-xs text-gray-500 dark:text-gray-500 leading-relaxed">
+                Tip: You own this shared wishlist. You can delete the item from the list directly instead.
+              </p>
+            )}
+            <div className="flex flex-col gap-2 pt-2">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteItem(null)}
+                  className="flex-1 rounded-md bg-indigo-600 px-3 py-2 text-xs font-medium text-white transition-all duration-150 hover:bg-indigo-700 hover:shadow-md hover:-translate-y-px active:translate-y-0 active:shadow-sm"
+                >
+                  Keep in cart
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    executeRemoveItem(confirmDeleteItem);
+                    setConfirmDeleteItem(null);
+                  }}
+                  className="flex-1 rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-xs font-medium text-gray-700 transition-all duration-150 hover:text-gray-900 hover:bg-gray-50 hover:shadow-md hover:-translate-y-px active:translate-y-0 active:shadow-sm dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-gray-800"
+                >
+                  Remove anyway
+                </button>
+              </div>
+              {!isSharedItem && recipientId && (
+                <button
+                  type="button"
+                  disabled={alreadySent || sendingReminder}
+                  onClick={async () => {
+                    setSendingReminder(true);
+                    try {
+                      const res = await sendWishlistReminder(recipientId);
+                      setSentReminders((prev) => new Set(prev).add(recipientId));
+                      toast.success(res.data?.already_sent ? 'Reminder already pending.' : 'Reminder sent.');
+                    } catch {
+                      toast.error('Failed to send reminder.');
+                    } finally {
+                      setSendingReminder(false);
+                    }
+                  }}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-indigo-600 transition-all duration-150 hover:text-indigo-700 hover:bg-indigo-50 hover:-translate-y-px active:translate-y-0 dark:text-indigo-400 dark:hover:text-indigo-300 dark:hover:bg-indigo-900/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                >
+                  <Send size={12} />
+                  {alreadySent ? 'Reminder sent' : sendingReminder ? 'Sending...' : `Send ${recipientName} a reminder instead`}
+                </button>
+              )}
+              {isSharedItem && !isSharedOwner && sharedWishlistId && (
+                <button
+                  type="button"
+                  disabled={alreadySent || sendingReminder}
+                  onClick={async () => {
+                    setSendingReminder(true);
+                    try {
+                      const res = await sendSharedWishlistOwnerReminder(sharedWishlistId);
+                      setSentReminders((prev) => new Set(prev).add(reminderKey));
+                      const total = (res.data?.sent_count || 0) + (res.data?.already_sent_count || 0);
+                      toast.success(res.data?.sent_count > 0 ? 'Reminder sent to owners.' : 'Reminder already pending.');
+                    } catch {
+                      toast.error('Failed to send reminder.');
+                    } finally {
+                      setSendingReminder(false);
+                    }
+                  }}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-indigo-600 transition-all duration-150 hover:text-indigo-700 hover:bg-indigo-50 hover:-translate-y-px active:translate-y-0 dark:text-indigo-400 dark:hover:text-indigo-300 dark:hover:bg-indigo-900/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                >
+                  <Send size={12} />
+                  {alreadySent ? 'Reminder sent' : sendingReminder ? 'Sending...' : 'Send owners a reminder instead'}
+                </button>
+              )}
+              {isSharedItem && isSharedOwner && (
+                <button
+                  type="button"
+                  disabled={sendingReminder}
+                  onClick={async () => {
+                    setSendingReminder(true);
+                    try {
+                      await deleteSharedWishlistItem(confirmDeleteItem.shared_wishlist_item_id);
+                      onCartChanged?.({ sharedWishlistItemId: confirmDeleteItem.shared_wishlist_item_id, deleted: true });
+                      await deleteShoppingCartItem(confirmDeleteItem.id);
+                      setCartItems((prev) => {
+                        const next = prev.filter((ci) => ci.id !== confirmDeleteItem.id);
+                        onCartUpdated?.(next.length);
+                        return next;
+                      });
+                      setConfirmDeleteItem(null);
+                      toast.success('Item deleted from shared wishlist and removed from cart.');
+                    } catch {
+                      toast.error('Failed to delete item from shared wishlist.');
+                    } finally {
+                      setSendingReminder(false);
+                    }
+                  }}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-red-600 transition-all duration-150 hover:text-red-700 hover:bg-red-50 hover:-translate-y-px active:translate-y-0 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                >
+                  <Trash2 size={12} />
+                  {sendingReminder ? 'Deleting...' : 'Delete item from list'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    })()}
+    </>
   );
 };
 

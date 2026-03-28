@@ -580,6 +580,7 @@ class ShoppingCartItem(ShoppingCartItemBase):
     id: int
     created_at: datetime
     shared_wishlist_id: Optional[int] = None
+    shared_wishlist_owner_ids: List[int] = []
 
     class Config:
         from_attributes = True
