@@ -3290,38 +3290,34 @@ def get_all_households_with_members(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
     
     try:
-        # Get households with their actual members
+        # Get all households and batch load members in one query
+        all_households = db.query(models.Household).all()
+
+        # Batch load all household-member associations
+        members_q = db.query(
+            models.user_household_association.c.household_id,
+            models.FamilyMember
+        ).join(
+            models.FamilyMember,
+            models.FamilyMember.id == models.user_household_association.c.user_id
+        ).all()
+        members_by_household = {}
+        for hid, member in members_q:
+            members_by_household.setdefault(hid, []).append(member)
+
         households = []
-        for h in db.query(models.Household).all():
-            # Get members for this household
-            members = db.query(models.FamilyMember).join(
-                models.user_household_association,
-                models.FamilyMember.id == models.user_household_association.c.user_id
-            ).filter(
-                models.user_household_association.c.household_id == h.id
-            ).all()
-            
-            # Convert members to schema
-            member_schemas = []
-            for member in members:
-                member_schemas.append({
-                    "id": member.id,
-                    "name": member.name,
-                    "username": member.username,
-                    "email": member.email,
-                    "is_admin": member.is_admin
-                })
-            
-            household_dict = {
-                "id": h.id,
-                "name": h.name,
-                "description": h.description,
-                "created_at": h.created_at,
-                "created_by": h.created_by,
-                "member_count": len(members),
-                "members": member_schemas
-            }
-            households.append(schemas.HouseholdWithMembers(**household_dict))
+        for h in all_households:
+            members = members_by_household.get(h.id, [])
+            member_schemas = [{
+                "id": m.id, "name": m.name, "username": m.username,
+                "email": m.email, "is_admin": m.is_admin
+            } for m in members]
+
+            households.append(schemas.HouseholdWithMembers(
+                id=h.id, name=h.name, description=h.description,
+                created_at=h.created_at, created_by=h.created_by,
+                member_count=len(members), members=member_schemas
+            ))
         return households
     except Exception as e:
         logger.error(f"Failed to get households with members: {e}")
@@ -4139,22 +4135,31 @@ def get_all_items(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
     
     try:
-        items = db.query(models.WishlistItem).join(models.FamilyMember).all()
+        items = db.query(models.WishlistItem).options(
+            joinedload(models.WishlistItem.owner)
+        ).all()
         shared_items = db.query(models.SharedWishlistItem).options(
             joinedload(models.SharedWishlistItem.wishlist).joinedload(models.SharedWishlist.owners)
         ).all()
-        
+
+        # Batch load all user→household mappings in one query
+        all_user_households = db.query(
+            models.user_household_association.c.user_id,
+            models.Household.name
+        ).join(
+            models.Household,
+            models.Household.id == models.user_household_association.c.household_id
+        ).all()
+        households_by_user = {}
+        for uid, hname in all_user_households:
+            households_by_user.setdefault(uid, []).append(hname)
+
         result = []
         for item in items:
-            households = db.query(models.Household).join(
-                models.user_household_association,
-                models.Household.id == models.user_household_association.c.household_id
-            ).filter(models.user_household_association.c.user_id == item.owner_id).all()
-            
-            household_names = [h.name for h in households] if households else ["No household"]
+            household_names = households_by_user.get(item.owner_id, ["No household"])
             thinking_by_list = item.thinking_about_by.split(',') if item.thinking_about_by else []
             thinking_by_list = [name.strip() for name in thinking_by_list if name.strip()]
-            
+
             result.append({
                 "id": item.id,
                 "title": item.title,
@@ -4179,14 +4184,13 @@ def get_all_items(
             wishlist = shared_item.wishlist
             owner_ids = [owner.id for owner in (wishlist.owners or [])]
             owner_names = [owner.name for owner in (wishlist.owners or [])]
-            households = []
-            if owner_ids:
-                households = db.query(models.Household).join(
-                    models.user_household_association,
-                    models.Household.id == models.user_household_association.c.household_id
-                ).filter(models.user_household_association.c.user_id.in_(owner_ids)).distinct().all()
+            # Collect household names from pre-loaded map
+            household_names_set = set()
+            for oid in owner_ids:
+                for hname in households_by_user.get(oid, []):
+                    household_names_set.add(hname)
+            household_names = list(household_names_set) if household_names_set else ["No household"]
 
-            household_names = [h.name for h in households] if households else ["No household"]
             thinking_by_list = shared_item.thinking_about_by.split(',') if shared_item.thinking_about_by else []
             thinking_by_list = [name.strip() for name in thinking_by_list if name.strip()]
 
