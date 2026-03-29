@@ -4317,11 +4317,11 @@ def delete_admin_cart_item(
             notification = models.Notification(
                 recipient_id=db_item.buyer_id,
                 message=f'An admin removed "{item_title}" from your cart.',
-                cart_item_id=db_item.id,
                 is_read=False,
             )
             db.add(notification)
 
+        crud.detach_notifications_for_cart_items(db, [db_item.id])
         db.delete(db_item)
         db.commit()
         return {"success": True, "message": "Cart item removed."}
@@ -4382,6 +4382,7 @@ def clear_admin_cart(
                     shared_item.is_purchased = False
                     shared_item.purchased_by = None
 
+            crud.detach_notifications_for_cart_items(db, [db_item.id])
             db.delete(db_item)
 
         db.commit()
@@ -4448,6 +4449,7 @@ def clear_all_admin_carts(
                     shared_item.is_purchased = False
                     shared_item.purchased_by = None
 
+            crud.detach_notifications_for_cart_items(db, [db_item.id])
             db.delete(db_item)
 
         db.commit()
@@ -5578,6 +5580,7 @@ def delete_shopping_cart_item(
             shared_item.is_purchased = False
             shared_item.purchased_by = None
 
+    crud.detach_notifications_for_cart_items(db, [db_item.id])
     db.delete(db_item)
     db.commit()
     return {"success": True, "message": "Item removed from cart."}

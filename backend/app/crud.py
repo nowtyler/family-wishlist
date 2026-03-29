@@ -302,6 +302,22 @@ def sync_cart_items_from_wishlist_item(db: Session, wishlist_item: models.Wishli
 
     return len(linked_cart_items)
 
+
+def detach_notifications_for_cart_items(db: Session, cart_item_ids: List[int]) -> int:
+    """Clear notification cart references before deleting cart rows."""
+    valid_ids = [cart_item_id for cart_item_id in cart_item_ids if cart_item_id is not None]
+    if not valid_ids:
+        return 0
+
+    notifications = db.query(models.Notification).filter(
+        models.Notification.cart_item_id.in_(valid_ids)
+    ).all()
+
+    for notification in notifications:
+        notification.cart_item_id = None
+
+    return len(notifications)
+
 def update_wishlist_item(db: Session, item_id: int, item_update: schemas.WishlistItemUpdate, current_user_id: int):
     """Update a wishlist item with proper authorization checks"""
     db_item = db.query(models.WishlistItem).filter(models.WishlistItem.id == item_id).first()
