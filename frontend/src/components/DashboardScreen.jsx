@@ -46,6 +46,15 @@ const DashboardScreen = (props = {}) => {
   const { onViewingMemberChange } = props;
   const { selectedUser, setSelectedUser, familyMembers, setFamilyMembers } = useAppContext();
   const tutorial = useTutorial();
+
+  // Register cart open/close controls for tutorial to use during cart walkthrough
+  useEffect(() => {
+    tutorial?.registerCartControl?.({
+      open: () => setIsCartOpen(true),
+      close: () => setIsCartOpen(false),
+    });
+  }, [tutorial?.registerCartControl]);
+
   const isAdmin = selectedUser?.is_admin;
   const [searchParams, setSearchParams] = useSearchParams();
   const [viewingMember, setViewingMember] = useState(null);

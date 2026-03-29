@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ChevronsDown, ChevronsUp, Circle, Link, Loader, Send, Trash2, X } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useAppContext } from '../contexts/AppContext';
+import { TUTORIAL_DUMMY_MARKER } from '../contexts/TutorialContext';
 import { createShoppingCartItem, deleteShoppingCartItem, deleteSharedWishlistItem, fetchProductDetailsFromUrl, getShoppingCartItems, getNotifications, markNotificationRead, sendWishlistReminder, sendSharedWishlistOwnerReminder, updateShoppingCartItem } from '../services/api';
 
 const emptyFormState = {
@@ -738,6 +739,7 @@ const ShoppingCartDrawer = ({
                                   <div className="flex items-center gap-2">
                                     <button
                                       type="button"
+                                      id={item.notes === TUTORIAL_DUMMY_MARKER ? 'tutorial-cart-item-status' : undefined}
                                       onClick={(event) => {
                                         event.stopPropagation();
                                         handleToggleStatus(item);
@@ -758,6 +760,7 @@ const ShoppingCartDrawer = ({
                                     )}
                                     <button
                                       type="button"
+                                      id={item.notes === TUTORIAL_DUMMY_MARKER ? 'tutorial-cart-item-delete' : undefined}
                                       onClick={(event) => {
                                         event.stopPropagation();
                                         handleRemoveItem(item);
@@ -769,7 +772,7 @@ const ShoppingCartDrawer = ({
                                     </button>
                                   </div>
                                 </div>
-                                {item.notes && (
+                                {item.notes && item.notes !== TUTORIAL_DUMMY_MARKER && (
                                   <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
                                     {item.notes}
                                   </p>
@@ -983,6 +986,7 @@ const ShoppingCartDrawer = ({
             </form>
             <div className="sticky bottom-0 left-0 right-0 border-t border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur px-4 py-3">
               <button
+                id="tutorial-cart-add-button"
                 type={isManualEntryOpen ? 'submit' : 'button'}
                 form={isManualEntryOpen ? 'shopping-cart-entry-form' : undefined}
                 disabled={isSubmitting}

@@ -11,8 +11,10 @@ import Joyride, { STATUS, ACTIONS, EVENTS } from 'react-joyride';
 import { useTheme } from './ThemeContext';
 import { useAppContext } from './AppContext';
 import { HelpCircle, X, ChevronLeft, ChevronRight, SkipForward } from 'lucide-react';
-import { completeTutorial as completeTutorialAPI, skipTutorial as skipTutorialAPI, resetTutorial as resetTutorialAPI } from '../services/api';
+import { completeTutorial as completeTutorialAPI, skipTutorial as skipTutorialAPI, resetTutorial as resetTutorialAPI, createShoppingCartItem, deleteShoppingCartItem, getShoppingCartItems } from '../services/api';
 import { log } from '../utils/logger';
+
+export const TUTORIAL_DUMMY_MARKER = '__TUTORIAL_DUMMY__';
 
 const TutorialContext = createContext(null);
 
@@ -31,8 +33,16 @@ const MORE_SHEET_TARGETS = new Set([
   '#tutorial-preferences',
 ]);
 
+// Targets that require the shopping cart to be open
+const CART_INTERIOR_TARGETS = new Set([
+  '#tutorial-cart-item-status',
+  '#tutorial-cart-item-delete',
+  '#tutorial-cart-add-button',
+]);
+
 const isBrowseSheetStep = (step) => BROWSE_SHEET_TARGETS.has(step?.target);
 const isMoreSheetStep = (step) => MORE_SHEET_TARGETS.has(step?.target);
+const isCartInteriorStep = (step) => CART_INTERIOR_TARGETS.has(step?.target);
 
 // Custom tooltip component matching the app's design
 const CustomTooltip = ({
@@ -192,14 +202,14 @@ const tutorialSteps = [
   {
     target: '#tutorial-browse-tab',
     title: 'Browse',
-    content: 'Browse family members\' wishlists and see what everyone is hoping for.',
+    content: 'Browse family members\' wishlists to see what everyone is hoping for. You can mark items as \"thinking about\" or add them straight to your cart.',
     disableBeacon: true,
     placement: 'top',
   },
   {
     target: '#tutorial-add-item',
     title: 'Add Item',
-    content: 'Tap the + button to add new items to your wishlist. Paste a product link to auto-fill details or enter information manually.',
+    content: 'Tap the + button to add new items to your wishlist. Paste a product link to auto-fill the title and price, or enter details manually.',
     disableBeacon: true,
     placement: 'top',
   },
@@ -211,16 +221,37 @@ const tutorialSteps = [
     placement: 'top',
   },
   {
+    target: '#tutorial-cart-item-status',
+    title: 'Mark as Purchased',
+    content: 'Tap the circle to mark a gift as purchased once you\'ve bought it. This helps you keep track of what\'s done.',
+    disableBeacon: true,
+    placement: 'bottom',
+  },
+  {
+    target: '#tutorial-cart-item-delete',
+    title: 'Remove Items',
+    content: 'Remove an item when the recipient has received their gift, or if you want to release it so someone else can buy it instead.',
+    disableBeacon: true,
+    placement: 'bottom',
+  },
+  {
+    target: '#tutorial-cart-add-button',
+    title: 'Track Non-Wishlist Gifts',
+    content: 'Add gifts you found on your own that aren\'t on anyone\'s wishlist. Great for keeping all your gift plans in one place.',
+    disableBeacon: true,
+    placement: 'top',
+  },
+  {
     target: '#tutorial-more-tab',
     title: 'More',
-    content: 'Access additional options like external wishlists, preferences, and shared wishlists.',
+    content: 'Access external wishlists (Amazon, Etsy links), your size and gift preferences, and quick access to shared wishlists you own.',
     disableBeacon: true,
     placement: 'top',
   },
   {
     target: '#tutorial-settings',
     title: 'Settings',
-    content: 'Tap the gear icon to access your account settings, profile, households, and other options.',
+    content: 'Access your profile to change your password, manage households, and toggle dark mode. You can also create shared wishlists here — great for kids or joint gifts, with co-owners who can all manage the same list.',
     disableBeacon: true,
     placement: 'bottom',
   },
@@ -234,6 +265,8 @@ export const TutorialProvider = ({ children }) => {
   const [joyrideKey, setJoyrideKey] = useState(0);
   const menuRetryRef = useRef(null);
   const autoStartAttemptedRef = useRef(false);
+  const tutorialCartItemIdRef = useRef(null);
+  const cartControlRef = useRef({ open: null, close: null });
 
   // Lock background scrolling while tutorial is active
   useEffect(() => {
@@ -333,37 +366,121 @@ export const TutorialProvider = ({ children }) => {
     setRun(false);
   }, []);
 
+  const registerCartControl = useCallback((controls) => {
+    cartControlRef.current = controls;
+  }, []);
+
+  const createTutorialCartItem = useCallback(async () => {
+    if (!selectedUser?.id || tutorialCartItemIdRef.current) return true;
+    try {
+      // Check for leftover dummy items from a previous aborted tutorial
+      const existing = await getShoppingCartItems(selectedUser.id);
+      const items = Array.isArray(existing?.data) ? existing.data : [];
+      const leftover = items.find((i) => i.notes === TUTORIAL_DUMMY_MARKER);
+      if (leftover) {
+        tutorialCartItemIdRef.current = leftover.id;
+        return true;
+      }
+      const response = await createShoppingCartItem({
+        buyer_id: selectedUser.id,
+        recipient_name: 'Tutorial Example',
+        title: 'Example Gift Item',
+        notes: TUTORIAL_DUMMY_MARKER,
+        price: 2499,
+      });
+      if (response?.data?.id) {
+        tutorialCartItemIdRef.current = response.data.id;
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Failed to create tutorial cart item:', error);
+      return false;
+    }
+  }, [selectedUser?.id]);
+
+  const deleteTutorialCartItem = useCallback(async () => {
+    const itemId = tutorialCartItemIdRef.current;
+    if (!itemId) return;
+    tutorialCartItemIdRef.current = null;
+    try {
+      await deleteShoppingCartItem(itemId);
+    } catch (error) {
+      // Item may already be deleted (user deleted it during tutorial)
+      console.warn('Failed to delete tutorial cart item:', error);
+    }
+  }, []);
+
+  const cleanupCartTutorial = useCallback(() => {
+    deleteTutorialCartItem();
+    cartControlRef.current.close?.();
+  }, [deleteTutorialCartItem]);
+
   // Mark tutorial as completed
   const completeTutorial = useCallback(async () => {
     if (!selectedUser?.id) return;
 
     try {
+      cleanupCartTutorial();
       await completeTutorialAPI(selectedUser.id);
       setRun(false);
     } catch (error) {
       console.error('Failed to mark tutorial as completed:', error);
     }
-  }, [selectedUser?.id]);
+  }, [selectedUser?.id, cleanupCartTutorial]);
 
   // Mark tutorial as skipped
   const skipTutorial = useCallback(async () => {
     if (!selectedUser?.id) return;
 
     try {
+      cleanupCartTutorial();
       await skipTutorialAPI(selectedUser.id);
       setRun(false);
     } catch (error) {
       console.error('Failed to mark tutorial as skipped:', error);
     }
-  }, [selectedUser?.id]);
+  }, [selectedUser?.id, cleanupCartTutorial]);
 
-  const queueStepChange = useCallback((nextIndex) => {
+  const queueStepChange = useCallback(async (nextIndex) => {
     if (nextIndex < 0 || nextIndex >= tutorialSteps.length) {
       return;
     }
 
+    const currentStep = tutorialSteps[stepIndex];
     const nextStep = tutorialSteps[nextIndex];
+    const enteringCart = isCartInteriorStep(nextStep) && !isCartInteriorStep(currentStep);
+    const leavingCart = !isCartInteriorStep(nextStep) && isCartInteriorStep(currentStep);
     const needsSheetOpen = isBrowseSheetStep(nextStep) || isMoreSheetStep(nextStep);
+
+    if (enteringCart) {
+      // Create dummy item, open cart, wait for render
+      const created = await createTutorialCartItem();
+      if (!created) {
+        // Skip cart steps if we couldn't create the dummy item
+        const firstNonCartIndex = tutorialSteps.findIndex(
+          (s, i) => i > nextIndex && !isCartInteriorStep(s)
+        );
+        if (firstNonCartIndex !== -1) {
+          setStepIndex(firstNonCartIndex);
+        }
+        return;
+      }
+      cartControlRef.current.open?.();
+      setTimeout(() => {
+        setStepIndex(nextIndex);
+      }, 1000);
+      return;
+    }
+
+    if (leavingCart) {
+      cleanupCartTutorial();
+      // Small delay for cart to close before showing next step
+      setTimeout(() => {
+        setStepIndex(nextIndex);
+      }, 400);
+      return;
+    }
 
     if (needsSheetOpen) {
       // Give BottomTabNav time to animate the sheet open, scroll content, and Joyride to find the element
@@ -375,7 +492,7 @@ export const TutorialProvider = ({ children }) => {
     }
 
     setStepIndex(nextIndex);
-  }, []);
+  }, [stepIndex, createTutorialCartItem, cleanupCartTutorial]);
 
   // Handle Joyride callbacks
   const handleJoyrideCallback = useCallback((data) => {
@@ -400,6 +517,7 @@ export const TutorialProvider = ({ children }) => {
     // Handle close action - stop the tour WITHOUT marking complete
     // This allows the tutorial to restart on next login
     if (action === ACTIONS.CLOSE) {
+      cleanupCartTutorial();
       setRun(false);
       setStepIndex(0);
       // Don't call completeTutorial() - let it restart on next login
@@ -423,7 +541,31 @@ export const TutorialProvider = ({ children }) => {
 
     // Handle target not found - skip to next step or retry
     if (type === EVENTS.TARGET_NOT_FOUND) {
+      const isCartStep = isCartInteriorStep(step);
       const isSheetStep = isBrowseSheetStep(step) || isMoreSheetStep(step);
+
+      if (isCartStep) {
+        if (menuRetryRef.current === index) {
+          // Already retried, skip remaining cart steps
+          const firstNonCartIndex = tutorialSteps.findIndex(
+            (s, i) => i > index && !isCartInteriorStep(s)
+          );
+          cleanupCartTutorial();
+          if (firstNonCartIndex !== -1) {
+            setStepIndex(firstNonCartIndex);
+          } else {
+            setStepIndex(index + 1);
+          }
+          return;
+        }
+        menuRetryRef.current = index;
+        // Re-open cart and retry
+        cartControlRef.current.open?.();
+        setTimeout(() => {
+          setJoyrideKey((current) => current + 1);
+        }, 500);
+        return;
+      }
 
       if (isSheetStep) {
         // Give the sheet a moment to open (BottomTabNav handles this via context)
@@ -442,9 +584,18 @@ export const TutorialProvider = ({ children }) => {
       // For non-sheet steps, just skip
       setStepIndex(index + 1);
     }
-  }, [completeTutorial, queueStepChange]);
+  }, [completeTutorial, skipTutorial, cleanupCartTutorial, queueStepChange]);
 
   const currentStep = tutorialSteps[stepIndex] || null;
+
+  // Cleanup dummy cart item on unmount if tutorial was interrupted
+  useEffect(() => {
+    return () => {
+      if (tutorialCartItemIdRef.current) {
+        deleteTutorialCartItem();
+      }
+    };
+  }, [deleteTutorialCartItem]);
 
   const value = {
     run,
@@ -454,6 +605,7 @@ export const TutorialProvider = ({ children }) => {
     stopTutorial,
     completeTutorial,
     skipTutorial,
+    registerCartControl,
     resetTutorial: async () => {
       if (!selectedUser?.id) return;
       try {
