@@ -239,6 +239,29 @@ const BottomTabNav = ({
     exit: { opacity: 0 }
   };
 
+  const getMemberHouseholdNames = useCallback((member) => {
+    const householdNames = (member?.households || [])
+      .map((household) => household?.name)
+      .filter(Boolean);
+
+    return householdNames.sort((a, b) => a.localeCompare(b));
+  }, []);
+
+  const getSharedWishlistHouseholdNames = useCallback((wishlist) => {
+    const visibleHouseholds = new Map();
+
+    (wishlist?.owners || []).forEach((owner) => {
+      const ownerData = familyMembers.find((member) => member.id === owner.id);
+      (ownerData?.households || []).forEach((household) => {
+        if (household?.id && household?.name) {
+          visibleHouseholds.set(household.id, household.name);
+        }
+      });
+    });
+
+    return Array.from(visibleHouseholds.values()).sort((a, b) => a.localeCompare(b));
+  }, [familyMembers]);
+
   if (isHidden) return null;
 
   return (
@@ -265,204 +288,243 @@ const BottomTabNav = ({
       {/* Browse Sheet */}
       <AnimatePresence>
         {showBrowseSheet && (
-          <motion.div
-            ref={browseSheetRef}
-            variants={sheetVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            className="fixed left-0 right-0 top-0 z-50 bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl overflow-hidden flex flex-col"
+          <div
+            className="fixed left-0 right-0 top-0 z-50 flex flex-col justify-end md:inset-0 md:items-center md:justify-end pointer-events-none"
             style={{
               bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))',
             }}
           >
-            {/* Sheet header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-              <h2 id="tutorial-browse-wishlists" className="text-lg font-semibold text-gray-900 dark:text-white">
-                Browse Wishlists
-              </h2>
-              <button
-                onClick={() => !isTutorialRunning && setShowBrowseSheet(false)}
-                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                aria-label="Close browse menu"
-              >
-                <X size={20} className="text-gray-500 dark:text-gray-400" />
-              </button>
-            </div>
+            <motion.div
+              ref={browseSheetRef}
+              variants={sheetVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="pointer-events-auto w-full bg-white dark:bg-gray-900 rounded-t-3xl md:rounded-3xl shadow-2xl overflow-hidden flex flex-col md:w-[min(36rem,calc(100vw-2rem))] md:max-h-full"
+            >
+              {/* Sheet header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+                <h2 id="tutorial-browse-wishlists" className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Browse Wishlists
+                </h2>
+                <button
+                  onClick={() => !isTutorialRunning && setShowBrowseSheet(false)}
+                  className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  aria-label="Close browse menu"
+                >
+                  <X size={20} className="text-gray-500 dark:text-gray-400" />
+                </button>
+              </div>
 
-            {/* Sheet content */}
-            <div className="overflow-y-auto px-4 py-3 pb-6 flex-1">
-              <div className="space-y-2">
-                {unifiedBrowseList.map((item, index) => {
+              {/* Sheet content */}
+              <div className="overflow-y-auto px-4 py-3 pb-6 flex-1">
+                <div className="space-y-2">
+                  {unifiedBrowseList.map((item, index) => {
                   const isSelected = item.type === 'member'
                     ? viewingMember?.id === item.data.id && !selectedSharedWishlist
                     : selectedSharedWishlist?.id === item.data.id;
+                  const householdNames = item.type === 'member'
+                    ? getMemberHouseholdNames(item.data)
+                    : getSharedWishlistHouseholdNames(item.data);
+                  const helperLabel = householdNames.length === 1
+                    ? 'In household:'
+                    : 'In households:';
 
                   return (
                     <button
-                      key={item.id}
-                      onClick={() => handleSelectItem(item)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                        isSelected
-                          ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg'
-                          : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white'
-                      }`}
-                    >
-                      {/* Avatar */}
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${
-                        item.type === 'member'
-                          ? (isSelected ? 'bg-white/20' : getMemberColor(index))
-                          : (isSelected ? 'bg-white/20' : 'bg-gradient-to-r from-fuchsia-500 to-pink-500')
-                      }`}>
-                        {item.type === 'member' ? item.name.charAt(0).toUpperCase() : <Users size={18} />}
-                      </div>
-
-                      {/* Name and count */}
-                      <div className="flex-1 text-left">
-                        <div className="flex items-center gap-2">
-                          {item.type === 'shared' && (
-                            <Users size={14} className={isSelected ? 'text-white/80' : 'text-fuchsia-500'} />
-                          )}
-                          <span className="font-medium">{item.name}</span>
+                        key={item.id}
+                        onClick={() => handleSelectItem(item)}
+                        className={`w-full flex items-start gap-3 px-4 py-3 rounded-xl transition-all ${
+                          isSelected
+                            ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg'
+                            : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white'
+                        }`}
+                      >
+                        {/* Avatar */}
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold shrink-0 mt-0.5 ${
+                          item.type === 'member'
+                            ? (isSelected ? 'bg-white/20' : getMemberColor(index))
+                            : (isSelected ? 'bg-white/20' : 'bg-gradient-to-r from-fuchsia-500 to-pink-500')
+                        }`}>
+                          {item.type === 'member' ? item.name.charAt(0).toUpperCase() : <Users size={18} />}
                         </div>
-                        <span className={`text-sm ${isSelected ? 'text-white/70' : 'text-gray-500 dark:text-gray-400'}`}>
-                          {item.itemCount} {item.itemCount === 1 ? 'item' : 'items'}
-                        </span>
-                      </div>
 
-                      {/* Arrow */}
-                      <ChevronRight size={20} className={isSelected ? 'text-white/60' : 'text-gray-400'} />
-                    </button>
-                  );
-                })}
+                        {/* Name and count */}
+                        <div className="flex-1 min-w-0 text-left">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 min-w-0">
+                                {item.type === 'shared' && (
+                                  <Users size={14} className={`shrink-0 ${isSelected ? 'text-white/80' : 'text-fuchsia-500'}`} />
+                                )}
+                                <span className="font-medium truncate">{item.name}</span>
+                              </div>
+                              <span className={`text-sm ${isSelected ? 'text-white/70' : 'text-gray-500 dark:text-gray-400'}`}>
+                                {item.itemCount} {item.itemCount === 1 ? 'item' : 'items'}
+                              </span>
+                            </div>
+                            {householdNames.length > 0 && (
+                              <div className="shrink-0 max-w-[52%] text-right">
+                                <div className={`text-[11px] leading-tight ${isSelected ? 'text-white/80' : 'text-gray-400 dark:text-gray-500'}`}>
+                                  {helperLabel}
+                                </div>
+                                <div className="mt-1 flex flex-wrap justify-end gap-1.5">
+                                  {householdNames.map((householdName) => (
+                                    <span
+                                      key={`${item.id}-${householdName}`}
+                                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] leading-4 ${
+                                        isSelected
+                                          ? 'bg-white/18 text-white/90'
+                                          : 'bg-slate-200/80 text-slate-600 dark:bg-slate-700/70 dark:text-slate-200'
+                                      }`}
+                                    >
+                                      {householdName}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Arrow */}
+                        <ChevronRight size={20} className={isSelected ? 'text-white/60' : 'text-gray-400'} />
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          </motion.div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
       {/* More Sheet */}
       <AnimatePresence>
         {showMoreSheet && (
-          <motion.div
-            ref={moreSheetRef}
-            variants={sheetVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            className="fixed left-0 right-0 z-50 bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl overflow-hidden"
+          <div
+            className="fixed left-0 right-0 top-0 z-50 flex flex-col justify-end md:inset-0 md:items-center md:justify-end pointer-events-none"
             style={{
               bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))',
             }}
           >
-            {/* Sheet header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                More Options
-              </h2>
-              <button
-                onClick={() => !isTutorialRunning && setShowMoreSheet(false)}
-                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                aria-label="Close more menu"
-              >
-                <X size={20} className="text-gray-500 dark:text-gray-400" />
-              </button>
-            </div>
-
-            {/* Sheet content */}
-            <div className="overflow-y-auto px-4 py-3 space-y-2 pb-6" style={{ maxHeight: 'calc(70vh - 4rem)' }}>
-              {/* External Wishlists */}
-              {(viewingMember ? (isOwnWishlist || viewingMember.external_wishlist_count > 0) : (selectedSharedWishlist && (isOwnWishlist || selectedSharedWishlist.external_wishlist_count > 0))) && (
+            <motion.div
+              ref={moreSheetRef}
+              variants={sheetVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="pointer-events-auto w-full bg-white dark:bg-gray-900 rounded-t-3xl md:rounded-3xl shadow-2xl overflow-hidden flex flex-col md:w-[min(36rem,calc(100vw-2rem))] md:max-h-full"
+            >
+              {/* Sheet header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  More Options
+                </h2>
                 <button
-                  id="tutorial-external-wishlists"
-                  onClick={() => {
-                    triggerHaptic();
-                    setShowMoreSheet(false);
-                    onOpenExternalWishlists?.();
-                  }}
-                  className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 hover:from-amber-100 hover:to-orange-100 dark:hover:from-amber-900/30 dark:hover:to-orange-900/30 transition-colors group"
+                  onClick={() => !isTutorialRunning && setShowMoreSheet(false)}
+                  className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  aria-label="Close more menu"
                 >
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 flex items-center justify-center text-white">
-                    <Link2 size={20} />
-                  </div>
-                  <div className="flex-1 text-left">
-                    <span className="font-medium text-gray-900 dark:text-white">External Wishlists</span>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Amazon, Etsy, and other sites</p>
-                  </div>
-                  {((viewingMember?.external_wishlist_count || 0) + (selectedSharedWishlist?.external_wishlist_count || 0)) > 0 && (
-                    <span className="px-2.5 py-1 rounded-full bg-amber-500 text-white text-sm font-medium">
-                      {viewingMember?.external_wishlist_count || selectedSharedWishlist?.external_wishlist_count || 0}
-                    </span>
-                  )}
+                  <X size={20} className="text-gray-500 dark:text-gray-400" />
                 </button>
-              )}
+              </div>
 
-              {/* Size & Preferences */}
-              {onOpenPreferences && !selectedSharedWishlist && (
-                <button
-                  id="tutorial-preferences"
-                  onClick={() => {
-                    triggerHaptic();
-                    setShowMoreSheet(false);
-                    onOpenPreferences();
-                  }}
-                  className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20 hover:from-violet-100 hover:to-purple-100 dark:hover:from-violet-900/30 dark:hover:to-purple-900/30 transition-colors"
-                >
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 flex items-center justify-center text-white">
-                    <User size={20} />
+              {/* Sheet content */}
+              <div className="overflow-y-auto px-4 py-3 space-y-2 pb-6 flex-1" style={{ maxHeight: 'calc(70vh - 4rem)' }}>
+                {/* External Wishlists */}
+                {(viewingMember ? (isOwnWishlist || viewingMember.external_wishlist_count > 0) : (selectedSharedWishlist && (isOwnWishlist || selectedSharedWishlist.external_wishlist_count > 0))) && (
+                  <button
+                    id="tutorial-external-wishlists"
+                    onClick={() => {
+                      triggerHaptic();
+                      setShowMoreSheet(false);
+                      onOpenExternalWishlists?.();
+                    }}
+                    className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 hover:from-amber-100 hover:to-orange-100 dark:hover:from-amber-900/30 dark:hover:to-orange-900/30 transition-colors group"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 flex items-center justify-center text-white">
+                      <Link2 size={20} />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <span className="font-medium text-gray-900 dark:text-white">External Wishlists</span>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Amazon, Etsy, and other sites</p>
+                    </div>
+                    {((viewingMember?.external_wishlist_count || 0) + (selectedSharedWishlist?.external_wishlist_count || 0)) > 0 && (
+                      <span className="px-2.5 py-1 rounded-full bg-amber-500 text-white text-sm font-medium">
+                        {viewingMember?.external_wishlist_count || selectedSharedWishlist?.external_wishlist_count || 0}
+                      </span>
+                    )}
+                  </button>
+                )}
+
+                {/* Size & Preferences */}
+                {onOpenPreferences && !selectedSharedWishlist && (
+                  <button
+                    id="tutorial-preferences"
+                    onClick={() => {
+                      triggerHaptic();
+                      setShowMoreSheet(false);
+                      onOpenPreferences();
+                    }}
+                    className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20 hover:from-violet-100 hover:to-purple-100 dark:hover:from-violet-900/30 dark:hover:to-purple-900/30 transition-colors"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 flex items-center justify-center text-white">
+                      <User size={20} />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <span className="font-medium text-gray-900 dark:text-white">Size & Preferences</span>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Clothing sizes, favorites, notes</p>
+                    </div>
+                  </button>
+                )}
+
+                {/* My Shared Wishlists */}
+                {ownedSharedWishlists.length > 0 && (
+                  <div className="pt-2 border-t border-gray-100 dark:border-gray-800 mt-2 space-y-2">
+                    <p className="px-4 py-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                      My Shared Wishlists
+                    </p>
+                    {ownedSharedWishlists.map((wishlist) => {
+                      const displayName = wishlist.name.replace(/['']s\s+Wishlist$/i, '').replace(/\s+Wishlist$/i, '');
+                      const itemCount = wishlist.item_count || wishlist.items?.length || 0;
+                      const isCurrentWishlist = selectedSharedWishlist?.id === wishlist.id;
+
+                      return (
+                        <button
+                          key={`owned-${wishlist.id}`}
+                          onClick={() => {
+                            triggerHaptic();
+                            setShowMoreSheet(false);
+                            onSelectSharedWishlist?.(wishlist);
+                          }}
+                          className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-colors ${
+                            isCurrentWishlist
+                              ? 'bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white'
+                              : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white ${
+                            isCurrentWishlist ? 'bg-white/20' : 'bg-gradient-to-r from-fuchsia-500 to-pink-500'
+                          }`}>
+                            <Users size={18} />
+                          </div>
+                          <div className="flex-1 text-left">
+                            <span className={`font-medium ${isCurrentWishlist ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
+                              {displayName}
+                            </span>
+                            <span className={`text-sm block ${isCurrentWishlist ? 'text-white/70' : 'text-gray-500 dark:text-gray-400'}`}>
+                              {itemCount} {itemCount === 1 ? 'item' : 'items'}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
-                  <div className="flex-1 text-left">
-                    <span className="font-medium text-gray-900 dark:text-white">Size & Preferences</span>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Clothing sizes, favorites, notes</p>
-                  </div>
-                </button>
-              )}
-
-              {/* My Shared Wishlists */}
-              {ownedSharedWishlists.length > 0 && (
-                <div className="pt-2 border-t border-gray-100 dark:border-gray-800 mt-2 space-y-2">
-                  <p className="px-4 py-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                    My Shared Wishlists
-                  </p>
-                  {ownedSharedWishlists.map((wishlist) => {
-                    const displayName = wishlist.name.replace(/['']s\s+Wishlist$/i, '').replace(/\s+Wishlist$/i, '');
-                    const itemCount = wishlist.item_count || wishlist.items?.length || 0;
-                    const isCurrentWishlist = selectedSharedWishlist?.id === wishlist.id;
-
-                    return (
-                      <button
-                        key={`owned-${wishlist.id}`}
-                        onClick={() => {
-                          triggerHaptic();
-                          setShowMoreSheet(false);
-                          onSelectSharedWishlist?.(wishlist);
-                        }}
-                        className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-colors ${
-                          isCurrentWishlist
-                            ? 'bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white'
-                            : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700'
-                        }`}
-                      >
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white ${
-                          isCurrentWishlist ? 'bg-white/20' : 'bg-gradient-to-r from-fuchsia-500 to-pink-500'
-                        }`}>
-                          <Users size={18} />
-                        </div>
-                        <div className="flex-1 text-left">
-                          <span className={`font-medium ${isCurrentWishlist ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
-                            {displayName}
-                          </span>
-                          <span className={`text-sm block ${isCurrentWishlist ? 'text-white/70' : 'text-gray-500 dark:text-gray-400'}`}>
-                            {itemCount} {itemCount === 1 ? 'item' : 'items'}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </motion.div>
+                )}
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 

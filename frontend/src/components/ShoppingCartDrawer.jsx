@@ -500,11 +500,14 @@ const ShoppingCartDrawer = ({
             exit={{ opacity: 0 }}
             onClick={onClose}
           />
-          <motion.aside
-            className="fixed left-0 right-0 top-0 z-50 bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl overflow-hidden flex flex-col"
+          <div
+            className="fixed left-0 right-0 top-0 z-50 flex flex-col justify-end md:inset-0 md:items-center md:justify-end pointer-events-none"
             style={{
               bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))',
             }}
+          >
+          <motion.aside
+            className="pointer-events-auto w-full h-full md:h-full bg-white dark:bg-gray-900 rounded-t-3xl md:rounded-3xl shadow-2xl overflow-hidden flex flex-col md:w-[min(36rem,calc(100vw-2rem))]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -994,6 +997,7 @@ const ShoppingCartDrawer = ({
               </button>
             </div>
           </motion.aside>
+          </div>
         </>
       )}
     </AnimatePresence>

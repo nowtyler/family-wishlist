@@ -308,17 +308,6 @@ def read_family_members(
         .all()
     )
 
-    # Batch query: household counts per member
-    household_counts = dict(
-        db.query(
-            models.user_household_association.c.user_id,
-            func.count(models.user_household_association.c.household_id)
-        )
-        .filter(models.user_household_association.c.user_id.in_(member_ids))
-        .group_by(models.user_household_association.c.user_id)
-        .all()
-    )
-
     # Batch query: external wishlist counts per member
     ext_counts = dict(
         db.query(models.ExternalWishlist.owner_id, func.count(models.ExternalWishlist.id))
@@ -347,6 +336,14 @@ def read_family_members(
 
     members_with_counts = []
     for member in members:
+        visible_households = households_by_member.get(member.id, [])
+        if not is_admin:
+            visible_households = [
+                household
+                for household in visible_households
+                if household["id"] in current_user_households
+            ]
+
         member_dict = {
             "id": member.id,
             "name": member.name,
@@ -359,8 +356,8 @@ def read_family_members(
             "first_login": member.first_login,
             "wishlist_item_count": item_counts.get(member.id, 0),
             "external_wishlist_count": ext_counts.get(member.id, 0),
-            "household_count": household_counts.get(member.id, 0),
-            "households": households_by_member.get(member.id, [])
+            "household_count": len(visible_households),
+            "households": visible_households
         }
         member_schema = schemas.FamilyMember.model_validate(member_dict)
         members_with_counts.append(member_schema)
