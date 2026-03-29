@@ -6,7 +6,7 @@ const PostEventWishlistReminderModal = ({
   wishlistName,
   title = 'Wishlist update reminder',
   message = 'Please review this wishlist and remove or update anything already received.',
-  secondaryMessage = null,
+  secondaryMessage = 'Someone thinks this wishlist needs attention.',
   onDismiss
 }) => {
   if (!isOpen) return null;

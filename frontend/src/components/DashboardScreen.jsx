@@ -44,7 +44,7 @@ const WISHLIST_REMINDER_PREFIX = '[WISHLIST_UPDATE_REMINDER]';
  */
 const DashboardScreen = (props = {}) => {
   const { onViewingMemberChange } = props;
-  const { selectedUser, familyMembers, setFamilyMembers } = useAppContext();
+  const { selectedUser, setSelectedUser, familyMembers, setFamilyMembers } = useAppContext();
   const tutorial = useTutorial();
   const isAdmin = selectedUser?.is_admin;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -80,6 +80,10 @@ const DashboardScreen = (props = {}) => {
   const [sharedWishlistOptimisticUpdate, setSharedWishlistOptimisticUpdate] = useState(null);
   const [postEventReminder, setPostEventReminder] = useState(null);
   const [adminWishlistReminderNotification, setAdminWishlistReminderNotification] = useState(null);
+
+  const selectedUserHouseholdCount = selectedUser?.household_count
+    ?? (Array.isArray(selectedUser?.households) ? selectedUser.households.length : 0);
+  const hasNoHousehold = Boolean(selectedUser?.id) && selectedUserHouseholdCount === 0;
 
   const updateSearchParams = useCallback((updates, options = {}) => {
     const nextParams = new URLSearchParams(searchParams);
@@ -914,11 +918,23 @@ const DashboardScreen = (props = {}) => {
   const handleHouseholdUpdate = async () => {
     // Refresh family members and wishlist items after household changes
     try {
+      if (selectedUser?.id) {
+        const userResponse = await getUserProfile(selectedUser.id);
+        if (userResponse?.data) {
+          setSelectedUser(userResponse.data);
+          if (viewingMember?.id === selectedUser.id) {
+            setViewingMember(userResponse.data);
+          }
+        }
+      }
+
       const membersResponse = await getFamilyMembers();
       setFamilyMembers(membersResponse.data);
-      
-      // Also refresh wishlist items as household changes might affect what's visible
-      await refreshWishlistItems();
+
+      await Promise.all([
+        refreshWishlistItems(true),
+        refreshSharedWishlists()
+      ]);
     } catch (error) {
       console.error("Error refreshing data after household update:", error);
     }
@@ -975,6 +991,17 @@ const DashboardScreen = (props = {}) => {
                 <TriangleAlert className="text-yellow-500" size={18} />
                 <p className="text-yellow-800 dark:text-yellow-200">
                   Database update required. Some features may be limited until an administrator performs the update.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {hasNoHousehold && (
+            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+              <div className="flex items-start gap-2">
+                <TriangleAlert className="text-amber-500 shrink-0 mt-0.5" size={18} />
+                <p className="text-amber-900 dark:text-amber-100">
+                  No one can see your wishlist right now because you are not in a household. Your shared wishlists that you own are still available to you.
                 </p>
               </div>
             </div>

@@ -3,7 +3,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, Header, Request, Bo
 from fastapi.responses import Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func, text
+from sqlalchemy import func, text, or_
 from typing import List, Optional, Dict, Any
 import logging
 import traceback
@@ -4948,8 +4948,10 @@ def join_household(
         if active_household_ids:
             db.query(models.SharedWishlist).filter(
                 models.SharedWishlist.created_by == current_user_id,
-                models.SharedWishlist.household_id.isnot(None),
-                models.SharedWishlist.household_id.notin_(active_household_ids)
+                or_(
+                    models.SharedWishlist.household_id.is_(None),
+                    models.SharedWishlist.household_id.notin_(active_household_ids)
+                )
             ).update(
                 {models.SharedWishlist.household_id: household_id},
                 synchronize_session=False
@@ -5029,12 +5031,19 @@ def leave_household(
             elif len(remaining_household_ids) == 1:
                 target_household_id = remaining_household_ids[0]
 
+        wishlist_update_query = db.query(models.SharedWishlist).filter(
+            models.SharedWishlist.created_by == current_user_id,
+            models.SharedWishlist.household_id == household_id
+        )
+
         if target_household_id:
-            db.query(models.SharedWishlist).filter(
-                models.SharedWishlist.created_by == current_user_id,
-                models.SharedWishlist.household_id == household_id
-            ).update(
+            wishlist_update_query.update(
                 {models.SharedWishlist.household_id: target_household_id},
+                synchronize_session=False
+            )
+        else:
+            wishlist_update_query.update(
+                {models.SharedWishlist.household_id: None},
                 synchronize_session=False
             )
 

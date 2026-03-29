@@ -150,6 +150,54 @@ class TestSharedWishlistCreation:
         assert len(parent1_wishlists) == 2
         assert len(parent2_wishlists) == 1
 
+    def test_owned_shared_wishlist_stays_visible_without_households(self, db_session, test_users, test_household):
+        """Owners should still see their shared wishlist after leaving every household."""
+        parent1 = test_users["parent1"]
+
+        wishlist = crud.create_shared_wishlist(
+            db_session,
+            schemas.SharedWishlistCreate(name="Detached List"),
+            parent1.id
+        )
+        wishlist.household_id = test_household.id
+        db_session.commit()
+
+        db_session.execute(
+            models.user_household_association.delete().where(
+                models.user_household_association.c.user_id == parent1.id
+            )
+        )
+        db_session.commit()
+
+        visible_wishlists = crud.get_all_shared_wishlists(db_session, user_id=parent1.id)
+
+        assert [visible.id for visible in visible_wishlists] == [wishlist.id]
+
+    def test_co_owned_shared_wishlist_stays_visible_without_households(self, db_session, test_users, test_household):
+        """Co-owners should keep access even after leaving every household."""
+        parent1 = test_users["parent1"]
+        parent2 = test_users["parent2"]
+
+        wishlist = crud.create_shared_wishlist(
+            db_session,
+            schemas.SharedWishlistCreate(name="Co-Owned List"),
+            parent1.id
+        )
+        wishlist.household_id = test_household.id
+        db_session.commit()
+        crud.add_shared_wishlist_owner(db_session, wishlist.id, parent2.username, parent1.id)
+
+        db_session.execute(
+            models.user_household_association.delete().where(
+                models.user_household_association.c.user_id == parent2.id
+            )
+        )
+        db_session.commit()
+
+        visible_wishlists = crud.get_all_shared_wishlists(db_session, user_id=parent2.id)
+
+        assert [visible.id for visible in visible_wishlists] == [wishlist.id]
+
 
 class TestSharedWishlistOwnership:
     """Tests for co-owner management"""

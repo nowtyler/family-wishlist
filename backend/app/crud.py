@@ -874,6 +874,11 @@ def get_all_shared_wishlists(db: Session, user_id: Optional[int] = None) -> List
     query = db.query(models.SharedWishlist)
 
     if user_id:
+        owner_visibility = db.query(models.shared_wishlist_owners).filter(
+            models.shared_wishlist_owners.c.wishlist_id == models.SharedWishlist.id,
+            models.shared_wishlist_owners.c.user_id == user_id
+        ).exists()
+
         # Get user's household IDs
         user_households = db.query(models.user_household_association.c.household_id).filter(
             models.user_household_association.c.user_id == user_id,
@@ -889,12 +894,15 @@ def get_all_shared_wishlists(db: Session, user_id: Optional[int] = None) -> List
             models.user_household_association.c.status == 'active'
         ).subquery()
 
-        # Filter to wishlists where at least one owner is in the user's households
+        # A user should always keep access to shared wishlists they own, even if they
+        # are no longer in any household. Non-owned wishlists still follow household visibility.
+        household_visibility = db.query(models.shared_wishlist_owners).filter(
+            models.shared_wishlist_owners.c.wishlist_id == models.SharedWishlist.id,
+            models.shared_wishlist_owners.c.user_id.in_(owners_in_user_households)
+        ).exists()
+
         query = query.filter(
-            db.query(models.shared_wishlist_owners).filter(
-                models.shared_wishlist_owners.c.wishlist_id == models.SharedWishlist.id,
-                models.shared_wishlist_owners.c.user_id.in_(owners_in_user_households)
-            ).exists()
+            or_(owner_visibility, household_visibility)
         )
 
     return query.order_by(models.SharedWishlist.created_at.desc()).all()
