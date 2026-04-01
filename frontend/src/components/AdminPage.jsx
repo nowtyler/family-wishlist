@@ -2358,7 +2358,7 @@ const AdminPage = () => {
       link: '',
       image_url: '',
       price: '',
-      priority: 2
+      priority: 0
     });
     const [isDeleting, setIsDeleting] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -2411,7 +2411,7 @@ const AdminPage = () => {
         link: item.link || '',
         image_url: item.image_url || '',
         price: item.price !== null && item.price !== undefined ? (item.price / 100).toFixed(2) : '',
-        priority: item.priority ?? 2
+        priority: item.priority ?? 0
       });
     };
 
@@ -2423,7 +2423,7 @@ const AdminPage = () => {
         link: '',
         image_url: '',
         price: '',
-        priority: 2
+        priority: 0
       });
     };
 
@@ -2446,10 +2446,7 @@ const AdminPage = () => {
         parsedPrice = numericPrice;
       }
 
-      const parsedPriority = Number(editForm.priority);
-      const normalizedPriority = Number.isInteger(parsedPriority) && parsedPriority >= 1 && parsedPriority <= 3
-        ? parsedPriority
-        : 2;
+      const normalizedPriority = Number(editForm.priority) >= 1 ? 1 : 0;
 
       const payload = {
         title: trimmedTitle,
@@ -2662,7 +2659,7 @@ const AdminPage = () => {
                                     {item.description || 'No description'}
                                   </p>
                                   <div className="flex items-center gap-4 mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                    <span>Priority: {item.priority}</span>
+                                    {item.priority >= 1 && <span>⭐ Most Wanted</span>}
                                     {item.price && (
                                       <span>Price: ${(item.price / 100).toFixed(2)}</span>
                                     )}
@@ -2795,18 +2792,19 @@ const AdminPage = () => {
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Priority</label>
-                    <select
-                      value={String(editForm.priority)}
-                      onChange={(e) => setEditForm((prev) => ({ ...prev, priority: Number(e.target.value) }))}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    >
-                      <option value="1">High (1)</option>
-                      <option value="2">Medium (2)</option>
-                      <option value="3">Low (3)</option>
-                    </select>
-                  </div>
+                  <label className="flex items-center gap-3 cursor-pointer select-none mt-2">
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={(editForm.priority ?? 0) >= 1}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, priority: e.target.checked ? 1 : 0 }))}
+                      />
+                      <div className="w-10 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer-checked:bg-rose-500 transition-colors" />
+                      <div className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow peer-checked:translate-x-4 transition-transform" />
+                    </div>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Most Wanted</span>
+                  </label>
                 </div>
 
                 <div>

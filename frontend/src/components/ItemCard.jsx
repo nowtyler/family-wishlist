@@ -8,7 +8,7 @@ function ItemCard({ item, isOwnWishlist /*, other props like userThinking, userP
       {item.description && <p className="line-clamp-3 break-words whitespace-pre-wrap">{item.description}</p>}
       {item.link && <a href={item.link} target="_blank" rel="noopener noreferrer">View Link</a>}
       {item.image_url && <img src={item.image_url} alt={item.title} style={{ maxWidth: '100px', maxHeight: '100px' }} />}
-      {item.priority && <p>Priority: {item.priority}</p>}
+      {item.priority >= 1 && <p>⭐ Most Wanted</p>}
 
       {isOwnWishlist ? (
         <div className="own-wishlist-actions">

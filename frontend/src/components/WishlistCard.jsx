@@ -1,7 +1,7 @@
 // WishlistCard.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, ExternalLink, MessageCircleHeart, Pencil, Check, X, Flag, MessageCircle, Send, Download, Upload, Link2, ShoppingCart, ChevronDown, ChevronUp } from 'lucide-react';
+import { Trash2, ExternalLink, MessageCircleHeart, Pencil, Check, X, MessageCircle, Send, Download, Upload, Link2, ShoppingCart, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { updateWishlistItem, updateSharedWishlistItem, addComment, deleteComment, getWishlistItems, exportWishlist, importWishlist, addShoppingCartItemFromWishlistItem, getShoppingCartItems, deleteShoppingCartItem, markPurchased, addShoppingCartItemFromSharedWishlistItem, addSharedWishlistItemComment, getSharedWishlist, toggleSharedItemPurchased } from '../services/api';
 
@@ -430,25 +430,12 @@ const WishlistCard = (props) => {
     );
   };
 
-  const renderPriorityIcon = (priority) => {
+  const renderMostWanted = (priority) => {
+    if (!priority || priority < 1) return null;
     return (
-      <div className="flex items-center">
-        <Flag
-          size={16}
-          className={`fill-current ${
-            priority === 2 ? 'text-red-500' :
-            priority === 1 ? 'text-yellow-500' :
-            'text-green-500'
-          }`}
-        />
-        <span className={`ml-1 text-xs font-medium ${
-          priority === 2 ? 'text-red-500' :
-          priority === 1 ? 'text-yellow-500' :
-          'text-green-500'
-        }`}>
-          {priority === 2 ? 'High' : priority === 1 ? 'Medium' : 'Low'}
-        </span>
-      </div>
+      <span className="inline-flex items-center text-[11px] leading-none font-semibold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">
+        Most Wanted
+      </span>
     );
   };
 
@@ -787,18 +774,19 @@ const WishlistCard = (props) => {
                 }`}
                 whileHover={{ y: -3, transition: { duration: 0.2 } }}
               >
-                <div className="flex justify-between items-start">
+                <div className="flex justify-between items-start mb-2">
                   <div className="flex flex-wrap items-start justify-between w-full gap-2">
                     <div className="flex-1 min-w-0">
                       <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-2 line-clamp-2 break-words overflow-hidden">{item.title}</h3>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {item.price !== null && item.price !== undefined && !Number.isNaN(Number(item.price)) && (
-                        <span className="inline-flex text-sm font-medium px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
-                          ${(Number(item.price) / 100).toFixed(2)}
-                        </span>
-                      )}
-                      {isOwnWishlist && (
+                    <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                      <div className="flex items-center gap-2">
+                        {item.price !== null && item.price !== undefined && !Number.isNaN(Number(item.price)) && (
+                          <span className="inline-flex text-sm font-medium px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
+                            ${(Number(item.price) / 100).toFixed(2)}
+                          </span>
+                        )}
+                        {isOwnWishlist && (
                         <div className="flex gap-2">
                           <button
                             onClick={(e) => handleEditClick(e, item)}
@@ -819,6 +807,8 @@ const WishlistCard = (props) => {
                           </button>
                         </div>
                       )}
+                      </div>
+                      {renderMostWanted(item.priority)}
                     </div>
                   </div>
                 </div>
@@ -837,11 +827,8 @@ const WishlistCard = (props) => {
                   )}
                 </>
 
-                <div className="flex items-center flex-wrap justify-between gap-1 mt-2">
+                <div className="flex items-center flex-wrap justify-end gap-1 mt-2">
                   <>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {renderPriorityIcon(item.priority)}
-                    </div>
                     <div className="flex items-center justify-end gap-2 min-w-0">
                       {showPurchaseActions && item.purchased_by && (
                         <span
@@ -953,22 +940,23 @@ const WishlistCard = (props) => {
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-                      Priority
-                    </label>
-                    <select
-                      value={String(editForm.priority ?? 1)}
-                      onChange={(e) =>
-                        setEditForm((prev) => ({ ...prev, priority: Number(e.target.value) }))
-                      }
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    >
-                      <option value={2}>High (2)</option>
-                      <option value={1}>Medium (1)</option>
-                      <option value={0}>Low (0)</option>
-                    </select>
-                  </div>
+                  <label className="flex items-center gap-3 cursor-pointer select-none">
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={(editForm.priority ?? 0) >= 1}
+                        onChange={(e) =>
+                          setEditForm((prev) => ({ ...prev, priority: e.target.checked ? 1 : 0 }))
+                        }
+                      />
+                      <div className="w-10 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer-checked:bg-rose-500 transition-colors" />
+                      <div className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow peer-checked:translate-x-4 transition-transform" />
+                    </div>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      Most Wanted
+                    </span>
+                  </label>
                 </div>
 
                 <button

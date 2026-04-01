@@ -150,7 +150,7 @@ class WishlistItem(Base):
     description = Column(Text, nullable=True)
     link = Column(String, nullable=True)
     image_url = Column(String, nullable=True)
-    priority = Column(Integer, default=0) # e.g., 0=low, 1=medium, 2=high
+    priority = Column(Integer, default=0)  # 0=normal, 1=most wanted
     is_purchased = Column(Boolean, default=False)
     owner_id = Column(Integer, ForeignKey("family_members.id"))
     thinking_about_by = Column(String, nullable=True)
@@ -178,7 +178,7 @@ class WishlistItemCreate(BaseModel):
     description: str | None = None
     link: HttpUrl | None = None
     image_url: HttpUrl | None = None
-    priority: int = 1
+    priority: int = 0
     price: int | None = None  # Add price field
 
     def to_db_dict(self) -> dict:
@@ -343,7 +343,7 @@ class SharedWishlistItem(Base):
     description = Column(Text, nullable=True)
     link = Column(String(2000), nullable=True)
     image_url = Column(String(2000), nullable=True)
-    priority = Column(Integer, default=0)
+    priority = Column(Integer, default=0)  # 0=normal, 1=most wanted
     price = Column(Integer, nullable=True)  # Stored in cents
     is_purchased = Column(Boolean, default=False)
     purchased_by = Column(String(100), nullable=True)

@@ -5,9 +5,8 @@ from datetime import date, datetime
 from enum import Enum
 
 class PriorityLevel(int, Enum):
-    LOW = 0
-    MEDIUM = 1
-    HIGH = 2
+    NORMAL = 0
+    MOST_WANTED = 1
 
 class HouseholdStatus(str, Enum):
     ACTIVE = "active"
@@ -343,8 +342,8 @@ class WishlistItemCreate(BaseModel):
         description="URL of an image representing the item"
     )
     priority: PriorityLevel = Field(
-        PriorityLevel.MEDIUM,
-        description="Priority level of the item (0=Low, 1=Medium, 2=High)"
+        PriorityLevel.NORMAL,
+        description="Priority level: 0=Normal, 1=Most Wanted"
     )
     price: Optional[float] = Field(
         None,
@@ -415,7 +414,7 @@ class WishlistItemCreate(BaseModel):
                 "description": "OLED Model - White",
                 "link": "https://www.amazon.com/Nintendo-Switch-OLED-Model-White/dp/B098RKWHHZ",
                 "image_url": "https://example.com/switch.jpg",
-                "priority": 2,
+                "priority": 1,
                 "price": 349.99
             }
         }
@@ -704,7 +703,7 @@ class SharedWishlistItemBase(BaseModel):
     description: Optional[str] = Field(None, max_length=2000)
     link: Optional[HttpUrl] = None
     image_url: Optional[HttpUrl] = None
-    priority: int = Field(default=1, ge=0, le=2)
+    priority: int = Field(default=0, ge=0, le=1)
     price: Optional[float] = Field(None, ge=0, le=1000000)
 
 
@@ -717,7 +716,7 @@ class SharedWishlistItemUpdate(BaseModel):
     description: Optional[str] = Field(None, max_length=2000)
     link: Optional[str] = None
     image_url: Optional[str] = None
-    priority: Optional[int] = Field(None, ge=0, le=2)
+    priority: Optional[int] = Field(None, ge=0, le=1)
     price: Optional[float] = Field(None, ge=0)
 
 
