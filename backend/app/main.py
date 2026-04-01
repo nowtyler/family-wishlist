@@ -11,6 +11,8 @@ import os
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 from urllib.parse import urlparse  # Add this missing import
+import socket
+import ipaddress
 import alembic.script  # Import for script directory access
 from . import crud, models, schemas, auth, database
 from .database import (
@@ -1671,10 +1673,33 @@ async def fetch_url_details(
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
         
-        # Check if this is Etsy or another problematic site that needs browser scraping
+        # Validate URL and block SSRF attacks
         parsed_url = urlparse(url)
         domain = parsed_url.netloc.lower()
-        
+
+        # Strip port for hostname resolution
+        hostname = parsed_url.hostname
+        if not hostname:
+            raise HTTPException(status_code=400, detail="Invalid URL: no hostname found")
+
+        # Block non-HTTP schemes
+        if parsed_url.scheme not in ('http', 'https'):
+            raise HTTPException(status_code=400, detail="Only HTTP and HTTPS URLs are allowed")
+
+        # Resolve hostname and block internal/private IP ranges
+        try:
+            resolved_ips = socket.getaddrinfo(hostname, None)
+        except socket.gaierror:
+            raise HTTPException(status_code=400, detail="Unable to resolve hostname")
+
+        for addr_info in resolved_ips:
+            ip = ipaddress.ip_address(addr_info[4][0])
+            if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local:
+                raise HTTPException(
+                    status_code=400,
+                    detail="URLs pointing to internal or private networks are not allowed"
+                )
+
         if 'etsy.com' in domain:
             # Use async browser scraping for Etsy
             product_details = await product_scraper.fetch_product_details_async(url)
