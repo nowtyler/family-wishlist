@@ -22,19 +22,18 @@ export const useTutorial = () => useContext(TutorialContext);
 
 // Targets that require the Browse sheet to be open
 const BROWSE_SHEET_TARGETS = new Set([
-  '#tutorial-browse-tab',
   '#tutorial-browse-wishlists',
 ]);
 
 // Targets that require the More sheet to be open
 const MORE_SHEET_TARGETS = new Set([
-  '#tutorial-more-tab',
   '#tutorial-external-wishlists',
   '#tutorial-preferences',
 ]);
 
 // Targets that require the shopping cart to be open
 const CART_INTERIOR_TARGETS = new Set([
+  '#tutorial-cart-item-row',
   '#tutorial-cart-item-status',
   '#tutorial-cart-item-delete',
   '#tutorial-cart-add-button',
@@ -221,6 +220,13 @@ const tutorialSteps = [
     placement: 'top',
   },
   {
+    target: '#tutorial-cart-item-row',
+    title: 'Your Cart Items',
+    content: 'Here\'s where your cart items appear, grouped by recipient. Let\'s take a closer look at what you can do with each item.',
+    disableBeacon: true,
+    placement: 'top',
+  },
+  {
     target: '#tutorial-cart-item-status',
     title: 'Mark as Purchased',
     content: 'Tap the circle to mark a gift as purchased once you\'ve bought it. This helps you keep track of what\'s done.',
@@ -251,7 +257,7 @@ const tutorialSteps = [
   {
     target: '#tutorial-settings',
     title: 'Settings',
-    content: 'Access your profile to change your password, manage households, and toggle dark mode. You can also create shared wishlists here — great for kids or joint gifts, with co-owners who can all manage the same list.',
+    content: 'Access your profile to change your password and manage households. The dark mode toggle is right next to this icon. You can also create shared wishlists here — great for kids or joint gifts, with co-owners who can all manage the same list.',
     disableBeacon: true,
     placement: 'bottom',
   },
@@ -468,6 +474,10 @@ export const TutorialProvider = ({ children }) => {
       }
       cartControlRef.current.open?.();
       setTimeout(() => {
+        // Scroll the cart's scrollable container to the top so the tutorial item
+        // is visible and joyride spotlight aligns correctly
+        const cartScroller = document.querySelector('[data-cart-scroll-container]');
+        if (cartScroller) cartScroller.scrollTop = 0;
         setStepIndex(nextIndex);
       }, 1000);
       return;
@@ -562,6 +572,8 @@ export const TutorialProvider = ({ children }) => {
         // Re-open cart and retry
         cartControlRef.current.open?.();
         setTimeout(() => {
+          const cartScroller = document.querySelector('[data-cart-scroll-container]');
+          if (cartScroller) cartScroller.scrollTop = 0;
           setJoyrideKey((current) => current + 1);
         }, 500);
         return;
@@ -597,10 +609,13 @@ export const TutorialProvider = ({ children }) => {
     };
   }, [deleteTutorialCartItem]);
 
+  const isCartDemoActive = run && isCartInteriorStep(currentStep);
+
   const value = {
     run,
     stepIndex,
     currentStep,
+    isCartDemoActive,
     startTutorial,
     stopTutorial,
     completeTutorial,

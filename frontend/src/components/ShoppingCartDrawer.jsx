@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ChevronsDown, ChevronsUp, Circle, Link, Loader, Send, Trash2, X } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useAppContext } from '../contexts/AppContext';
-import { TUTORIAL_DUMMY_MARKER } from '../contexts/TutorialContext';
+import { TUTORIAL_DUMMY_MARKER, useTutorial } from '../contexts/TutorialContext';
 import { createShoppingCartItem, deleteShoppingCartItem, deleteSharedWishlistItem, fetchProductDetailsFromUrl, getShoppingCartItems, getNotifications, markNotificationRead, sendWishlistReminder, sendSharedWishlistOwnerReminder, updateShoppingCartItem } from '../services/api';
 
 const emptyFormState = {
@@ -51,6 +51,7 @@ const ShoppingCartDrawer = ({
 }) => {
   const wishlistReminderPrefix = '[WISHLIST_UPDATE_REMINDER]';
   const { familyMembers, selectedUser } = useAppContext();
+  const { isCartDemoActive } = useTutorial();
   const [formState, setFormState] = useState(emptyFormState);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
@@ -147,7 +148,12 @@ const ShoppingCartDrawer = ({
 
   const groupedCartItems = useMemo(() => {
     if (!Array.isArray(cartItems) || cartItems.length === 0) return [];
-    const groups = cartItems.reduce((acc, item) => {
+    // During the tutorial cart demo, only show the tutorial item
+    const visibleItems = isCartDemoActive
+      ? cartItems.filter((item) => item.notes === TUTORIAL_DUMMY_MARKER)
+      : cartItems;
+    if (visibleItems.length === 0) return [];
+    const groups = visibleItems.reduce((acc, item) => {
       const key = item.recipient_id != null
         ? String(item.recipient_id)
         : `custom:${item.recipient_name || 'unknown'}`;
@@ -172,12 +178,16 @@ const ShoppingCartDrawer = ({
         };
       })
       .sort((a, b) => {
+        // Tutorial group always first so the demo item is visible
+        const aIsTutorial = a.recipientId === `custom:Tutorial Example`;
+        const bIsTutorial = b.recipientId === `custom:Tutorial Example`;
+        if (aIsTutorial !== bIsTutorial) return aIsTutorial ? -1 : 1;
         if (a.daysUntil === null && b.daysUntil === null) return 0;
         if (a.daysUntil === null) return 1;
         if (b.daysUntil === null) return -1;
         return a.daysUntil - b.daysUntil;
       });
-  }, [cartItems, recipientLookup]);
+  }, [cartItems, recipientLookup, isCartDemoActive]);
 
   const toggleRecipientCollapse = (recipientId) => {
     setCollapsedRecipients((prev) => ({
@@ -541,6 +551,7 @@ const ShoppingCartDrawer = ({
             <form
               id="shopping-cart-entry-form"
               onSubmit={handleSubmit}
+              data-cart-scroll-container
               className="relative flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4 pb-24"
               onTouchStart={(event) => {
                 if (event.currentTarget.scrollTop > 0) return;
@@ -678,6 +689,7 @@ const ShoppingCartDrawer = ({
                             return (
                               <React.Fragment key={item.id}>
                         <div
+                                  id={item.notes === TUTORIAL_DUMMY_MARKER ? 'tutorial-cart-item-row' : undefined}
                                   className={`rounded-md border p-2.5 leading-snug ${
                                     item.status === 'purchased'
                                       ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-900/20 opacity-60'
