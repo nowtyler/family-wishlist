@@ -1,7 +1,7 @@
 // WishlistCard.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, ExternalLink, MessageCircleHeart, Pencil, Check, X, MessageCircle, Send, Download, Upload, Link2, ShoppingCart, ChevronDown, ChevronUp, Star } from 'lucide-react';
+import { Trash2, ExternalLink, MessageCircleHeart, Check, X, MessageCircle, Send, Download, Upload, Link2, ShoppingCart, ChevronDown, ChevronUp, Star } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { updateWishlistItem, updateSharedWishlistItem, addComment, deleteComment, getWishlistItems, exportWishlist, importWishlist, addShoppingCartItemFromWishlistItem, getShoppingCartItems, deleteShoppingCartItem, markPurchased, addShoppingCartItemFromSharedWishlistItem, addSharedWishlistItemComment, getSharedWishlist, toggleSharedItemPurchased } from '../services/api';
 
@@ -156,7 +156,25 @@ const WishlistCard = (props) => {
     };
   }, [editingItemId]);
 
+  const openEditModal = (item) => {
+    setEditingItemId(item.id);
+    setEditForm({
+      ...item,
+      title: truncateTitle(item.title),
+      price: item.price !== null ? (item.price / 100).toFixed(2) : ''
+    });
+    setSizeType('');
+    setSizeValue('');
+    setSizeGender('unspecified');
+    setShowSizeFields(false);
+    setShowAdvancedFields(false);
+  };
+
   const handleItemClick = (item) => {
+    if (isOwnWishlist) {
+      openEditModal(item);
+      return;
+    }
     setInternalSelectedItem(item);
     if (onItemClick) onItemClick(item);
   };
@@ -165,24 +183,6 @@ const WishlistCard = (props) => {
     setInternalSelectedItem(null);
     setShowFullDescription(false);
     if (onItemModalClose) onItemModalClose();
-  };
-
-  const handleEditClick = (e, item) => {
-    e.stopPropagation();
-    // Make sure item.title is truncated before setting in edit form
-    setEditingItemId(item.id);
-    setEditForm({
-      ...item,
-      title: truncateTitle(item.title),
-      price: item.price !== null ? (item.price / 100).toFixed(2) : ''  // Convert cents to dollars for editing and format
-    });
-    
-    // Reset size fields
-    setSizeType('');
-    setSizeValue('');
-    setSizeGender('unspecified');
-    setShowSizeFields(false);
-    setShowAdvancedFields(false);
   };
 
   const handleCancelEdit = () => {
@@ -790,27 +790,6 @@ const WishlistCard = (props) => {
                           ${(Number(item.price) / 100).toFixed(2)}
                         </span>
                       )}
-                      {isOwnWishlist && (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={(e) => handleEditClick(e, item)}
-                            className="text-blue-500 hover:text-blue-700 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
-                            title="Edit item"
-                          >
-                            <Pencil size={20} />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setPendingDeleteItemId(item.id);
-                            }}
-                            className="text-red-500 hover:text-red-700 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
-                            title="Delete item"
-                          >
-                            <Trash2 size={20} />
-                          </button>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -901,6 +880,14 @@ const WishlistCard = (props) => {
                 </div>
 
                 <div className="space-y-4 pb-4">
+                  {editForm.image_url && (
+                    <img
+                      src={editForm.image_url}
+                      alt={editForm.title || 'Wishlist item'}
+                      className="w-full max-h-64 object-contain rounded-lg bg-gray-50 dark:bg-gray-900/40"
+                    />
+                  )}
+
                   <div>
                     <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
                       Title
@@ -1126,21 +1113,36 @@ const WishlistCard = (props) => {
                 </div>
               </div>
 
-              <div className="shrink-0 px-5 py-3 border-t border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 flex justify-end gap-2">
+              <div className="shrink-0 px-5 py-3 border-t border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 flex justify-between gap-2">
                 <button
-                  onClick={handleCancelEdit}
-                  className="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                  onClick={() => {
+                    const itemId = editingItemId;
+                    handleCancelEdit();
+                    setPendingDeleteItemId(itemId);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 disabled:opacity-50"
                   disabled={isSavingEdit}
+                  title="Delete item"
                 >
-                  Cancel
+                  <Trash2 size={16} />
+                  Delete
                 </button>
-                <button
-                  onClick={() => handleSaveEdit(editingItemId)}
-                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
-                  disabled={isSavingEdit || isDuplicateTitle}
-                >
-                  {isSavingEdit ? 'Saving...' : 'Save Changes'}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleCancelEdit}
+                    className="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                    disabled={isSavingEdit}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleSaveEdit(editingItemId)}
+                    className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                    disabled={isSavingEdit || isDuplicateTitle}
+                  >
+                    {isSavingEdit ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>
