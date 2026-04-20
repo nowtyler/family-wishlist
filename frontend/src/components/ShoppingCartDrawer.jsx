@@ -733,55 +733,57 @@ const ShoppingCartDrawer = ({
                                   }
                                 }}
                               >
-                                <div className="flex items-start justify-between gap-3">
-                                  <div>
-                                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                                      {truncateText(item.title, 60)}
-                                    </p>
-                                    {item.status && (
-                                      <p className={`text-xs capitalize ${
-                                        item.status === 'purchased'
-                                          ? 'text-emerald-600 dark:text-emerald-400'
-                                          : 'text-gray-400 dark:text-gray-500'
-                                      }`}>
-                                        {item.status}
+                                <div className="flex items-start gap-3">
+                                  <button
+                                    type="button"
+                                    id={item.notes === TUTORIAL_DUMMY_MARKER ? 'tutorial-cart-item-status' : undefined}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      handleToggleStatus(item);
+                                    }}
+                                    className={`mt-0.5 p-0.5 rounded transition-colors flex-shrink-0 ${
+                                      item.status === 'purchased'
+                                        ? 'text-emerald-600 dark:text-emerald-400'
+                                        : 'text-gray-300 hover:text-emerald-500 dark:text-gray-600 dark:hover:text-emerald-400'
+                                    }`}
+                                    aria-label={item.status === 'purchased' ? 'Mark as pending' : 'Mark as purchased'}
+                                  >
+                                    {item.status === 'purchased' ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+                                  </button>
+                                  <div className="flex-1 flex items-start justify-between gap-3">
+                                    <div>
+                                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                        {truncateText(item.title, 60)}
                                       </p>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      type="button"
-                                      id={item.notes === TUTORIAL_DUMMY_MARKER ? 'tutorial-cart-item-status' : undefined}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        handleToggleStatus(item);
-                                      }}
-                                      className={`p-0.5 rounded transition-colors ${
-                                        item.status === 'purchased'
-                                          ? 'text-emerald-600 dark:text-emerald-400'
-                                          : 'text-gray-300 hover:text-emerald-500 dark:text-gray-600 dark:hover:text-emerald-400'
-                                      }`}
-                                      aria-label={item.status === 'purchased' ? 'Mark as pending' : 'Mark as purchased'}
-                                    >
-                                      {item.status === 'purchased' ? <CheckCircle2 size={16} /> : <Circle size={16} />}
-                                    </button>
-                                    {priceLabel && (
-                                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200">
-                                        {priceLabel}
-                                      </span>
-                                    )}
-                                    <button
-                                      type="button"
-                                      id={item.notes === TUTORIAL_DUMMY_MARKER ? 'tutorial-cart-item-delete' : undefined}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        handleRemoveItem(item);
-                                      }}
-                                      className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                      aria-label="Remove from cart"
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
+                                      {item.status && (
+                                        <p className={`text-xs capitalize ${
+                                          item.status === 'purchased'
+                                            ? 'text-emerald-600 dark:text-emerald-400'
+                                            : 'text-gray-400 dark:text-gray-500'
+                                        }`}>
+                                          {item.status}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {priceLabel && (
+                                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200">
+                                          {priceLabel}
+                                        </span>
+                                      )}
+                                      <button
+                                        type="button"
+                                        id={item.notes === TUTORIAL_DUMMY_MARKER ? 'tutorial-cart-item-delete' : undefined}
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleRemoveItem(item);
+                                        }}
+                                        className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                        aria-label="Remove from cart"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
                                 {item.notes && item.notes !== TUTORIAL_DUMMY_MARKER && (

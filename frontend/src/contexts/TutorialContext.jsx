@@ -229,9 +229,9 @@ const tutorialSteps = [
   {
     target: '#tutorial-cart-item-status',
     title: 'Mark as Purchased',
-    content: 'Tap the circle to mark a gift as purchased once you\'ve bought it. This helps you keep track of what\'s done.',
+    content: 'Tap the circle on the left side of each item to mark a gift as purchased once you\'ve bought it. This helps you keep track of what\'s done.',
     disableBeacon: true,
-    placement: 'bottom',
+    placement: 'right',
   },
   {
     target: '#tutorial-cart-item-delete',
