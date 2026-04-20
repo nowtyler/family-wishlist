@@ -1,7 +1,7 @@
 // WishlistCard.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, ExternalLink, MessageCircleHeart, Pencil, Check, X, MessageCircle, Send, Download, Upload, Link2, ShoppingCart, ChevronDown, ChevronUp } from 'lucide-react';
+import { Trash2, ExternalLink, MessageCircleHeart, Pencil, Check, X, MessageCircle, Send, Download, Upload, Link2, ShoppingCart, ChevronDown, ChevronUp, Star } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { updateWishlistItem, updateSharedWishlistItem, addComment, deleteComment, getWishlistItems, exportWishlist, importWishlist, addShoppingCartItemFromWishlistItem, getShoppingCartItems, deleteShoppingCartItem, markPurchased, addShoppingCartItemFromSharedWishlistItem, addSharedWishlistItemComment, getSharedWishlist, toggleSharedItemPurchased } from '../services/api';
 
@@ -430,15 +430,6 @@ const WishlistCard = (props) => {
     );
   };
 
-  const renderMostWanted = (priority) => {
-    if (!priority || priority < 1) return null;
-    return (
-      <span className="inline-flex items-center text-[11px] leading-none font-semibold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">
-        Most Wanted
-      </span>
-    );
-  };
-
   const handleAddToCart = async (item) => {
     const previousPurchasedBy = item.purchased_by;
     try {
@@ -769,24 +760,37 @@ const WishlistCard = (props) => {
               <motion.div
                 key={item.id}
                 onClick={() => handleItemClick(item)}
-                className={`bg-white dark:bg-gray-800 rounded-lg p-4 shadow-[0_4px_12px_-2px_rgba(0,0,0,0.12),0_3px_6px_-3px_rgba(0,0,0,0.15)] hover:shadow-[0_10px_25px_-6px_rgba(0,0,0,0.2),0_8px_16px_-8px_rgba(0,0,0,0.2)] transition-all duration-300 cursor-pointer ${
+                className={`relative overflow-hidden bg-white dark:bg-gray-800 rounded-lg p-4 shadow-[0_4px_12px_-2px_rgba(0,0,0,0.12),0_3px_6px_-3px_rgba(0,0,0,0.15)] hover:shadow-[0_10px_25px_-6px_rgba(0,0,0,0.2),0_8px_16px_-8px_rgba(0,0,0,0.2)] transition-all duration-300 cursor-pointer ${
                   item.purchased_by && !isOwnWishlist ? 'opacity-60' : ''
                 }`}
                 whileHover={{ y: -3, transition: { duration: 0.2 } }}
               >
+                {item.priority >= 1 && (
+                  <div
+                    className="absolute bottom-0 left-5 h-[17px] w-10 rounded-t-md bg-rose-400 dark:bg-rose-500 pointer-events-none overflow-visible"
+                    role="img"
+                    aria-label="Most Wanted"
+                    title="Most Wanted"
+                  >
+                    <Star
+                      size={26}
+                      strokeWidth={1.5}
+                      className="absolute -bottom-3 left-1/2 -translate-x-1/2 fill-rose-600/55 text-rose-600/55 dark:fill-rose-700/60 dark:text-rose-700/60 drop-shadow-[0_-1px_1px_rgba(0,0,0,0.22)] drop-shadow-[0_1px_0_rgba(255,255,255,0.08)]"
+                    />
+                  </div>
+                )}
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex flex-wrap items-start justify-between w-full gap-2">
                     <div className="flex-1 min-w-0">
                       <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-2 line-clamp-2 break-words overflow-hidden">{item.title}</h3>
                     </div>
-                    <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                      <div className="flex items-center gap-2">
-                        {item.price !== null && item.price !== undefined && !Number.isNaN(Number(item.price)) && (
-                          <span className="inline-flex text-sm font-medium px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
-                            ${(Number(item.price) / 100).toFixed(2)}
-                          </span>
-                        )}
-                        {isOwnWishlist && (
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {item.price !== null && item.price !== undefined && !Number.isNaN(Number(item.price)) && (
+                        <span className="inline-flex text-sm font-medium px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
+                          ${(Number(item.price) / 100).toFixed(2)}
+                        </span>
+                      )}
+                      {isOwnWishlist && (
                         <div className="flex gap-2">
                           <button
                             onClick={(e) => handleEditClick(e, item)}
@@ -807,8 +811,6 @@ const WishlistCard = (props) => {
                           </button>
                         </div>
                       )}
-                      </div>
-                      {renderMostWanted(item.priority)}
                     </div>
                   </div>
                 </div>
@@ -1172,6 +1174,13 @@ const WishlistCard = (props) => {
               className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] relative flex flex-col"
             >
               <div className="overflow-y-auto flex-1 p-4 sm:p-6 pb-0">
+              {selectedItem.priority >= 1 && !isOwnWishlist && (
+                <div className="flex items-center gap-1.5 mb-3">
+                  <span className="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">
+                    ★ Most Wanted
+                  </span>
+                </div>
+              )}
               <div className="pr-6 mb-4 w-full">
                 {selectedItem.title.length > MAX_TITLE_DISPLAY_LENGTH && !showFullTitle ? (
                   <div>
