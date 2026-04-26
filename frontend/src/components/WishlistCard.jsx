@@ -1124,14 +1124,14 @@ const WishlistCard = (props) => {
                 <div className="flex gap-2">
                   <button
                     onClick={handleCancelEdit}
-                    className="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                    className="px-4 py-2 text-sm font-medium rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
                     disabled={isSavingEdit}
                   >
                     Cancel
                   </button>
                   <button
                     onClick={() => handleSaveEdit(editingItemId)}
-                    className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                    className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
                     disabled={isSavingEdit || isDuplicateTitle}
                   >
                     {isSavingEdit ? 'Saving...' : 'Save Changes'}

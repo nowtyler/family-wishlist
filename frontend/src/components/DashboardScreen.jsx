@@ -22,9 +22,7 @@ import WishlistCard from './WishlistCard';
 import EnhancedUpcomingEventsBanner from './EnhancedUpcomingEventsBanner';
 import AddItemForm from './AddItemForm';
 import SchemaAlertModal from './SchemaAlertModal';
-import ExternalWishlistsButton from './ExternalWishlistsButton';
 import ShoppingCartDrawer from './ShoppingCartDrawer';
-import UserPreferencesDropdown from './UserPreferencesDropdown';
 import BottomTabNav from './BottomTabNav';
 import SharedWishlistManager from './SharedWishlistManager';
 import SharedWishlistInline from './SharedWishlistInline';
@@ -67,8 +65,6 @@ const DashboardScreen = (props = {}) => {
   const [isDragging, setIsDragging] = useState(false); // Track drag operations
   const [isAddingItem, setIsAddingItem] = useState(false); // State to control AddItemForm visibility
   const [isEditingItemModalOpen, setIsEditingItemModalOpen] = useState(false);
-  const [isExternalWishlistsOpen, setIsExternalWishlistsOpen] = useState(false); // State for external wishlists modal
-  const [isPreferencesOpen, setIsPreferencesOpen] = useState(false); // State for preferences modal
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
   const [notificationCount, setNotificationCount] = useState(0);
@@ -165,7 +161,6 @@ const DashboardScreen = (props = {}) => {
     setViewingMember(null); // Clear regular member when viewing shared wishlist
     setIsSharedWishlistsOpen(false);
     setIsAddingItem(false);
-    setIsPreferencesOpen(false);
     updateSearchParams(
       { sharedWishlistId: wishlist?.id, memberId: null },
       { replace: false }
@@ -374,7 +369,6 @@ const DashboardScreen = (props = {}) => {
     setViewingMember(member);
     setSelectedSharedWishlist(null); // Clear shared wishlist when selecting a member
     setIsAddingItem(false);
-    setIsPreferencesOpen(false);
     updateSearchParams(
       {
         memberId: member?.id === selectedUser?.id ? null : member?.id,
@@ -827,7 +821,6 @@ const DashboardScreen = (props = {}) => {
         setViewingMember(null);
         setIsSharedWishlistsOpen(false);
         setIsAddingItem(false);
-        setIsPreferencesOpen(false);
       }
 
       updateSearchParams(
@@ -1053,29 +1046,6 @@ const DashboardScreen = (props = {}) => {
             </div>
           ) : null}
 
-          {/* Hidden External Wishlists Button - Only renders modal, triggered from BottomTabNav */}
-          {(viewingMember || selectedSharedWishlist) && (
-            <ExternalWishlistsButton
-              member={viewingMember}
-              sharedWishlist={selectedSharedWishlist}
-              variant="hidden"
-              externalOpen={isExternalWishlistsOpen}
-              onExternalClose={() => setIsExternalWishlistsOpen(false)}
-            />
-          )}
-
-          {viewingMember && (
-            <UserPreferencesDropdown
-              member={viewingMember}
-              isOwner={viewingMember.id === selectedUser.id || isAdmin}
-              currentUserId={selectedUser.id}
-              onUpdateSuccess={handlePreferencesUpdate}
-              isOpen={isPreferencesOpen}
-              onOpenChange={setIsPreferencesOpen}
-              hideTrigger
-            />
-          )}
-
           {/* Add Item Form Modal */}
           <AnimatePresence>
             {isAddingItem && (
@@ -1150,9 +1120,9 @@ const DashboardScreen = (props = {}) => {
           onReturnHome={() => handleSelectViewingMember(selectedUser)}
           onToggleShoppingCart={() => setIsCartOpen((prev) => !prev)}
           onCloseShoppingCart={() => setIsCartOpen(false)}
-          onOpenExternalWishlists={() => setIsExternalWishlistsOpen(true)}
-          onOpenPreferences={() => setIsPreferencesOpen(true)}
+          onPreferencesUpdate={handlePreferencesUpdate}
           onOpenSharedWishlists={() => setIsSharedWishlistsOpen(true)}
+          isAdmin={isAdmin}
           onSelectMember={handleSelectViewingMember}
           onSelectSharedWishlist={handleSelectSharedWishlist}
           familyMembers={familyMembers}

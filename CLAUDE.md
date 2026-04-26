@@ -147,9 +147,11 @@ Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
 | **SharedWishlistView.jsx** | View/manage shared wishlist items |
 | **SharedWishlistManager.jsx** | Create/edit/delete shared wishlists, manage owners |
 | **ShoppingCartDrawer.jsx** | Side drawer for cart management |
-| **ExternalWishlistsButton.jsx** | Manage external wishlist links |
+| **ExternalWishlistsPanel.jsx** | Reusable add/edit/delete UI for external wishlist links — embedded inline in BottomTabNav More sheet |
+| **ExternalWishlistsButton.jsx** | Modal wrapper around ExternalWishlistsPanel (no current call sites; kept as alternative entry point) |
 | **UserHouseholdManager.jsx** | Join/leave/switch households |
-| **UserPreferencesDropdown.jsx** | Edit clothing sizes and gift preferences |
+| **UserPreferencesPanel.jsx** | Reusable size/preference edit UI — embedded inline in BottomTabNav More sheet |
+| **UserPreferencesDropdown.jsx** | Modal/dropdown wrapper around UserPreferencesPanel (no current call sites; kept as alternative entry point) |
 | **GiftReminder.jsx** | Upcoming event reminders |
 | **EnhancedUpcomingEventsBanner.jsx** | Birthday countdown banner |
 

@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { Home, Users, Plus, ShoppingCart, MoreHorizontal, Link2, User, X, ChevronRight } from 'lucide-react';
+import { Home, Users, Plus, ShoppingCart, MoreHorizontal, Link2, User, X, ChevronRight, ChevronLeft } from 'lucide-react';
 import { useTutorial } from '../contexts/TutorialContext';
+import ExternalWishlistsPanel from './ExternalWishlistsPanel';
+import UserPreferencesPanel from './UserPreferencesPanel';
 
 // Haptic feedback helper
 const triggerHaptic = (pattern = 10) => {
@@ -33,9 +35,9 @@ const BottomTabNav = ({
   onReturnHome,
   onToggleShoppingCart,
   onCloseShoppingCart,
-  onOpenExternalWishlists,
-  onOpenPreferences = null,
+  onPreferencesUpdate = null,
   onOpenSharedWishlists = null,
+  isAdmin = false,
   onSelectMember,
   onSelectSharedWishlist,
   familyMembers = [],
@@ -48,6 +50,7 @@ const BottomTabNav = ({
 }) => {
   const [showBrowseSheet, setShowBrowseSheet] = useState(false);
   const [showMoreSheet, setShowMoreSheet] = useState(false);
+  const [moreView, setMoreView] = useState('main');
   const browseSheetRef = useRef(null);
   const moreSheetRef = useRef(null);
   const navRef = useRef(null);
@@ -129,6 +132,13 @@ const BottomTabNav = ({
       document.body.style.overflow = '';
     };
   }, [showBrowseSheet, showMoreSheet]);
+
+  // Reset More sub-view whenever the sheet closes
+  useEffect(() => {
+    if (!showMoreSheet) {
+      setMoreView('main');
+    }
+  }, [showMoreSheet]);
 
   // Filter shared wishlists that the current user owns
   const ownedSharedWishlists = useMemo(() =>
@@ -418,9 +428,25 @@ const BottomTabNav = ({
             >
               {/* Sheet header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  More Options
-                </h2>
+                {moreView !== 'main' ? (
+                  <button
+                    onClick={() => {
+                      triggerHaptic();
+                      setMoreView('main');
+                    }}
+                    className="flex items-center gap-2 -ml-2 pl-1 pr-2 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-200"
+                    aria-label="Back to More Options"
+                  >
+                    <ChevronLeft size={20} />
+                    <h2 className="text-lg font-semibold">
+                      {moreView === 'external' ? 'External Wishlists' : 'Size & Preferences'}
+                    </h2>
+                  </button>
+                ) : (
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    More Options
+                  </h2>
+                )}
                 <button
                   onClick={() => !isTutorialRunning && setShowMoreSheet(false)}
                   className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
@@ -430,16 +456,25 @@ const BottomTabNav = ({
                 </button>
               </div>
 
-              {/* Sheet content */}
-              <div className="overflow-y-auto px-4 py-3 space-y-2 pb-6 flex-1" style={{ maxHeight: 'calc(70vh - 4rem)' }}>
+              {/* Sheet content - swap between main More menu and sub-views */}
+              <div className="relative flex-1 overflow-hidden" style={{ maxHeight: 'calc(70vh - 4rem)' }}>
+                <AnimatePresence mode="popLayout" initial={false}>
+                  {moreView === 'main' && (
+                    <motion.div
+                      key="more-main"
+                      initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -24 }}
+                      animate={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, x: 0 }}
+                      exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -24 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-y-auto px-4 py-3 space-y-2 pb-6 h-full"
+                    >
                 {/* External Wishlists */}
                 {(viewingMember ? (isOwnWishlist || viewingMember.external_wishlist_count > 0) : (selectedSharedWishlist && (isOwnWishlist || selectedSharedWishlist.external_wishlist_count > 0))) && (
                   <button
                     id="tutorial-external-wishlists"
                     onClick={() => {
                       triggerHaptic();
-                      setShowMoreSheet(false);
-                      onOpenExternalWishlists?.();
+                      setMoreView('external');
                     }}
                     className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 hover:from-amber-100 hover:to-orange-100 dark:hover:from-amber-900/30 dark:hover:to-orange-900/30 transition-colors group"
                   >
@@ -455,17 +490,17 @@ const BottomTabNav = ({
                         {viewingMember?.external_wishlist_count || selectedSharedWishlist?.external_wishlist_count || 0}
                       </span>
                     )}
+                    <ChevronRight size={20} className="text-gray-400" />
                   </button>
                 )}
 
                 {/* Size & Preferences */}
-                {onOpenPreferences && !selectedSharedWishlist && (
+                {viewingMember && !selectedSharedWishlist && (
                   <button
                     id="tutorial-preferences"
                     onClick={() => {
                       triggerHaptic();
-                      setShowMoreSheet(false);
-                      onOpenPreferences();
+                      setMoreView('preferences');
                     }}
                     className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20 hover:from-violet-100 hover:to-purple-100 dark:hover:from-violet-900/30 dark:hover:to-purple-900/30 transition-colors"
                   >
@@ -476,6 +511,7 @@ const BottomTabNav = ({
                       <span className="font-medium text-gray-900 dark:text-white">Size & Preferences</span>
                       <p className="text-sm text-gray-500 dark:text-gray-400">Clothing sizes, favorites, notes</p>
                     </div>
+                    <ChevronRight size={20} className="text-gray-400" />
                   </button>
                 )}
 
@@ -522,6 +558,42 @@ const BottomTabNav = ({
                     })}
                   </div>
                 )}
+                    </motion.div>
+                  )}
+                  {moreView === 'external' && (
+                    <motion.div
+                      key="more-external"
+                      initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: 24 }}
+                      animate={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, x: 0 }}
+                      exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: 24 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-y-auto px-4 py-3 pb-6 h-full"
+                    >
+                      <ExternalWishlistsPanel
+                        member={viewingMember}
+                        sharedWishlist={selectedSharedWishlist}
+                        isActive={moreView === 'external'}
+                      />
+                    </motion.div>
+                  )}
+                  {moreView === 'preferences' && viewingMember && (
+                    <motion.div
+                      key="more-preferences"
+                      initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: 24 }}
+                      animate={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, x: 0 }}
+                      exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: 24 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-y-auto px-4 py-3 pb-6 h-full"
+                    >
+                      <UserPreferencesPanel
+                        member={viewingMember}
+                        isOwner={viewingMember.id === selectedUser?.id || isAdmin}
+                        onUpdateSuccess={onPreferencesUpdate || (() => {})}
+                        isActive={moreView === 'preferences'}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </motion.div>
           </div>

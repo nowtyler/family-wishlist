@@ -1,39 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, Calendar, Shirt, Ruler, Gift, Footprints, Asterisk, Hand, RulerDimensionLine, Info } from 'lucide-react';
-import { updateFamilyMemberPreferences } from '../services/api';
-
-const sizeOptions = {
-  tshirt: ["XS", "S", "M", "L", "XL", "XXL", "XXXL"],
-  hoodie: ["XS", "S", "M", "L", "XL", "XXL", "XXXL"],
-  pants: {
-    men: [
-      // Add waist-length combinations for men
-      "28x30", "28x32", "30x30", "30x32", "30x34", 
-      "31x30", "31x32", "31x34", 
-      "32x30", "32x32", "32x34", "32x36", 
-      "33x30", "33x32", "33x34", "33x36",
-      "34x30", "34x32", "34x34", "34x36",
-      "36x30", "36x32", "36x34", "36x36",
-      "38x30", "38x32", "38x34", "38x36",
-      "40x30", "40x32", "40x34",
-      "42x30", "42x32", "42x34",
-      "44x30", "44x32",
-      "46x30", "46x32"
-    ],
-    women: ["00", "0", "2", "4", "6", "8", "10", "12", "14", "16", "18", "20", "22"]
-  },
-  dress: [
-    "XS", "S", "M", "L", "XL", "XXL",  // Add standard letter sizes
-    "0", "2", "4", "6", "8", "10", "12", "14", "16", "18", "20", "22"
-  ],
-  shoes: {
-    men: ["6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "11.5", "12", "12.5", "13", "13.5", "14", "14.5", "15"],
-    women: ["5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "11.5", "12"]
-  },
-  wrist: ["5.5\"", "5.75\"", "6\"", "6.25\"", "6.5\"", "6.75\"", "7\"", "7.25\"", "7.5\"", "7.75\"", "8\"", "8.25\"", "8.5\"", "8.75\"", "9\""],
-  neck: ["13-13.5", "14-14.5", "15-15.5", "16-16.5", "17-17.5", "18-18.5", "19-19.5"]
-};
+import { ChevronDown, Shirt } from 'lucide-react';
+import UserPreferencesPanel from './UserPreferencesPanel';
 
 const UserPreferencesDropdown = ({
   member,
@@ -53,210 +21,19 @@ const UserPreferencesDropdown = ({
       setIsDropdownOpen(nextOpen);
     }
   };
-  const [isEditing, setIsEditing] = useState(false);
-  const [preferences, setPreferences] = useState({
-    tshirtSize: member?.preferences?.tshirtSize || '',
-    hoodieSize: member?.preferences?.hoodieSize || '',
-    pantsSize: member?.preferences?.pantsSize || '',
-    dressSize: member?.preferences?.dressSize || '',
-    shoeSize: member?.preferences?.shoeSize || '',
-    wristSize: member?.preferences?.wristSize || '',
-    neckSize: member?.preferences?.neckSize || '',
-    additionalPreferences: member?.preferences?.additionalPreferences || ''
-  });
-  const [gender, setGender] = useState(member?.preferences?.gender || 'unspecified');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
   const dropdownRef = useRef(null);
 
-  // Update preferences when member changes
-  useEffect(() => {
-    setPreferences({
-      tshirtSize: member?.preferences?.tshirtSize || '',
-      hoodieSize: member?.preferences?.hoodieSize || '',
-      pantsSize: member?.preferences?.pantsSize || '',
-      dressSize: member?.preferences?.dressSize || '',
-      shoeSize: member?.preferences?.shoeSize || '',
-      wristSize: member?.preferences?.wristSize || '',
-      neckSize: member?.preferences?.neckSize || '',
-      additionalPreferences: member?.preferences?.additionalPreferences || ''
-    });
-    setGender(member?.preferences?.gender || 'unspecified');
-  }, [member]);
-
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setDropdownOpen(false);
-        if (isEditing) {
-          setIsEditing(false);
-          // Reset form state to current preferences
-          setPreferences({
-            tshirtSize: member?.preferences?.tshirtSize || '',
-            hoodieSize: member?.preferences?.hoodieSize || '',
-            pantsSize: member?.preferences?.pantsSize || '',
-            dressSize: member?.preferences?.dressSize || '',
-            shoeSize: member?.preferences?.shoeSize || '',
-            wristSize: member?.preferences?.wristSize || '',
-            neckSize: member?.preferences?.neckSize || '',
-            additionalPreferences: member?.preferences?.additionalPreferences || ''
-          });
-          setGender(member?.preferences?.gender || 'unspecified');
-        }
       }
     };
-    
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isEditing, member?.preferences]);
+  }, []);
 
-  // Calculate days until birthday
-  const getDaysUntilBirthday = (birthday) => {
-    if (!birthday) return null;
-    
-    try {
-      // Parse the birthday (format: YYYY-MM-DD)
-      const [year, month, day] = birthday.split('-').map(num => parseInt(num, 10));
-      
-      // Create date objects for today and the next birthday
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      // Create this year's birthday
-      const birthdayThisYear = new Date(today.getFullYear(), month - 1, day);
-      
-      // If birthday has already passed this year, get next year's birthday
-      if (birthdayThisYear < today) {
-        birthdayThisYear.setFullYear(today.getFullYear() + 1);
-      }
-      
-      // Calculate difference in days
-    const diffTime = Math.abs(birthdayThisYear.getTime() - today.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      return {
-        month,
-        day,
-        daysUntil: diffDays,
-        date: birthdayThisYear
-      };
-    } catch (err) {
-      console.error('Error calculating birthday:', err);
-      return null;
-    }
-  };
-
-  // Format birthday for display
-  const formatBirthday = () => {
-    const birthday = member?.birthday;
-    if (!birthday) return null;
-
-    const birthdayInfo = getDaysUntilBirthday(birthday);
-    if (!birthdayInfo) return null;
-
-    // Use abbreviated month names
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    
-    return {
-      formatted: `${monthNames[birthdayInfo.month - 1]} ${birthdayInfo.day}`,
-      daysUntil: birthdayInfo.daysUntil
-    };
-  };
-
-  const handleEditSave = async () => {
-    if (!isOwner) return;
-    
-    if (isEditing) {
-      // Save changes
-      setIsLoading(true);
-      setError('');
-      
-      try {
-        // Call API to update preferences
-        await updateFamilyMemberPreferences(member.id, {
-          ...preferences,
-          gender
-        });
-        
-        // Update was successful - exit edit mode
-        setIsEditing(false);
-        setIsLoading(false);
-        onUpdateSuccess();
-      } catch (err) {
-        console.error("Failed to update preferences:", err);
-        setError("Failed to save preferences. Please try again.");
-        setIsLoading(false);
-      }
-    } else {
-      // Enter edit mode
-      setIsEditing(true);
-    }
-  };
-
-  const handleCancel = () => {
-    // Exit edit mode without saving
-    setIsEditing(false);
-    // Reset form state to current preferences
-    setPreferences({
-      tshirtSize: member?.preferences?.tshirtSize || '',
-      hoodieSize: member?.preferences?.hoodieSize || '',
-      pantsSize: member?.preferences?.pantsSize || '',
-      dressSize: member?.preferences?.dressSize || '',
-      shoeSize: member?.preferences?.shoeSize || '',
-      wristSize: member?.preferences?.wristSize || '',
-      neckSize: member?.preferences?.neckSize || '',
-      additionalPreferences: member?.preferences?.additionalPreferences || ''
-    });
-    setGender(member?.preferences?.gender || 'unspecified');
-  };
-
-  const toggleDropdown = () => {
-    setDropdownOpen(!dropdownOpen);
-    // Exit edit mode when closing dropdown
-    if (dropdownOpen && isEditing) {
-      setIsEditing(false);
-    }
-  };
-
-  const hasPreferences = !!member?.preferences && (
-    member.preferences.tshirtSize || 
-    member.preferences.hoodieSize || 
-    member.preferences.pantsSize ||
-    member.preferences.dressSize ||
-    member.preferences.shoeSize ||
-    member.preferences.wristSize ||
-    member.preferences.neckSize ||
-    member.preferences.additionalPreferences
-  );
-
-  const birthdayInfo = formatBirthday();
-
-  // Helper to render size selector
-  const SizeSelector = ({ label, icon, value, onChange, options }) => {
-    return (
-      <div className="mb-3">
-        <label className="text-sm font-medium flex items-center gap-1.5 text-gray-700 dark:text-gray-300 mb-1">
-          {icon}
-          <span>{label}</span>
-        </label>
-        <select 
-          value={value || ''}
-          onChange={e => onChange(e.target.value)}
-          className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          disabled={!isEditing}
-        >
-          <option value="">Not specified</option>
-          {options.map(option => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      </div>
-    );
-  };
+  const toggleDropdown = () => setDropdownOpen(!dropdownOpen);
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -276,239 +53,34 @@ const UserPreferencesDropdown = ({
 
       <AnimatePresence>
         {dropdownOpen && (
-          <>
-            {/* Modal wrapper - full screen centered when hideTrigger is true, dropdown style otherwise */}
-            <div className={`fixed inset-0 z-[100] flex items-center justify-center p-4 ${!hideTrigger ? 'sm:contents' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) setDropdownOpen(false); }}>
-              {/* Backdrop */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className={`fixed inset-0 bg-black/50 z-[100] ${!hideTrigger ? 'sm:hidden' : ''}`}
-              />
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.2 }}
-                className={`relative w-full max-w-sm bg-white dark:bg-gray-800 shadow-lg rounded-lg overflow-hidden z-[110] ${!hideTrigger ? 'sm:absolute sm:w-80 sm:right-0 sm:mt-2' : ''}`}
-              >
-            {/* Header with Birthday Info */}
-            <div className="p-4 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/30 dark:to-blue-900/30 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="font-semibold text-gray-800 dark:text-gray-100">
-                {member.name}'s Preferences
-              </h3>
-              {birthdayInfo && (
-                <div className="flex items-center gap-1.5 mt-2 text-gray-700 dark:text-gray-300 text-sm bg-white dark:bg-gray-700 px-2 py-1 rounded-md">
-                  <Calendar size={14} className="text-amber-500" />
-                  <span>Birthday: {birthdayInfo.formatted}</span>
-                  <span className="ml-auto px-1.5 py-0.5 bg-amber-100 dark:bg-amber-800/50 text-amber-700 dark:text-amber-300 rounded-full text-xs">
-                    {birthdayInfo.daysUntil} {birthdayInfo.daysUntil === 1 ? 'day away' : 'days away'}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Add disclaimer about item-specific sizing */}
-            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border-t border-blue-100 dark:border-blue-800 mt-2 text-xs text-blue-600 dark:text-blue-300 flex items-start gap-1.5">
-              <Info size={14} className="flex-shrink-0 mt-0.5" />
-              <span>
-                These are general size preferences. For item-specific sizing, you can add size details to individual wishlist items.
-              </span>
-            </div>
-
-            {/* Preferences Content */}
-            <div className="p-4">
-              {isEditing && (
-                <div className="mb-3">
-                  <label className="text-sm font-medium flex items-center gap-1.5 text-gray-700 dark:text-gray-300 mb-1">
-                    <span>Gender (for size options)</span>
-                  </label>
-                  <div className="flex items-center space-x-4 mb-2">
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        name="gender"
-                        value="men"
-                        checked={gender === 'men'}
-                        onChange={() => setGender('men')}
-                        className="mr-1"
-                      />
-                      <span className="text-sm text-gray-700 dark:text-gray-300">Men's</span>
-                    </label>
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        name="gender"
-                        value="women"
-                        checked={gender === 'women'}
-                        onChange={() => setGender('women')}
-                        className="mr-1"
-                      />
-                      <span className="text-sm text-gray-700 dark:text-gray-300">Women's</span>
-                    </label>
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        name="gender"
-                        value="unspecified"
-                        checked={gender === 'unspecified'}
-                        onChange={() => setGender('unspecified')}
-                        className="mr-1"
-                      />
-                      <span className="text-sm text-gray-700 dark:text-gray-300">Not specified</span>
-                    </label>
-                  </div>
-                </div>
-              )}
-              
-              {/* Size preference fields */}
-              <div className="grid grid-cols-2 gap-x-4">
-                <SizeSelector
-                  label="T-Shirt Size"
-                  icon={<Shirt size={14} />}
-                  value={preferences.tshirtSize}
-                  onChange={(value) => setPreferences({...preferences, tshirtSize: value})}
-                  options={sizeOptions.tshirt}
-                />
-                
-                <SizeSelector
-                  label="Hoodie Size"
-                  icon={<Shirt size={14} />}
-                  value={preferences.hoodieSize}
-                  onChange={(value) => setPreferences({...preferences, hoodieSize: value})}
-                  options={sizeOptions.hoodie}
-                />
-                
-                <SizeSelector
-                  label="Pants Size"
-                  icon={<Ruler size={14} />}
-                  value={preferences.pantsSize}
-                  onChange={(value) => setPreferences({...preferences, pantsSize: value})}
-                  options={gender === 'women' ? sizeOptions.pants.women : sizeOptions.pants.men}
-                />
-                
-                {gender === 'women' && (
-                  <SizeSelector
-                    label="Dress Size"
-                    icon={<Gift size={14} />}
-                    value={preferences.dressSize}
-                    onChange={(value) => setPreferences({...preferences, dressSize: value})}
-                    options={sizeOptions.dress}
-                  />
-                )}
-                
-                <SizeSelector
-                  label="Shoe Size"
-                  icon={<Footprints size={14} />}
-                  value={preferences.shoeSize}
-                  onChange={(value) => setPreferences({...preferences, shoeSize: value})}
-                  options={gender === 'women' ? sizeOptions.shoes.women : sizeOptions.shoes.men}
-                />
-                
-                <SizeSelector
-                  label="Wrist Size"
-                  icon={<Hand size={14} />}
-                  value={preferences.wristSize}
-                  onChange={(value) => setPreferences({...preferences, wristSize: value})}
-                  options={sizeOptions.wrist}
-                />
-                
-                <SizeSelector
-                  label="Neck Size"
-                  icon={<RulerDimensionLine size={14} />}
-                  value={preferences.neckSize}
-                  onChange={(value) => setPreferences({...preferences, neckSize: value})}
-                  options={sizeOptions.neck}
+          <div
+            className={`fixed inset-0 z-[100] flex items-center justify-center p-4 ${!hideTrigger ? 'sm:contents' : ''}`}
+            onClick={(e) => { if (e.target === e.currentTarget) setDropdownOpen(false); }}
+          >
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className={`fixed inset-0 bg-black/50 z-[100] ${!hideTrigger ? 'sm:hidden' : ''}`}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className={`relative w-full max-w-sm bg-white dark:bg-gray-800 shadow-lg rounded-lg overflow-hidden z-[110] ${!hideTrigger ? 'sm:absolute sm:w-80 sm:right-0 sm:mt-2' : ''}`}
+            >
+              <div className="p-4">
+                <UserPreferencesPanel
+                  member={member}
+                  isOwner={isOwner}
+                  onUpdateSuccess={onUpdateSuccess}
+                  onClose={() => setDropdownOpen(false)}
+                  isActive={dropdownOpen}
                 />
               </div>
-              
-              {/* Additional preferences text area */}
-              <div className="mt-3">
-                <label className="text-sm font-medium flex items-center gap-1.5 text-gray-700 dark:text-gray-300 mb-1">
-                  <Asterisk size={14} />
-                  <span>Additional Preferences</span>
-                </label>
-                {isEditing ? (
-                  <textarea
-                    value={preferences.additionalPreferences || ''}
-                    onChange={(e) => setPreferences({...preferences, additionalPreferences: e.target.value})}
-                    placeholder="Colors, styles, materials, etc."
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    rows={3}
-                  />
-                ) : preferences.additionalPreferences ? (
-                  <p className="text-sm text-gray-700 dark:text-gray-300 p-2 bg-gray-50 dark:bg-gray-700/50 rounded-md">
-                    {preferences.additionalPreferences}
-                  </p>
-                ) : (
-                  <p className="text-sm italic text-gray-500 dark:text-gray-400">No additional preferences specified.</p>
-                )}
-              </div>
-              
-              {!hasPreferences && !isEditing && (
-                <div className="text-center py-2">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {isOwner ? 'You haven\'t set any size preferences yet.' : 'No size preferences have been set.'}
-                  </p>
-                  {isOwner && (
-                    <button
-                      onClick={handleEditSave}
-                      className="mt-2 text-sm text-blue-500 hover:text-blue-700"
-                    >
-                      Add your preferences
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {error && (
-                <div className="mt-3 p-2 text-sm text-red-600 bg-red-50 dark:bg-red-900/30 dark:text-red-300 rounded-md">
-                  {error}
-                </div>
-              )}
-
-              {/* Sticky bottom action buttons */}
-              <div className="sticky bottom-0 left-0 right-0 pt-4 mt-6 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 pb-2">
-                {isEditing ? (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleCancel}
-                      className="flex-1 py-2.5 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg text-gray-800 dark:text-gray-200 font-medium transition-colors duration-200"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleEditSave}
-                      disabled={isLoading}
-                      className="flex-1 py-2.5 px-4 bg-emerald-500 hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700 rounded-lg text-white font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isLoading ? 'Saving...' : 'Save'}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    {isOwner && (
-                      <button
-                        onClick={handleEditSave}
-                        className="flex-1 py-2.5 px-4 bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 rounded-lg text-white font-medium transition-colors duration-200"
-                      >
-                        Edit
-                      </button>
-                    )}
-                    <button
-                      onClick={() => setDropdownOpen(false)}
-                      className={`${isOwner ? 'flex-1' : 'w-full'} py-2.5 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg text-gray-800 dark:text-gray-200 font-medium transition-colors duration-200`}
-                    >
-                      Close
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-              </motion.div>
-            </div>
-          </>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

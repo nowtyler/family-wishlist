@@ -2638,12 +2638,37 @@ def update_member_preferences(
     if not member:
         raise HTTPException(status_code=404, detail="Member not found")
     
-    # Get current wishlist count for response
     count = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == member.id).count()
-    member_schema = schemas.FamilyMember.from_orm(member)
-    member_schema.wishlist_item_count = count
-    
-    return member_schema
+    external_wishlist_count = db.query(models.ExternalWishlist).filter(
+        models.ExternalWishlist.owner_id == member.id
+    ).count()
+    member_households = db.query(models.Household).join(
+        models.user_household_association,
+        models.Household.id == models.user_household_association.c.household_id
+    ).filter(
+        models.user_household_association.c.user_id == member.id,
+        models.user_household_association.c.status == 'active'
+    ).all()
+    households_data = [{"id": household.id, "name": household.name} for household in member_households]
+
+    member_dict = {
+        "id": member.id,
+        "name": member.name,
+        "birthday": member.birthday,
+        "is_admin": member.is_admin,
+        "preferences": member.preferences,
+        "username": member.username,
+        "email": member.email,
+        "force_password_change": member.force_password_change,
+        "first_login": member.first_login,
+        "tutorial_status": member.tutorial_status,
+        "wishlist_item_count": count,
+        "external_wishlist_count": external_wishlist_count,
+        "household_count": len(households_data),
+        "households": households_data
+    }
+
+    return schemas.FamilyMember.model_validate(member_dict)
 
 @app.post("/api/members/{member_id}/complete-tutorial")
 def complete_tutorial(
