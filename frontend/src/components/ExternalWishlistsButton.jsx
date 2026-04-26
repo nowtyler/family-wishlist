@@ -1,11 +1,24 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link2, ExternalLink, Plus, Edit2, Trash2, Check, X, Info } from 'lucide-react';
 import { useAppContext } from '../contexts/AppContext';
-import { getExternalWishlists, createExternalWishlist, updateExternalWishlist, deleteExternalWishlist } from '../services/api';
+import { getExternalWishlists, createExternalWishlist, updateExternalWishlist, deleteExternalWishlist, getSharedWishlistExternalWishlists, createSharedWishlistExternalWishlist } from '../services/api';
 
-const ExternalWishlistsButton = ({ member }) => {
+const ExternalWishlistsButton = ({ member, sharedWishlist, variant = "default", externalOpen = false, onExternalClose }) => {
   const [isOpen, setIsOpen] = useState(false);
+
+  // Support external control of the modal
+  useEffect(() => {
+    if (externalOpen && !isOpen) {
+      setIsOpen(true);
+    }
+  }, [externalOpen]);
+
+  const handleClose = useCallback(() => {
+    setIsOpen(false);
+    onExternalClose?.();
+  }, [onExternalClose]);
+
   const [wishlists, setWishlists] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -23,29 +36,33 @@ const ExternalWishlistsButton = ({ member }) => {
   const modalRef = useRef(null);
   
   const isAdmin = selectedUser?.name?.toLowerCase() === 'admin';
-  const canEdit = isAdmin || selectedUser?.id === member.id;
-  
+  const isSharedMode = !!sharedWishlist;
+  const canEdit = isAdmin || (isSharedMode
+    ? sharedWishlist.owners?.some(o => o.id === selectedUser?.id)
+    : selectedUser?.id === member?.id);
+  const displayName = isSharedMode ? sharedWishlist.name : member?.name;
+
   // Close modal when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (modalRef.current && !modalRef.current.contains(event.target)) {
-        setIsOpen(false);
+        handleClose();
       }
     };
-    
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-  
+  }, [handleClose]);
+
   // Fetch external wishlists when modal is opened
   useEffect(() => {
-    if (isOpen && member?.id) {
+    if (isOpen && (member?.id || sharedWishlist?.id)) {
       fetchWishlists();
     }
-  }, [isOpen, member?.id]);
-  
+  }, [isOpen, member?.id, sharedWishlist?.id]);
+
   const fetchWishlists = async (force = false) => {
-    if (!member?.id) return;
+    if (!member?.id && !sharedWishlist?.id) return;
     
     // Prevent too frequent refreshes unless forced
     const now = Date.now();
@@ -58,7 +75,9 @@ const ExternalWishlistsButton = ({ member }) => {
     setLastFetchTimestamp(now);
     
     try {
-      const response = await getExternalWishlists(member.id);
+      const response = isSharedMode
+        ? await getSharedWishlistExternalWishlists(sharedWishlist.id)
+        : await getExternalWishlists(member.id);
       // Ensure we have an array even if the API returns null or undefined
       setWishlists(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
@@ -187,10 +206,12 @@ const ExternalWishlistsButton = ({ member }) => {
     setUrlError('');
     
     try {
-      await createExternalWishlist(member.id, { 
-        name: formData.name.trim(), 
-        url: formattedUrl // Use the formatted URL
-      });
+      const createData = { name: formData.name.trim(), url: formattedUrl };
+      if (isSharedMode) {
+        await createSharedWishlistExternalWishlist(sharedWishlist.id, createData);
+      } else {
+        await createExternalWishlist(member.id, createData);
+      }
       
       // Add a small delay before fetching to avoid rate limits
       setTimeout(async () => {
@@ -288,33 +309,48 @@ const ExternalWishlistsButton = ({ member }) => {
     setUrlError('');
   };
   
+  const isFloating = variant === "floating";
+  const isHidden = variant === "hidden";
+
   return (
     <>
-      <button
-        onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg shadow-sm hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 sm:w-auto w-full justify-center"
-        title="External Wishlists"
-      >
-        <Link2 size={18} className="text-white" />
-        <span className="font-medium">External Wishlists</span>
-      </button>
+      {!isHidden && (
+        <button
+          onClick={() => setIsOpen(true)}
+          className={isFloating
+            ? "w-14 h-14 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 dark:from-amber-400 dark:to-orange-400 text-white shadow-lg hover:from-amber-600 hover:to-orange-600 dark:hover:from-amber-500 dark:hover:to-orange-500 flex items-center justify-center transition-all duration-200"
+            : "flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg shadow-sm hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 sm:w-auto w-full justify-center"
+          }
+          title="External Wishlists"
+        >
+          <Link2 size={isFloating ? 24 : 18} className="text-white" />
+          {!isFloating && <span className="font-medium">External Wishlists</span>}
+        </button>
+      )}
       
       <AnimatePresence>
         {isOpen && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 z-[100]"
+            />
             <motion.div
               ref={modalRef}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto relative"
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto relative z-[110]"
             >
               <div className="p-4 sm:p-6">
                 {/* Remove the X button from the top */}
                 
                 <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 pr-8 mb-4">
-                  {member.name}'s External Wishlists
+                  {displayName}'s External Wishlists
                 </h3>
                 
                 {isLoading && (
@@ -527,7 +563,7 @@ const ExternalWishlistsButton = ({ member }) => {
                 {/* Add sticky Close button at the bottom */}
                 <div className="sticky bottom-0 left-0 right-0 pt-4 mt-6 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 pb-2">
                   <button
-                    onClick={() => setIsOpen(false)}
+                    onClick={handleClose}
                     className="w-full py-2.5 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg text-gray-800 dark:text-gray-200 font-medium transition-colors duration-200"
                   >
                     Close

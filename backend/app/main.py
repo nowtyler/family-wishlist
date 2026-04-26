@@ -2,8 +2,8 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Header, Request, Body, Path, Query
 from fastapi.responses import Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func, text, or_
 from typing import List, Optional, Dict, Any
 import logging
 import traceback
@@ -11,6 +11,8 @@ import os
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 from urllib.parse import urlparse  # Add this missing import
+import socket
+import ipaddress
 import alembic.script  # Import for script directory access
 from . import crud, models, schemas, auth, database
 from .database import (
@@ -27,8 +29,10 @@ from .services.backup_service import BackupService
 from .services.url_scraper import ProductScraper
 from .services.user_auth_service import UserAuthService
 from .services.email_service import EmailService
-from .services.emergency_token_service import EmergencyTokenService
+from .services.turnstile import verify_turnstile
 from .middleware.rate_limiter import RateLimiter
+from .middleware.login_rate_limiter import login_rate_limiter, RateLimitEvent
+from .middleware.auth_rate_limiter import register_rate_limiter, password_reset_rate_limiter
 from .deps import validate_password_strength
 import secrets
 import psutil
@@ -36,7 +40,8 @@ import json
 import time
 import pytz
 from .utils.timezone_utils import get_est_timestamp, get_est_timestamp_iso, get_est_timestamp_strftime, get_est_date, get_est_timedelta
-from .schemas import MaintenanceBroadcastRequest
+from .utils.passphrase_utils import generate_passphrase, encrypt_passphrase, decrypt_passphrase, verify_passphrase
+from .schemas import MaintenanceBroadcastRequest, UpdateNoticeBroadcastRequest
 
 # Initialize the product scraper service
 product_scraper = ProductScraper()
@@ -77,8 +82,8 @@ tags_metadata = [
 
 # Add environment info to the application
 import os
-ENVIRONMENT = os.getenv("ENVIRONMENT", "prod").lower()
-IS_DEV = ENVIRONMENT == "dev"
+ENVIRONMENT = os.getenv("ENVIRONMENT", "production").lower()
+IS_DEV = ENVIRONMENT != "production"  # Any non-production env is treated as dev
 DATABASE_PATH = os.getenv("WISHLIST_DATABASE_URL", "sqlite:///./data/wishlist.db")
 
 # Enhanced API documentation
@@ -133,10 +138,8 @@ app.add_middleware(
 # 5. Add security headers (HSTS, CSP, etc.)
 
 # Initialize rate limiter
-rate_limiter = RateLimiter(requests_per_minute=60)
+rate_limiter = RateLimiter(requests_per_minute=300, burst_allowance=150)
 
-# Initialize emergency token service
-emergency_token_service = EmergencyTokenService()
 
 # --- App Startup ---
 @app.on_event("startup")
@@ -149,17 +152,28 @@ async def startup_event():
         db = SessionLocal()
         try:
             crud.initialize_family_members(db)
+            # Cleanup deprecated emergency access config if it exists
+            try:
+                removed = db.query(models.SystemConfig).filter(
+                    models.SystemConfig.key == "emergency_access_key"
+                ).delete(synchronize_session=False)
+                if removed:
+                    db.commit()
+                    logger.info("Removed deprecated emergency_access_key config row(s)")
+            except Exception as cleanup_error:
+                db.rollback()
+                logger.error(f"Failed to remove deprecated emergency_access_key config: {cleanup_error}")
         except Exception as e:
             logger.error(f"Failed to initialize family members: {e}")
             # Don't block app startup - we'll handle admin access separately
         finally:
             db.close()
         
-        # Check for schema changes and auto-generate migrations if needed
+        # Initialize migration service for system_settings tracking
         try:
             from .services.migration_service import MigrationService
             migration_service = MigrationService(DATABASE_PATH)
-            
+
             # Initialize system_settings table and schema hash if needed
             # This is critical for first-time setup to prevent migration loops
             try:
@@ -168,18 +182,10 @@ async def startup_event():
                     logger.info("Initialized system_settings table during startup")
             except Exception as e:
                 logger.error(f"Failed to initialize system_settings table: {e}")
-            
-            # Check if there are pending changes that need migration
-            if migration_service.detect_model_changes():
-                logger.info("Schema changes detected during startup, attempting to auto-generate migration...")
-                try:
-                    auto_migration = migration_service.auto_generate_migration()
-                    if auto_migration:
-                        logger.info(f"Auto-generated migration during startup: {auto_migration}")
-                    else:
-                        logger.warning("Failed to auto-generate migration during startup")
-                except Exception as e:
-                    logger.error(f"Error auto-generating migration during startup: {e}")
+
+            # NOTE: Auto-migration on startup is DISABLED to prevent empty migration spam
+            # Migrations should be created manually via the Admin UI when needed
+            # The manual migration in database.py handles the first_login column addition
         except Exception as e:
             logger.warning(f"Migration service not available during startup: {e}")
         
@@ -187,9 +193,12 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Database initialization error: {e}")
         logger.info(f"WARNING: Database initialization error: {e}")
-        # Continue startup despite errors - we'll provide emergency access
+        # Continue startup despite errors
     
     await rate_limiter.start_cleanup()
+
+    # Start the login-specific rate limiter (with n8n webhook integration)
+    await login_rate_limiter.start()
 
 # Add rate limiting middleware
 @app.middleware("http")
@@ -261,52 +270,98 @@ def read_family_members(
         # Admin can see all family members
         members = crud.get_family_members(db)
     else:
-        # Regular users can only see members who share households with them
+        # Regular users see all members who share ANY household with them
         try:
-            # Get current user's household IDs
+            # Get all households the current user is in
             current_user_households_query = db.query(models.user_household_association.c.household_id).filter(
                 models.user_household_association.c.user_id == current_user_id,
                 models.user_household_association.c.status == 'active'
             )
             current_user_households = {row[0] for row in current_user_households_query.all()}
-            
+
             if not current_user_households:
                 # If user has no households, they can only see themselves
                 members = [current_user]
             else:
-                # Get all users who share at least one household with current user
+                # Get all users who are in ANY of the user's households
                 household_member_ids_query = db.query(models.user_household_association.c.user_id).filter(
                     models.user_household_association.c.household_id.in_(current_user_households),
                     models.user_household_association.c.status == 'active'
                 ).distinct()
                 household_member_ids = {row[0] for row in household_member_ids_query.all()}
-                
-                # Get family members who are in the same households
+
+                # Get family members who share at least one household
                 members = db.query(models.FamilyMember).filter(
                     models.FamilyMember.id.in_(household_member_ids)
                 ).all()
-                
+
         except Exception as e:
             logger.error(f"Error filtering family members by household for user {current_user_id}: {e}")
             # Fallback: only show current user
             members = [current_user]
     
+    member_ids = [m.id for m in members]
+
+    # Batch query: wishlist item counts per member
+    item_counts = dict(
+        db.query(models.WishlistItem.owner_id, func.count(models.WishlistItem.id))
+        .filter(models.WishlistItem.owner_id.in_(member_ids))
+        .group_by(models.WishlistItem.owner_id)
+        .all()
+    )
+
+    # Batch query: external wishlist counts per member
+    ext_counts = dict(
+        db.query(models.ExternalWishlist.owner_id, func.count(models.ExternalWishlist.id))
+        .filter(models.ExternalWishlist.owner_id.in_(member_ids))
+        .group_by(models.ExternalWishlist.owner_id)
+        .all()
+    )
+
+    # Batch query: household details per member (active only)
+    household_rows = (
+        db.query(
+            models.user_household_association.c.user_id,
+            models.Household.id,
+            models.Household.name
+        )
+        .join(models.Household, models.Household.id == models.user_household_association.c.household_id)
+        .filter(
+            models.user_household_association.c.user_id.in_(member_ids),
+            models.user_household_association.c.status == 'active'
+        )
+        .all()
+    )
+    households_by_member = {}
+    for user_id, h_id, h_name in household_rows:
+        households_by_member.setdefault(user_id, []).append({"id": h_id, "name": h_name})
+
     members_with_counts = []
     for member in members:
-        count = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == member.id).count()
-        # Get household count for this member
-        household_count = db.query(models.user_household_association).filter(
-            models.user_household_association.c.user_id == member.id
-        ).count()
-        # Get external wishlist count for this member
-        external_wishlist_count = db.query(models.ExternalWishlist).filter(
-            models.ExternalWishlist.owner_id == member.id
-        ).count()
-        # Ensure birthday is correctly formatted if present
-        member_schema = schemas.FamilyMember.from_orm(member)
-        member_schema.wishlist_item_count = count
-        member_schema.external_wishlist_count = external_wishlist_count
-        member_schema.household_count = household_count
+        visible_households = households_by_member.get(member.id, [])
+        if not is_admin:
+            visible_households = [
+                household
+                for household in visible_households
+                if household["id"] in current_user_households
+            ]
+
+        member_dict = {
+            "id": member.id,
+            "name": member.name,
+            "birthday": member.birthday,
+            "is_admin": member.is_admin,
+            "preferences": member.preferences,
+            "username": member.username,
+            "email": member.email,
+            "force_password_change": member.force_password_change,
+            "first_login": member.first_login,
+            "wishlist_item_count": item_counts.get(member.id, 0),
+            "external_wishlist_count": ext_counts.get(member.id, 0),
+            "household_count": len(visible_households),
+            "households": visible_households
+        }
+        member_schema = schemas.FamilyMember.model_validate(member_dict)
         members_with_counts.append(member_schema)
     return members_with_counts
 
@@ -318,10 +373,35 @@ def read_family_member(member_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Family member not found")
     count = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == db_member.id).count()
     external_wishlist_count = db.query(models.ExternalWishlist).filter(models.ExternalWishlist.owner_id == db_member.id).count()
-    member_schema = schemas.FamilyMember.from_orm(db_member)
-    member_schema.wishlist_item_count = count
-    member_schema.external_wishlist_count = external_wishlist_count
-    return member_schema
+    household_count = db.query(models.user_household_association).filter(
+        models.user_household_association.c.user_id == db_member.id
+    ).count()
+    member_households = db.query(models.Household).join(
+        models.user_household_association,
+        models.Household.id == models.user_household_association.c.household_id
+    ).filter(
+        models.user_household_association.c.user_id == db_member.id,
+        models.user_household_association.c.status == 'active'
+    ).all()
+    households_data = [{"id": h.id, "name": h.name} for h in member_households]
+
+    member_dict = {
+        "id": db_member.id,
+        "name": db_member.name,
+        "birthday": db_member.birthday,
+        "is_admin": db_member.is_admin,
+        "preferences": db_member.preferences,
+        "username": db_member.username,
+        "email": db_member.email,
+        "force_password_change": db_member.force_password_change,
+        "first_login": db_member.first_login,
+        "tutorial_status": db_member.tutorial_status,
+        "wishlist_item_count": count,
+        "external_wishlist_count": external_wishlist_count,
+        "household_count": household_count,
+        "households": households_data
+    }
+    return schemas.FamilyMember.model_validate(member_dict)
 
 
 @app.post("/api/family-members", response_model=schemas.FamilyMember)
@@ -642,18 +722,21 @@ def create_item_for_member(
 @app.get("/api/members/{owner_id}/items", response_model=List[schemas.WishlistItem])
 def read_items_for_member(
     owner_id: int,
+    skip: int = Query(0, ge=0, description="Number of items to skip"),
+    limit: int = Query(200, ge=1, le=500, description="Maximum number of items to return"),
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id_from_header) # Who is viewing
 ):
     if current_user_id is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current user context (X-Current-User-Id header) is required.")
-    
+
     db_member = crud.get_family_member(db, member_id=owner_id)
     if not db_member:
         raise HTTPException(status_code=404, detail="Family member not found")
-    
+
     # crud function handles hiding purchased items from owner and comments
-    return crud.get_wishlist_items_by_owner(db, owner_id=owner_id, current_user_id=current_user_id)
+    items = crud.get_wishlist_items_by_owner(db, owner_id=owner_id, current_user_id=current_user_id)
+    return items[skip:skip + limit]
 
 @app.put("/api/items/{item_id}", response_model=schemas.WishlistItem)
 def update_item(
@@ -670,7 +753,7 @@ def update_item(
         raise HTTPException(status_code=404, detail="Item not found")
 
     # Log the raw update data for debugging
-    logger.info(f"Update data received: {item_update.dict()}")
+    logger.debug(f"Update data received: {item_update.dict()}")
     
     # Process the update data - similar to create logic
     update_data = item_update.dict(exclude_unset=True)
@@ -680,7 +763,7 @@ def update_item(
         try:
             # Store price in cents as integer
             update_data['price'] = int(float(update_data['price']) * 100)
-            logger.info(f"Processed price: {update_data['price']} cents")
+            logger.debug(f"Processed price: {update_data['price']} cents")
         except (ValueError, TypeError) as e:
             logger.error(f"Price conversion error: {e}")
             raise HTTPException(status_code=400, detail=f"Invalid price format: {str(e)}")
@@ -1086,71 +1169,15 @@ async def get_migrations(
         current_version = migration_service.get_current_version()
         available_migrations = migration_service.get_available_migrations()
         
-        try:
-            stored_hash = crud.get_schema_hash(db)
-            current_hash = migration_service.get_schema_hash()
-            
-            # First check for multiple heads - this always requires migration
-            has_multiple_heads = "," in current_version
-            
-            # Check for non-"pending" migrations that are not yet applied
-            has_pending_migrations = any(m.version != "pending" and not m.applied for m in available_migrations)
-            
-            # Only check for model changes if we don't have other clear indicators
-            needs_schema_check = not (has_multiple_heads or has_pending_migrations)
-            model_changes_detected = False
-            
-            if needs_schema_check and stored_hash != current_hash:
-                # Log that we're checking for model changes
-                logger.info(f"Schema hashes don't match, verifying actual schema changes...")
-                
-                # Attempt to update hash if models match but hashes don't
-                # This helps address "false positive" needs_upgrade flags
-                try:
-                    # If we're at the current version (and not "base") and hashes don't match,
-                    # then we can update the hash without requiring migration
-                    # Check if alembic config is available
-                    if migration_service.alembic_cfg is not None:
-                        script_dir = alembic.script.ScriptDirectory.from_config(migration_service.alembic_cfg)
-                        head = script_dir.get_current_head()
-                        
-                        if current_version == head and head != "base":
-                            # We're at current head version, just hash mismatch - update the hash silently
-                            logger.info(f"Schema hash mismatch but database is at current head version. Updating hash...")
-                            crud.update_schema_hash(db, current_hash)
-                            stored_hash = current_hash  # Set them equal to avoid marking as needs_upgrade
-                    else:
-                        # Actually check for model changes
-                        model_changes_detected = migration_service.detect_model_changes()
-                except Exception as hash_fix_error:
-                    logger.error(f"Error during hash sync: {hash_fix_error}")
-                    # Don't assume we need upgrade just because of this error
-            
-            # A migration is needed if:
-            # 1. We have multiple heads (always requires merge) OR
-            # 2. We have pending migrations that are not applied OR
-            # 3. We have actual model changes detected
-            needs_upgrade = has_multiple_heads or has_pending_migrations or model_changes_detected
-            
-            logger.info(f"Schema status - Stored: {stored_hash[:8] if stored_hash else 'None'}... Current: {current_hash[:8]}... "
-                        f"Multiple heads: {has_multiple_heads}, Pending migrations: {has_pending_migrations}, "
-                        f"Model changes: {model_changes_detected}, Needs upgrade: {needs_upgrade}")
-        except Exception as e:
-            logger.error(f"Schema hash error: {str(e)}")
-            import traceback
-            logger.error(traceback.format_exc())
-            stored_hash = None
-            current_hash = None
-            # Don't automatically mark as needs_upgrade on error, this causes false positives
-            # Only mark as needing upgrade if we have multiple heads or pending migrations
-            needs_upgrade = "," in current_version or any(m.version != "pending" and not m.applied for m in available_migrations)
-        
+        has_multiple_heads = "," in current_version
+        has_pending_migrations = any(not m.applied for m in available_migrations)
+        needs_upgrade = has_multiple_heads or has_pending_migrations
+
         return {
             "current_version": current_version,
             "available_migrations": available_migrations,
-            "stored_schema_hash": stored_hash,
             "needs_upgrade": needs_upgrade,
-            "db_version": "current"  # Remove bootstrap/legacy references
+            "db_version": "current"
         }
     except Exception as e:
         logger.error(f"Migration error: {str(e)}")
@@ -1159,7 +1186,6 @@ async def get_migrations(
         return {
             "current_version": "unknown",
             "available_migrations": [],
-            "stored_schema_hash": None,
             "needs_upgrade": True,
             "db_version": "current"
         }
@@ -1488,14 +1514,10 @@ async def check_setup_status(db: Session = Depends(get_db)):
     try:
         # Check if any admin user exists
         admin_exists = db.query(models.FamilyMember).filter(models.FamilyMember.is_admin == True).first() is not None
-        
-        # Check if emergency access key exists in encrypted file storage
-        emergency_key_exists = emergency_token_service.token_exists()
-        
+
         return {
-            "is_setup_complete": admin_exists and emergency_key_exists,
-            "needs_admin": not admin_exists,
-            "needs_emergency_key": not emergency_key_exists
+            "is_setup_complete": admin_exists,
+            "needs_admin": not admin_exists
         }
     except Exception as e:
         logger.error(f"Error checking setup status: {e}")
@@ -1515,7 +1537,7 @@ async def first_time_setup(
         setup_status = await check_setup_status(db)
         if setup_status["is_setup_complete"]:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=status.HTTP_410_GONE,
                 detail="System is already set up"
             )
         
@@ -1528,30 +1550,19 @@ async def first_time_setup(
             email=request.admin_email,
             is_admin=True
         )
+
+        # Generate recovery passphrase for admin
+        plaintext_passphrase = generate_passphrase()
+        admin.recovery_passphrase_encrypted = encrypt_passphrase(plaintext_passphrase)
+
         db.add(admin)
-        
-        # Generate and store emergency access key using encrypted file storage
-        emergency_key = emergency_token_service.generate_token()
-        if not emergency_token_service.save_token(emergency_key):
-            logger.error("Failed to save emergency token to encrypted file")
-            # Still save to database as fallback
-            emergency_config = models.SystemConfig(
-                key="emergency_access_key",
-                value=emergency_key,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
-            )
-            db.add(emergency_config)
-        else:
-            logger.info("Emergency token saved to encrypted file storage")
-        
+
         db.commit()
         db.refresh(admin)
-        
+
         return schemas.FirstTimeSetupResponse(
             success=True,
             message="System setup completed successfully",
-            emergency_access_key=emergency_key,
             admin_user=schemas.FamilyMember(
                 id=admin.id,
                 name=admin.name,
@@ -1559,7 +1570,8 @@ async def first_time_setup(
                 email=admin.email,
                 is_admin=admin.is_admin,
                 wishlist_item_count=0
-            )
+            ),
+            recovery_passphrase=plaintext_passphrase
         )
         
     except HTTPException:
@@ -1569,234 +1581,78 @@ async def first_time_setup(
         logger.error(f"First-time setup error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail="An error occurred during system setup"
         )
 
-# Replace the existing emergency admin access endpoint
-@app.post("/api/emergency/admin-access", response_model=schemas.EmergencyAccessResponse)
-async def emergency_admin_access_secure(
-    request: schemas.EmergencyAccessRequest,
-    client_host: str = Header(None, alias="X-Forwarded-For"),
-    db: Session = Depends(get_db)
-):
-    """Secure emergency endpoint to get admin access with file-based encrypted token validation"""
-    try:
-        # Get emergency token from encrypted file storage
-        stored_token = emergency_token_service.get_token()
-        
-        if not stored_token:
-            logger.error("Emergency access token not found in encrypted storage")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Emergency access not configured"
-            )
-        
-        if request.emergency_token != stored_token:
-            logger.warning("Emergency access attempt with invalid token")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid emergency access token"
-            )
-        
-        # Get real IP address
-        real_ip = client_host
-        if not real_ip:
-            real_ip = "unknown"
-        
-        # Get admin user
-        admin = db.query(models.FamilyMember).filter(
-            models.FamilyMember.is_admin == True
-        ).first()
-        
-        if not admin:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="No admin user found"
-            )
-        
-        return schemas.EmergencyAccessResponse(
-            success=True,
-            message="Emergency admin access granted",
-            admin_user=schemas.FamilyMember(
-                id=admin.id,
-                name=admin.name,
-                username=admin.username,
-                email=admin.email,
-                is_admin=admin.is_admin,
-                wishlist_item_count=0
-            )
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Emergency admin access error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
 
-@app.put("/api/admin/emergency-token", response_model=schemas.UpdateEmergencyTokenResponse)
-async def update_emergency_token(
-    request: schemas.UpdateEmergencyTokenRequest,
-    current_user_id: int = Depends(get_current_user_id_from_header),
-    db: Session = Depends(get_db)
+# --- Admin Recovery Passphrase Endpoints ---
+
+@app.get("/api/admin/recovery-passphrase",
+    response_model=schemas.RecoveryPassphraseResponse,
+    tags=["Admin"],
+    summary="View recovery passphrase"
+)
+async def get_recovery_passphrase(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
 ):
-    """Update the emergency access token (admin only)"""
+    """View the current admin recovery passphrase (admin only)."""
     if not current_user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required"
-        )
-    
-    user = db.query(models.FamilyMember).filter(models.FamilyMember.id == current_user_id).first()
-    if not user or not (user.is_admin or user.name.lower() == 'admin'):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
-        )
-    
-    try:
-        success = emergency_token_service.update_token(request.new_token)
-        if success:
-            logger.info(f"Emergency token updated by admin user {user.username}")
-            return schemas.UpdateEmergencyTokenResponse(
-                success=True,
-                message="Emergency token updated successfully"
-            )
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to update emergency token"
-            )
-    except Exception as e:
-        logger.error(f"Error updating emergency token: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=401, detail="Authentication required")
 
-@app.get("/api/admin/emergency-token/info", response_model=schemas.EmergencyTokenInfoResponse)
-async def get_emergency_token_info(
-    current_user_id: int = Depends(get_current_user_id_from_header),
-    db: Session = Depends(get_db)
+    admin = db.query(models.FamilyMember).filter(
+        models.FamilyMember.id == current_user_id,
+        models.FamilyMember.is_admin == True
+    ).first()
+
+    if not admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    if not admin.recovery_passphrase_encrypted:
+        raise HTTPException(status_code=404, detail="No recovery passphrase has been set")
+
+    try:
+        plaintext = decrypt_passphrase(admin.recovery_passphrase_encrypted)
+        return schemas.RecoveryPassphraseResponse(success=True, passphrase=plaintext)
+    except Exception as e:
+        logger.error(f"Failed to decrypt recovery passphrase: {e}")
+        raise HTTPException(status_code=500, detail="Failed to decrypt recovery passphrase")
+
+
+@app.post("/api/admin/recovery-passphrase/regenerate",
+    response_model=schemas.RecoveryPassphraseResponse,
+    tags=["Admin"],
+    summary="Regenerate recovery passphrase"
+)
+async def regenerate_recovery_passphrase(
+    request: schemas.RegeneratePassphraseRequest,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
 ):
-    """Get emergency token information (admin only)"""
+    """Regenerate the admin recovery passphrase (requires current password)."""
     if not current_user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required"
-        )
-    
-    user = db.query(models.FamilyMember).filter(models.FamilyMember.id == current_user_id).first()
-    if not user or not (user.is_admin or user.name.lower() == 'admin'):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
-        )
-    
-    try:
-        token_info = emergency_token_service.get_token_info()
-        if token_info:
-            return schemas.EmergencyTokenInfoResponse(**token_info)
-        else:
-            return schemas.EmergencyTokenInfoResponse(
-                exists=False,
-                created_at=None,
-                updated_at=None,
-                has_token=False
-            )
-    except Exception as e:
-        logger.error(f"Error getting emergency token info: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=401, detail="Authentication required")
 
-@app.post("/api/admin/emergency-token/generate", response_model=schemas.UpdateEmergencyTokenResponse)
-async def generate_new_emergency_token(
-    current_user_id: int = Depends(get_current_user_id_from_header),
-    db: Session = Depends(get_db)
-):
-    """Generate a new emergency access token (admin only)"""
-    if not current_user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required"
-        )
-    
-    user = db.query(models.FamilyMember).filter(models.FamilyMember.id == current_user_id).first()
-    if not user or not (user.is_admin or user.name.lower() == 'admin'):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
-        )
-    
-    try:
-        new_token = emergency_token_service.generate_token()
-        success = emergency_token_service.update_token(new_token)
-        
-        if success:
-            logger.info(f"New emergency token generated by admin user {user.username}")
-            return schemas.UpdateEmergencyTokenResponse(
-                success=True,
-                message=f"New emergency token generated: {new_token}"
-            )
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to save new emergency token"
-            )
-    except Exception as e:
-        logger.error(f"Error generating new emergency token: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+    admin = db.query(models.FamilyMember).filter(
+        models.FamilyMember.id == current_user_id,
+        models.FamilyMember.is_admin == True
+    ).first()
 
-@app.post("/api/admin/emergency-access", response_model=schemas.FamilyMember)
-async def emergency_admin_access(
-    db: Session = Depends(get_db)
-):
-    """Emergency endpoint to get or create admin access - DEPRECATED, use /api/emergency/admin-access instead"""
-    logger.warning("Deprecated emergency access endpoint used - recommend using /api/emergency/admin-access")
-    try:
-        # Try to find existing admin user
-        admin = db.query(models.FamilyMember).filter(
-            models.FamilyMember.name.ilike('admin')
-        ).first()
-        
-        if not admin:
-            # Create admin user if doesn't exist
-            admin = models.FamilyMember(
-                name="Admin",
-                is_admin=True,
-                username="admin",
-                email="admin@emergency.local"
-            )
-            db.add(admin)
-            db.commit()
-            db.refresh(admin)
-        elif not admin.is_admin:
-            # Ensure admin flag is set
-            admin.is_admin = True
-            db.commit()
-            db.refresh(admin)
-            
-        return schemas.FamilyMember(
-            id=admin.id,
-            name=admin.name,
-            is_admin=admin.is_admin,
-            wishlist_item_count=0
-        )
-    except Exception as e:
-        logger.error(f"Emergency admin access error: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to access admin: {str(e)}"
-        )
+    if not admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    # Verify current password
+    if not admin.password_hash or not auth.verify_password(request.current_password, admin.password_hash):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+
+    # Generate new passphrase
+    plaintext = generate_passphrase()
+    admin.recovery_passphrase_encrypted = encrypt_passphrase(plaintext)
+    db.commit()
+
+    auth.log_auth_event("PASSPHRASE_REGENERATED", admin.username, True, details="Admin regenerated recovery passphrase")
+    return schemas.RecoveryPassphraseResponse(success=True, passphrase=plaintext)
+
 
 # Add this new endpoint after other item endpoints
 @app.post("/api/items/fetch-url-details")
@@ -1817,10 +1673,33 @@ async def fetch_url_details(
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
         
-        # Check if this is Etsy or another problematic site that needs browser scraping
+        # Validate URL and block SSRF attacks
         parsed_url = urlparse(url)
         domain = parsed_url.netloc.lower()
-        
+
+        # Strip port for hostname resolution
+        hostname = parsed_url.hostname
+        if not hostname:
+            raise HTTPException(status_code=400, detail="Invalid URL: no hostname found")
+
+        # Block non-HTTP schemes
+        if parsed_url.scheme not in ('http', 'https'):
+            raise HTTPException(status_code=400, detail="Only HTTP and HTTPS URLs are allowed")
+
+        # Resolve hostname and block internal/private IP ranges
+        try:
+            resolved_ips = socket.getaddrinfo(hostname, None)
+        except socket.gaierror:
+            raise HTTPException(status_code=400, detail="Unable to resolve hostname")
+
+        for addr_info in resolved_ips:
+            ip = ipaddress.ip_address(addr_info[4][0])
+            if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local:
+                raise HTTPException(
+                    status_code=400,
+                    detail="URLs pointing to internal or private networks are not allowed"
+                )
+
         if 'etsy.com' in domain:
             # Use async browser scraping for Etsy
             product_details = await product_scraper.fetch_product_details_async(url)
@@ -1980,6 +1859,753 @@ def delete_external_wishlist_endpoint(
         detail="External wishlist not found or you're not authorized to delete it"
     )
 
+
+# --- Shared Wishlist External Wishlists ---
+
+@app.get("/api/shared-wishlists/{wishlist_id}/external-wishlists", response_model=List[schemas.ExternalWishlist])
+def get_shared_wishlist_external_wishlists(
+    wishlist_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get all external wishlists for a shared wishlist"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    # Verify shared wishlist exists
+    shared_wl = db.query(models.SharedWishlist).filter(models.SharedWishlist.id == wishlist_id).first()
+    if not shared_wl:
+        raise HTTPException(status_code=404, detail="Shared wishlist not found")
+
+    return crud.get_shared_wishlist_external_wishlists(db, shared_wishlist_id=wishlist_id)
+
+
+@app.post("/api/shared-wishlists/{wishlist_id}/external-wishlists", response_model=schemas.ExternalWishlist)
+def create_shared_wishlist_external_wishlist(
+    wishlist_id: int,
+    wishlist: schemas.ExternalWishlistCreate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Create a new external wishlist link for a shared wishlist (owners only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    # Verify shared wishlist exists
+    shared_wl = db.query(models.SharedWishlist).filter(models.SharedWishlist.id == wishlist_id).first()
+    if not shared_wl:
+        raise HTTPException(status_code=404, detail="Shared wishlist not found")
+
+    # Check authorization: must be owner of the shared wishlist or admin
+    user = crud.get_family_member(db, current_user_id)
+    is_admin = user and user.name.lower() == 'admin'
+    owners = crud.get_shared_wishlist_owners(db, wishlist_id)
+    is_owner = any(o.id == current_user_id for o in owners)
+
+    if not is_admin and not is_owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owners can add external wishlists")
+
+    try:
+        return crud.create_shared_wishlist_external_wishlist(db=db, wishlist=wishlist, shared_wishlist_id=wishlist_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to create external wishlist: {str(e)}")
+
+
+# --- Shared Wishlists (Kid Wishlists) ---
+
+@app.get("/api/shared-wishlists", response_model=List[schemas.SharedWishlist])
+def get_shared_wishlists(
+    include_all: bool = Query(False),
+    skip: int = Query(0, ge=0, description="Number of wishlists to skip"),
+    limit: int = Query(100, ge=1, le=200, description="Maximum number of wishlists to return"),
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get all shared wishlists (filtered by user's households unless admin requests all)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    if include_all:
+        user = crud.get_family_member(db, current_user_id)
+        if not user or not user.is_admin:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+        wishlists = crud.get_all_shared_wishlists(db, user_id=None)
+    else:
+        wishlists = crud.get_all_shared_wishlists(db, user_id=current_user_id)
+    if not wishlists:
+        return []
+
+    wishlist_ids = [w.id for w in wishlists]
+
+    # Batch load item counts
+    item_counts_q = db.query(
+        models.SharedWishlistItem.wishlist_id,
+        func.count(models.SharedWishlistItem.id)
+    ).filter(
+        models.SharedWishlistItem.wishlist_id.in_(wishlist_ids)
+    ).group_by(models.SharedWishlistItem.wishlist_id).all()
+    item_counts = dict(item_counts_q)
+
+    # Batch load external wishlist counts
+    ext_counts_q = db.query(
+        models.ExternalWishlist.shared_wishlist_id,
+        func.count(models.ExternalWishlist.id)
+    ).filter(
+        models.ExternalWishlist.shared_wishlist_id.in_(wishlist_ids)
+    ).group_by(models.ExternalWishlist.shared_wishlist_id).all()
+    ext_counts = dict(ext_counts_q)
+
+    # Batch load owners
+    owners_q = db.query(
+        models.shared_wishlist_owners.c.wishlist_id,
+        models.FamilyMember
+    ).join(
+        models.FamilyMember,
+        models.FamilyMember.id == models.shared_wishlist_owners.c.user_id
+    ).filter(
+        models.shared_wishlist_owners.c.wishlist_id.in_(wishlist_ids)
+    ).all()
+    owners_map = {}
+    for wid, owner in owners_q:
+        owners_map.setdefault(wid, []).append(owner)
+
+    # Batch load households
+    household_ids = [w.household_id for w in wishlists if w.household_id]
+    households_map = {}
+    if household_ids:
+        households = db.query(models.Household).filter(models.Household.id.in_(household_ids)).all()
+        households_map = {h.id: h.name for h in households}
+
+    result = []
+    for wishlist in wishlists:
+        owners = owners_map.get(wishlist.id, [])
+        result.append(schemas.SharedWishlist(
+            id=wishlist.id,
+            name=wishlist.name,
+            description=wishlist.description,
+            household_id=wishlist.household_id,
+            household_name=households_map.get(wishlist.household_id),
+            occasion_date=wishlist.occasion_date,
+            occasion_type=wishlist.occasion_type,
+            wishlist_type=wishlist.wishlist_type or "normal",
+            created_at=wishlist.created_at,
+            created_by=wishlist.created_by,
+            owner_count=len(owners),
+            item_count=item_counts.get(wishlist.id, 0),
+            external_wishlist_count=ext_counts.get(wishlist.id, 0),
+            owners=[schemas.SharedWishlistOwner(
+                id=o.id,
+                name=o.name,
+                username=o.username
+            ) for o in owners]
+        ))
+    return result[skip:skip + limit]
+
+
+@app.post("/api/shared-wishlists", response_model=schemas.SharedWishlist, status_code=status.HTTP_201_CREATED)
+def create_shared_wishlist(
+    wishlist: schemas.SharedWishlistCreate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Create a new shared wishlist (e.g., for a kid)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    db_wishlist = crud.create_shared_wishlist(db, wishlist, current_user_id)
+    owners = crud.get_shared_wishlist_owners(db, db_wishlist.id)
+
+    # Get household name if household_id is set
+    household_name = None
+    if db_wishlist.household_id:
+        household = db.query(models.Household).filter(models.Household.id == db_wishlist.household_id).first()
+        if household:
+            household_name = household.name
+
+    return schemas.SharedWishlist(
+        id=db_wishlist.id,
+        name=db_wishlist.name,
+        description=db_wishlist.description,
+        household_id=db_wishlist.household_id,
+        household_name=household_name,
+        occasion_date=db_wishlist.occasion_date,
+        occasion_type=db_wishlist.occasion_type,
+        wishlist_type=db_wishlist.wishlist_type or "normal",
+        created_at=db_wishlist.created_at,
+        created_by=db_wishlist.created_by,
+        owner_count=len(owners),
+        item_count=0,
+        owners=[schemas.SharedWishlistOwner(
+            id=o.id,
+            name=o.name,
+            username=o.username
+        ) for o in owners]
+    )
+
+
+@app.get("/api/shared-wishlists/{wishlist_id}", response_model=schemas.SharedWishlistWithItems)
+def get_shared_wishlist(
+    wishlist_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get a shared wishlist with its items"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    db_wishlist = crud.get_shared_wishlist(db, wishlist_id)
+    if not db_wishlist:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shared wishlist not found")
+
+    # Check access - must be owner, in same household, or admin
+    is_owner = crud.is_shared_wishlist_owner(db, wishlist_id, current_user_id)
+    user = crud.get_family_member(db, current_user_id)
+    is_admin = user and user.is_admin
+
+    if not is_owner and not is_admin:
+        # Match the shared wishlist list and item visibility rules:
+        # allow access when user shares at least one active household with any owner.
+        owners = crud.get_shared_wishlist_owners(db, wishlist_id)
+        owner_ids = [o.id for o in owners]
+
+        current_user_households = {
+            row[0] for row in db.query(models.user_household_association.c.household_id).filter(
+                models.user_household_association.c.user_id == current_user_id,
+                models.user_household_association.c.status == 'active'
+            ).all()
+        }
+        owner_households = {
+            row[0] for row in db.query(models.user_household_association.c.household_id).filter(
+                models.user_household_association.c.user_id.in_(owner_ids),
+                models.user_household_association.c.status == 'active'
+            ).all()
+        }
+
+        if not current_user_households.intersection(owner_households):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+    owners = crud.get_shared_wishlist_owners(db, wishlist_id)
+    items = crud.get_shared_wishlist_items(db, wishlist_id, current_user_id)
+
+    # Get household name if household_id is set
+    household_name = None
+    if db_wishlist.household_id:
+        household = db.query(models.Household).filter(models.Household.id == db_wishlist.household_id).first()
+        if household:
+            household_name = household.name
+
+    return schemas.SharedWishlistWithItems(
+        id=db_wishlist.id,
+        name=db_wishlist.name,
+        description=db_wishlist.description,
+        household_id=db_wishlist.household_id,
+        household_name=household_name,
+        occasion_date=db_wishlist.occasion_date,
+        occasion_type=db_wishlist.occasion_type,
+        wishlist_type=db_wishlist.wishlist_type or "normal",
+        created_at=db_wishlist.created_at,
+        created_by=db_wishlist.created_by,
+        owner_count=len(owners),
+        item_count=len(items),
+        owners=[schemas.SharedWishlistOwner(
+            id=o.id,
+            name=o.name,
+            username=o.username
+        ) for o in owners],
+        items=items
+    )
+
+
+@app.put("/api/shared-wishlists/{wishlist_id}", response_model=schemas.SharedWishlist)
+def update_shared_wishlist(
+    wishlist_id: int,
+    wishlist_update: schemas.SharedWishlistUpdate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Update a shared wishlist (owners only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    db_wishlist = crud.update_shared_wishlist(db, wishlist_id, wishlist_update, current_user_id)
+    if not db_wishlist:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Shared wishlist not found or you're not authorized to update it"
+        )
+
+    owners = crud.get_shared_wishlist_owners(db, wishlist_id)
+    item_count = db.query(models.SharedWishlistItem).filter(
+        models.SharedWishlistItem.wishlist_id == wishlist_id
+    ).count()
+
+    # Get household name if household_id is set
+    household_name = None
+    if db_wishlist.household_id:
+        household = db.query(models.Household).filter(models.Household.id == db_wishlist.household_id).first()
+        if household:
+            household_name = household.name
+
+    return schemas.SharedWishlist(
+        id=db_wishlist.id,
+        name=db_wishlist.name,
+        description=db_wishlist.description,
+        household_id=db_wishlist.household_id,
+        household_name=household_name,
+        occasion_date=db_wishlist.occasion_date,
+        occasion_type=db_wishlist.occasion_type,
+        wishlist_type=db_wishlist.wishlist_type or "normal",
+        created_at=db_wishlist.created_at,
+        created_by=db_wishlist.created_by,
+        owner_count=len(owners),
+        item_count=item_count,
+        owners=[schemas.SharedWishlistOwner(
+            id=o.id,
+            name=o.name,
+            username=o.username
+        ) for o in owners]
+    )
+
+
+@app.delete("/api/shared-wishlists/{wishlist_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_shared_wishlist(
+    wishlist_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Delete a shared wishlist (creator or admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    if not crud.delete_shared_wishlist(db, wishlist_id, current_user_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Shared wishlist not found or you're not authorized to delete it"
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.post("/api/shared-wishlists/{wishlist_id}/owners", response_model=schemas.SharedWishlistOwner)
+def add_shared_wishlist_owner(
+    wishlist_id: int,
+    request: schemas.AddOwnerRequest,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Add a co-owner to a shared wishlist by username"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    new_owner = crud.add_shared_wishlist_owner(db, wishlist_id, request.username, current_user_id)
+    if not new_owner:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found or you're not authorized to add owners"
+        )
+
+    return schemas.SharedWishlistOwner(
+        id=new_owner.id,
+        name=new_owner.name,
+        username=new_owner.username
+    )
+
+
+@app.delete("/api/shared-wishlists/{wishlist_id}/owners/{owner_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_shared_wishlist_owner(
+    wishlist_id: int,
+    owner_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Remove an owner from a shared wishlist"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    if not crud.remove_shared_wishlist_owner(db, wishlist_id, owner_id, current_user_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot remove owner. Either not authorized, owner not found, or this is the last owner."
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# --- Shared Wishlist Items ---
+
+@app.get("/api/shared-wishlists/{wishlist_id}/items", response_model=List[schemas.SharedWishlistItem])
+def get_shared_wishlist_items(
+    wishlist_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get items from a shared wishlist"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    items = crud.get_shared_wishlist_items(db, wishlist_id, current_user_id)
+    return items
+
+
+@app.post("/api/shared-wishlists/{wishlist_id}/items", response_model=schemas.SharedWishlistItem, status_code=status.HTTP_201_CREATED)
+def create_shared_wishlist_item(
+    wishlist_id: int,
+    item: schemas.SharedWishlistItemCreate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Add an item to a shared wishlist (owners only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    db_item = crud.create_shared_wishlist_item(db, wishlist_id, item, current_user_id)
+    if not db_item:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You're not authorized to add items to this wishlist"
+        )
+
+    thinking_by_list = db_item.thinking_about_by.split(',') if db_item.thinking_about_by else []
+
+    return schemas.SharedWishlistItem(
+        id=db_item.id,
+        wishlist_id=db_item.wishlist_id,
+        title=db_item.title,
+        description=db_item.description,
+        link=str(db_item.link) if db_item.link else None,
+        image_url=str(db_item.image_url) if db_item.image_url else None,
+        priority=db_item.priority,
+        price=db_item.price,
+        is_purchased=db_item.is_purchased,
+        purchased_by=db_item.purchased_by,
+        thinking_about_by_list=thinking_by_list,
+        created_at=db_item.created_at,
+        created_by=db_item.created_by
+    )
+
+
+@app.delete("/api/shared-wishlists/{wishlist_id}/items", status_code=status.HTTP_204_NO_CONTENT)
+def delete_shared_wishlist_items(
+    wishlist_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Delete all items from a shared wishlist (owners only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    if not crud.delete_all_shared_wishlist_items(db, wishlist_id, current_user_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You're not authorized to clear items from this wishlist"
+        )
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.put("/api/shared-wishlist-items/{item_id}", response_model=schemas.SharedWishlistItem)
+def update_shared_wishlist_item(
+    item_id: int,
+    item_update: schemas.SharedWishlistItemUpdate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Update a shared wishlist item (owners only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    db_item = crud.update_shared_wishlist_item(db, item_id, item_update, current_user_id)
+    if not db_item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Item not found or you're not authorized to update it"
+        )
+
+    thinking_by_list = db_item.thinking_about_by.split(',') if db_item.thinking_about_by else []
+
+    return schemas.SharedWishlistItem(
+        id=db_item.id,
+        wishlist_id=db_item.wishlist_id,
+        title=db_item.title,
+        description=db_item.description,
+        link=str(db_item.link) if db_item.link else None,
+        image_url=str(db_item.image_url) if db_item.image_url else None,
+        priority=db_item.priority,
+        price=db_item.price,
+        is_purchased=db_item.is_purchased,
+        purchased_by=db_item.purchased_by,
+        thinking_about_by_list=thinking_by_list,
+        created_at=db_item.created_at,
+        created_by=db_item.created_by
+    )
+
+
+@app.delete("/api/shared-wishlist-items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_shared_wishlist_item(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Delete a shared wishlist item (owners only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    if not crud.delete_shared_wishlist_item(db, item_id, current_user_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Item not found or you're not authorized to delete it"
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.patch("/api/shared-wishlist-items/{item_id}/toggle-thinking", response_model=schemas.SharedWishlistItem)
+def toggle_shared_item_thinking(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Toggle 'thinking about' status for a shared wishlist item (non-owners only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    db_item = crud.toggle_shared_item_thinking_about(db, item_id, current_user_id)
+    if not db_item:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot toggle thinking about status. Item not found or you are an owner."
+        )
+
+    thinking_by_list = db_item.thinking_about_by.split(',') if db_item.thinking_about_by else []
+
+    return schemas.SharedWishlistItem(
+        id=db_item.id,
+        wishlist_id=db_item.wishlist_id,
+        title=db_item.title,
+        description=db_item.description,
+        link=str(db_item.link) if db_item.link else None,
+        image_url=str(db_item.image_url) if db_item.image_url else None,
+        priority=db_item.priority,
+        price=db_item.price,
+        is_purchased=db_item.is_purchased,
+        purchased_by=db_item.purchased_by,
+        thinking_about_by_list=thinking_by_list,
+        created_at=db_item.created_at,
+        created_by=db_item.created_by
+    )
+
+
+@app.patch("/api/shared-wishlist-items/{item_id}/toggle-purchased", response_model=schemas.SharedWishlistItem)
+def toggle_shared_item_purchased(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Toggle purchased status for a shared wishlist item (non-owners only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    db_item = crud.toggle_shared_item_purchased(db, item_id, current_user_id)
+    if not db_item:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot toggle purchased status. Item not found, you are an owner, or item was purchased by someone else."
+        )
+
+    thinking_by_list = db_item.thinking_about_by.split(',') if db_item.thinking_about_by else []
+
+    return schemas.SharedWishlistItem(
+        id=db_item.id,
+        wishlist_id=db_item.wishlist_id,
+        title=db_item.title,
+        description=db_item.description,
+        link=str(db_item.link) if db_item.link else None,
+        image_url=str(db_item.image_url) if db_item.image_url else None,
+        priority=db_item.priority,
+        price=db_item.price,
+        is_purchased=db_item.is_purchased,
+        purchased_by=db_item.purchased_by,
+        thinking_about_by_list=thinking_by_list,
+        created_at=db_item.created_at,
+        created_by=db_item.created_by
+    )
+
+
+# --- Shared Wishlist Export/Import ---
+
+@app.get("/api/shared-wishlists/{wishlist_id}/export", response_model=schemas.WishlistExport)
+def export_shared_wishlist(
+    wishlist_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Export a shared wishlist to a portable format (owners only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required.")
+
+    # Check if user is an owner
+    if not crud.is_shared_wishlist_owner(db, wishlist_id, current_user_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You must be an owner to export this shared wishlist."
+        )
+
+    # Get all items for the shared wishlist
+    items = crud.get_shared_wishlist_items(db, wishlist_id, current_user_id)
+
+    # Create export data
+    export_data = {
+        "items": [
+            {
+                "title": item.title,
+                "description": item.description,
+                "link": str(item.link) if item.link else None,
+                "image_url": str(item.image_url) if item.image_url else None,
+                "priority": item.priority,
+                "price": item.price
+            }
+            for item in items
+        ],
+        "export_date": datetime.utcnow().isoformat(),
+        "version": "1.0"
+    }
+
+    return schemas.WishlistExport(**export_data)
+
+
+@app.post("/api/shared-wishlists/{wishlist_id}/import", response_model=schemas.WishlistImportResponse)
+def import_shared_wishlist(
+    wishlist_id: int,
+    wishlist_data: schemas.WishlistExport,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Import items into a shared wishlist (owners only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required.")
+
+    # Check if user is an owner
+    if not crud.is_shared_wishlist_owner(db, wishlist_id, current_user_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You must be an owner to import to this shared wishlist."
+        )
+
+    # Validate version compatibility
+    if not wishlist_data.version.startswith("1."):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported wishlist format version: {wishlist_data.version}"
+        )
+
+    # Get existing items for duplicate checking
+    existing_items = db.query(models.SharedWishlistItem).filter(
+        models.SharedWishlistItem.wishlist_id == wishlist_id
+    ).all()
+
+    imported_items = []
+    skipped_items = []
+    for item_data in wishlist_data.items:
+        try:
+            # Check for exact duplicate
+            is_duplicate = any(
+                existing_item.title == item_data.title and
+                existing_item.description == item_data.description and
+                (str(existing_item.link) if existing_item.link else None) == (str(item_data.link) if item_data.link else None) and
+                (str(existing_item.image_url) if existing_item.image_url else None) == (str(item_data.image_url) if item_data.image_url else None) and
+                existing_item.priority == item_data.priority and
+                existing_item.price == item_data.price
+                for existing_item in existing_items
+            )
+
+            if is_duplicate:
+                skipped_items.append(item_data.title)
+                continue
+
+            # Create item if not a duplicate
+            # Convert price from cents (in export) to dollars for the schema
+            price_in_dollars = item_data.price / 100 if item_data.price else None
+            item_create = schemas.SharedWishlistItemCreate(
+                title=item_data.title,
+                description=item_data.description,
+                link=item_data.link,
+                image_url=item_data.image_url,
+                priority=item_data.priority,
+                price=price_in_dollars
+            )
+            db_item = crud.create_shared_wishlist_item(db, wishlist_id, item_create, current_user_id)
+
+            if db_item:
+                # For shared wishlist imports, return minimal item data compatible with WishlistImportResponse
+                imported_items.append({
+                    'id': db_item.id,
+                    'title': db_item.title,
+                    'description': db_item.description,
+                    'link': str(db_item.link) if db_item.link else None,
+                    'image_url': str(db_item.image_url) if db_item.image_url else None,
+                    'priority': db_item.priority,
+                    'price': db_item.price,
+                    'owner_id': current_user_id,  # Use current user as the "owner" for response schema
+                    'is_purchased': False  # New imported items are not purchased
+                })
+
+        except Exception as e:
+            logger.error(f"Failed to import shared wishlist item: {str(e)}")
+            # Continue with next item if one fails
+            continue
+
+    if not imported_items and not skipped_items:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to import any items from the file."
+        )
+
+    return schemas.WishlistImportResponse(
+        imported_items=imported_items,
+        skipped_items=skipped_items
+    )
+
+
+@app.post("/api/shared-wishlist-items/{item_id}/comments", response_model=schemas.SharedWishlistItemComment)
+def add_shared_wishlist_item_comment(
+    item_id: int,
+    comment: schemas.CommentCreate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Add a comment to a shared wishlist item. Non-creators and admin can comment."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    # Get the shared item
+    shared_item = db.query(models.SharedWishlistItem).filter(models.SharedWishlistItem.id == item_id).first()
+    if not shared_item:
+        raise HTTPException(status_code=404, detail="Shared wishlist item not found")
+
+    # Get the current user
+    current_user = crud.get_family_member(db, current_user_id)
+    if not current_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    is_admin = current_user.name.lower() == 'admin'
+
+    # Match standard wishlist behavior:
+    # item creators cannot comment on their own items unless they are admin.
+    if shared_item.created_by == current_user_id and not is_admin:
+        raise HTTPException(status_code=400, detail="Item creators cannot comment on their own shared wishlist items")
+
+    # Create the comment
+    db_comment = crud.create_shared_wishlist_item_comment(db, item_id, comment.text, current_user_id)
+    if not db_comment:
+        raise HTTPException(status_code=400, detail="Failed to create comment")
+
+    return schemas.SharedWishlistItemComment(
+        id=db_comment.id,
+        author_id=db_comment.author_id,
+        author_name=current_user.name,
+        shared_item_id=db_comment.shared_item_id,
+        text=db_comment.text,
+        created_at=db_comment.created_at
+    )
+
+
 @app.put("/api/members/{member_id}/preferences", response_model=schemas.FamilyMember)
 def update_member_preferences(
     member_id: int,
@@ -2019,6 +2645,145 @@ def update_member_preferences(
     
     return member_schema
 
+@app.post("/api/members/{member_id}/complete-tutorial")
+def complete_tutorial(
+    member_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Mark tutorial as completed for the current user by setting first_login to false"""
+    if current_user_id is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    # Only allow users to mark their own tutorial as completed
+    if current_user_id != member_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only mark your own tutorial as completed"
+        )
+
+    # Get the member
+    member = crud.get_family_member(db, member_id)
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    # Update tutorial_status to "completed" and first_login to False for backward compatibility
+    member.tutorial_status = "completed"
+    member.first_login = False
+    db.add(member)
+    db.commit()
+    db.refresh(member)
+
+    # Get current wishlist count for response
+    count = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == member.id).count()
+    member_data = {
+        "id": member.id,
+        "name": member.name,
+        "birthday": member.birthday,
+        "is_admin": member.is_admin,
+        "preferences": member.preferences,
+        "username": member.username,
+        "email": member.email,
+        "force_password_change": member.force_password_change,
+        "first_login": member.first_login,
+        "tutorial_status": member.tutorial_status,
+        "wishlist_item_count": count,
+        "households": []
+    }
+    return schemas.FamilyMember(**member_data)
+
+@app.post("/api/members/{member_id}/skip-tutorial")
+def skip_tutorial(
+    member_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Mark tutorial as skipped for the current user by setting tutorial_status to skipped"""
+    if current_user_id is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    # Only allow users to mark their own tutorial as skipped
+    if current_user_id != member_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only mark your own tutorial as skipped"
+        )
+
+    # Get the member
+    member = crud.get_family_member(db, member_id)
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    # Update tutorial_status to "skipped"
+    member.tutorial_status = "skipped"
+    db.add(member)
+    db.commit()
+    db.refresh(member)
+
+    # Get current wishlist count for response
+    count = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == member.id).count()
+    member_data = {
+        "id": member.id,
+        "name": member.name,
+        "birthday": member.birthday,
+        "is_admin": member.is_admin,
+        "preferences": member.preferences,
+        "username": member.username,
+        "email": member.email,
+        "force_password_change": member.force_password_change,
+        "first_login": member.first_login,
+        "tutorial_status": member.tutorial_status,
+        "wishlist_item_count": count,
+        "households": []
+    }
+    return schemas.FamilyMember(**member_data)
+
+@app.post("/api/members/{member_id}/reset-tutorial")
+def reset_tutorial(
+    member_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Reset tutorial to 'new' state to allow user to run it again"""
+    if current_user_id is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    # Only allow users to reset their own tutorial
+    if current_user_id != member_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only reset your own tutorial"
+        )
+
+    # Get the member
+    member = crud.get_family_member(db, member_id)
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    # Update tutorial_status to "new"
+    member.tutorial_status = "new"
+    db.add(member)
+    db.commit()
+    db.refresh(member)
+
+    # Get current wishlist count for response
+    count = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == member.id).count()
+    member_data = {
+        "id": member.id,
+        "name": member.name,
+        "birthday": member.birthday,
+        "is_admin": member.is_admin,
+        "preferences": member.preferences,
+        "username": member.username,
+        "email": member.email,
+        "force_password_change": member.force_password_change,
+        "first_login": member.first_login,
+        "tutorial_status": member.tutorial_status,
+        "wishlist_item_count": count,
+        "households": []
+    }
+    return schemas.FamilyMember(**member_data)
+
 # --- User Authentication ---
 @app.post("/api/auth/login", response_model=schemas.LoginResponse)
 async def login(
@@ -2028,26 +2793,83 @@ async def login(
 ):
     """
     Authenticate a user with username and password.
+
+    Rate limiting:
+    - IP-based: 5 attempts per 15 minutes, 15-minute lockout
+    - Username-based: 3 attempts per 15 minutes, progressive lockout (5min, 10min, 20min... up to 1hr)
     """
     try:
+        turnstile_valid = await verify_turnstile(request.turnstile_token, client_ip)
+        if not turnstile_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Turnstile verification failed.",
+                    "turnstile_required": True,
+                }
+            )
+
+        # Check login-specific rate limits (stricter than general API rate limiting)
+        rate_limit_result = login_rate_limiter.check_rate_limit(client_ip, request.username)
+        if not rate_limit_result.allowed:
+            # Log the blocked attempt
+            login_rate_limiter._log_event(
+                RateLimitEvent.ATTEMPT_BLOCKED,
+                client_ip,
+                request.username,
+                {
+                    "reason": rate_limit_result.reason.value if rate_limit_result.reason else None,
+                    "retry_after": rate_limit_result.retry_after,
+                }
+            )
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "message": rate_limit_result.message or "Too many login attempts. Please try again later.",
+                    "turnstile_required": True,
+                    "retry_after": rate_limit_result.retry_after,
+                },
+                headers={"Retry-After": str(rate_limit_result.retry_after or 900)}
+            )
+
         # Log the login attempt
         auth.log_auth_event("LOGIN_ATTEMPT", request.username, True, client_ip)
-        
+
         success, message, user = UserAuthService.authenticate_user(db, request.username, request.password)
-        
+
         if not success:
+            # Record failed attempt for rate limiting
+            login_rate_limiter.record_failed_attempt(client_ip, request.username)
+
             # Log failed login
             auth.log_auth_event("LOGIN", request.username, False, client_ip, message)
-            
+
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=message
             )
-        
+
+        # Record successful login - resets rate limit counters
+        login_rate_limiter.record_successful_login(client_ip, request.username)
+
         # Log successful login
-        auth.log_auth_event("LOGIN", user.username, True, client_ip, 
+        auth.log_auth_event("LOGIN", user.username, True, client_ip,
                             f"User ID: {user.id}, Admin: {user.is_admin}")
-        
+
+        household_count = db.query(models.user_household_association).filter(
+            models.user_household_association.c.user_id == user.id,
+            models.user_household_association.c.status == 'active'
+        ).count()
+
+        member_households = db.query(models.Household).join(
+            models.user_household_association,
+            models.Household.id == models.user_household_association.c.household_id
+        ).filter(
+            models.user_household_association.c.user_id == user.id,
+            models.user_household_association.c.status == 'active'
+        ).all()
+        households_data = [{"id": h.id, "name": h.name} for h in member_households]
+
         return schemas.LoginResponse(
             success=True,
             message=message,
@@ -2057,7 +2879,11 @@ async def login(
                 username=user.username,
                 email=user.email,
                 is_admin=user.is_admin,
-                wishlist_item_count=0
+                first_login=user.first_login,
+                tutorial_status=user.tutorial_status or "new",
+                wishlist_item_count=0,
+                household_count=household_count,
+                households=households_data
             )
         )
     except HTTPException:
@@ -2088,8 +2914,33 @@ async def register(
     Register a new user with username, password, etc.
     """
     try:
+        turnstile_valid = await verify_turnstile(user_data.turnstile_token, client_ip)
+        if not turnstile_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Turnstile verification failed.",
+                    "turnstile_required": True,
+                }
+            )
+
+        rate_limit_result = register_rate_limiter.check_rate_limit(client_ip, user_data.username)
+        if not rate_limit_result.allowed:
+            auth.log_auth_event("REGISTER_RATE_LIMIT", user_data.username, False, client_ip,
+                                rate_limit_result.message or "Registration rate limit exceeded")
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "message": rate_limit_result.message or "Too many registration attempts. Please try again later.",
+                    "turnstile_required": True,
+                    "retry_after": rate_limit_result.retry_after,
+                },
+                headers={"Retry-After": str(rate_limit_result.retry_after or 900)}
+            )
+
         # Log registration attempt
         auth.log_auth_event("REGISTER_ATTEMPT", user_data.username, True, client_ip)
+        register_rate_limiter.record_attempt(client_ip, user_data.username)
         
         # Validate password strength
         if not validate_password_strength(user_data.password):
@@ -2159,15 +3010,55 @@ async def request_password_reset(
     Request a password reset by username or email.
     """
     try:
+        turnstile_valid = await verify_turnstile(request.turnstile_token, client_ip)
+        if not turnstile_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Turnstile verification failed.",
+                    "turnstile_required": True,
+                }
+            )
+
+        rate_limit_result = password_reset_rate_limiter.check_rate_limit(client_ip, request.username_or_email)
+        if not rate_limit_result.allowed:
+            auth.log_auth_event("PASSWORD_RESET_RATE_LIMIT", request.username_or_email, False, client_ip,
+                                rate_limit_result.message or "Password reset rate limit exceeded")
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "message": rate_limit_result.message or "Too many password reset requests. Please try again later.",
+                    "turnstile_required": True,
+                    "retry_after": rate_limit_result.retry_after,
+                },
+                headers={"Retry-After": str(rate_limit_result.retry_after or 900)}
+            )
+
         # Log password reset request
         auth.log_auth_event("PASSWORD_RESET_REQUEST", request.username_or_email, True, client_ip)
-        
+        password_reset_rate_limiter.record_attempt(client_ip, request.username_or_email)
+
+        # Check if this is an admin user — admin uses passphrase verification instead of email
+        admin_user = db.query(models.FamilyMember).filter(
+            func.lower(models.FamilyMember.username) == request.username_or_email.lower(),
+            models.FamilyMember.is_admin == True
+        ).first()
+
+        if admin_user and admin_user.recovery_passphrase_encrypted:
+            auth.log_auth_event("PASSWORD_RESET_ADMIN_PASSPHRASE", request.username_or_email, True, client_ip,
+                                "Admin reset requires passphrase verification")
+            return {
+                "success": True,
+                "requires_passphrase": True,
+                "message": "Admin password reset requires recovery passphrase verification."
+            }
+
         success, message = UserAuthService.create_reset_token(db, request.username_or_email)
-        
+
         # Log result
         status_msg = "Token generated and email sent" if success else "Failed to generate token"
         auth.log_auth_event("PASSWORD_RESET_TOKEN", request.username_or_email, success, client_ip, status_msg)
-        
+
         return {
             "success": success,
             "message": message
@@ -2239,6 +3130,80 @@ async def confirm_password_reset(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred during password reset confirmation"
         )
+
+
+@app.post("/api/auth/admin-reset-password",
+    tags=["Authentication"],
+    summary="Reset admin password using recovery passphrase"
+)
+async def admin_reset_password_with_passphrase(
+    request: schemas.AdminPassphraseResetRequest,
+    db: Session = Depends(get_db),
+    client_ip: str = Depends(get_client_ip)
+):
+    """Reset the admin password by verifying the recovery passphrase."""
+    try:
+        turnstile_valid = await verify_turnstile(request.turnstile_token, client_ip)
+        if not turnstile_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"message": "Turnstile verification failed.", "turnstile_required": True}
+            )
+
+        rate_limit_result = password_reset_rate_limiter.check_rate_limit(client_ip, "admin-passphrase")
+        if not rate_limit_result.allowed:
+            auth.log_auth_event("ADMIN_PASSPHRASE_RATE_LIMIT", "admin", False, client_ip,
+                                rate_limit_result.message or "Rate limit exceeded")
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "message": rate_limit_result.message or "Too many attempts. Please try again later.",
+                    "turnstile_required": True,
+                    "retry_after": rate_limit_result.retry_after,
+                },
+                headers={"Retry-After": str(rate_limit_result.retry_after or 900)}
+            )
+
+        password_reset_rate_limiter.record_attempt(client_ip, "admin-passphrase")
+
+        # Find admin user
+        admin = db.query(models.FamilyMember).filter(
+            models.FamilyMember.is_admin == True
+        ).first()
+
+        if not admin or not admin.recovery_passphrase_encrypted:
+            auth.log_auth_event("ADMIN_PASSPHRASE_RESET", "admin", False, client_ip, "No admin or passphrase found")
+            raise HTTPException(status_code=400, detail="Recovery passphrase is not configured")
+
+        # Verify passphrase
+        if not verify_passphrase(request.passphrase, admin.recovery_passphrase_encrypted):
+            auth.log_auth_event("ADMIN_PASSPHRASE_RESET", "admin", False, client_ip, "Incorrect passphrase")
+            raise HTTPException(status_code=401, detail="Incorrect recovery passphrase")
+
+        # Validate password strength
+        if not validate_password_strength(request.new_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must be at least 8 characters and include uppercase, lowercase, and numbers"
+            )
+
+        # Reset password
+        admin.password_hash = auth.get_password_hash(request.new_password)
+        db.commit()
+
+        auth.log_auth_event("ADMIN_PASSPHRASE_RESET", admin.username, True, client_ip, "Admin password reset via passphrase")
+
+        return {"success": True, "message": "Admin password has been reset successfully."}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Admin passphrase reset error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred during admin password reset"
+        )
+
 
 @app.post("/api/admin/schema/reset-hash", response_model=schemas.MigrationResponse)
 async def reset_schema_hash(
@@ -2347,38 +3312,34 @@ def get_all_households_with_members(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
     
     try:
-        # Get households with their actual members
+        # Get all households and batch load members in one query
+        all_households = db.query(models.Household).all()
+
+        # Batch load all household-member associations
+        members_q = db.query(
+            models.user_household_association.c.household_id,
+            models.FamilyMember
+        ).join(
+            models.FamilyMember,
+            models.FamilyMember.id == models.user_household_association.c.user_id
+        ).all()
+        members_by_household = {}
+        for hid, member in members_q:
+            members_by_household.setdefault(hid, []).append(member)
+
         households = []
-        for h in db.query(models.Household).all():
-            # Get members for this household
-            members = db.query(models.FamilyMember).join(
-                models.user_household_association,
-                models.FamilyMember.id == models.user_household_association.c.user_id
-            ).filter(
-                models.user_household_association.c.household_id == h.id
-            ).all()
-            
-            # Convert members to schema
-            member_schemas = []
-            for member in members:
-                member_schemas.append({
-                    "id": member.id,
-                    "name": member.name,
-                    "username": member.username,
-                    "email": member.email,
-                    "is_admin": member.is_admin
-                })
-            
-            household_dict = {
-                "id": h.id,
-                "name": h.name,
-                "description": h.description,
-                "created_at": h.created_at,
-                "created_by": h.created_by,
-                "member_count": len(members),
-                "members": member_schemas
-            }
-            households.append(schemas.HouseholdWithMembers(**household_dict))
+        for h in all_households:
+            members = members_by_household.get(h.id, [])
+            member_schemas = [{
+                "id": m.id, "name": m.name, "username": m.username,
+                "email": m.email, "is_admin": m.is_admin
+            } for m in members]
+
+            households.append(schemas.HouseholdWithMembers(
+                id=h.id, name=h.name, description=h.description,
+                created_at=h.created_at, created_by=h.created_by,
+                member_count=len(members), members=member_schemas
+            ))
         return households
     except Exception as e:
         logger.error(f"Failed to get households with members: {e}")
@@ -2454,17 +3415,16 @@ def get_admin_stats(
         total_households = db.query(models.Household).count()
         total_wishlists = db.query(models.WishlistItem).count()
         total_emails_sent = db.query(models.EmailLog).filter(models.EmailLog.status == 'sent').count()
-        
-        # Get active users in last 30 days (if you have login tracking)
-        thirty_days_ago = get_est_timedelta(days=-30)
-        active_users = db.query(models.FamilyMember).count()  # For now, just count all users
-        
+        total_cart_items = db.query(models.ShoppingCartItem).count()
+        total_shared_wishlists = db.query(models.SharedWishlist).count()
+
         return {
             "total_users": total_users,
             "total_households": total_households,
             "total_wishlists": total_wishlists,
             "total_emails_sent": total_emails_sent,
-            "active_users_30d": active_users
+            "total_cart_items": total_cart_items,
+            "total_shared_wishlists": total_shared_wishlists
         }
     except Exception as e:
         logger.error(f"Failed to get admin stats: {e}")
@@ -2777,7 +3737,7 @@ def get_system_status(
         
         return {
             "status": "healthy",
-            "version": "1.0.0",
+            "version": crud.get_system_version(db),
             "uptime": f"{uptime_hours}h {uptime_minutes}m",
             "memory_usage": f"{memory.percent}%",
             "disk_usage": f"{disk.percent}%",
@@ -3197,39 +4157,336 @@ def get_all_items(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
     
     try:
-        # Get all items with owner information
-        items = db.query(models.WishlistItem).join(models.FamilyMember).all()
-        
+        items = db.query(models.WishlistItem).options(
+            joinedload(models.WishlistItem.owner)
+        ).all()
+        shared_items = db.query(models.SharedWishlistItem).options(
+            joinedload(models.SharedWishlistItem.wishlist).joinedload(models.SharedWishlist.owners)
+        ).all()
+
+        # Batch load all user→household mappings in one query
+        all_user_households = db.query(
+            models.user_household_association.c.user_id,
+            models.Household.name
+        ).join(
+            models.Household,
+            models.Household.id == models.user_household_association.c.household_id
+        ).all()
+        households_by_user = {}
+        for uid, hname in all_user_households:
+            households_by_user.setdefault(uid, []).append(hname)
+
         result = []
         for item in items:
-            # Get households for the owner
-            households = db.query(models.Household).join(
-                models.user_household_association,
-                models.Household.id == models.user_household_association.c.household_id
-            ).filter(models.user_household_association.c.user_id == item.owner_id).all()
-            
-            household_names = [h.name for h in households] if households else ["No household"]
-            
+            household_names = households_by_user.get(item.owner_id, ["No household"])
+            thinking_by_list = item.thinking_about_by.split(',') if item.thinking_about_by else []
+            thinking_by_list = [name.strip() for name in thinking_by_list if name.strip()]
+
             result.append({
                 "id": item.id,
                 "title": item.title,
                 "description": item.description,
+                "link": item.link,
+                "image_url": item.image_url,
                 "owner_id": item.owner_id,
                 "owner_name": item.owner.name,
+                "group_label": item.owner.name,
+                "group_type": "user",
                 "households": household_names,
                 "is_purchased": item.is_purchased,
                 "purchased_by": item.purchased_by,
+                "thinking_about_by_list": thinking_by_list,
                 "priority": item.priority,
                 "price": item.price,
-                "created_at": item.id  # Using ID as proxy for creation order since created_at isn't in model
+                "created_at": item.id,
+                "item_type": "personal"
             })
-        
+
+        for shared_item in shared_items:
+            wishlist = shared_item.wishlist
+            owner_ids = [owner.id for owner in (wishlist.owners or [])]
+            owner_names = [owner.name for owner in (wishlist.owners or [])]
+            # Collect household names from pre-loaded map
+            household_names_set = set()
+            for oid in owner_ids:
+                for hname in households_by_user.get(oid, []):
+                    household_names_set.add(hname)
+            household_names = list(household_names_set) if household_names_set else ["No household"]
+
+            thinking_by_list = shared_item.thinking_about_by.split(',') if shared_item.thinking_about_by else []
+            thinking_by_list = [name.strip() for name in thinking_by_list if name.strip()]
+
+            result.append({
+                "id": shared_item.id,
+                "title": shared_item.title,
+                "description": shared_item.description,
+                "link": shared_item.link,
+                "image_url": shared_item.image_url,
+                "owner_id": None,
+                "owner_name": None,
+                "group_label": wishlist.name,
+                "group_type": "shared",
+                "shared_wishlist_id": wishlist.id,
+                "shared_wishlist_name": wishlist.name,
+                "shared_owner_names": owner_names,
+                "households": household_names,
+                "is_purchased": shared_item.is_purchased,
+                "purchased_by": shared_item.purchased_by,
+                "thinking_about_by_list": thinking_by_list,
+                "priority": shared_item.priority,
+                "price": shared_item.price,
+                "created_at": shared_item.id,
+                "item_type": "shared"
+            })
+
         return result
     except Exception as e:
         logger.error(f"Failed to get all items: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get all items: {str(e)}"
+        )
+
+@app.get("/api/admin/carts")
+def get_all_cart_items(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Get all shopping cart items across users (admin only)."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+
+    try:
+        cart_items = db.query(models.ShoppingCartItem).options(
+            joinedload(models.ShoppingCartItem.buyer),
+            joinedload(models.ShoppingCartItem.recipient),
+            joinedload(models.ShoppingCartItem.shared_wishlist_item)
+        ).order_by(models.ShoppingCartItem.created_at.desc()).all()
+
+        result = []
+        for item in cart_items:
+            buyer_name = item.buyer.name if item.buyer else "Unknown"
+            recipient_name = item.recipient.name if item.recipient else item.recipient_name
+            result.append({
+                "id": item.id,
+                "buyer_id": item.buyer_id,
+                "buyer_name": buyer_name,
+                "recipient_id": item.recipient_id,
+                "recipient_name": recipient_name,
+                "wishlist_item_id": item.wishlist_item_id,
+                "shared_wishlist_item_id": item.shared_wishlist_item_id,
+                "shared_wishlist_id": item.shared_wishlist_id,
+                "title": item.title,
+                "notes": item.notes,
+                "link": item.link,
+                "image_url": item.image_url,
+                "price": item.price,
+                "status": item.status,
+                "created_at": item.created_at,
+                "purchased_at": item.purchased_at
+            })
+
+        return result
+    except Exception as e:
+        logger.error(f"Failed to get all cart items: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get all cart items: {str(e)}"
+        )
+
+@app.delete("/api/admin/carts/{cart_item_id}")
+def delete_admin_cart_item(
+    cart_item_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Delete a shopping cart item as admin."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+
+    try:
+        db_item = db.query(models.ShoppingCartItem).filter(models.ShoppingCartItem.id == cart_item_id).first()
+        if not db_item:
+            raise HTTPException(status_code=404, detail="Shopping cart item not found")
+
+        buyer = db.query(models.FamilyMember).filter(models.FamilyMember.id == db_item.buyer_id).first()
+        buyer_name = buyer.name if buyer else None
+        item_title = db_item.title or "an item"
+
+        if db_item.wishlist_item_id and buyer_name:
+            wishlist_item = db.query(models.WishlistItem).filter(models.WishlistItem.id == db_item.wishlist_item_id).first()
+            if wishlist_item and wishlist_item.purchased_by == buyer_name:
+                wishlist_item.is_purchased = False
+                wishlist_item.purchased_by = None
+
+        if db_item.shared_wishlist_item_id and buyer_name:
+            shared_item = db.query(models.SharedWishlistItem).filter(
+                models.SharedWishlistItem.id == db_item.shared_wishlist_item_id
+            ).first()
+            if shared_item and shared_item.purchased_by == buyer_name:
+                shared_item.is_purchased = False
+                shared_item.purchased_by = None
+
+        if db_item.buyer_id:
+            notification = models.Notification(
+                recipient_id=db_item.buyer_id,
+                message=f'An admin removed "{item_title}" from your cart.',
+                is_read=False,
+            )
+            db.add(notification)
+
+        crud.detach_notifications_for_cart_items(db, [db_item.id])
+        db.delete(db_item)
+        db.commit()
+        return {"success": True, "message": "Cart item removed."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to delete cart item: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete cart item: {str(e)}"
+        )
+
+@app.delete("/api/admin/carts/buyer/{buyer_id}")
+def clear_admin_cart(
+    buyer_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Clear all shopping cart items for a buyer (admin only)."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+
+    try:
+        buyer = db.query(models.FamilyMember).filter(models.FamilyMember.id == buyer_id).first()
+        buyer_name = buyer.name if buyer else None
+
+        cart_items = db.query(models.ShoppingCartItem).filter(
+            models.ShoppingCartItem.buyer_id == buyer_id
+        ).all()
+
+        if cart_items and buyer_id:
+            notification = models.Notification(
+                recipient_id=buyer_id,
+                message='An admin cleared your cart.',
+                is_read=False,
+            )
+            db.add(notification)
+
+        for db_item in cart_items:
+            if db_item.wishlist_item_id and buyer_name:
+                wishlist_item = db.query(models.WishlistItem).filter(
+                    models.WishlistItem.id == db_item.wishlist_item_id
+                ).first()
+                if wishlist_item and wishlist_item.purchased_by == buyer_name:
+                    wishlist_item.is_purchased = False
+                    wishlist_item.purchased_by = None
+
+            if db_item.shared_wishlist_item_id and buyer_name:
+                shared_item = db.query(models.SharedWishlistItem).filter(
+                    models.SharedWishlistItem.id == db_item.shared_wishlist_item_id
+                ).first()
+                if shared_item and shared_item.purchased_by == buyer_name:
+                    shared_item.is_purchased = False
+                    shared_item.purchased_by = None
+
+            crud.detach_notifications_for_cart_items(db, [db_item.id])
+            db.delete(db_item)
+
+        db.commit()
+        removed_count = len(cart_items)
+        return {
+            "success": True,
+            "removed": removed_count,
+            "message": f"Cleared {removed_count} cart item{'' if removed_count == 1 else 's'}."
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to clear cart items: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to clear cart items: {str(e)}"
+        )
+
+@app.delete("/api/admin/carts")
+def clear_all_admin_carts(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Clear all shopping cart items for all buyers (admin only)."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+
+    try:
+        cart_items = db.query(models.ShoppingCartItem).all()
+        if not cart_items:
+            return {"success": True, "removed": 0, "message": "No cart items to clear."}
+
+        buyer_ids = {item.buyer_id for item in cart_items if item.buyer_id}
+        buyers = db.query(models.FamilyMember).filter(models.FamilyMember.id.in_(buyer_ids)).all()
+        buyer_names = {buyer.id: buyer.name for buyer in buyers}
+
+        for buyer_id in buyer_ids:
+            notification = models.Notification(
+                recipient_id=buyer_id,
+                message='An admin cleared your cart.',
+                is_read=False,
+            )
+            db.add(notification)
+
+        for db_item in cart_items:
+            buyer_name = buyer_names.get(db_item.buyer_id)
+
+            if db_item.wishlist_item_id and buyer_name:
+                wishlist_item = db.query(models.WishlistItem).filter(
+                    models.WishlistItem.id == db_item.wishlist_item_id
+                ).first()
+                if wishlist_item and wishlist_item.purchased_by == buyer_name:
+                    wishlist_item.is_purchased = False
+                    wishlist_item.purchased_by = None
+
+            if db_item.shared_wishlist_item_id and buyer_name:
+                shared_item = db.query(models.SharedWishlistItem).filter(
+                    models.SharedWishlistItem.id == db_item.shared_wishlist_item_id
+                ).first()
+                if shared_item and shared_item.purchased_by == buyer_name:
+                    shared_item.is_purchased = False
+                    shared_item.purchased_by = None
+
+            crud.detach_notifications_for_cart_items(db, [db_item.id])
+            db.delete(db_item)
+
+        db.commit()
+        removed_count = len(cart_items)
+        return {
+            "success": True,
+            "removed": removed_count,
+            "message": f"Cleared {removed_count} cart item{'' if removed_count == 1 else 's'}."
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to clear cart items: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to clear cart items: {str(e)}"
         )
 
 @app.delete("/api/admin/items/{item_id}")
@@ -3252,14 +4509,17 @@ def delete_item_admin(
         item = db.query(models.WishlistItem).filter(models.WishlistItem.id == item_id).first()
         if not item:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
-        
+
+        # Notify cart buyers and disconnect cart items before deletion
+        crud.notify_cart_buyers_on_wishlist_delete(db, item)
+
         # Delete associated comments first
         db.query(models.Comment).filter(models.Comment.item_id == item_id).delete()
-        
+
         # Delete the item
         db.delete(item)
         db.commit()
-        
+
         return {"message": "Item deleted successfully"}
     except HTTPException:
         raise
@@ -3699,6 +4959,26 @@ def join_household(
             requested_at=get_est_timestamp(),
             status='active'
         ))
+
+        # Reassign any owned shared wishlists tied to households the user is no longer in.
+        active_household_ids = [
+            row[0] for row in db.query(models.user_household_association.c.household_id).filter(
+                models.user_household_association.c.user_id == current_user_id,
+                models.user_household_association.c.status == 'active'
+            ).all()
+        ]
+        if active_household_ids:
+            db.query(models.SharedWishlist).filter(
+                models.SharedWishlist.created_by == current_user_id,
+                or_(
+                    models.SharedWishlist.household_id.is_(None),
+                    models.SharedWishlist.household_id.notin_(active_household_ids)
+                )
+            ).update(
+                {models.SharedWishlist.household_id: household_id},
+                synchronize_session=False
+            )
+
         db.commit()
         
         # Get updated member count
@@ -3756,7 +5036,39 @@ def leave_household(
         
         if result.rowcount == 0:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="You are not a member of this household")
-        
+
+        remaining_household_ids = [
+            row[0] for row in db.query(models.user_household_association.c.household_id).filter(
+                models.user_household_association.c.user_id == current_user_id,
+                models.user_household_association.c.status == 'active'
+            ).all()
+        ]
+        target_household_id = None
+        if remaining_household_ids:
+            user = crud.get_family_member(db, current_user_id)
+            preferences = user.preferences or {} if user else {}
+            preferred_household_id = preferences.get('active_household_id')
+            if preferred_household_id in remaining_household_ids:
+                target_household_id = preferred_household_id
+            elif len(remaining_household_ids) == 1:
+                target_household_id = remaining_household_ids[0]
+
+        wishlist_update_query = db.query(models.SharedWishlist).filter(
+            models.SharedWishlist.created_by == current_user_id,
+            models.SharedWishlist.household_id == household_id
+        )
+
+        if target_household_id:
+            wishlist_update_query.update(
+                {models.SharedWishlist.household_id: target_household_id},
+                synchronize_session=False
+            )
+        else:
+            wishlist_update_query.update(
+                {models.SharedWishlist.household_id: None},
+                synchronize_session=False
+            )
+
         db.commit()
         
         # Get updated member count
@@ -3786,6 +5098,87 @@ def leave_household(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to leave household: {str(e)}"
+        )
+
+@app.put("/api/households/active", response_model=schemas.FamilyMember)
+def set_active_household(
+    household_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Set the active/primary household for the current user"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    try:
+        # Get current user
+        user = crud.get_family_member(db, current_user_id)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+        # Verify user is a member of this household
+        membership = db.query(models.user_household_association).filter(
+            models.user_household_association.c.user_id == current_user_id,
+            models.user_household_association.c.household_id == household_id,
+            models.user_household_association.c.status == 'active'
+        ).first()
+
+        if not membership:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You are not a member of this household"
+            )
+
+        # Update user preferences with active household
+        preferences = user.preferences or {}
+        preferences['active_household_id'] = household_id
+
+        updated_user = crud.update_member_preferences(db, current_user_id, preferences)
+
+        # Build response with counts and households
+        count = db.query(models.WishlistItem).filter(models.WishlistItem.owner_id == user.id).count()
+        household_count = db.query(models.user_household_association).filter(
+            models.user_household_association.c.user_id == user.id
+        ).count()
+        external_wishlist_count = db.query(models.ExternalWishlist).filter(
+            models.ExternalWishlist.owner_id == user.id
+        ).count()
+
+        member_households = db.query(models.Household).join(
+            models.user_household_association,
+            models.Household.id == models.user_household_association.c.household_id
+        ).filter(
+            models.user_household_association.c.user_id == user.id,
+            models.user_household_association.c.status == 'active'
+        ).all()
+
+        households_data = [{"id": h.id, "name": h.name} for h in member_households]
+
+        member_dict = {
+            "id": updated_user.id,
+            "name": updated_user.name,
+            "birthday": updated_user.birthday,
+            "is_admin": updated_user.is_admin,
+            "preferences": updated_user.preferences,
+            "username": updated_user.username,
+            "email": updated_user.email,
+            "force_password_change": updated_user.force_password_change,
+            "first_login": updated_user.first_login,
+            "wishlist_item_count": count,
+            "external_wishlist_count": external_wishlist_count,
+            "household_count": household_count,
+            "households": households_data
+        }
+
+        return schemas.FamilyMember.model_validate(member_dict)
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to set active household: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to set active household: {str(e)}"
         )
 
 @app.delete("/api/admin/email/templates/{template_id}", response_model=schemas.EmailResponse)
@@ -3882,3 +5275,482 @@ def broadcast_maintenance_email(
         success=True,
         message=f"Maintenance notice sent to {sent_count} users."
     )
+
+@app.post("/api/admin/email/broadcast-update", response_model=schemas.EmailResponse)
+def broadcast_update_email(
+    request: UpdateNoticeBroadcastRequest,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Send an update/release notice email to all users (admin only)"""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    email_service = EmailService(db)
+    if request.send_test_to_admin:
+        if not user.email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Your admin account does not have an email address configured."
+            )
+        log = email_service.send_update_notice_to_user(
+            user=user,
+            version=request.version,
+            changes=request.changes,
+            headline=request.headline,
+            intro=request.intro,
+            highlights=request.highlights,
+            closing=request.closing
+        )
+        if not log or getattr(log, "status", None) != "sent":
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to send test update email."
+            )
+        return schemas.EmailResponse(
+            success=True,
+            message=f"Test update email sent to {user.email}."
+        )
+
+    sent_count = email_service.send_update_notice_to_all_users(
+        version=request.version,
+        changes=request.changes,
+        headline=request.headline,
+        intro=request.intro,
+        highlights=request.highlights,
+        closing=request.closing
+    )
+    return schemas.EmailResponse(
+        success=True,
+        message=f"Update notice sent to {sent_count} users."
+    )
+
+@app.post("/api/admin/reminders/wishlist-update", response_model=schemas.WishlistReminderBroadcastResponse)
+def broadcast_wishlist_update_reminder(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Create an in-app wishlist update reminder for all wishlist owners (admin only)."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required")
+
+    user = crud.get_family_member(db, current_user_id)
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+
+    reminder_prefix = "[WISHLIST_UPDATE_REMINDER]"
+    reminder_message = f"{reminder_prefix} Please review and update your wishlist."
+
+    # Non-admin users own personal wishlists by default.
+    recipient_ids = {
+        row[0] for row in db.query(models.FamilyMember.id).filter(models.FamilyMember.is_admin == False).all()
+    }
+
+    # Also include explicit shared wishlist co-owners (in case any are admins).
+    shared_owner_ids = {
+        row[0] for row in db.query(models.shared_wishlist_owners.c.user_id).distinct().all()
+    }
+    recipient_ids.update(shared_owner_ids)
+
+    if not recipient_ids:
+        return schemas.WishlistReminderBroadcastResponse(
+            success=True,
+            message="No wishlist owners found to notify.",
+            sent_count=0,
+            skipped_count=0
+        )
+
+    existing_unread_recipient_ids = {
+        row[0]
+        for row in db.query(models.Notification.recipient_id)
+        .filter(
+            models.Notification.recipient_id.in_(recipient_ids),
+            models.Notification.is_read == False,
+            models.Notification.message.like(f"{reminder_prefix}%")
+        )
+        .all()
+    }
+
+    sent_count = 0
+    skipped_count = 0
+
+    for recipient_id in recipient_ids:
+        if recipient_id in existing_unread_recipient_ids:
+            skipped_count += 1
+            continue
+
+        db.add(
+            models.Notification(
+                recipient_id=recipient_id,
+                message=reminder_message,
+                cart_item_id=None,
+                is_read=False,
+            )
+        )
+        sent_count += 1
+
+    db.commit()
+
+    return schemas.WishlistReminderBroadcastResponse(
+        success=True,
+        message=f"Wishlist update reminder sent to {sent_count} owner(s).",
+        sent_count=sent_count,
+        skipped_count=skipped_count
+    )
+
+# --- Shopping Cart ---
+
+@app.get("/api/shopping-cart", response_model=List[schemas.ShoppingCartItem])
+def get_shopping_cart_items(
+    buyer_id: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    """Get all shopping cart items for a buyer."""
+    items = db.query(models.ShoppingCartItem).filter(
+        models.ShoppingCartItem.buyer_id == buyer_id
+    ).order_by(models.ShoppingCartItem.created_at.desc()).all()
+    return items
+
+@app.post("/api/shopping-cart", response_model=schemas.ShoppingCartItem)
+def create_shopping_cart_item(
+    item: schemas.ShoppingCartItemCreate,
+    db: Session = Depends(get_db),
+):
+    """Create a new shopping cart item."""
+    if not item.recipient_id and not item.recipient_name:
+        raise HTTPException(status_code=400, detail="Either recipient_id or recipient_name is required.")
+    db_item = models.ShoppingCartItem(
+        buyer_id=item.buyer_id,
+        recipient_id=item.recipient_id,
+        recipient_name=item.recipient_name,
+        wishlist_item_id=item.wishlist_item_id,
+        title=item.title,
+        notes=item.notes,
+        link=str(item.link) if item.link else None,
+        image_url=str(item.image_url) if item.image_url else None,
+        price=item.price,
+        status=item.status.value if item.status else "pending",
+    )
+    db.add(db_item)
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+@app.post("/api/shopping-cart/from-wishlist-item/{item_id}", response_model=schemas.ShoppingCartItem)
+def create_shopping_cart_item_from_wishlist(
+    item_id: int = Path(...),
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header),
+):
+    """Create a shopping cart item from an existing wishlist item."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current user context (X-Current-User-Id header) is required.")
+    wishlist_item = db.query(models.WishlistItem).filter(models.WishlistItem.id == item_id).first()
+    if not wishlist_item:
+        raise HTTPException(status_code=404, detail="Wishlist item not found")
+    current_user = db.query(models.FamilyMember).filter(models.FamilyMember.id == current_user_id).first()
+    if not current_user:
+        raise HTTPException(status_code=404, detail="Current user not found")
+
+    recipient_id = body.get("recipient_id")
+    if not recipient_id:
+        raise HTTPException(status_code=400, detail="recipient_id is required")
+
+    existing_cart_item = db.query(models.ShoppingCartItem).filter(
+        models.ShoppingCartItem.buyer_id == current_user_id,
+        models.ShoppingCartItem.wishlist_item_id == wishlist_item.id,
+    ).first()
+    if existing_cart_item:
+        raise HTTPException(status_code=409, detail="Item already in cart")
+
+    if wishlist_item.is_purchased and wishlist_item.purchased_by != current_user.name:
+        raise HTTPException(status_code=409, detail="Item already reserved by another user")
+
+    db_item = models.ShoppingCartItem(
+        buyer_id=current_user_id,
+        recipient_id=recipient_id,
+        wishlist_item_id=wishlist_item.id,
+        title=wishlist_item.title,
+        notes=None,
+        link=wishlist_item.link,
+        image_url=wishlist_item.image_url,
+        price=wishlist_item.price,
+        status="pending",
+    )
+    db.add(db_item)
+    wishlist_item.is_purchased = True
+    wishlist_item.purchased_by = current_user.name
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+
+@app.post("/api/shopping-cart/from-shared-wishlist-item/{item_id}", response_model=schemas.ShoppingCartItem)
+def create_shopping_cart_item_from_shared_wishlist(
+    item_id: int = Path(...),
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header),
+):
+    """Create a shopping cart item from a shared wishlist item."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current user context (X-Current-User-Id header) is required.")
+
+    shared_item = db.query(models.SharedWishlistItem).filter(models.SharedWishlistItem.id == item_id).first()
+    if not shared_item:
+        raise HTTPException(status_code=404, detail="Shared wishlist item not found")
+
+    current_user = db.query(models.FamilyMember).filter(models.FamilyMember.id == current_user_id).first()
+    if not current_user:
+        raise HTTPException(status_code=404, detail="Current user not found")
+
+    # Get the shared wishlist
+    shared_wishlist = db.query(models.SharedWishlist).filter(models.SharedWishlist.id == shared_item.wishlist_id).first()
+    if not shared_wishlist:
+        raise HTTPException(status_code=404, detail="Shared wishlist not found")
+
+    # Owners cannot add their own items to cart (unless no_secrets mode)
+    if crud.is_shared_wishlist_owner(db, shared_item.wishlist_id, current_user_id):
+        if (shared_wishlist.wishlist_type or "normal") != "no_secrets":
+            raise HTTPException(status_code=403, detail="Owners cannot reserve items from their own shared wishlist")
+
+    # Check if already in cart
+    existing_cart_item = db.query(models.ShoppingCartItem).filter(
+        models.ShoppingCartItem.buyer_id == current_user_id,
+        models.ShoppingCartItem.shared_wishlist_item_id == shared_item.id,
+    ).first()
+    if existing_cart_item:
+        raise HTTPException(status_code=409, detail="Item already in cart")
+
+    # Check if already reserved by someone else
+    if shared_item.is_purchased and shared_item.purchased_by != current_user.name:
+        raise HTTPException(status_code=409, detail="Item already reserved by another user")
+
+    # Create the cart item using the shared wishlist name as recipient_name
+    db_item = models.ShoppingCartItem(
+        buyer_id=current_user_id,
+        recipient_id=None,  # No family member recipient for shared wishlists
+        recipient_name=shared_wishlist.name,  # Use wishlist name as recipient
+        shared_wishlist_item_id=shared_item.id,
+        wishlist_item_id=None,
+        title=shared_item.title,
+        notes=None,
+        link=shared_item.link,
+        image_url=shared_item.image_url,
+        price=shared_item.price,
+        status="pending",
+    )
+    db.add(db_item)
+
+    # Mark the shared item as purchased
+    shared_item.is_purchased = True
+    shared_item.purchased_by = current_user.name
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+
+@app.put("/api/shopping-cart/{cart_item_id}", response_model=schemas.ShoppingCartItem)
+def update_shopping_cart_item(
+    cart_item_id: int = Path(...),
+    updates: schemas.ShoppingCartItemUpdate = Body(...),
+    db: Session = Depends(get_db),
+):
+    """Update a shopping cart item."""
+    db_item = db.query(models.ShoppingCartItem).filter(models.ShoppingCartItem.id == cart_item_id).first()
+    if not db_item:
+        raise HTTPException(status_code=404, detail="Shopping cart item not found")
+
+    update_data = updates.model_dump(exclude_unset=True)
+    if "link" in update_data and update_data["link"] is not None:
+        update_data["link"] = str(update_data["link"])
+    if "image_url" in update_data and update_data["image_url"] is not None:
+        update_data["image_url"] = str(update_data["image_url"])
+    if "status" in update_data and update_data["status"] is not None:
+        update_data["status"] = update_data["status"].value if hasattr(update_data["status"], "value") else update_data["status"]
+        if update_data["status"] == "purchased" and not db_item.purchased_at:
+            update_data["purchased_at"] = datetime.utcnow()
+
+    for key, value in update_data.items():
+        setattr(db_item, key, value)
+
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+@app.delete("/api/shopping-cart/{cart_item_id}")
+def delete_shopping_cart_item(
+    cart_item_id: int = Path(...),
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header),
+):
+    """Delete a shopping cart item."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current user context (X-Current-User-Id header) is required.")
+    db_item = db.query(models.ShoppingCartItem).filter(models.ShoppingCartItem.id == cart_item_id).first()
+    if not db_item:
+        raise HTTPException(status_code=404, detail="Shopping cart item not found")
+    current_user = db.query(models.FamilyMember).filter(models.FamilyMember.id == current_user_id).first()
+
+    # Clear purchased status on regular wishlist items
+    if db_item.wishlist_item_id and current_user:
+        wishlist_item = db.query(models.WishlistItem).filter(models.WishlistItem.id == db_item.wishlist_item_id).first()
+        if wishlist_item and wishlist_item.purchased_by == current_user.name:
+            wishlist_item.is_purchased = False
+            wishlist_item.purchased_by = None
+
+    # Clear purchased status on shared wishlist items
+    if db_item.shared_wishlist_item_id and current_user:
+        shared_item = db.query(models.SharedWishlistItem).filter(
+            models.SharedWishlistItem.id == db_item.shared_wishlist_item_id
+        ).first()
+        if shared_item and shared_item.purchased_by == current_user.name:
+            shared_item.is_purchased = False
+            shared_item.purchased_by = None
+
+    crud.detach_notifications_for_cart_items(db, [db_item.id])
+    db.delete(db_item)
+    db.commit()
+    return {"success": True, "message": "Item removed from cart."}
+
+@app.post("/api/shopping-cart/{cart_item_id}/copy", response_model=schemas.ShoppingCartItem)
+def copy_shopping_cart_item(
+    cart_item_id: int = Path(...),
+    overrides: dict = Body(default={}),
+    db: Session = Depends(get_db),
+):
+    """Copy a shopping cart item, optionally overriding fields."""
+    source = db.query(models.ShoppingCartItem).filter(models.ShoppingCartItem.id == cart_item_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Shopping cart item not found")
+
+    db_item = models.ShoppingCartItem(
+        buyer_id=overrides.get("buyer_id", source.buyer_id),
+        recipient_id=overrides.get("recipient_id", source.recipient_id),
+        wishlist_item_id=source.wishlist_item_id,
+        title=overrides.get("title", source.title),
+        notes=overrides.get("notes", source.notes),
+        link=overrides.get("link", source.link),
+        image_url=source.image_url,
+        price=overrides.get("price", source.price),
+        status="pending",
+    )
+    db.add(db_item)
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+# --- Notifications ---
+
+@app.get("/api/notifications", response_model=List[schemas.NotificationResponse])
+def get_notifications(
+    user_id: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    """Get unread notifications for a user."""
+    return db.query(models.Notification).filter(
+        models.Notification.recipient_id == user_id,
+        models.Notification.is_read == False,
+    ).order_by(models.Notification.created_at.desc()).all()
+
+@app.patch("/api/notifications/{notification_id}")
+def mark_notification_read(
+    notification_id: int = Path(...),
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header),
+):
+    """Mark a notification as read (dismissed)."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current user context (X-Current-User-Id header) is required.")
+    notification = db.query(models.Notification).filter(
+        models.Notification.id == notification_id,
+        models.Notification.recipient_id == current_user_id,
+    ).first()
+    if not notification:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    notification.is_read = True
+    db.commit()
+    return {"success": True}
+
+
+@app.post("/api/members/{member_id}/send-wishlist-reminder")
+def send_wishlist_reminder_to_member(
+    member_id: int = Path(...),
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header),
+):
+    """Send a generic wishlist update reminder to a specific member."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current user context required.")
+
+    recipient = crud.get_family_member(db, member_id)
+    if not recipient:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    reminder_prefix = "[WISHLIST_UPDATE_REMINDER]"
+    existing = db.query(models.Notification).filter(
+        models.Notification.recipient_id == member_id,
+        models.Notification.is_read == False,
+        models.Notification.message.like(f"{reminder_prefix}%"),
+    ).first()
+    if existing:
+        return {"success": True, "already_sent": True}
+
+    reminder_message = f"{reminder_prefix} Please review and update your wishlist."
+    db.add(models.Notification(
+        recipient_id=member_id,
+        message=reminder_message,
+        cart_item_id=None,
+        is_read=False,
+    ))
+    db.commit()
+    return {"success": True, "already_sent": False}
+
+
+@app.post("/api/shared-wishlists/{wishlist_id}/send-owner-reminder")
+def send_shared_wishlist_owner_reminder(
+    wishlist_id: int = Path(...),
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header),
+):
+    """Send a wishlist update reminder to all owners of a shared wishlist."""
+    if current_user_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current user context required.")
+
+    shared_wishlist = db.query(models.SharedWishlist).filter(models.SharedWishlist.id == wishlist_id).first()
+    if not shared_wishlist:
+        raise HTTPException(status_code=404, detail="Shared wishlist not found")
+
+    owners = crud.get_shared_wishlist_owners(db, wishlist_id)
+    if not owners:
+        raise HTTPException(status_code=404, detail="No owners found for this shared wishlist")
+
+    reminder_prefix = "[WISHLIST_UPDATE_REMINDER]"
+    reminder_message = f"{reminder_prefix} Please review and update the shared wishlist \"{shared_wishlist.name}\"."
+    sent_count = 0
+    already_sent_count = 0
+
+    for owner in owners:
+        if owner.id == current_user_id:
+            continue
+        existing = db.query(models.Notification).filter(
+            models.Notification.recipient_id == owner.id,
+            models.Notification.is_read == False,
+            models.Notification.message.like(f"{reminder_prefix}%{shared_wishlist.name}%"),
+        ).first()
+        if existing:
+            already_sent_count += 1
+            continue
+        db.add(models.Notification(
+            recipient_id=owner.id,
+            message=reminder_message,
+            cart_item_id=None,
+            is_read=False,
+        ))
+        sent_count += 1
+
+    db.commit()
+    return {"success": True, "sent_count": sent_count, "already_sent_count": already_sent_count}

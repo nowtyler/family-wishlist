@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getMigrations, upgradeMigration, getBackups, restoreBackup, deleteBackup, getSchemaHash, deleteMigration, resetMigrationState, hardResetMigrations, resetSchemaHash } from '../../services/api';
+import { getMigrations, upgradeMigration, getBackups, restoreBackup, deleteBackup, deleteMigration, resetMigrationState, hardResetMigrations } from '../../services/api';
 import { CircleAlert, Database, Archive, Download, RotateCcw, Plus, Trash2, ArrowUp, X, GitMerge, TriangleAlert, Check, RefreshCw } from 'lucide-react';
 
 /**
@@ -43,41 +43,16 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
             if (migrationsResponse.data) {
                 setMigrations(migrationsResponse.data.available_migrations || []);
                 setCurrentVersion(migrationsResponse.data.current_version || 'base');
-                
-                // Check for multiple heads
-                const hasMultipleHeads = migrationsResponse.data.current_version?.includes(',');
-                
-                // Check for actual pending migrations
-                const hasModelChanges = migrationsResponse.data.available_migrations?.some(m => m.version === 'pending');
-                const hasNonAppliedMigrations = migrationsResponse.data.available_migrations?.some(
-                    m => m.version !== 'pending' && !m.applied
-                );
-                
-                // If we have needs_upgrade but no actual pending migrations or multiple heads,
-                // this could be a hash mismatch - try to fix it silently
-                if (migrationsResponse.data.needs_upgrade && 
-                    !hasMultipleHeads && 
-                    !hasModelChanges && 
-                    !hasNonAppliedMigrations) {
-                    console.log("Possible hash mismatch detected. Attempting silent fix...");
-                    // This will run in the background without blocking the UI
-                    silentlyResetSchemaHash().catch(console.error);
-                }
-                
-                // Show warning if needs_upgrade is true or we have multiple heads
-                if (migrationsResponse.data.needs_upgrade || hasMultipleHeads) {
+
+                if (migrationsResponse.data.needs_upgrade) {
+                    const hasMultipleHeads = migrationsResponse.data.current_version?.includes(',');
                     if (hasMultipleHeads) {
                         setError('Multiple migration branches detected. Click upgrade to merge them.');
-                    } else if (hasModelChanges) {
-                        setError('Schema changes detected. New migrations may be available.');
-                    } else if (hasNonAppliedMigrations) {
-                        setError('Pending migrations need to be applied. Click upgrade.');
                     } else {
-                        // If no specific issues are detected, it might just be a hash mismatch
-                        setError('Database needs upgrade. Click upgrade to resolve.');
+                        setError('Pending migrations need to be applied. Click upgrade.');
                     }
                 } else {
-                    setError(''); // Clear error if no changes needed
+                    setError('');
                 }
             }
         } catch (err) {
@@ -368,22 +343,6 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
         }
     };
 
-    // Add a method to silently reset the schema hash if needed
-    const silentlyResetSchemaHash = async () => {
-        try {
-            // If no migrations are showing as pending, but needs_upgrade is true,
-            // this might be a hash mismatch issue
-            const response = await resetSchemaHash();
-            if (response.data.success) {
-                // Refresh the migrations to reflect the new state
-                await fetchMigrations();
-            }
-        } catch (err) {
-            // Silently handle errors - this is meant to run in the background
-            console.error("Failed to reset schema hash:", err);
-        }
-    };
-
     // Determine if we're dealing with multiple heads
     const hasMultipleHeads = currentVersion?.includes(',');
     const buttonIcon = hasMultipleHeads ? <GitMerge size={20} /> : <ArrowUp size={20} />;
@@ -411,10 +370,10 @@ const MigrationManager = ({ setProcessingStatus = () => {}, selectedBackup, setS
             <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
                 <h3 className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200 font-medium mb-2">
                     <CircleAlert size={18} />
-                    Important Safety Information
+                    Important Information
                 </h3>
                 <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                    A backup will be automatically created before each migration. 
+                    Check system logs for any migration errors as they are applied at run-time. 
                     Backups are stored in the <code className="px-1 py-0.5 bg-yellow-100 dark:bg-yellow-900 rounded">data/backups</code> directory.
                 </p>
             </div>

@@ -3,6 +3,7 @@ from typing import Optional, Tuple
 import logging
 import secrets
 import string
+import hashlib
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
@@ -73,7 +74,12 @@ class UserAuthService:
         """Generate a secure token for password reset."""
         alphabet = string.ascii_letters + string.digits
         return ''.join(secrets.choice(alphabet) for _ in range(64))
-    
+
+    @staticmethod
+    def hash_token(token: str) -> str:
+        """Hash a token using SHA-256 for secure storage."""
+        return hashlib.sha256(token.encode('utf-8')).hexdigest()
+
     @staticmethod
     def create_reset_token(db: Session, username_or_email: str) -> Tuple[bool, str]:
         """
@@ -107,24 +113,23 @@ class UserAuthService:
                 logger.warning(f"User {user.username} has no email for password reset")
                 return False, "This account doesn't have an email for password reset"
             
-            # Generate token
+            # Generate token and store its hash (not the plaintext)
             token = UserAuthService.generate_reset_token()
-            user.reset_token = token
-            
+            user.reset_token = UserAuthService.hash_token(token)
+
             # Store expiry time - convert to naive datetime for storage in DB
             expiry_time = get_est_timedelta(hours=24)
             if expiry_time.tzinfo is not None:
                 user.reset_token_expires = expiry_time.replace(tzinfo=None)
             else:
                 user.reset_token_expires = expiry_time
-                
+
             db.commit()
             logger.info(f"Created reset token for user {user.username}")
-            
-            # Generate reset URL
+
+            # Generate reset URL (plaintext token is sent to user, hash is stored)
             base_url = "https://dev-wishlist.ariahive.top" #Change to your actual base URL in production, this is okay for development
             reset_url = f"{base_url}/reset-password/{token}"
-            logger.info(f"Reset URL: {reset_url}")
             
             # Send reset email
             try:
@@ -152,8 +157,9 @@ class UserAuthService:
         Returns tuple of (success, message, user_object)
         """
         try:
-            # Find user by token
-            user = db.query(models.FamilyMember).filter(models.FamilyMember.reset_token == token).first()
+            # Hash the incoming token to compare with stored hash
+            token_hash = UserAuthService.hash_token(token)
+            user = db.query(models.FamilyMember).filter(models.FamilyMember.reset_token == token_hash).first()
             
             if not user:
                 return False, "Invalid or expired reset token", None
@@ -220,14 +226,18 @@ class UserAuthService:
             # Check if username already exists (case insensitive)
             existing_user = db.query(models.FamilyMember).filter(func.lower(models.FamilyMember.username) == normalized_username).first()
             if existing_user:
-                return False, "Username already exists", None
+                logger.info("Registration rejected: username already exists")
+                # Normalize error message to avoid account enumeration
+                return False, "Registration failed", None
             
             # Check if email already exists (if provided) - case insensitive
             if user_data.email:
                 normalized_email = user_data.email.lower().strip()
                 existing_email = db.query(models.FamilyMember).filter(func.lower(models.FamilyMember.email) == normalized_email).first()
                 if existing_email:
-                    return False, "Email already in use", None
+                    logger.info("Registration rejected: email already exists")
+                    # Normalize error message to avoid account enumeration
+                    return False, "Registration failed", None
             
             # Create new user with normalized username
             new_user = models.FamilyMember(

@@ -1,15 +1,10 @@
 // AddItemForm.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { fetchProductDetailsFromUrl, getWishlistItems } from '../services/api';
+import { fetchProductDetailsFromUrl, getWishlistItems, getSharedWishlistItems } from '../services/api';
 import { X, Link, Loader, ArrowRight, ChevronDown, ChevronUp, Ruler } from 'lucide-react';
 
-// Add priority mapping
-const PRIORITY_MAP = {
-  'High': 2,
-  'Medium': 1,
-  'Low': 0
-};
+// Priority: 0 = normal, 1 = most wanted
 
 const MAX_TITLE_LENGTH = 200;
 
@@ -43,13 +38,13 @@ const sizeOptions = {
   }
 };
 
-function AddItemForm({ wishlistId, onAddItem, onClose }) {
+function AddItemForm({ wishlistId, onAddItem, onClose, isSharedWishlist = false }) {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     link: '',
     image_url: '',
-    priority: 'Medium',
+    most_wanted: false,
     price: '',
     priceNote: '',
     // Add size related fields
@@ -76,10 +71,13 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
   useEffect(() => {
     const fetchExistingItems = async () => {
       if (!wishlistId) return;
-      
+
       try {
         setIsFetchingItems(true);
-        const response = await getWishlistItems(wishlistId);
+        // Use the correct API function based on whether it's a shared wishlist
+        const response = isSharedWishlist
+          ? await getSharedWishlistItems(wishlistId)
+          : await getWishlistItems(wishlistId);
         if (response && response.data) {
           setExistingItems(response.data);
         }
@@ -91,7 +89,7 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
     };
 
     fetchExistingItems();
-  }, [wishlistId]);
+  }, [wishlistId, isSharedWishlist]);
 
   // Check for duplicate titles when form data changes
   useEffect(() => {
@@ -177,7 +175,7 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
     // Convert form data to API format
     const apiData = {
       title: truncateTitle(formData.title.trim()), // Truncate title to 200 chars
-      priority: PRIORITY_MAP[formData.priority],
+      priority: formData.most_wanted ? 1 : 0,
       link: formData.link || null,
       image_url: formData.image_url || null,
       description: buildDescription(),
@@ -448,20 +446,21 @@ function AddItemForm({ wishlistId, onAddItem, onClose }) {
           )}
         </div>
 
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
-            Priority
-          </label>
-          <select
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-            value={formData.priority}
-            onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-          >
-            <option value="High">High Priority</option>
-            <option value="Medium">Medium Priority</option>
-            <option value="Low">Low Priority</option>
-          </select>
-        </div>
+        <label className="flex items-center gap-3 cursor-pointer select-none">
+          <div className="relative">
+            <input
+              type="checkbox"
+              className="sr-only peer"
+              checked={formData.most_wanted}
+              onChange={(e) => setFormData({ ...formData, most_wanted: e.target.checked })}
+            />
+            <div className="w-10 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer-checked:bg-rose-500 transition-colors" />
+            <div className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow peer-checked:translate-x-4 transition-transform" />
+          </div>
+          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+            Most Wanted
+          </span>
+        </label>
 
         <button
           type="button"

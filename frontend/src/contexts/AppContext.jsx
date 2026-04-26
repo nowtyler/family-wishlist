@@ -1,6 +1,7 @@
 // frontend/src/contexts/AppContext.jsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { setCurrentUserHeader, getAdminAccess, getFamilyMembers, clearApiCache, logoutUser } from '../services/api';
+import { setCurrentUserHeader, getFamilyMembers, clearApiCache, logoutUser, getUserProfile } from '../services/api';
+import { log } from '../utils/logger';
 
 const AppContext = createContext(null);
 
@@ -50,31 +51,36 @@ export const AppProvider = ({ children }) => {
 
   useEffect(() => {
     if (selectedUser) {
-      // If the selected user is Admin but has an invalid ID, try to get proper admin data
-      if (selectedUser.is_admin && (!selectedUser.id || selectedUser.id < 0)) {
-        const getProperAdminAccess = async () => {
-          try {
-            const adminData = await getAdminAccess({});
-            if (adminData && adminData.id) {
-              setSelectedUser({
-                ...selectedUser,
-                id: adminData.id,
-                name: adminData.name || selectedUser.name
-              });
-            }
-          } catch (err) {
-            console.error('Failed to get proper admin access:', err);
-            // Keep the current selectedUser
-          }
-        };
-        getProperAdminAccess();
-      }
-      
       sessionStorage.setItem('wishlistSelectedUser', JSON.stringify(selectedUser));
     } else {
       sessionStorage.removeItem('wishlistSelectedUser');
     }
   }, [selectedUser]);
+
+  // On app mount, refresh the current user's profile from the API to ensure we have the latest data
+  // This is especially important for flags like first_login that might be updated server-side
+  useEffect(() => {
+    const refreshUserProfileOnMount = async () => {
+      if (isAuthenticated && selectedUser?.id) {
+        try {
+          log('AppContext: Refreshing user profile from API on mount...');
+          const response = await getUserProfile(selectedUser.id);
+          if (response.data) {
+            log('AppContext: User profile refreshed, first_login:', response.data.first_login);
+            // Update selectedUser with fresh data from API
+            setSelectedUser(response.data);
+          }
+        } catch (error) {
+          console.error('AppContext: Failed to refresh user profile on mount:', error);
+          // Don't fail silently - just log and continue with cached data
+        }
+      }
+    };
+
+    // Run after a short delay to ensure app is fully mounted
+    const timeoutId = setTimeout(refreshUserProfileOnMount, 100);
+    return () => clearTimeout(timeoutId);
+  }, []); // Run only on mount
 
 
   const login = (direct = false) => {

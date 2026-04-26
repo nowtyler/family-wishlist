@@ -5,14 +5,23 @@ from datetime import date, datetime
 from enum import Enum
 
 class PriorityLevel(int, Enum):
-    LOW = 0
-    MEDIUM = 1
-    HIGH = 2
+    NORMAL = 0
+    MOST_WANTED = 1
 
 class HouseholdStatus(str, Enum):
     ACTIVE = "active"
     PENDING = "pending"
     DECLINED = "declined"
+
+class ShoppingCartStatus(str, Enum):
+    PENDING = "pending"
+    PURCHASED = "purchased"
+    CANCELLED = "cancelled"
+
+class TutorialStatus(str, Enum):
+    NEW = "new"
+    SKIPPED = "skipped"
+    COMPLETED = "completed"
 
 # Base models first
 class FamilyMemberBase(BaseModel):
@@ -23,6 +32,8 @@ class FamilyMemberBase(BaseModel):
     username: Optional[str] = None
     email: Optional[str] = None
     force_password_change: Optional[bool] = False
+    first_login: Optional[bool] = False
+    tutorial_status: Optional[str] = "new"  # new, skipped, or completed
 
 class HouseholdBase(BaseModel):
     name: str
@@ -33,6 +44,7 @@ class FamilyMember(FamilyMemberBase):
     wishlist_item_count: Optional[int] = 0
     external_wishlist_count: Optional[int] = 0
     household_count: Optional[int] = 0
+    households: Optional[List[Dict[str, Any]]] = []
 
     class Config:
         from_attributes = True
@@ -143,6 +155,7 @@ class BaseResponse(BaseModel):
 class LoginRequest(BaseModel):
     username: str
     password: str
+    turnstile_token: Optional[str] = None
 
 class LoginResponse(BaseResponse):
     user: 'FamilyMember'
@@ -153,13 +166,16 @@ class UserRegisterRequest(BaseModel):
     name: str
     email: EmailStr
     birthday: Optional[date] = None
+    turnstile_token: Optional[str] = None
 
 class AuthResponse(BaseResponse):
     user_id: Optional[int] = None
     is_admin: Optional[bool] = None
+    requires_passphrase: Optional[bool] = None
 
 class PasswordResetRequest(BaseModel):
     username_or_email: str
+    turnstile_token: Optional[str] = None
 
 class PasswordResetConfirmRequest(BaseModel):
     token: str
@@ -326,8 +342,8 @@ class WishlistItemCreate(BaseModel):
         description="URL of an image representing the item"
     )
     priority: PriorityLevel = Field(
-        PriorityLevel.MEDIUM,
-        description="Priority level of the item (0=Low, 1=Medium, 2=High)"
+        PriorityLevel.NORMAL,
+        description="Priority level: 0=Normal, 1=Most Wanted"
     )
     price: Optional[float] = Field(
         None,
@@ -398,7 +414,7 @@ class WishlistItemCreate(BaseModel):
                 "description": "OLED Model - White",
                 "link": "https://www.amazon.com/Nintendo-Switch-OLED-Model-White/dp/B098RKWHHZ",
                 "image_url": "https://example.com/switch.jpg",
-                "priority": 2,
+                "priority": 1,
                 "price": 349.99
             }
         }
@@ -468,7 +484,6 @@ class MigrationInfo(BaseModel):
 class MigrationList(BaseModel):
     current_version: str
     available_migrations: List[MigrationInfo]
-    stored_schema_hash: Optional[str]
     needs_upgrade: bool
     db_version: str  # "legacy" or "current"
 
@@ -522,33 +537,66 @@ class ExternalWishlistUpdate(BaseModel):
 
 class ExternalWishlist(ExternalWishlistBase):
     id: int
-    owner_id: int
-    
+    owner_id: Optional[int] = None
+    shared_wishlist_id: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+# --- Shopping Cart ---
+class ShoppingCartItemBase(BaseModel):
+    buyer_id: int
+    recipient_id: Optional[Union[int, str]] = None
+    recipient_name: Optional[str] = Field(None, max_length=100)
+    wishlist_item_id: Optional[int] = None
+    shared_wishlist_item_id: Optional[int] = None
+    title: str = Field(..., min_length=1, max_length=200)
+    notes: Optional[str] = Field(None, max_length=2000)
+    link: Optional[HttpUrl] = None
+    image_url: Optional[HttpUrl] = None
+    price: Optional[int] = Field(None, ge=0)
+    status: ShoppingCartStatus = ShoppingCartStatus.PENDING
+    purchased_at: Optional[datetime] = None
+
+class ShoppingCartItemCreate(ShoppingCartItemBase):
+    pass
+
+class ShoppingCartItemUpdate(BaseModel):
+    buyer_id: Optional[int] = None
+    recipient_id: Optional[Union[int, str]] = None
+    recipient_name: Optional[str] = Field(None, max_length=100)
+    wishlist_item_id: Optional[int] = None
+    shared_wishlist_item_id: Optional[int] = None
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    notes: Optional[str] = Field(None, max_length=2000)
+    link: Optional[HttpUrl] = None
+    image_url: Optional[HttpUrl] = None
+    price: Optional[int] = Field(None, ge=0)
+    status: Optional[ShoppingCartStatus] = None
+    purchased_at: Optional[datetime] = None
+
+class ShoppingCartItem(ShoppingCartItemBase):
+    id: int
+    created_at: datetime
+    shared_wishlist_id: Optional[int] = None
+    shared_wishlist_owner_ids: List[int] = []
+
+    class Config:
+        from_attributes = True
+
+# --- Notifications ---
+class NotificationResponse(BaseModel):
+    id: int
+    recipient_id: int
+    message: str
+    cart_item_id: Optional[int] = None
+    is_read: bool
+    created_at: datetime
+
     class Config:
         from_attributes = True
 
 # Add these new schemas after the existing schemas
-
-class EmergencyAccessRequest(BaseModel):
-    emergency_token: str
-
-class EmergencyAccessResponse(BaseModel):
-    success: bool
-    message: str
-    admin_user: FamilyMember
-
-class UpdateEmergencyTokenRequest(BaseModel):
-    new_token: str
-
-class UpdateEmergencyTokenResponse(BaseModel):
-    success: bool
-    message: str
-
-class EmergencyTokenInfoResponse(BaseModel):
-    exists: bool
-    created_at: Optional[str]
-    updated_at: Optional[str]
-    has_token: bool
 
 class SystemConfig(BaseModel):
     key: str
@@ -568,9 +616,151 @@ class FirstTimeSetupRequest(BaseModel):
 class FirstTimeSetupResponse(BaseModel):
     success: bool
     message: str
-    emergency_access_key: str
     admin_user: FamilyMember
+    recovery_passphrase: Optional[str] = None
+
+class AdminPassphraseResetRequest(BaseModel):
+    passphrase: str
+    new_password: str = Field(..., min_length=8, max_length=72)
+    turnstile_token: Optional[str] = None
+
+class RecoveryPassphraseResponse(BaseModel):
+    success: bool
+    passphrase: str
+
+class RegeneratePassphraseRequest(BaseModel):
+    current_password: str
 
 class MaintenanceBroadcastRequest(BaseModel):
     maintenance_time: Optional[str] = None
     expected_downtime: Optional[str] = None
+
+class UpdateNoticeBroadcastRequest(BaseModel):
+    version: Optional[str] = None
+    changes: Optional[str] = None
+    headline: Optional[str] = None
+    intro: Optional[str] = None
+    highlights: Optional[List[str]] = None
+    closing: Optional[str] = None
+    send_test_to_admin: bool = False
+
+class WishlistReminderBroadcastResponse(BaseModel):
+    success: bool
+    message: str
+    sent_count: int = 0
+    skipped_count: int = 0
+
+
+# --- Shared Wishlist Schemas ---
+class SharedWishlistOwner(BaseModel):
+    id: int
+    name: str
+    username: Optional[str] = None
+    added_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SharedWishlistBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=2000)
+    household_id: Optional[int] = None
+    occasion_date: Optional[str] = Field(None, description="Date in YYYY-MM-DD format (birthday, wedding date, etc.)")
+    occasion_type: Optional[str] = Field(None, description="Type: birthday, wedding, baby_shower, anniversary, holiday, other")
+    wishlist_type: Optional[str] = Field("normal", description="Wishlist type: normal (purchases hidden from owners) or no_secrets (everyone sees purchases)")
+
+
+class SharedWishlistCreate(SharedWishlistBase):
+    pass
+
+
+class SharedWishlistUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=2000)
+    household_id: Optional[int] = None
+    occasion_date: Optional[str] = None
+    occasion_type: Optional[str] = None
+    wishlist_type: Optional[str] = None
+
+
+class SharedWishlist(SharedWishlistBase):
+    id: int
+    created_at: datetime
+    created_by: int
+    owner_count: Optional[int] = 0
+    item_count: Optional[int] = 0
+    external_wishlist_count: Optional[int] = 0
+    owners: List[SharedWishlistOwner] = []
+    household_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SharedWishlistItemBase(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=2000)
+    link: Optional[HttpUrl] = None
+    image_url: Optional[HttpUrl] = None
+    priority: int = Field(default=0, ge=0, le=1)
+    price: Optional[float] = Field(None, ge=0, le=1000000)
+
+
+class SharedWishlistItemCreate(SharedWishlistItemBase):
+    pass
+
+
+class SharedWishlistItemUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=2000)
+    link: Optional[str] = None
+    image_url: Optional[str] = None
+    priority: Optional[int] = Field(None, ge=0, le=1)
+    price: Optional[float] = Field(None, ge=0)
+
+
+class SharedWishlistItemComment(BaseModel):
+    id: int
+    author_id: int
+    author_name: str
+    shared_item_id: int
+    text: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SharedWishlistItem(BaseModel):
+    id: int
+    wishlist_id: int
+    title: str
+    description: Optional[str] = None
+    link: Optional[str] = None
+    image_url: Optional[str] = None
+    priority: int = 0
+    price: Optional[int] = None
+    is_purchased: bool = False
+    purchased_by: Optional[str] = None
+    thinking_about_by_list: List[str] = []
+    comments: List[SharedWishlistItemComment] = []
+    created_at: Optional[datetime] = None
+    created_by: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SharedWishlistWithItems(SharedWishlist):
+    items: List[SharedWishlistItem] = []
+
+
+class AddOwnerRequest(BaseModel):
+    username: str = Field(..., min_length=1, max_length=100)
+
+
+class SharedWishlistResponse(BaseModel):
+    success: bool
+    message: str
+    wishlist: Optional[SharedWishlist] = None

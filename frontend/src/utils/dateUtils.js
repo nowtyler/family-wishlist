@@ -12,7 +12,7 @@ export const getDaysUntilBirthday = (birthday) => {
   
   try {
     // Parse the birthday (format: YYYY-MM-DD)
-    const [year, month, day] = birthday.split('-').map(num => parseInt(num, 10));
+    const [, month, day] = birthday.split('-').map(num => parseInt(num, 10));
     
     // Create date objects for today and the next birthday
     const today = new Date();
@@ -135,6 +135,53 @@ export const getCountdownDisplay = (daysUntil, eventDate) => {
 };
 
 /**
+ * Determine whether a post-event wishlist reminder should be shown.
+ * Reminder starts the day after the most recent annual occurrence.
+ * @param {string} eventDateString - Date in YYYY-MM-DD format
+ * @param {Date} [now] - Optional current date for deterministic testing
+ * @returns {{shouldShow: boolean, daysSince: number, occurrenceYear: number, occurrenceDate: Date}|null}
+ */
+export const getPostEventReminderInfo = (eventDateString, now = new Date()) => {
+  if (!eventDateString || typeof eventDateString !== 'string') {
+    return null;
+  }
+
+  const [year, month, day] = eventDateString
+    .split('-')
+    .map((part) => Number.parseInt(part, 10));
+
+  if (!year || !month || !day) {
+    return null;
+  }
+
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let mostRecentOccurrence = new Date(today.getFullYear(), month - 1, day);
+
+  // Reject impossible dates like 2025-02-31.
+  if (
+    Number.isNaN(mostRecentOccurrence.getTime()) ||
+    mostRecentOccurrence.getMonth() !== month - 1 ||
+    mostRecentOccurrence.getDate() !== day
+  ) {
+    return null;
+  }
+
+  if (mostRecentOccurrence > today) {
+    mostRecentOccurrence = new Date(today.getFullYear() - 1, month - 1, day);
+  }
+
+  const millisecondsPerDay = 1000 * 60 * 60 * 24;
+  const daysSince = Math.floor((today.getTime() - mostRecentOccurrence.getTime()) / millisecondsPerDay);
+
+  return {
+    shouldShow: daysSince >= 1,
+    daysSince,
+    occurrenceYear: mostRecentOccurrence.getFullYear(),
+    occurrenceDate: mostRecentOccurrence
+  };
+};
+
+/**
  * Calculate information about the next Christmas date
  * @returns {object} Christmas information including days until next Christmas
  */
@@ -170,23 +217,25 @@ export const getChristmasInfo = () => {
 };
 
 /**
- * Get all upcoming events (birthdays and Christmas) ordered by date
+ * Get all upcoming events (birthdays, shared wishlist occasions, and Christmas) ordered by date
  * @param {Array} familyMembers - Array of family members
+ * @param {Array} sharedWishlists - Array of shared wishlists with occasion dates
  * @returns {Array} Sorted array of upcoming events
  */
-export const getUpcomingEvents = (familyMembers) => {
+export const getUpcomingEvents = (familyMembers, sharedWishlists = []) => {
   const events = [];
-  
+
   // Add Christmas to events
   const christmasInfo = getChristmasInfo();
   if (christmasInfo) {
     events.push({
       name: "Christmas",
       daysUntil: christmasInfo.daysUntil,
-      date: christmasInfo.date
+      date: christmasInfo.date,
+      type: 'holiday'
     });
   }
-  
+
   // Add all family member birthdays
   if (Array.isArray(familyMembers)) {
     familyMembers.forEach(member => {
@@ -196,15 +245,59 @@ export const getUpcomingEvents = (familyMembers) => {
           events.push({
             name: `${member.name}'s Birthday`,
             daysUntil: birthdayInfo.daysUntil,
-            date: birthdayInfo.date
+            date: birthdayInfo.date,
+            type: 'birthday',
+            memberId: member.id
           });
         }
       }
     });
   }
-  
+
+  // Add shared wishlist occasions
+  if (Array.isArray(sharedWishlists)) {
+    sharedWishlists.forEach(wishlist => {
+      if (wishlist.occasion_date) {
+        const occasionInfo = getDaysUntilBirthday(wishlist.occasion_date);
+        if (occasionInfo) {
+          const displayName = wishlist.name
+            .replace(/['']s\s+Wishlist$/i, '')
+            .replace(/\s+Wishlist$/i, '');
+
+          // Format event name based on occasion type
+          let eventName;
+          switch (wishlist.occasion_type) {
+            case 'birthday':
+              eventName = `${displayName}'s Birthday`;
+              break;
+            case 'wedding':
+              eventName = `${displayName}'s Wedding`;
+              break;
+            case 'baby_shower':
+              eventName = `${displayName}'s Baby Shower`;
+              break;
+            case 'anniversary':
+              eventName = `${displayName}'s Anniversary`;
+              break;
+            default:
+              eventName = displayName;
+          }
+
+          events.push({
+            name: eventName,
+            daysUntil: occasionInfo.daysUntil,
+            date: occasionInfo.date,
+            type: wishlist.occasion_type || 'other',
+            isSharedWishlist: true,
+            wishlistId: wishlist.id
+          });
+        }
+      }
+    });
+  }
+
   // Sort events by days until (closest first)
   events.sort((a, b) => a.daysUntil - b.daysUntil);
-  
+
   return events;
 };

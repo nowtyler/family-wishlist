@@ -1,13 +1,14 @@
 // frontend/src/services/api.js
 import axios from 'axios';
+import { log } from '../utils/logger';
 
 // Fix the API base URL handling - use relative URL instead of absolute URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 // Add clearer debugging for API client creation
-console.log('Environment:', import.meta.env.MODE);
-console.log('API Base URL from env:', import.meta.env.VITE_API_BASE_URL);
-console.log('API Base URL used:', API_BASE_URL);
+log('Environment:', import.meta.env.MODE);
+log('API Base URL from env:', import.meta.env.VITE_API_BASE_URL);
+log('API Base URL used:', API_BASE_URL);
 
 const apiClient = axios.create({
     baseURL: API_BASE_URL,
@@ -30,7 +31,7 @@ apiClient.interceptors.request.use(
             ? `${config.baseURL}${config.url.substring(1)}` 
             : `${config.baseURL}${config.url}`;
             
-        console.log('API Request:', {
+        log('API Request:', {
             method: config.method?.toUpperCase(),
             url: config.url,
             resolvedUrl: fullUrl, // Changed to be more descriptive
@@ -50,7 +51,7 @@ let rateLimitRetries = {};
 
 apiClient.interceptors.response.use(
   (response) => {
-    console.log('API Response:', response.status, response.data);
+    log('API Response:', response.status, response.data);
     return response;
   },
   async (error) => {
@@ -79,7 +80,7 @@ apiClient.interceptors.response.use(
       // Max 3 retries with exponential backoff
       if (rateLimitRetries[requestId] <= 3) {
         const retryDelay = Math.pow(2, rateLimitRetries[requestId]) * 1000; // Exponential backoff
-        console.log(`Rate limited. Retrying in ${retryDelay/1000} seconds...`);
+        log(`Rate limited. Retrying in ${retryDelay/1000} seconds...`);
         
         // Wait for the delay time
         await new Promise(resolve => setTimeout(resolve, retryDelay));
@@ -136,10 +137,10 @@ export const logoutUser = async (username) => {
 // --- Auth ---
 export const verifyPassword = async (password) => {
     try {
-        console.log('Attempting password verification...');
+        log('Attempting password verification...');
         // Fix the endpoint path - should be consistent with backend
         const response = await apiClient.post('/auth/verify-password', { password });
-        console.log('Verification response:', response);
+        log('Verification response:', response);
         return response;
     } catch (error) {
         console.error('Detailed error:', {
@@ -155,13 +156,8 @@ export const verifyPassword = async (password) => {
 // New function to get complete user data including preferences
 export const getUserProfile = async (userId) => {
   try {
-    // Use a fresh request with cache busting to ensure we get the latest data
-    const response = await apiClient.get(`/family-members/${userId}`, {
-      params: {
-        _t: new Date().getTime()
-      }
-    });
-    console.log('Got user profile with complete preferences:', response.data);
+    const response = await apiClient.get(`/family-members/${userId}`);
+    log('Got user profile with complete preferences:', response.data);
     return response;
   } catch (error) {
     console.error('Failed to get user profile:', error);
@@ -169,9 +165,13 @@ export const getUserProfile = async (userId) => {
   }
 };
 
-export const loginUser = async (username, password) => {
+export const loginUser = async (username, password, turnstileToken) => {
     try {
-        const response = await apiClient.post('/auth/login', { username, password });
+        const response = await apiClient.post('/auth/login', {
+            username,
+            password,
+            turnstile_token: turnstileToken || undefined,
+        });
         return response;
     } catch (error) {
         console.error('Login error:', {
@@ -195,9 +195,35 @@ export const registerUser = async (userData) => {
     }
 };
 
-export const requestPasswordReset = async (usernameOrEmail) => {
+// --- Shopping Cart ---
+export const addShoppingCartItemFromWishlistItem = async (itemId, recipientId) => {
+  try {
+    const response = await apiClient.post(`/shopping-cart/from-wishlist-item/${itemId}`, {
+      recipient_id: recipientId,
+    });
+    return response;
+  } catch (error) {
+    console.error('Failed to add wishlist item to shopping cart:', error);
+    throw error;
+  }
+};
+
+export const createShoppingCartItem = async (itemData) => {
+  try {
+    const response = await apiClient.post('/shopping-cart', itemData);
+    return response;
+  } catch (error) {
+    console.error('Failed to create shopping cart item:', error);
+    throw error;
+  }
+};
+
+export const requestPasswordReset = async (usernameOrEmail, turnstileToken) => {
     try {
-        const response = await apiClient.post('/auth/reset-password/request', { username_or_email: usernameOrEmail });
+        const response = await apiClient.post('/auth/reset-password/request', {
+            username_or_email: usernameOrEmail,
+            turnstile_token: turnstileToken || undefined,
+        });
         return response;
     } catch (error) {
         console.error('Password reset request error:', {
@@ -221,17 +247,49 @@ export const confirmPasswordReset = async (token, newPassword) => {
     }
 };
 
+export const adminResetPassword = async (passphrase, newPassword, turnstileToken) => {
+    try {
+        const response = await apiClient.post('/auth/admin-reset-password', {
+            passphrase,
+            new_password: newPassword,
+            turnstile_token: turnstileToken || undefined,
+        });
+        return response;
+    } catch (error) {
+        console.error('Admin passphrase reset error:', error);
+        throw error;
+    }
+};
+
+export const getRecoveryPassphrase = async () => {
+    return apiClient.get('/admin/recovery-passphrase');
+};
+
+export const regenerateRecoveryPassphrase = async (currentPassword) => {
+    return apiClient.post('/admin/recovery-passphrase/regenerate', {
+        current_password: currentPassword,
+    });
+};
+
 // --- Family Members ---
 export const getFamilyMembers = () => {
-  return apiClient.get('/family-members', {
-    params: {
-      _t: new Date().getTime() // Add cache-busting timestamp for fresh data
-    }
-  });
+  return apiClient.get('/family-members');
 };
 
 export const updateFamilyMemberPreferences = (memberId, preferences) => {
   return apiClient.put(`/members/${memberId}/preferences`, { preferences });
+};
+
+export const completeTutorial = (memberId) => {
+  return apiClient.post(`/members/${memberId}/complete-tutorial`);
+};
+
+export const skipTutorial = (memberId) => {
+  return apiClient.post(`/members/${memberId}/skip-tutorial`);
+};
+
+export const resetTutorial = (memberId) => {
+  return apiClient.post(`/members/${memberId}/reset-tutorial`);
 };
 
 // New API functions for family member management
@@ -267,16 +325,12 @@ export const updateUserProfile = (memberId, userData) => {
  * @returns {Promise} API response with wishlist items
  */
 export const getWishlistItems = (ownerId) => {
-  return apiClient.get(`/members/${ownerId}/items`, {
-    params: {
-      _t: new Date().getTime() // Add cache-busting timestamp for fresh data
-    }
-  });
+  return apiClient.get(`/members/${ownerId}/items`);
 };
 
 export const createWishlistItem = async (ownerId, itemData) => {
   try {
-    console.log('Creating wishlist item:', { ownerId, itemData });
+    log('Creating wishlist item:', { ownerId, itemData });
     const cleanData = {
       ...itemData,
       link: itemData.link || null,
@@ -284,9 +338,9 @@ export const createWishlistItem = async (ownerId, itemData) => {
       description: itemData.description || null,
       price: itemData.price ? parseFloat(itemData.price) : null  // Backend will convert to cents
     };
-    console.log('Sending data to API:', cleanData);
+    log('Sending data to API:', cleanData);
     const response = await apiClient.post(`/members/${ownerId}/items`, cleanData);
-    console.log('Create item response:', response.data);
+    log('Create item response:', response.data);
     return response;
   } catch (error) {
     console.error('Failed to create item:', error?.response?.data || error);
@@ -296,7 +350,7 @@ export const createWishlistItem = async (ownerId, itemData) => {
 
 export const updateWishlistItem = async (itemId, itemData) => {
   try {
-    console.log('Updating wishlist item:', { itemId, itemData });
+    log('Updating wishlist item:', { itemId, itemData });
     const cleanData = {
       ...itemData,
       link: itemData.link || null,
@@ -306,9 +360,9 @@ export const updateWishlistItem = async (itemId, itemData) => {
       price: itemData.price !== null && itemData.price !== undefined && itemData.price !== '' ? 
         parseFloat(itemData.price) : null  // Backend will convert to cents
     };
-    console.log('Sending data to API:', cleanData);
+    log('Sending data to API:', cleanData);
     const response = await apiClient.put(`/items/${itemId}`, cleanData);
-    console.log('Update response:', response.data);
+    log('Update response:', response.data);
     return response;
   } catch (error) {
     console.error('Failed to update item:', error?.response?.data || error);
@@ -322,9 +376,9 @@ export const deleteWishlistItem = (itemId) => {
 
 export const exportWishlist = async (ownerId) => {
   try {
-    console.log('Exporting wishlist for owner:', ownerId);
+    log('Exporting wishlist for owner:', ownerId);
     const response = await apiClient.get(`/members/${ownerId}/export`);
-    console.log('Export response:', response.data);
+    log('Export response:', response.data);
     return response;
   } catch (error) {
     console.error('Failed to export wishlist:', error?.response?.data || error);
@@ -334,9 +388,9 @@ export const exportWishlist = async (ownerId) => {
 
 export const importWishlist = async (ownerId, wishlistData) => {
   try {
-    console.log('Importing wishlist for owner:', ownerId);
+    log('Importing wishlist for owner:', ownerId);
     const response = await apiClient.post(`/members/${ownerId}/import`, wishlistData);
-    console.log('Import response:', response.data);
+    log('Import response:', response.data);
     return response;
   } catch (error) {
     console.error('Failed to import wishlist:', error?.response?.data || error);
@@ -347,7 +401,7 @@ export const importWishlist = async (ownerId, wishlistData) => {
 export const toggleThinkingAbout = async (itemId) => {
   try {
     const response = await apiClient.patch(`/items/${itemId}/toggle-thinking`);
-    console.log('Toggle thinking_about response:', response.data);
+    log('Toggle thinking_about response:', response.data);
     return response;
   } catch (error) {
     console.error('Failed to toggle thinking_about status:', error?.response?.data || error);
@@ -358,7 +412,7 @@ export const toggleThinkingAbout = async (itemId) => {
 export const markPurchased = async (itemId) => {
   try {
     const response = await apiClient.patch(`/items/${itemId}/toggle-purchased`);
-    console.log('Toggle purchased response:', response.data);
+    log('Toggle purchased response:', response.data);
     return response;
   } catch (error) {
     console.error('Failed to toggle purchase status:', error?.response?.data || error);
@@ -393,11 +447,11 @@ export const getSystemVersion = () => {
 };
 
 export const updateSystemVersion = (version) => {
-  console.log('Updating system version to:', version);
-  console.log('Current headers:', apiClient.defaults.headers);
+  log('Updating system version to:', version);
+  log('Current headers:', apiClient.defaults.headers);
   
   const userId = apiClient.defaults.headers.common['X-Current-User-Id'];
-  console.log('Current user ID from header:', userId);
+  log('Current user ID from header:', userId);
   
   return apiClient.put('/system/version', { version });
 };
@@ -419,6 +473,10 @@ apiClient.interceptors.request.use((config) => {
 // --- Wishlist Items ---
 export const deleteAllWishlistItems = (ownerId) => {
   return apiClient.delete(`/members/${ownerId}/items`);
+};
+
+export const deleteAllSharedWishlistItems = (wishlistId) => {
+  return apiClient.delete(`/shared-wishlists/${wishlistId}/items`);
 };
 
 export const clearAllWishlists = () => {
@@ -553,38 +611,12 @@ export const getSchemaHash = () => {
   return apiClient.get('/admin/schema/hash');
 };
 
-// --- Admin Access ---
-export const getAdminAccess = async (params) => {
-  try {
-    // Extract the emergency token from the params object
-    const { emergency_token } = params;
-    
-    // Try the new secure emergency access endpoint first
-    const response = await apiClient.post('/emergency/admin-access', { emergency_token });
-    console.log('Admin access response:', response.data);
-    return response.data;
-  } catch (error) {
-    console.error('Failed to get admin access:', error);
-    
-    // If the new endpoint fails, try the legacy endpoint as fallback
-    try {
-      console.log('Trying legacy emergency access endpoint...');
-      const legacyResponse = await apiClient.post('/admin/emergency-access');
-      console.log('Legacy admin access response:', legacyResponse.data);
-      return legacyResponse.data;
-    } catch (legacyError) {
-      console.error('Legacy emergency access also failed:', legacyError);
-      throw error; // Throw the original error
-    }
-  }
-};
-
 // --- URL Import ---
 export const fetchProductDetailsFromUrl = async (url) => {
   try {
-    console.log('Fetching product details from URL:', url);
+    log('Fetching product details from URL:', url);
     const response = await apiClient.post('/items/fetch-url-details', { url });
-    console.log('Product details response:', response.data);
+    log('Product details response:', response.data);
     
     // We always return the response data, even if it contains an error
     // This allows the UI to handle the error in a user-friendly way
@@ -604,9 +636,9 @@ export const fetchProductDetailsFromUrl = async (url) => {
 // --- External Wishlist Import ---
 export const importExternalWishlist = async (url) => {
   try {
-    console.log('Importing external wishlist:', url);
+    log('Importing external wishlist:', url);
     const response = await apiClient.post('/wishlists/import', { url });
-    console.log('Import response:', response.data);
+    log('Import response:', response.data);
     return response;
   } catch (error) {
     console.error('Failed to import wishlist:', error?.response?.data || error);
@@ -617,7 +649,7 @@ export const importExternalWishlist = async (url) => {
 export const syncExternalWishlist = async (url, ownerId, options = {}) => {
   try {
     const { addNewItems = true, removeMissingItems = false, defaultPriority = 1 } = options;
-    console.log('Syncing external wishlist:', { url, ownerId, addNewItems, removeMissingItems, defaultPriority });
+    log('Syncing external wishlist:', { url, ownerId, addNewItems, removeMissingItems, defaultPriority });
     
     const response = await apiClient.post('/wishlists/sync', { 
       url, 
@@ -627,7 +659,7 @@ export const syncExternalWishlist = async (url, ownerId, options = {}) => {
       default_priority: defaultPriority
     });
     
-    console.log('Sync response:', response.data);
+    log('Sync response:', response.data);
     return response;
   } catch (error) {
     console.error('Failed to sync wishlist:', error?.response?.data || error);
@@ -650,6 +682,53 @@ export const updateExternalWishlist = (wishlistId, wishlistData) => {
 
 export const deleteExternalWishlist = (wishlistId) => {
   return apiClient.delete(`/external-wishlists/${wishlistId}`);
+};
+
+// --- Shared Wishlist External Wishlists ---
+export const getSharedWishlistExternalWishlists = (wishlistId) => {
+  return apiClient.get(`/shared-wishlists/${wishlistId}/external-wishlists`);
+};
+
+export const createSharedWishlistExternalWishlist = (wishlistId, wishlistData) => {
+  return apiClient.post(`/shared-wishlists/${wishlistId}/external-wishlists`, wishlistData);
+};
+
+// --- Shopping Cart ---
+export const getShoppingCartItems = (buyerId) => {
+  return apiClient.get('/shopping-cart', {
+    params: {
+      buyer_id: buyerId,
+    },
+  });
+};
+
+export const updateShoppingCartItem = (cartItemId, updates) => {
+  return apiClient.put(`/shopping-cart/${cartItemId}`, updates);
+};
+
+export const deleteShoppingCartItem = (cartItemId) => {
+  return apiClient.delete(`/shopping-cart/${cartItemId}`);
+};
+
+export const copyShoppingCartItem = (cartItemId, overrides = {}) => {
+  return apiClient.post(`/shopping-cart/${cartItemId}/copy`, overrides);
+};
+
+// --- Notifications ---
+export const getNotifications = (userId) => {
+  return apiClient.get('/notifications', { params: { user_id: userId } });
+};
+
+export const markNotificationRead = (notificationId) => {
+  return apiClient.patch(`/notifications/${notificationId}`);
+};
+
+export const sendWishlistReminder = (memberId) => {
+  return apiClient.post(`/members/${memberId}/send-wishlist-reminder`);
+};
+
+export const sendSharedWishlistOwnerReminder = (wishlistId) => {
+  return apiClient.post(`/shared-wishlists/${wishlistId}/send-owner-reminder`);
 };
 
 // --- Admin Household Management ---
@@ -713,6 +792,22 @@ export const deleteEmailTemplate = (templateId) => {
 // --- Admin System Management ---
 export const getSystemStats = () => {
   return apiClient.get('/admin/stats');
+};
+
+export const getAdminCartItems = () => {
+  return apiClient.get('/admin/carts');
+};
+
+export const deleteAdminCartItem = (cartItemId) => {
+  return apiClient.delete(`/admin/carts/${cartItemId}`);
+};
+
+export const clearAdminCarts = () => {
+  return apiClient.delete('/admin/carts');
+};
+
+export const clearAdminCartByBuyer = (buyerId) => {
+  return apiClient.delete(`/admin/carts/buyer/${buyerId}`);
 };
 
 export const clearAllData = () => {
@@ -794,19 +889,6 @@ export const getAuthLogs = (params = {}) => {
     return apiClient.get('/admin/system/auth-logs', { params });
 };
 
-// --- Emergency Token Management ---
-export const getEmergencyTokenInfo = () => {
-  return apiClient.get('/admin/emergency-token/info');
-};
-
-export const updateEmergencyToken = (newToken) => {
-  return apiClient.put('/admin/emergency-token', { new_token: newToken });
-};
-
-export const generateNewEmergencyToken = () => {
-  return apiClient.post('/admin/emergency-token/generate');
-};
-
 // --- User Household Management (Non-Admin) ---
 export const getUserHouseholds = () => {
   return apiClient.get('/user/households');
@@ -828,12 +910,156 @@ export const leaveHousehold = (householdId) => {
   return apiClient.delete(`/households/${householdId}/leave`);
 };
 
+export const setActiveHousehold = (householdId) => {
+  return apiClient.put('/households/active', null, {
+    params: { household_id: householdId }
+  });
+};
+
 export const getApplicationLogs = (params = {}) => {
     return apiClient.get('/admin/system/logs', { params });
 };
 
 export const broadcastMaintenanceNotice = (maintenance_time, expected_downtime) => {
   return apiClient.post('/admin/email/broadcast-maintenance', { maintenance_time, expected_downtime });
+};
+
+export const broadcastUpdateNotice = (payload) => {
+  return apiClient.post('/admin/email/broadcast-update', payload);
+};
+
+export const broadcastWishlistUpdateReminder = () => {
+  return apiClient.post('/admin/reminders/wishlist-update');
+};
+
+// --- Shared Wishlists (Kid Wishlists) ---
+export const getSharedWishlists = () => {
+  return apiClient.get('/shared-wishlists');
+};
+
+export const getSharedWishlistsAdmin = () => {
+  return apiClient.get('/shared-wishlists', {
+    params: { include_all: true }
+  });
+};
+
+export const getSharedWishlist = (wishlistId) => {
+  return apiClient.get(`/shared-wishlists/${wishlistId}`);
+};
+
+export const createSharedWishlist = (wishlistData) => {
+  return apiClient.post('/shared-wishlists', wishlistData);
+};
+
+export const updateSharedWishlist = (wishlistId, wishlistData) => {
+  return apiClient.put(`/shared-wishlists/${wishlistId}`, wishlistData);
+};
+
+export const deleteSharedWishlist = (wishlistId) => {
+  return apiClient.delete(`/shared-wishlists/${wishlistId}`);
+};
+
+export const addSharedWishlistOwner = (wishlistId, username) => {
+  return apiClient.post(`/shared-wishlists/${wishlistId}/owners`, { username });
+};
+
+export const removeSharedWishlistOwner = (wishlistId, ownerId) => {
+  return apiClient.delete(`/shared-wishlists/${wishlistId}/owners/${ownerId}`);
+};
+
+export const getSharedWishlistItems = (wishlistId) => {
+  return apiClient.get(`/shared-wishlists/${wishlistId}/items`);
+};
+
+export const createSharedWishlistItem = async (wishlistId, itemData) => {
+  try {
+    const cleanData = {
+      ...itemData,
+      link: itemData.link || null,
+      image_url: itemData.image_url || null,
+      description: itemData.description || null,
+      price: itemData.price ? parseFloat(itemData.price) : null
+    };
+    const response = await apiClient.post(`/shared-wishlists/${wishlistId}/items`, cleanData);
+    return response;
+  } catch (error) {
+    console.error('Failed to create shared wishlist item:', error);
+    throw error;
+  }
+};
+
+export const updateSharedWishlistItem = async (itemId, itemData) => {
+  try {
+    const cleanData = {
+      ...itemData,
+      link: itemData.link || null,
+      image_url: itemData.image_url || null,
+      description: itemData.description || null,
+      price: itemData.price !== null && itemData.price !== undefined && itemData.price !== '' ?
+        parseFloat(itemData.price) : null
+    };
+    const response = await apiClient.put(`/shared-wishlist-items/${itemId}`, cleanData);
+    return response;
+  } catch (error) {
+    console.error('Failed to update shared wishlist item:', error);
+    throw error;
+  }
+};
+
+export const deleteSharedWishlistItem = (itemId) => {
+  return apiClient.delete(`/shared-wishlist-items/${itemId}`);
+};
+
+export const toggleSharedItemThinking = (itemId) => {
+  return apiClient.patch(`/shared-wishlist-items/${itemId}/toggle-thinking`);
+};
+
+export const toggleSharedItemPurchased = (itemId) => {
+  return apiClient.patch(`/shared-wishlist-items/${itemId}/toggle-purchased`);
+};
+
+// Add shopping cart item from shared wishlist item
+export const addShoppingCartItemFromSharedWishlistItem = async (itemId, sharedWishlistId) => {
+  try {
+    const response = await apiClient.post(`/shopping-cart/from-shared-wishlist-item/${itemId}`, {
+      shared_wishlist_id: sharedWishlistId,
+    });
+    return response;
+  } catch (error) {
+    console.error('Failed to add shared wishlist item to shopping cart:', error);
+    throw error;
+  }
+};
+
+// Export shared wishlist
+export const exportSharedWishlist = async (wishlistId) => {
+  try {
+    log('Exporting shared wishlist:', wishlistId);
+    const response = await apiClient.get(`/shared-wishlists/${wishlistId}/export`);
+    log('Export response:', response.data);
+    return response;
+  } catch (error) {
+    console.error('Failed to export shared wishlist:', error?.response?.data || error);
+    throw error;
+  }
+};
+
+// Import shared wishlist
+export const importSharedWishlist = async (wishlistId, wishlistData) => {
+  try {
+    log('Importing shared wishlist:', wishlistId);
+    const response = await apiClient.post(`/shared-wishlists/${wishlistId}/import`, wishlistData);
+    log('Import response:', response.data);
+    return response;
+  } catch (error) {
+    console.error('Failed to import shared wishlist:', error?.response?.data || error);
+    throw error;
+  }
+};
+
+// Add comment to shared wishlist item
+export const addSharedWishlistItemComment = (itemId, text) => {
+  return apiClient.post(`/shared-wishlist-items/${itemId}/comments`, { text });
 };
 
 export default apiClient;

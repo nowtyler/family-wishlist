@@ -15,10 +15,12 @@ const FirstTimeSetupScreen = () => {
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [emergencyKey, setEmergencyKey] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showKey, setShowKey] = useState(false);
-  
+  const [isSetupComplete, setIsSetupComplete] = useState(false);
+  const [recoveryPassphrase, setRecoveryPassphrase] = useState('');
+  const [passphraseAcknowledged, setPassphraseAcknowledged] = useState(false);
+  const [passphraseCopied, setPassphraseCopied] = useState(false);
+
   const { login, setSelectedUser } = useAppContext();
   const navigate = useNavigate();
 
@@ -32,7 +34,7 @@ const FirstTimeSetupScreen = () => {
       [name]: name === 'admin_username' ? value.toLowerCase() : value
     }));
   };
-  
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -44,7 +46,7 @@ const FirstTimeSetupScreen = () => {
       toast.error(passwordValidation.error);
       return;
     }
-    
+
     const passwordMatchValidation = validatePasswordMatch(formData.admin_password, formData.admin_password_confirm);
     if (!passwordMatchValidation.isValid) {
       toast.error(passwordMatchValidation.error);
@@ -52,7 +54,7 @@ const FirstTimeSetupScreen = () => {
     }
 
     setIsLoading(true);
-    
+
     try {
       const response = await firstTimeSetup({
         admin_username: formData.admin_username,
@@ -60,15 +62,20 @@ const FirstTimeSetupScreen = () => {
         admin_email: formData.admin_email,
         admin_name: formData.admin_name
       });
-      setEmergencyKey(response.emergency_access_key);
-      setSuccess('System setup completed successfully! Please save your emergency access key.');
-      toast.success('System setup completed successfully! Please save your emergency access key.');
+      setSuccess('System setup completed successfully!');
+      toast.success('System setup completed successfully!');
+      setIsSetupComplete(true);
       login(true);
       setSelectedUser(response.admin_user);
+
+      // Store recovery passphrase for display
+      if (response.recovery_passphrase) {
+        setRecoveryPassphrase(response.recovery_passphrase);
+      }
     } catch (err) {
       console.error('Setup error:', err);
       const errorMessage = err.response?.data?.detail || err.message || 'Setup failed';
-      
+
       // Check if it's a password validation error from backend
       if (err.response?.data?.detail && err.response.data.detail.includes('Password must be at least 8 characters')) {
         toast.error(err.response.data.detail);
@@ -79,12 +86,32 @@ const FirstTimeSetupScreen = () => {
       setIsLoading(false);
     }
   };
-  
+
   const handleContinue = () => {
     navigate('/admin');
     window.location.reload(); // Force reload to ensure proper state
   };
-  
+
+  const handleCopyPassphrase = async () => {
+    try {
+      await navigator.clipboard.writeText(recoveryPassphrase);
+      setPassphraseCopied(true);
+      toast.success('Passphrase copied to clipboard');
+      setTimeout(() => setPassphraseCopied(false), 3000);
+    } catch {
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = recoveryPassphrase;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setPassphraseCopied(true);
+      toast.success('Passphrase copied to clipboard');
+      setTimeout(() => setPassphraseCopied(false), 3000);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
@@ -98,7 +125,7 @@ const FirstTimeSetupScreen = () => {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          {!emergencyKey ? (
+          {!isSetupComplete ? (
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <label htmlFor="admin_username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -209,42 +236,66 @@ const FirstTimeSetupScreen = () => {
                 <div className="text-sm text-green-700 dark:text-green-200">{success}</div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Emergency Access Key
-                </label>
-                <div className="relative">
-                  <input
-                    type={showKey ? "text" : "password"}
-                    value={emergencyKey}
-                    readOnly
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 sm:text-sm"
-                  />
+              {/* Recovery Passphrase Display */}
+              {recoveryPassphrase && (
+                <div className="rounded-md bg-amber-50 dark:bg-amber-900/30 border-2 border-amber-400 dark:border-amber-600 p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                    </svg>
+                    <h3 className="text-sm font-bold text-amber-800 dark:text-amber-300">
+                      Recovery Passphrase
+                    </h3>
+                  </div>
+
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    Write this passphrase down and store it somewhere safe. You will need it to reset your admin password if you ever forget it. This passphrase will not be shown again in plaintext.
+                  </p>
+
+                  <div className="bg-white dark:bg-gray-900 rounded-md p-3 border border-amber-300 dark:border-amber-700">
+                    <p className="text-center font-mono text-lg text-gray-900 dark:text-white tracking-wide select-all">
+                      {recoveryPassphrase}
+                    </p>
+                  </div>
+
                   <button
                     type="button"
-                    onClick={() => setShowKey(!showKey)}
-                    className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                    onClick={handleCopyPassphrase}
+                    className="w-full flex items-center justify-center gap-2 py-2 px-3 text-sm font-medium text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/50 rounded-md hover:bg-amber-200 dark:hover:bg-amber-900/70 transition-colors"
                   >
-                    {showKey ? 'Hide' : 'Show'}
+                    {passphraseCopied ? (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                        Copy to Clipboard
+                      </>
+                    )}
                   </button>
+
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={passphraseAcknowledged}
+                      onChange={(e) => setPassphraseAcknowledged(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 text-indigo-600 rounded border-gray-300 dark:border-gray-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-xs text-amber-700 dark:text-amber-400">
+                      I have saved my recovery passphrase in a secure location
+                    </span>
+                  </label>
                 </div>
-                <div className="mt-4 space-y-2 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 p-4 rounded-md border border-gray-200 dark:border-gray-700">
-                  <p className="font-medium text-gray-700 dark:text-gray-300">Emergency Access Instructions:</p>
-                  <p>1. Save this key in a secure location</p>
-                  <p>2. To use emergency access:</p>
-                  <ul className="ml-4 list-disc">
-                    <li>Enter "bypass" as the username</li>
-                    <li>Enter your emergency access key as the password</li>
-                  </ul>
-                  <p className="mt-2 text-red-600 dark:text-red-400 font-medium">Important: This current key cannot be recovered if lost!</p>
-                </div>
-              </div>
+              )}
 
               <div>
                 <button
                   type="button"
                   onClick={handleContinue}
-                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-900"
+                  disabled={recoveryPassphrase && !passphraseAcknowledged}
+                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed dark:focus:ring-offset-gray-900"
                 >
                   Continue to Admin Dashboard
                 </button>
@@ -257,4 +308,4 @@ const FirstTimeSetupScreen = () => {
   );
 };
 
-export default FirstTimeSetupScreen; 
+export default FirstTimeSetupScreen;

@@ -1,35 +1,60 @@
 // frontend/src/components/DashboardScreen.jsx
-import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
-import { 
-  getFamilyMembers, 
-  getWishlistItems, 
-  getUpcomingEvent, 
-  createWishlistItem, 
-  deleteWishlistItem, 
-  toggleThinkingAbout, 
-  markPurchased, 
+import {
+  getFamilyMembers,
+  getWishlistItems,
+  getUpcomingEvent,
+  createWishlistItem,
+  deleteWishlistItem,
+  toggleThinkingAbout,
   getMigrations,
-  getUserProfile 
-} from '../services/api'; 
+  getShoppingCartItems,
+  getUserProfile,
+  getNotifications,
+  markNotificationRead,
+  getSharedWishlists,
+  getSharedWishlistItems,
+  createSharedWishlistItem
+} from '../services/api';
 import WishlistCard from './WishlistCard';
 import EnhancedUpcomingEventsBanner from './EnhancedUpcomingEventsBanner';
 import AddItemForm from './AddItemForm';
 import SchemaAlertModal from './SchemaAlertModal';
 import ExternalWishlistsButton from './ExternalWishlistsButton';
+import ShoppingCartDrawer from './ShoppingCartDrawer';
 import UserPreferencesDropdown from './UserPreferencesDropdown';
+import BottomTabNav from './BottomTabNav';
+import SharedWishlistManager from './SharedWishlistManager';
+import SharedWishlistInline from './SharedWishlistInline';
 import Navbar from './Navbar';
+import PostEventWishlistReminderModal from './PostEventWishlistReminderModal';
+import { useTutorial } from '../contexts/TutorialContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, ChevronDown, Gift, TriangleAlert, Home, Calendar, Link2 } from 'lucide-react';
+import { TriangleAlert } from 'lucide-react';
 import { toast } from 'react-toastify';
+import { getPostEventReminderInfo } from '../utils/dateUtils';
+import { log } from '../utils/logger';
+
+const WISHLIST_REMINDER_PREFIX = '[WISHLIST_UPDATE_REMINDER]';
 
 /**
  * @param {{ onViewingMemberChange?: (member: any) => void }} props
  */
 const DashboardScreen = (props = {}) => {
   const { onViewingMemberChange } = props;
-  const { selectedUser, familyMembers, setFamilyMembers } = useAppContext();
+  const { selectedUser, setSelectedUser, familyMembers, setFamilyMembers } = useAppContext();
+  const tutorial = useTutorial();
+
+  // Register cart open/close controls for tutorial to use during cart walkthrough
+  useEffect(() => {
+    tutorial?.registerCartControl?.({
+      open: () => setIsCartOpen(true),
+      close: () => setIsCartOpen(false),
+    });
+  }, [tutorial?.registerCartControl]);
+
   const isAdmin = selectedUser?.is_admin;
   const [searchParams, setSearchParams] = useSearchParams();
   const [viewingMember, setViewingMember] = useState(null);
@@ -39,14 +64,35 @@ const DashboardScreen = (props = {}) => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [needsUpgrade, setNeedsUpgrade] = useState(false);
   const [showUpgradeAlert, setShowUpgradeAlert] = useState(false);
-  const [isBrowserExpanded, setBrowserExpanded] = useState(false);
   const [isDragging, setIsDragging] = useState(false); // Track drag operations
   const [isAddingItem, setIsAddingItem] = useState(false); // State to control AddItemForm visibility
+  const [isEditingItemModalOpen, setIsEditingItemModalOpen] = useState(false);
+  const [isExternalWishlistsOpen, setIsExternalWishlistsOpen] = useState(false); // State for external wishlists modal
+  const [isPreferencesOpen, setIsPreferencesOpen] = useState(false); // State for preferences modal
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
+  const [notificationCount, setNotificationCount] = useState(0);
   const [lastRefreshTimestamp, setLastRefreshTimestamp] = useState(0); // Add refresh timestamp to prevent too frequent refreshes
   const [isFetchingInProgress, setIsFetchingInProgress] = useState(false); // Track ongoing fetches
   const minRefreshInterval = 2000; // Minimum 2 seconds between refreshes
   const memberIdFromParams = searchParams.get('memberId');
   const itemIdFromParams = searchParams.get('itemId');
+  const sharedWishlistIdFromParams = searchParams.get('sharedWishlistId');
+  const sharedWishlistItemIdFromParams = searchParams.get('sharedWishlistItemId');
+
+  // Shared wishlists state
+  const [isSharedWishlistsOpen, setIsSharedWishlistsOpen] = useState(false);
+  const [sharedWishlists, setSharedWishlists] = useState([]);
+  const [selectedSharedWishlist, setSelectedSharedWishlist] = useState(null);
+  const [sharedWishlistReloadTrigger, setSharedWishlistReloadTrigger] = useState(0);
+  const [sharedWishlistClearTrigger, setSharedWishlistClearTrigger] = useState(0);
+  const [sharedWishlistOptimisticUpdate, setSharedWishlistOptimisticUpdate] = useState(null);
+  const [postEventReminder, setPostEventReminder] = useState(null);
+  const [adminWishlistReminderNotification, setAdminWishlistReminderNotification] = useState(null);
+
+  const selectedUserHouseholdCount = selectedUser?.household_count
+    ?? (Array.isArray(selectedUser?.households) ? selectedUser.households.length : 0);
+  const hasNoHousehold = Boolean(selectedUser?.id) && selectedUserHouseholdCount === 0;
 
   const updateSearchParams = useCallback((updates, options = {}) => {
     const nextParams = new URLSearchParams(searchParams);
@@ -61,6 +107,172 @@ const DashboardScreen = (props = {}) => {
 
     setSearchParams(nextParams, options);
   }, [searchParams, setSearchParams]);
+
+  const refreshCartCount = useCallback(async (nextCount) => {
+    if (typeof nextCount === 'number') {
+      setCartCount(nextCount);
+      return;
+    }
+    if (!selectedUser?.id) return;
+    try {
+      const response = await getShoppingCartItems(selectedUser.id);
+      setCartCount(Array.isArray(response?.data) ? response.data.length : 0);
+    } catch (error) {
+      console.error('Failed to load shopping cart count:', error);
+    }
+  }, [selectedUser?.id]);
+
+  const refreshNotificationCount = useCallback(async () => {
+    if (!selectedUser?.id) return;
+    try {
+      const response = await getNotifications(selectedUser.id);
+      const nextNotifications = Array.isArray(response?.data) ? response.data : [];
+      setNotificationCount(nextNotifications.length);
+
+      const reminderNotification = nextNotifications.find((notification) =>
+        typeof notification?.message === 'string'
+        && notification.message.startsWith(WISHLIST_REMINDER_PREFIX)
+      );
+
+      if (reminderNotification) {
+        const cleanedMessage = reminderNotification.message
+          .slice(WISHLIST_REMINDER_PREFIX.length)
+          .trim();
+        setAdminWishlistReminderNotification({
+          id: reminderNotification.id,
+          message: cleanedMessage || 'Please review and update your wishlist.'
+        });
+      } else {
+        setAdminWishlistReminderNotification(null);
+      }
+    } catch (error) {
+      // silently fail — notifications are non-critical
+    }
+  }, [selectedUser?.id]);
+
+  const refreshSharedWishlists = useCallback(async () => {
+    if (!selectedUser?.id) return;
+    try {
+      const response = await getSharedWishlists();
+      setSharedWishlists(Array.isArray(response?.data) ? response.data : []);
+    } catch (error) {
+      // silently fail — shared wishlists are non-critical on initial load
+    }
+  }, [selectedUser?.id]);
+
+  const handleSelectSharedWishlist = useCallback((wishlist) => {
+    setSelectedSharedWishlist(wishlist);
+    setViewingMember(null); // Clear regular member when viewing shared wishlist
+    setIsSharedWishlistsOpen(false);
+    setIsAddingItem(false);
+    setIsPreferencesOpen(false);
+    updateSearchParams(
+      { sharedWishlistId: wishlist?.id, memberId: null },
+      { replace: false }
+    );
+  }, [updateSearchParams]);
+
+  const handleBackFromSharedWishlist = useCallback(() => {
+    setSelectedSharedWishlist(null);
+    // Return to user's own wishlist
+    setViewingMember(selectedUser);
+    updateSearchParams(
+      { sharedWishlistId: null, memberId: null },
+      { replace: false }
+    );
+    refreshSharedWishlists();
+  }, [refreshSharedWishlists, updateSearchParams, selectedUser]);
+
+  useEffect(() => {
+    if (!selectedUser?.id) {
+      setPostEventReminder(null);
+      return;
+    }
+
+    let reminderCandidate = null;
+
+    if (selectedSharedWishlist) {
+      const isOwner = selectedSharedWishlist.owners?.some(
+        owner => owner.id === selectedUser.id
+      );
+      if (!isOwner || !selectedSharedWishlist.occasion_date) {
+        setPostEventReminder(null);
+        return;
+      }
+
+      const reminderInfo = getPostEventReminderInfo(selectedSharedWishlist.occasion_date);
+      if (!reminderInfo?.shouldShow) {
+        setPostEventReminder(null);
+        return;
+      }
+
+      const displayName = selectedSharedWishlist.name
+        ?.replace(/['']s\s+Wishlist$/i, '')
+        ?.replace(/\s+Wishlist$/i, '')
+        ?.trim() || selectedSharedWishlist.name || 'This wishlist';
+
+      reminderCandidate = {
+        storageKey: `wishlist-cleanup:shared:${selectedSharedWishlist.id}:owner:${selectedUser.id}:year:${reminderInfo.occurrenceYear}`,
+        wishlistName: selectedSharedWishlist.name || `${displayName}'s Wishlist`
+      };
+    } else if (viewingMember?.id === selectedUser.id && viewingMember?.birthday) {
+      const reminderInfo = getPostEventReminderInfo(viewingMember.birthday);
+      if (!reminderInfo?.shouldShow) {
+        setPostEventReminder(null);
+        return;
+      }
+
+      const name = viewingMember.name || 'Your';
+      reminderCandidate = {
+        storageKey: `wishlist-cleanup:member:${viewingMember.id}:owner:${selectedUser.id}:year:${reminderInfo.occurrenceYear}`,
+        wishlistName: `${name}'s Wishlist`
+      };
+    } else {
+      setPostEventReminder(null);
+      return;
+    }
+
+    try {
+      const isDismissed = window.localStorage.getItem(reminderCandidate.storageKey) === '1';
+      setPostEventReminder(isDismissed ? null : reminderCandidate);
+    } catch (error) {
+      // If storage is unavailable, still show the reminder.
+      setPostEventReminder(reminderCandidate);
+    }
+  }, [
+    selectedUser?.id,
+    selectedSharedWishlist?.id,
+    selectedSharedWishlist?.occasion_date,
+    selectedSharedWishlist?.name,
+    viewingMember?.id,
+    viewingMember?.birthday,
+    viewingMember?.name
+  ]);
+
+  const handleDismissPostEventReminder = useCallback(async () => {
+    if (adminWishlistReminderNotification?.id) {
+      try {
+        await markNotificationRead(adminWishlistReminderNotification.id);
+      } catch (error) {
+        // Best effort: dismiss locally even if mark-as-read fails.
+      }
+      setAdminWishlistReminderNotification(null);
+      refreshNotificationCount();
+      return;
+    }
+
+    if (!postEventReminder?.storageKey) {
+      setPostEventReminder(null);
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(postEventReminder.storageKey, '1');
+    } catch (error) {
+      // Ignore storage write failures and close the modal.
+    }
+    setPostEventReminder(null);
+  }, [adminWishlistReminderNotification?.id, postEventReminder, refreshNotificationCount]);
 
   // Replace the initialization effect with a more robust version
   useEffect(() => {
@@ -144,12 +356,31 @@ const DashboardScreen = (props = {}) => {
     return () => { mounted = false; };
   }, [selectedUser?.id, viewingMember?.id, familyMembers.length]);
 
+  useEffect(() => {
+    refreshCartCount();
+    refreshNotificationCount();
+    refreshSharedWishlists();
+  }, [refreshCartCount, refreshNotificationCount, refreshSharedWishlists]);
+
+  useEffect(() => {
+    if (!selectedUser?.id) {
+      setNotificationCount(0);
+      setAdminWishlistReminderNotification(null);
+    }
+  }, [selectedUser?.id]);
+
+
   const handleSelectViewingMember = (member) => {
     setViewingMember(member);
-    setBrowserExpanded(false); // Collapse after selection
+    setSelectedSharedWishlist(null); // Clear shared wishlist when selecting a member
     setIsAddingItem(false);
+    setIsPreferencesOpen(false);
     updateSearchParams(
-      { memberId: member?.id === selectedUser?.id ? null : member?.id },
+      {
+        memberId: member?.id === selectedUser?.id ? null : member?.id,
+        sharedWishlistId: null,
+        sharedWishlistItemId: null
+      },
       { replace: false }
     );
     // Notify parent about the viewing member change
@@ -168,6 +399,8 @@ const DashboardScreen = (props = {}) => {
   // Sync viewing member with URL state so browser back/forward works as expected.
   useEffect(() => {
     if (!selectedUser?.id) return;
+    // Skip if viewing a shared wishlist
+    if (sharedWishlistIdFromParams) return;
 
     const targetId = memberIdFromParams ? Number(memberIdFromParams) : selectedUser.id;
 
@@ -194,7 +427,36 @@ const DashboardScreen = (props = {}) => {
     if (viewingMember?.id !== matchedMember.id) {
       setViewingMember(matchedMember);
     }
-  }, [memberIdFromParams, familyMembers, selectedUser?.id, viewingMember?.id, updateSearchParams]);
+  }, [memberIdFromParams, sharedWishlistIdFromParams, familyMembers, selectedUser?.id, viewingMember?.id, updateSearchParams]);
+
+  // Sync shared wishlist with URL state so browser back/forward works
+  useEffect(() => {
+    if (!selectedUser?.id) return;
+
+    // If we have a sharedWishlistId in URL, sync state
+    if (sharedWishlistIdFromParams) {
+      const matchedWishlist = sharedWishlists.find(
+        w => String(w.id) === String(sharedWishlistIdFromParams)
+      );
+
+      if (matchedWishlist) {
+        if (selectedSharedWishlist?.id !== matchedWishlist.id) {
+          setSelectedSharedWishlist(matchedWishlist);
+          setViewingMember(null);
+        }
+      } else if (sharedWishlists.length > 0) {
+        // Wishlist not found in list, clear the URL param
+        updateSearchParams({ sharedWishlistId: null }, { replace: true });
+      }
+    } else if (selectedSharedWishlist && !sharedWishlistIdFromParams) {
+      // URL param was cleared (e.g., browser back), clear state
+      setSelectedSharedWishlist(null);
+      // Restore to user's own wishlist if no member is selected
+      if (!memberIdFromParams && !viewingMember) {
+        setViewingMember(selectedUser);
+      }
+    }
+  }, [sharedWishlistIdFromParams, sharedWishlists, selectedUser?.id, selectedSharedWishlist?.id, memberIdFromParams, viewingMember, updateSearchParams]);
 
   // Ensure viewing member has the most up-to-date information from family members
   useEffect(() => {
@@ -202,32 +464,57 @@ const DashboardScreen = (props = {}) => {
       // Find the current viewing member in the fresh family members data
       const freshMemberData = familyMembers.find(m => m.id === viewingMember.id);
       if (freshMemberData && JSON.stringify(freshMemberData) !== JSON.stringify(viewingMember)) {
-        console.log('Updating viewingMember with fresh data from familyMembers');
+        log('Updating viewingMember with fresh data from familyMembers');
         setViewingMember(freshMemberData);
       }
     }
   }, [familyMembers, viewingMember?.id]);
 
   const handleAddItem = async (newItem) => {
-    if (viewingMember?.id === selectedUser?.id || isAdmin) {
+    // Check if we're adding to a shared wishlist
+    if (selectedSharedWishlist) {
+      // Adding to shared wishlist - check if user is an owner
+      const isOwner = selectedSharedWishlist.owners?.some(o => o.id === selectedUser?.id);
+      if (!isOwner) {
+        toast.error("Only co-owners can add items to this shared wishlist.");
+        return;
+      }
+
       try {
         setIsLoading(true);
-        await createWishlistItem(viewingMember.id, newItem);
-        // Refresh items
-        const itemsResponse = await getWishlistItems(viewingMember.id);
-        setWishlistItems(itemsResponse.data || []);
-        // Refresh family members to update count
-        const membersResponse = await getFamilyMembers();
-        setFamilyMembers(membersResponse.data);
+        await createSharedWishlistItem(selectedSharedWishlist.id, newItem);
+        // Trigger reload of SharedWishlistInline component
+        setSharedWishlistReloadTrigger(prev => prev + 1);
         setIsAddingItem(false);
+        toast.success("Item added to shared wishlist.");
       } catch (error) {
-        console.error("Error adding item:", error);
-        toast.error("Failed to add item.");
+        console.error("Error adding item to shared wishlist:", error);
+        toast.error("Failed to add item to shared wishlist.");
       } finally {
         setIsLoading(false);
       }
     } else {
-      toast.error("Cannot add items to another user's wishlist.");
+      // Adding to personal wishlist
+      if (viewingMember?.id === selectedUser?.id || isAdmin) {
+        try {
+          setIsLoading(true);
+          await createWishlistItem(viewingMember.id, newItem);
+          // Refresh items
+          const itemsResponse = await getWishlistItems(viewingMember.id);
+          setWishlistItems(itemsResponse.data || []);
+          // Refresh family members to update count
+          const membersResponse = await getFamilyMembers();
+          setFamilyMembers(membersResponse.data);
+          setIsAddingItem(false);
+        } catch (error) {
+          console.error("Error adding item:", error);
+          toast.error("Failed to add item.");
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        toast.error("Cannot add items to another user's wishlist.");
+      }
     }
   };
 
@@ -239,13 +526,13 @@ const DashboardScreen = (props = {}) => {
     // Prevent too frequent refreshes unless forced
     const now = Date.now();
     if (!force && now - lastRefreshTimestamp < minRefreshInterval) {
-      console.log('Refresh throttled. Try again in a moment.');
+      log('Refresh throttled. Try again in a moment.');
       return;
     }
 
     // For member changes, allow overriding the concurrent fetch check
     if (!force && isFetchingInProgress) {
-      console.log('Fetch already in progress. Skipping redundant refresh.');
+      log('Fetch already in progress. Skipping redundant refresh.');
       return;
     }
 
@@ -278,6 +565,27 @@ const DashboardScreen = (props = {}) => {
     }
   }, [viewingMember?.id, lastRefreshTimestamp, minRefreshInterval, isFetchingInProgress]);
 
+  // Unified refresh handler that detects context (personal vs shared wishlist)
+  const handleRefreshWishlist = useCallback(async (sharedWishlistIdParam = null) => {
+    if (selectedSharedWishlist?.id) {
+      // Refreshing shared wishlist - increment the reload trigger to refresh SharedWishlistInline
+      setSharedWishlistReloadTrigger(prev => prev + 1);
+    } else if (viewingMember?.id) {
+      // Refreshing personal wishlist
+      await refreshWishlistItems(true, viewingMember.id);
+    }
+  }, [selectedSharedWishlist?.id, viewingMember?.id, refreshWishlistItems]);
+
+  const handleClearWishlist = useCallback(async () => {
+    if (selectedSharedWishlist) {
+      setSharedWishlistClearTrigger((prev) => prev + 1);
+      await refreshSharedWishlists();
+      return;
+    }
+
+    await refreshWishlistItems(true);
+  }, [selectedSharedWishlist, refreshSharedWishlists, refreshWishlistItems]);
+
   // Add effect to refresh items when viewingMember changes
   useEffect(() => {
     if (viewingMember?.id) {
@@ -289,12 +597,40 @@ const DashboardScreen = (props = {}) => {
     }
   }, [viewingMember?.id]);
 
+  useEffect(() => {
+    if (!isAddingItem) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isAddingItem]);
+
   // Make it available to the props passed from parent
   React.useEffect(() => {
     if (window.refreshWishlistItems !== refreshWishlistItems) {
       window.refreshWishlistItems = refreshWishlistItems;
     }
   }, [refreshWishlistItems]);
+
+  const handleCartChanged = useCallback((change = null) => {
+    if (selectedSharedWishlist && change?.sharedWishlistItemId) {
+      setSharedWishlistOptimisticUpdate({
+        itemId: change.sharedWishlistItemId,
+        updates: change.deleted ? { _deleted: true } : { purchased_by: null },
+        nonce: Date.now()
+      });
+      if (change.revert) {
+        setSharedWishlistReloadTrigger((prev) => prev + 1);
+      }
+      return;
+    }
+
+    if (viewingMember?.id) {
+      refreshWishlistItems(true);
+    }
+  }, [selectedSharedWishlist, viewingMember?.id, refreshWishlistItems]);
 
   const handleOpenAddItemForm = () => {
     setIsAddingItem(true);
@@ -308,7 +644,8 @@ const DashboardScreen = (props = {}) => {
     if (viewingMember?.id === selectedUser?.id || isAdmin) {
       try {
         await deleteWishlistItem(itemId);
-        refreshWishlistItems();
+        // Optimistically remove the item immediately
+        setWishlistItems(prev => prev.filter(item => item.id !== itemId));
         // Refresh family members to update count
         const membersResponse = await getFamilyMembers();
         setFamilyMembers(membersResponse.data);
@@ -354,46 +691,18 @@ const DashboardScreen = (props = {}) => {
     }
   };
 
-  const handleMarkPurchased = async (itemId) => {
-    try {
-      // Find the item index and optimistically update UI
-      const itemIndex = wishlistItems.findIndex(item => item.id === itemId);
-      if (itemIndex !== -1) {
-        // Create a copy of the wishlist items array
-        const updatedItems = [...wishlistItems];
-        // Toggle the purchased status optimistically
-        updatedItems[itemIndex] = {
-          ...updatedItems[itemIndex],
-          purchased: !updatedItems[itemIndex].purchased,
-          purchased_by: updatedItems[itemIndex].purchased ? null : selectedUser.id
-        };
-        // Update the state immediately
-        setWishlistItems(updatedItems);
-      }
-      
-      // Send the request to the server
-      const response = await markPurchased(itemId);
-      
-      // Update with server response data if available
-      if (response?.data && itemIndex !== -1) {
-        const updatedItems = [...wishlistItems];
-        updatedItems[itemIndex] = response.data;
-        setWishlistItems(updatedItems);
-      }
-      
-      // Refresh family members to update count (do this in background)
-      const membersResponse = await getFamilyMembers();
-      setFamilyMembers(membersResponse.data);
-    } catch (error) {
-      console.error("Error marking as purchased:", error);
-      // Check if the error is because the item is already purchased
-      if (error.response?.status === 404) {
-        toast.info("Only one person can mark an item as purchased");
-      } else {
-        toast.error("Failed to mark item as purchased.");
-      }
-    }
-  };
+  const handleOptimisticUpdateItem = useCallback((itemId, updates) => {
+    if (!itemId || !updates) return;
+
+    setWishlistItems((prevItems) =>
+      prevItems.map((item) => (item.id === itemId ? { ...item, ...updates } : item))
+    );
+
+    setSelectedItem((prevSelected) => {
+      if (!prevSelected || prevSelected.id !== itemId) return prevSelected;
+      return { ...prevSelected, ...updates };
+    });
+  }, []);
 
   // Check for schema upgrades
   useEffect(() => {
@@ -477,6 +786,7 @@ const DashboardScreen = (props = {}) => {
       return;
     }
 
+    if (isLoading) return;
     if (!wishlistItems.length) return;
 
     const matchedItem = wishlistItems.find(item => String(item.id) === String(itemIdFromParams));
@@ -488,7 +798,113 @@ const DashboardScreen = (props = {}) => {
     if (!selectedItem || selectedItem.id !== matchedItem.id) {
       setSelectedItem(matchedItem);
     }
-  }, [itemIdFromParams, wishlistItems, selectedItem, updateSearchParams]);
+  }, [itemIdFromParams, wishlistItems, selectedItem, updateSearchParams, isLoading]);
+
+  const handleOpenWishlistItemFromCart = useCallback(async (payload) => {
+    if (!payload) return;
+    const { memberId, itemId, sharedWishlistId, sharedWishlistItemId } = payload;
+
+    if (sharedWishlistId && sharedWishlistItemId) {
+      let targetWishlist = sharedWishlists.find(
+        (wishlist) => String(wishlist.id) === String(sharedWishlistId)
+      );
+
+      if (!targetWishlist) {
+        try {
+          const response = await getSharedWishlists();
+          const nextWishlists = Array.isArray(response?.data) ? response.data : [];
+          setSharedWishlists(nextWishlists);
+          targetWishlist = nextWishlists.find(
+            (wishlist) => String(wishlist.id) === String(sharedWishlistId)
+          );
+        } catch (error) {
+          console.error('Failed to load shared wishlists for cart item:', error);
+        }
+      }
+
+      if (targetWishlist) {
+        setSelectedSharedWishlist(targetWishlist);
+        setViewingMember(null);
+        setIsSharedWishlistsOpen(false);
+        setIsAddingItem(false);
+        setIsPreferencesOpen(false);
+      }
+
+      updateSearchParams(
+        {
+          sharedWishlistId,
+          sharedWishlistItemId,
+          memberId: null,
+          itemId: null
+        },
+        { replace: false }
+      );
+      return;
+    }
+
+    if (!memberId || !itemId) return;
+    let targetMember =
+      familyMembers.find((member) => Number(member.id) === Number(memberId))
+      || (selectedUser?.id === memberId ? selectedUser : null);
+
+    if (!targetMember) {
+      try {
+        const userResponse = await getUserProfile(memberId);
+        if (userResponse?.data) {
+          targetMember = userResponse.data;
+          setFamilyMembers((prev) => {
+            if (Array.isArray(prev) && prev.some((member) => Number(member.id) === Number(memberId))) {
+              return prev;
+            }
+            return Array.isArray(prev) ? [...prev, userResponse.data] : [userResponse.data];
+          });
+        }
+      } catch (error) {
+        console.error('Failed to load member for cart item:', error);
+      }
+    }
+
+    if (targetMember) {
+      handleSelectViewingMember(targetMember);
+    }
+
+    setIsLoading(true);
+    setWishlistItems([]);
+    setSelectedItem(null);
+    updateSearchParams(
+      {
+        memberId: memberId === selectedUser?.id ? null : memberId,
+        itemId,
+        sharedWishlistId: null,
+        sharedWishlistItemId: null
+      },
+      { replace: false }
+    );
+
+    try {
+      const itemsResponse = await getWishlistItems(memberId);
+      const nextItems = itemsResponse?.data || [];
+      setWishlistItems(nextItems);
+      const matchedItem = nextItems.find(item => String(item.id) === String(itemId));
+      if (matchedItem) {
+        setSelectedItem(matchedItem);
+      }
+    } catch (error) {
+      console.error('Failed to load wishlist items for cart item:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [
+    familyMembers,
+    selectedUser?.id,
+    sharedWishlists,
+    handleSelectViewingMember,
+    updateSearchParams,
+    getWishlistItems,
+    getUserProfile,
+    getSharedWishlists,
+    setFamilyMembers
+  ]);
 
   const handlePreferencesUpdate = async () => {
     // Refresh family members to get updated preferences
@@ -511,11 +927,23 @@ const DashboardScreen = (props = {}) => {
   const handleHouseholdUpdate = async () => {
     // Refresh family members and wishlist items after household changes
     try {
+      if (selectedUser?.id) {
+        const userResponse = await getUserProfile(selectedUser.id);
+        if (userResponse?.data) {
+          setSelectedUser(userResponse.data);
+          if (viewingMember?.id === selectedUser.id) {
+            setViewingMember(userResponse.data);
+          }
+        }
+      }
+
       const membersResponse = await getFamilyMembers();
       setFamilyMembers(membersResponse.data);
-      
-      // Also refresh wishlist items as household changes might affect what's visible
-      await refreshWishlistItems();
+
+      await Promise.all([
+        refreshWishlistItems(true),
+        refreshSharedWishlists()
+      ]);
     } catch (error) {
       console.error("Error refreshing data after household update:", error);
     }
@@ -523,20 +951,30 @@ const DashboardScreen = (props = {}) => {
 
   return (
     <>
+      <PostEventWishlistReminderModal
+        isOpen={Boolean(adminWishlistReminderNotification || postEventReminder)}
+        title="Wishlist update reminder"
+        wishlistName={adminWishlistReminderNotification ? 'Your Wishlist' : (postEventReminder?.wishlistName || 'Your Wishlist')}
+        message={adminWishlistReminderNotification?.message || 'Please review this wishlist and remove or update anything already received.'}
+        secondaryMessage="Keeping your list current helps everyone shop accurately."
+        onDismiss={handleDismissPostEventReminder}
+      />
       {/* Add Navbar component */}
-      <Navbar 
-        onClearWishlist={refreshWishlistItems} 
+      <Navbar
+        onClearWishlist={handleClearWishlist}
         viewingMember={viewingMember}
+        selectedSharedWishlist={selectedSharedWishlist}
         onHouseholdUpdate={handleHouseholdUpdate}
-        onRefreshWishlist={refreshWishlistItems}
+        onRefreshWishlist={handleRefreshWishlist}
+        onOpenSharedWishlists={() => setIsSharedWishlistsOpen(true)}
       />
       
-      <div className="container mx-auto px-6 py-8">
-        <motion.div 
+      <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-24">
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5 }}
-          className="space-y-6"
+          className="space-y-4 sm:space-y-6"
         >
           <AnimatePresence>
             {showUpgradeAlert && (
@@ -549,7 +987,10 @@ const DashboardScreen = (props = {}) => {
 
           {/* Enhanced Upcoming Events Banner */}
           {familyMembers.length > 0 && (
-            <EnhancedUpcomingEventsBanner familyMembers={familyMembers} />
+            <EnhancedUpcomingEventsBanner
+              familyMembers={familyMembers}
+              sharedWishlists={sharedWishlists}
+            />
           )}
 
           {/* Schema Warning Banner */}
@@ -563,144 +1004,34 @@ const DashboardScreen = (props = {}) => {
               </div>
             </div>
           )}
-          
-          {/* Header section - with user preferences dropdown */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)]">
-            <div className="w-full md:w-auto">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-white">
-                  {viewingMember?.id === selectedUser.id ? "Your Wishlist" : `${viewingMember?.name || ''}'s Wishlist`}
-                </h1>
-                
-                {/* Replace birthday badge with preferences dropdown */}
-                {viewingMember && (
-                  <UserPreferencesDropdown 
-                    member={viewingMember}
-                    isOwner={viewingMember.id === selectedUser.id || isAdmin}
-                    currentUserId={selectedUser.id}
-                    onUpdateSuccess={handlePreferencesUpdate}
-                  />
-                )}
+
+          {hasNoHousehold && (
+            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+              <div className="flex items-start gap-2">
+                <TriangleAlert className="text-amber-500 shrink-0 mt-0.5" size={18} />
+                <p className="text-amber-900 dark:text-amber-100">
+                  No one can see your wishlist right now because you are not in a household. Your shared wishlists that you own are still available to you.
+                </p>
               </div>
-              <p className="text-gray-600 dark:text-gray-300 mt-1">
-                {viewingMember?.id === selectedUser.id ? "Manage your wishes or " : "Browse wishes and "}
-                see what others are hoping for!
-              </p>
             </div>
-            
-            {/* External Wishlists Section - full width on mobile, auto width on larger screens */}
-            {viewingMember && (
-              <div className="w-full md:w-auto">
-                {viewingMember.external_wishlist_count > 0 && viewingMember.id !== selectedUser.id ? (
-                  // Shopping mode: Show reminder banner with button
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center sm:justify-between gap-3 px-4 py-2.5 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <Link2 className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-                      <span className="text-sm font-medium text-amber-900 dark:text-amber-100">
-                        Don't forget: {viewingMember.name} has {viewingMember.external_wishlist_count} external wishlist{viewingMember.external_wishlist_count === 1 ? '' : 's'}!
-                      </span>
-                    </div>
-                    <ExternalWishlistsButton member={viewingMember} />
-                  </div>
-                ) : (
-                  // Own wishlist or no external wishlists: Show simple button with optional badge
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                    {viewingMember.external_wishlist_count > 0 && (
-                      <div className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                        <Link2 className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                        <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
-                          {viewingMember.external_wishlist_count} external {viewingMember.external_wishlist_count === 1 ? 'link' : 'links'}
-                        </span>
-                      </div>
-                    )}
-                    <ExternalWishlistsButton member={viewingMember} />
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          )}
 
-          {/* Collapsible Browse Wishlist Section - Enhanced with gradient styling */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.15),0_4px_6px_-4px_rgba(0,0,0,0.15)] overflow-hidden">
-            <button
-              onClick={() => setBrowserExpanded(!isBrowserExpanded)}
-              className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-sky-50 to-indigo-50 dark:from-sky-900/20 dark:to-indigo-900/20 hover:from-sky-100 hover:to-indigo-100 dark:hover:from-sky-900/30 dark:hover:to-indigo-900/30 transition-colors duration-200"
-            >
-              <div className="flex items-center gap-2">
-                <Gift className="w-4 h-4 text-primary dark:text-primary-400" />
-                <span className="font-semibold text-gray-800 dark:text-white">
-                  Browse Wishlists
-                </span>
-                {Array.isArray(familyMembers) && (
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                    ({familyMembers.filter(m => !m.is_admin).length})
-                  </span>
-                )}
-                <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full">
-                  View Others
-                </span>
-              </div>
-              <ChevronDown
-                className={`w-4 h-4 text-gray-500 dark:text-gray-400 transform transition-transform duration-200 ${
-                  isBrowserExpanded ? 'rotate-180' : ''
-                }`}
-              />
-            </button>
-
-            <motion.div
-              initial={false}
-              animate={{
-                height: isBrowserExpanded ? 'auto' : 0,
-                opacity: isBrowserExpanded ? 1 : 0
-              }}
-              transition={{ duration: 0.2 }}
-              className="overflow-hidden border-t border-gray-100 dark:border-gray-700"
-            >
-              <div className="p-4 grid gap-2">
-                {Array.isArray(familyMembers) && familyMembers
-                  .filter(member => !member.is_admin)
-                  .map(member => (
-                    <motion.button
-                      key={member.id}
-                      onClick={() => handleSelectViewingMember(member)}
-                      className={`w-full flex items-center justify-between px-4 py-2.5 rounded-lg transition-all duration-200
-                        ${viewingMember?.id === member.id
-                          ? 'bg-gradient-to-r from-sky-500 to-indigo-500 dark:from-sky-400 dark:to-indigo-400 text-white shadow-sm'
-                          : 'bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'
-                        }`}
-                    >
-                      <span className="font-medium">{member.name}</span>
-                      <div className="flex items-center gap-1">
-                        <span className={`text-xs px-2 py-0.5 rounded-full
-                          ${viewingMember?.id === member.id
-                            ? 'bg-white/20'
-                            : 'bg-white dark:bg-gray-600'
-                          }`}
-                        >
-                          {member.wishlist_item_count}
-                        </span>
-
-                        {/* External wishlist indicator */}
-                        {member.external_wishlist_count > 0 && (
-                          <span className={`flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full
-                            ${viewingMember?.id === member.id
-                              ? 'bg-white/20'
-                              : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
-                            }`}
-                          >
-                            <Link2 className="w-3 h-3" />
-                            {member.external_wishlist_count}
-                          </span>
-                        )}
-                      </div>
-                    </motion.button>
-                ))}
-              </div>
-            </motion.div>
-          </div>
-
-          {/* Wishlist items for viewingMember */}
-          {viewingMember && (
+          {/* Wishlist items for viewingMember OR selectedSharedWishlist */}
+          {selectedSharedWishlist ? (
+            <SharedWishlistInline
+              wishlist={selectedSharedWishlist}
+              currentUserId={selectedUser?.id}
+              currentUserName={selectedUser?.name}
+              isOwner={selectedSharedWishlist.owners?.some(o => o.id === selectedUser?.id)}
+              onUpdateItems={refreshSharedWishlists}
+              onCartUpdated={refreshCartCount}
+              reloadTrigger={sharedWishlistReloadTrigger}
+              clearTrigger={sharedWishlistClearTrigger}
+              optimisticUpdate={sharedWishlistOptimisticUpdate}
+              openItemId={sharedWishlistItemIdFromParams}
+              onClearOpenItemId={() => updateSearchParams({ sharedWishlistItemId: null }, { replace: false })}
+            />
+          ) : viewingMember ? (
             <div className="relative">
               <WishlistCard
                 member={viewingMember}
@@ -711,64 +1042,45 @@ const DashboardScreen = (props = {}) => {
                 onUpdateItems={refreshWishlistItems}
                 onDeleteItem={handleDeleteItem}
                 onThinkingAbout={handleThinkingAbout}
-                onMarkPurchased={handleMarkPurchased}
                 onItemClick={handleItemClick}
                 onItemModalClose={handleItemModalClose}
                 selectedItem={selectedItem}
+                onCartUpdated={refreshCartCount}
+                currentUserName={selectedUser?.name}
+                onOptimisticUpdateItem={handleOptimisticUpdateItem}
+                onEditModalStateChange={setIsEditingItemModalOpen}
               />
             </div>
+          ) : null}
+
+          {/* Hidden External Wishlists Button - Only renders modal, triggered from BottomTabNav */}
+          {(viewingMember || selectedSharedWishlist) && (
+            <ExternalWishlistsButton
+              member={viewingMember}
+              sharedWishlist={selectedSharedWishlist}
+              variant="hidden"
+              externalOpen={isExternalWishlistsOpen}
+              onExternalClose={() => setIsExternalWishlistsOpen(false)}
+            />
           )}
 
-          {/* Floating Add Button - Updated to hide when modal is open */}
-          <AnimatePresence>
-            {(viewingMember?.id === selectedUser?.id || isAdmin) && !isAddingItem && !selectedItem && (
-              <motion.button
-                onClick={handleOpenAddItemForm}
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0, opacity: 0 }}
-                className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 dark:from-sky-400 dark:to-indigo-400 text-white shadow-lg hover:from-sky-600 hover:to-indigo-600 dark:hover:from-sky-500 dark:hover:to-indigo-500 flex items-center justify-center transition-all duration-200 z-10"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-                title="Add new item"
-              >
-                <Plus size={24} />
-              </motion.button>
-            )}
-            
-            {/* Floating Home Button - Only shows when viewing someone else's wishlist */}
-            {viewingMember?.id !== selectedUser?.id && !isAdmin && !selectedItem && (
-              <motion.button
-                onClick={() => handleSelectViewingMember(selectedUser)}
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0, opacity: 0 }}
-                className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 dark:from-emerald-400 dark:to-teal-400 text-white shadow-lg hover:from-emerald-600 hover:to-teal-600 dark:hover:from-emerald-500 dark:hover:to-teal-500 flex items-center justify-center transition-all duration-200 z-10"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-                title="Return to your wishlist"
-              >
-                <Home size={24} />
-              </motion.button>
-            )}
-          </AnimatePresence>
+          {viewingMember && (
+            <UserPreferencesDropdown
+              member={viewingMember}
+              isOwner={viewingMember.id === selectedUser.id || isAdmin}
+              currentUserId={selectedUser.id}
+              onUpdateSuccess={handlePreferencesUpdate}
+              isOpen={isPreferencesOpen}
+              onOpenChange={setIsPreferencesOpen}
+              hideTrigger
+            />
+          )}
 
           {/* Add Item Form Modal */}
           <AnimatePresence>
             {isAddingItem && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-                style={{
-                  position: 'fixed',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  zIndex: 50,
-                }}
+              <div
+                className="fixed inset-0 z-[100] flex items-center justify-center p-4"
                 onMouseDown={(e) => {
                   // Only track mousedown on the backdrop itself, not the modal content
                   if (e.target === e.currentTarget) {
@@ -789,11 +1101,18 @@ const DashboardScreen = (props = {}) => {
                   e.stopPropagation();
                 }}
               >
+                {/* Backdrop */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 bg-black/50 z-[100]"
+                />
                 <motion.div
                   initial={{ scale: 0.95, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.95, opacity: 0 }}
-                  className="relative w-full max-w-2xl mx-auto my-8 max-h-[90vh] overflow-y-auto"
+                  className="relative w-full max-w-2xl mx-auto my-8 max-h-[90vh] overflow-y-auto z-[110]"
                   onMouseDown={() => {
                     // Track when mouse is pressed down inside the modal
                     setIsDragging(false);
@@ -805,16 +1124,71 @@ const DashboardScreen = (props = {}) => {
                   onClick={e => e.stopPropagation()} // Prevent closing when clicking the form
                 >
                   <AddItemForm
-                    wishlistId={viewingMember.id}
+                    wishlistId={selectedSharedWishlist ? selectedSharedWishlist.id : viewingMember.id}
+                    isSharedWishlist={!!selectedSharedWishlist}
                     onAddItem={handleAddItem}
                     onClose={handleCloseAddItemForm}
                   />
                 </motion.div>
-              </motion.div>
+              </div>
             )}
           </AnimatePresence>
         </motion.div>
       </div>
+
+      {/* Bottom Tab Navigation - Mobile-friendly fixed navigation */}
+      {(viewingMember || selectedSharedWishlist) && (
+        <BottomTabNav
+          isOwnWishlist={
+            selectedSharedWishlist
+              ? selectedSharedWishlist.owners?.some(o => o.id === selectedUser?.id)
+              : (viewingMember?.id === selectedUser?.id || isAdmin)
+          }
+          viewingMember={viewingMember}
+          selectedSharedWishlist={selectedSharedWishlist}
+          onAddItem={handleOpenAddItemForm}
+          onReturnHome={() => handleSelectViewingMember(selectedUser)}
+          onToggleShoppingCart={() => setIsCartOpen((prev) => !prev)}
+          onCloseShoppingCart={() => setIsCartOpen(false)}
+          onOpenExternalWishlists={() => setIsExternalWishlistsOpen(true)}
+          onOpenPreferences={() => setIsPreferencesOpen(true)}
+          onOpenSharedWishlists={() => setIsSharedWishlistsOpen(true)}
+          onSelectMember={handleSelectViewingMember}
+          onSelectSharedWishlist={handleSelectSharedWishlist}
+          familyMembers={familyMembers}
+          sharedWishlists={sharedWishlists}
+          selectedUser={selectedUser}
+          isHidden={isAddingItem || selectedItem || isEditingItemModalOpen}
+          cartCount={cartCount}
+          notificationCount={notificationCount}
+          isCartOpen={isCartOpen}
+        />
+      )}
+
+      {viewingMember && (
+        <ShoppingCartDrawer
+          isOpen={isCartOpen}
+          onClose={() => setIsCartOpen(false)}
+          defaultRecipientId={viewingMember?.id}
+          onCartUpdated={refreshCartCount}
+          onCartChanged={handleCartChanged}
+          onOpenWishlistItem={(payload) => {
+            handleOpenWishlistItemFromCart(payload);
+          }}
+          onNotificationCountUpdate={setNotificationCount}
+        />
+      )}
+
+      {/* Shared Wishlists Manager Modal */}
+      <SharedWishlistManager
+        isOpen={isSharedWishlistsOpen}
+        onClose={() => {
+          setIsSharedWishlistsOpen(false);
+          refreshSharedWishlists();
+        }}
+        onSelectWishlist={handleSelectSharedWishlist}
+        currentUserId={selectedUser?.id}
+      />
     </>
   );
 };

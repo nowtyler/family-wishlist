@@ -1,6 +1,7 @@
 # backend/app/services/email_service.py
 import smtplib
 import ssl
+import html
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -9,6 +10,7 @@ from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any
 import logging
 from datetime import datetime
+import re
 import secrets
 import string
 
@@ -17,6 +19,68 @@ from .. import crud
 from ..utils.timezone_utils import get_est_timestamp_strftime
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_UPDATE_NOTICE_BODY = """
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Update Notice</title>
+            </head>
+            <body style="margin:0;padding:0;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#f5f7fa;color:#333333;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f5f7fa;">
+                    <tr>
+                        <td align="center" style="padding:40px 0;">
+                            <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1);max-width:90%;">
+                                <tr>
+                                    <td style="background:linear-gradient(135deg, #0ea5e9, #6366f1);padding:32px 40px;text-align:center;">
+                                        <div style="display:inline-block;background-color:rgba(255,255,255,0.16);border:1px solid rgba(255,255,255,0.28);border-radius:999px;padding:6px 14px;color:#e0f2fe;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">
+                                            Family Wishlist {{version}}
+                                        </div>
+                                        <h1 style="color:#ffffff;margin:16px 0 8px;font-weight:700;font-size:30px;line-height:1.2;">{{headline}}</h1>
+                                        <p style="color:#dbeafe;margin:0;font-size:16px;line-height:1.6;">{{intro}}</p>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding:36px 40px;">
+                                        <p style="margin:0 0 18px;color:#334155;font-size:16px;line-height:1.7;">Hi {{user_name}},</p>
+                                        <p style="margin:0 0 24px;color:#475569;font-size:16px;line-height:1.7;">
+                                            We just shipped a major Family Wishlist update focused on making everyday gift planning smoother, faster, and easier to manage.
+                                        </p>
+
+                                        <div style="background:linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);border:1px solid #dbeafe;border-radius:14px;padding:24px;margin:0 0 24px;">
+                                            <h2 style="margin:0 0 16px;color:#0f172a;font-size:20px;font-weight:700;">What&apos;s new</h2>
+                                            {{highlights_html}}
+                                        </div>
+
+                                        <div style="background-color:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:20px;margin:0 0 24px;">
+                                            <h3 style="margin:0 0 10px;color:#1d4ed8;font-size:16px;font-weight:700;">A few things you may notice right away</h3>
+                                            <p style="margin:0;color:#334155;font-size:15px;line-height:1.7;">{{closing}}</p>
+                                        </div>
+
+                                        <div style="text-align:center;margin:30px 0 10px;">
+                                            <a href="https://wishlist.ariahive.top" style="background:linear-gradient(to right, #0ea5e9, #6366f1);color:#ffffff;text-decoration:none;padding:12px 30px;border-radius:999px;font-weight:600;display:inline-block;font-size:16px;">Open Family Wishlist</a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="background-color:#f1f5f9;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">
+                                        <p style="margin:0;color:#64748b;font-size:14px;">
+                                            &copy; {{copyright_year}} Family Wishlist. All rights reserved.
+                                        </p>
+                                        <p style="margin:10px 0 0;color:#94a3b8;font-size:12px;">
+                                            This is an automated message, please do not reply.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+            </body>
+            </html>
+""".strip()
 
 class EmailService:
     def __init__(self, db: Session):
@@ -208,11 +272,17 @@ class EmailService:
         subject = template.subject
         body = template.body
         
-        if template_vars:
-            for key, value in template_vars.items():
-                placeholder = f"{{{{{key}}}}}"
-                subject = subject.replace(placeholder, str(value))
-                body = body.replace(placeholder, str(value))
+        # Always inject copyright_year so footers stay current automatically
+        if template_vars is None:
+            template_vars = {}
+        template_vars.setdefault("copyright_year", str(datetime.now().year))
+
+        for key, value in template_vars.items():
+            placeholder = f"{{{{{key}}}}}"
+            subject_value = str(value)
+            body_value = str(value) if key.endswith("_html") else html.escape(str(value))
+            subject = subject.replace(placeholder, subject_value)
+            body = body.replace(placeholder, body_value)
         
         # Send email
         success = self._send_email(recipient_email, subject, body, recipient_name)
@@ -304,6 +374,110 @@ class EmailService:
                 sent_count += 1
         return sent_count
 
+    def send_update_notice_to_all_users(
+        self,
+        version: str = None,
+        changes: str = None,
+        headline: str = None,
+        intro: str = None,
+        highlights: list[str] = None,
+        closing: str = None
+    ) -> int:
+        """Send update/release notice email to all users with an email address. Returns number of emails sent."""
+        users = self.db.query(FamilyMember).filter(FamilyMember.email != None).all()
+        if not users:
+            logger.warning("No users with email addresses found for update notice.")
+            return 0
+        normalized_highlights = [
+            line.strip().lstrip("-").strip()
+            for line in (highlights or [])
+            if line and line.strip().lstrip("-").strip()
+        ]
+        if not normalized_highlights and changes:
+            normalized_highlights = [
+                line.strip().lstrip("-").strip()
+                for line in changes.splitlines()
+                if line.strip()
+            ]
+        if not normalized_highlights:
+            normalized_highlights = ["Various improvements and bug fixes across the app."]
+
+        highlights_html = "<ul style=\"margin:0;padding-left:20px;color:#334155;\">"
+        highlights_html += "".join(
+            f"<li style=\"margin:0 0 12px;font-size:15px;line-height:1.7;\">{html.escape(item)}</li>"
+            for item in normalized_highlights
+        )
+        highlights_html += "</ul>"
+
+        template_vars = {
+            "version": version or "latest",
+            "headline": headline or "A major update just landed",
+            "intro": intro or "New features, smoother navigation, and better tools for planning gifts together are now live.",
+            "closing": closing or "You should see a cleaner mobile experience, easier browsing, and better coordination for birthdays, shared lists, and upcoming events.",
+            "highlights_html": highlights_html
+        }
+        sent_count = 0
+        for user in users:
+            vars_for_user = template_vars.copy()
+            vars_for_user["user_name"] = user.name or "User"
+            log = self.send_template_email(
+                "update_notice",
+                user.email,
+                user.name,
+                vars_for_user
+            )
+            if log and getattr(log, 'status', None) == "sent":
+                sent_count += 1
+        return sent_count
+
+    def send_update_notice_to_user(
+        self,
+        user: FamilyMember,
+        version: str = None,
+        changes: str = None,
+        headline: str = None,
+        intro: str = None,
+        highlights: list[str] = None,
+        closing: str = None
+    ) -> EmailLog:
+        """Send the update/release notice to a single user."""
+        normalized_highlights = [
+            line.strip().lstrip("-").strip()
+            for line in (highlights or [])
+            if line and line.strip().lstrip("-").strip()
+        ]
+        if not normalized_highlights and changes:
+            normalized_highlights = [
+                line.strip().lstrip("-").strip()
+                for line in changes.splitlines()
+                if line.strip()
+            ]
+        if not normalized_highlights:
+            normalized_highlights = ["Various improvements and bug fixes across the app."]
+
+        highlights_html = "<ul style=\"margin:0;padding-left:20px;color:#334155;\">"
+        highlights_html += "".join(
+            f"<li style=\"margin:0 0 12px;font-size:15px;line-height:1.7;\">{html.escape(item)}</li>"
+            for item in normalized_highlights
+        )
+        highlights_html += "</ul>"
+
+        template_vars = {
+            "version": version or "latest",
+            "headline": headline or "A major update just landed",
+            "intro": intro or "New features, smoother navigation, and better tools for planning gifts together are now live.",
+            "closing": closing or "You should see a cleaner mobile experience, easier browsing, and better coordination for birthdays, shared lists, and upcoming events.",
+            "highlights_html": highlights_html,
+            "user_name": user.name or "User"
+        }
+
+        return self.send_template_email(
+            "update_notice",
+            user.email,
+            user.name,
+            template_vars
+        )
+
 def generate_reset_token() -> str:
     """Generate a secure reset token"""
     return ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(32))
@@ -379,7 +553,7 @@ def create_default_templates(db: Session):
                                 <tr>
                                     <td style="background-color:#f1f5f9;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">
                                         <p style="margin:0;color:#64748b;font-size:14px;">
-                                            &copy; 2025 Family Wishlist. All rights reserved.
+                                            &copy; {{copyright_year}} Family Wishlist. All rights reserved.
                                         </p>
                                         <p style="margin:10px 0 0;color:#94a3b8;font-size:12px;">
                                             This is an automated message, please do not reply.
@@ -448,11 +622,10 @@ def create_default_templates(db: Session):
                                                                     <h3 style="margin:0;color:#1e40af;font-size:18px;font-weight:600;">Quick Start Guide</h3>
                                                                     <ul style="margin:15px 0 0;padding:0 0 0 20px;color:#334155;">
                                                                         <li style="margin-bottom:10px;">Access your wishlist anytime at: <a href="https://wishlist.ariahive.top" style="color:#3b82f6;text-decoration:none;font-weight:500;">wishlist.ariahive.top</a></li>
-                                                                        <li style="margin-bottom:10px;">Create your wishlist by adding items you'd love to receive</li>
-                                                                        <li style="margin-bottom:10px;">Join or create a household to share wishlists with family members</li>
-                                                                        <li style="margin-bottom:10px;">View others' wishlists and mark items as purchased</li>
-                                                                        <li style="margin-bottom:10px;">Set your birthday and preferences in your profile</li>
-                                                                        <li style="margin-bottom:10px;">Export/import your wishlist for backup or sharing</li>
+                                                                        <li style="margin-bottom:10px;">Use the Quick Actions menu at the bottom of the screen — it's your main hub for adding items, browsing wishlists, and more</li>
+                                                                        <li style="margin-bottom:10px;">Add items to your wishlist by pasting a URL to auto-fill product details, or enter them manually</li>
+                                                                        <li style="margin-bottom:10px;">Browse family members' wishlists to see what they're hoping for</li>
+                                                                        <li style="margin-bottom:10px;">Find links to external wishlists (like Amazon) for even more gift ideas</li>
                                                                     </ul>
                                                                 </td>
                                                             </tr>
@@ -482,11 +655,9 @@ def create_default_templates(db: Session):
                                                                 <td style="padding-left:15px;">
                                                                     <h3 style="margin:0;color:#86198f;font-size:18px;font-weight:600;">Key Features</h3>
                                                                     <ul style="margin:15px 0 0;padding:0 0 0 20px;color:#334155;">
-                                                                        <li style="margin-bottom:10px;"><span style="font-weight:600;color:#d946ef;">Smart Imports:</span> Add items from any website or create custom items</li>
-                                                                        <li style="margin-bottom:10px;"><span style="font-weight:600;color:#d946ef;">Priority Levels:</span> Set priority levels for your wishlist items</li>
-                                                                        <li style="margin-bottom:10px;"><span style="font-weight:600;color:#d946ef;">Event Notifications:</span> Get notified of upcoming birthdays and events</li>
-                                                                        <li style="margin-bottom:10px;"><span style="font-weight:600;color:#d946ef;">Gift Privacy:</span> Keep gift purchases a surprise with our privacy features</li>
-                                                                        <li style="margin-bottom:0;"><span style="font-weight:600;color:#d946ef;">Size Preferences:</span> Set your clothing and shoe sizes in your profile</li>
+                                                                        <li style="margin-bottom:10px;"><span style="font-weight:600;color:#d946ef;">Sizes & Preferences:</span> View and edit clothing sizes, favorite colors, and other gift preferences</li>
+                                                                        <li style="margin-bottom:10px;"><span style="font-weight:600;color:#d946ef;">Settings & Profile:</span> Edit your account, manage households, and import/export your wishlist data</li>
+                                                                        <li style="margin-bottom:0;"><span style="font-weight:600;color:#d946ef;">Dark/Light Mode:</span> Toggle between dark and light themes based on your preference</li>
                                                                     </ul>
                                                                 </td>
                                                             </tr>
@@ -516,15 +687,15 @@ def create_default_templates(db: Session):
                                                                 <td style="padding-left:15px;">
                                                                     <h3 style="margin:0;color:#9d174d;font-size:18px;font-weight:600;">Gift Coordination</h3>
                                                                     <p style="margin:10px 0 0;color:#334155;line-height:1.6;">
-                                                                        Express interest in items by clicking the heart icon, mark items as purchased using the shopping cart button, 
-                                                                        and add comments to coordinate gift plans with other family members!
+                                                                        Switch between family members' wishlists to see what they're hoping for.
+                                                                        Mark items as "thinking about" or "purchased" to coordinate gifts with the rest of the family!
                                                                     </p>
                                                                     <div style="margin-top:15px;">
                                                                         <table cellpadding="0" cellspacing="0" border="0">
                                                                             <tr>
                                                                                 <td>
                                                                                     <div style="display:inline-block;background-color:#fecdd3;color:#be123c;padding:8px 15px;border-radius:30px;font-size:14px;font-weight:500;margin-right:10px;">
-                                                                                        ♥ Interested
+                                                                                        ♥ Thinking About
                                                                                     </div>
                                                                                 </td>
                                                                                 <td>
@@ -604,7 +775,7 @@ def create_default_templates(db: Session):
                                             We hope you enjoy using Family Wishlist!
                                         </p>
                                         <p style="margin:15px 0 0;color:#64748b;font-size:14px;">
-                                            &copy; 2025 Family Wishlist. All rights reserved.
+                                            &copy; {{copyright_year}} Family Wishlist. All rights reserved.
                                         </p>
                                         <p style="margin:10px 0 0;color:#94a3b8;font-size:12px;">
                                             This email was sent to {{email}}
@@ -693,7 +864,7 @@ def create_default_templates(db: Session):
                                 <tr>
                                     <td style="background-color:#f1f5f9;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">
                                         <p style="margin:0;color:#64748b;font-size:14px;">
-                                            &copy; 2025 Family Wishlist. All rights reserved.
+                                            &copy; {{copyright_year}} Family Wishlist. All rights reserved.
                                         </p>
                                         <p style="margin:10px 0 0;color:#94a3b8;font-size:12px;">
                                             This is an automated message, please do not reply.
@@ -775,7 +946,7 @@ def create_default_templates(db: Session):
                                 <tr>
                                     <td style="background-color:#f1f5f9;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">
                                         <p style="margin:0;color:#64748b;font-size:14px;">
-                                            &copy; 2025 Family Wishlist. All rights reserved.
+                                            &copy; {{copyright_year}} Family Wishlist. All rights reserved.
                                         </p>
                                         <p style="margin:10px 0 0;color:#94a3b8;font-size:12px;">
                                             This is an automated message, please do not reply.
@@ -835,7 +1006,7 @@ def create_default_templates(db: Session):
                                 <tr>
                                     <td style="background-color:#f1f5f9;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">
                                         <p style="margin:0;color:#64748b;font-size:14px;">
-                                            &copy; 2025 Family Wishlist. All rights reserved.
+                                            &copy; {{copyright_year}} Family Wishlist. All rights reserved.
                                         </p>
                                         <p style="margin:10px 0 0;color:#94a3b8;font-size:12px;">
                                             This is an automated message, please do not reply.
@@ -849,6 +1020,11 @@ def create_default_templates(db: Session):
             </body>
             </html>
             """
+        },
+        {
+            "name": "update_notice",
+            "subject": "Family Wishlist Update — What's New",
+            "body": DEFAULT_UPDATE_NOTICE_BODY
         }
     ]
 
@@ -861,6 +1037,21 @@ def create_default_templates(db: Session):
             new_template.body = template["body"].strip()
             new_template.is_active = True
             db.add(new_template)
+
+    # Migrate existing templates: replace any hardcoded copyright year with the dynamic variable
+    for t in db.query(EmailTemplate).all():
+        if t.body and '{{copyright_year}}' not in t.body:
+            updated = re.sub(r'&copy;\s*\d{4}\s+Family Wishlist', '&copy; {{copyright_year}} Family Wishlist', t.body)
+            if updated != t.body:
+                t.body = updated
+        if (
+            t.name == "update_notice"
+            and t.body
+            and "{{highlights_html}}" not in t.body
+            and "Family Wishlist has been updated to version <b>{{version}}</b> with new features and improvements!" in t.body
+        ):
+            t.subject = "Family Wishlist Update — What's New"
+            t.body = DEFAULT_UPDATE_NOTICE_BODY
 
     try:
         db.commit()
