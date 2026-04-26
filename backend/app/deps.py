@@ -36,10 +36,19 @@ def validate_password_strength(password: str) -> bool:
 def get_client_ip(request: Request) -> str:
     """
     Extract client IP from request headers.
-    Handles X-Forwarded-For for proxy setups.
+    Prefers trusted proxy headers used by Cloudflare and reverse proxies.
     """
+    cf_connecting_ip = request.headers.get("CF-Connecting-IP")
+    if cf_connecting_ip:
+        return cf_connecting_ip.strip()
+
     forwarded_for = request.headers.get("X-Forwarded-For")
     if forwarded_for:
         # Get the first IP in the chain (client IP)
         return forwarded_for.split(',')[0].strip()
+
+    real_ip = request.headers.get("X-Real-IP")
+    if real_ip:
+        return real_ip.strip()
+
     return request.client.host if request.client else "unknown"
