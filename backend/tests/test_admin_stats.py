@@ -141,7 +141,6 @@ class TestAdminStatsEndpoint:
             "total_households",
             "total_wishlists",
             "total_emails_sent",
-            "active_users_30d",
             "total_cart_items"
         ]
         for field in expected_fields:

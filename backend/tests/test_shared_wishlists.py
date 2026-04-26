@@ -297,7 +297,7 @@ class TestSharedWishlistItems:
             title="Lego Set",
             description="Star Wars Lego",
             price=49.99,
-            priority=2
+            priority=1
         )
         item = crud.create_shared_wishlist_item(db_session, wishlist.id, item_data, parent1.id)
 
@@ -506,7 +506,7 @@ class TestSharedWishlistItemUpdate:
         update_data = schemas.SharedWishlistItemUpdate(
             title="Updated Lego Set",
             description="Updated description",
-            priority=2,
+            priority=1,
             price=59.99
         )
         updated = crud.update_shared_wishlist_item(db_session, item.id, update_data, parent1.id)
@@ -514,7 +514,7 @@ class TestSharedWishlistItemUpdate:
         assert updated is not None
         assert updated.title == "Updated Lego Set"
         assert updated.description == "Updated description"
-        assert updated.priority == 2
+        assert updated.priority == 1
         assert updated.price == 5999  # Converted to cents
 
     def test_co_owner_can_update_item(self, db_session, test_users):
