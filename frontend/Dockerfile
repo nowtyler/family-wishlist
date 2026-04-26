@@ -16,7 +16,7 @@ COPY . .
 # Build the application with environment variables
 ARG VITE_API_BASE_URL=/api
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
-ARG ENVIRONMENT=prod
+ARG ENVIRONMENT=production
 ENV ENVIRONMENT=${ENVIRONMENT}
 
 RUN npm run build

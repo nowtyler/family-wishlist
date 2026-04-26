@@ -382,7 +382,7 @@ class LoginRateLimiter:
     def _get_webhook_url(self) -> Optional[str]:
         """Get the appropriate webhook URL based on environment."""
         environment = os.environ.get("ENVIRONMENT", "development")
-        if environment == "prod":
+        if environment == "production":
             return os.environ.get("RATELIMIT_WEBHOOK_URL")
         return os.environ.get("DEV_RATELIMIT_WEBHOOK_URL")
 
