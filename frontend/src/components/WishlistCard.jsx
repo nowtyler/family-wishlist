@@ -1,7 +1,7 @@
 // WishlistCard.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, ExternalLink, MessageCircleHeart, Check, X, MessageCircle, Send, Download, Upload, Link2, ShoppingCart, ChevronDown, ChevronUp, Star } from 'lucide-react';
+import { Trash2, ExternalLink, MessageCircleHeart, Check, X, MessageCircle, Send, Download, Upload, Link2, ShoppingCart, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { updateWishlistItem, updateSharedWishlistItem, addComment, deleteComment, getWishlistItems, exportWishlist, importWishlist, addShoppingCartItemFromWishlistItem, getShoppingCartItems, deleteShoppingCartItem, markPurchased, addShoppingCartItemFromSharedWishlistItem, addSharedWishlistItemComment, getSharedWishlist, toggleSharedItemPurchased } from '../services/api';
 
@@ -767,17 +767,11 @@ const WishlistCard = (props) => {
               >
                 {item.priority >= 1 && (
                   <div
-                    className="absolute bottom-0 left-5 h-[17px] w-10 rounded-t-md bg-rose-400 dark:bg-rose-500 pointer-events-none overflow-visible"
+                    className="absolute top-0 left-0 right-0 h-[3px] bg-sky-300 dark:bg-sky-400 pointer-events-none"
                     role="img"
                     aria-label="Most Wanted"
                     title="Most Wanted"
-                  >
-                    <Star
-                      size={26}
-                      strokeWidth={1.5}
-                      className="absolute -bottom-3 left-1/2 -translate-x-1/2 fill-rose-600/55 text-rose-600/55 dark:fill-rose-700/60 dark:text-rose-700/60 drop-shadow-[0_-1px_1px_rgba(0,0,0,0.22)] drop-shadow-[0_1px_0_rgba(255,255,255,0.08)]"
-                    />
-                  </div>
+                  />
                 )}
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex flex-wrap items-start justify-between w-full gap-2">
