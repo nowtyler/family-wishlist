@@ -6,82 +6,128 @@ A full-stack web application that helps families manage gift wishlists and coord
 
 ### Authentication & User Management
 - Individual user accounts with username/password authentication
-- Legacy family password option for backward compatibility
-- Password reset functionality via email
+- Password reset functionality via email with secure token-based recovery
 - Direct login to user's own wishlist
-- Admin user with special privileges
-- Rate limiting and brute force protection
+- Admin user with special privileges and recovery passphrase access
+- Rate limiting and brute force protection on authentication endpoints
+- Turnstile CAPTCHA integration for bot prevention
 
 ### Wishlist Management
-- Create, edit, and delete wishlist items
-- Add item details:
+- **Personal Wishlists**: Create, edit, and delete wishlist items with:
   - Title and description (supports longer titles up to 500 characters)
   - Price (stored in cents for precision)
   - Priority levels (Low, Medium, High)
-  - External links to items
+  - External product links (Amazon, Etsy, etc.)
   - Image URLs
-- URL Auto-Import: Fetch item details by pasting a product URL
+- **URL Auto-Import**: Fetch item details automatically by pasting product URLs
+- **Shared Wishlists**: Multi-owner wishlists for family gifts, joint purchases, and kids' wishlists
+- **External Wishlist Links**: Store links to Amazon, Etsy, and other wishlist services
 - Sort items by priority and recency
 - Bulk delete operations (personal list or all lists as admin)
+- Export/Import wishlist items to/from JSON files
 
 ### Gift Coordination
-- Mark items as "thinking about purchasing"
-- Purchase status tracking
+- **Shopping Cart**: Track items you plan to purchase with recipient tracking
+- **Status Tracking**: Mark items as "thinking about purchasing" or "purchased"
 - Hide purchased items from wishlist owners
 - Show purchase status to other family members
-- Comment on items (except your own)
+- Comment on items (except your own) to coordinate gift-giving
+- Link shopping cart items to personal or shared wishlists
+
+### Family Organization
+- **Households**: Group family members together (e.g., separate households for different branches)
+- Join, leave, or switch active households
+- Shared wishlists auto-appear in households where owners are members
+- Invite household members to view shared wishlists
 
 ### Smart Features
-- Gift event reminders (birthdays and Christmas)
-- Dynamic countdown for upcoming events
-- Dark/Light theme support
-- Responsive design for all devices
-- Family member size preferences tracking for easier gift buying
+- **Gift Event Reminders**: Upcoming birthdays and holiday reminders with dynamic countdown banners
+- **Dark/Light Theme**: Full theme support with automatic dark mode detection
+- **Responsive Design**: Works seamlessly on desktop, tablet, and mobile devices
+- **User Preferences**: Track family member size/preferences for easier gift buying
+- **Interactive Tutorial**: Guided onboarding for first-time users (can be replayed anytime)
+- **Database Backups**: Automatic and manual backup creation with restore functionality
+- **System Logs**: Admin dashboard with system logs and statistics
+
+### Admin Features
+- Manage family members and their accounts
+- View system statistics and logs
+- Create and restore database backups
+- Handle database migrations
+- Manage email settings and templates
+- Emergency admin access via recovery passphrase
+- Broadcast system notifications and maintenance messages
 
 ## Technical Details
 
 ### Environment Setup
 1. Copy `.env.example` to `.env` and update with your configuration:
 ```env
-FAMILY_PASSWORD_HASH='your_bcrypt_hash'
+# Environment: "production" or "development"
+ENVIRONMENT=production
+
+# Database configuration
 DATABASE_URL="sqlite:///./data/wishlist.db"
+
+# Family members (optional - can be configured via admin interface)
 FAMILY_MEMBERS_CONFIG="Name1:YYYY-MM-DD,Name2:YYYY-MM-DD,Admin:admin"
+
+# Holiday dates
 CHRISTMAS_MONTH=12
 CHRISTMAS_DAY=25
+
+# Email configuration (for password reset)
+SMTP_HOST=your_smtp_host
+SMTP_PORT=587
+SMTP_USER=your_email@example.com
+SMTP_PASSWORD=your_app_password
+
+# Cloudflare Turnstile CAPTCHA (optional, skipped in development)
+SITE_KEY=your_turnstile_site_key
+SECRET_KEY=your_turnstile_secret_key
+
+# Password reset URL (update with your domain)
+BASE_URL=https://your-domain.com
 ```
+
+2. See `.env.example` for additional optional configuration options.
 
 ### Installation Options
 
 #### Option 1: Using Docker (Recommended)
 
-You can either use the pre-built Docker images from DockerHub or build them yourself locally.
+You can build Docker images locally or use pre-built images from a Docker registry.
 
-1. Using pre-built images from DockerHub:
-
-```bash
-# For production environment
-curl -O https://raw.githubusercontent.com/username/family-wishlist/main/docker-compose.prod.yml
-# Create your .env file with the required variables
-docker-compose -f docker-compose.prod.yml up -d
-```
-
-2. Using development environment with the latest development images:
+1. **Building images locally** (recommended for first-time setup):
 
 ```bash
-# For development environment
-curl -O https://raw.githubusercontent.com/username/family-wishlist/main/docker-compose.dev-env.yml
-# Create your .env file with the required variables
-docker-compose -f docker-compose.dev-env.yml up -d
-```
-
-3. Building and running locally for development:
-
-```bash
-git clone https://github.com/username/family-wishlist.git
+# Clone the repository
+git clone https://github.com/your-username/family-wishlist.git
 cd family-wishlist
+
+# Create your .env file with the required variables
 cp .env.example .env
-# Edit your .env file with the appropriate values
+# Edit .env with your configurations
+
+# Build and run with Docker Compose
 docker-compose -f docker-compose.local.yml up -d
+```
+
+2. **Using pre-built images from a Docker registry** (if you have published images):
+
+```bash
+# Create a directory for your wishlist application
+mkdir family-wishlist && cd family-wishlist
+
+# Download a docker-compose file
+curl -O https://raw.githubusercontent.com/your-username/family-wishlist/main/docker-compose.prod.yml
+
+# Create your .env file
+cp .env.example .env
+# Edit .env with your configurations
+
+# Start the containers
+docker-compose -f docker-compose.prod.yml up -d
 ```
 
 #### Option 2: Manual Development Setup
@@ -182,17 +228,30 @@ npm install
 
 ## Docker Images
 
-This application is available as Docker images on DockerHub:
+This application can be containerized and deployed using Docker. To create Docker images:
 
-- Backend: `tylernow/family-wishlist:latest-backend` (stable) or `tylernow/family-wishlist:dev-backend` (development)
-- Frontend: `tylernow/family-wishlist:latest-frontend` (stable) or `tylernow/family-wishlist:dev-frontend` (development)
+```bash
+# Build frontend image
+docker build -t family-wishlist:frontend ./frontend
 
-### Tags
+# Build backend image
+docker build -t family-wishlist:backend ./backend
+```
 
-- `latest`: Production-ready stable release
-- `dev`: Latest development build
-- `x.y.z`: Specific version releases
-- `x.y`: Latest patch release for a specific minor version
+You can also push these to your own Docker registry:
+
+```bash
+# Log in to your Docker registry
+docker login
+
+# Tag and push frontend image
+docker tag family-wishlist:frontend your-registry/family-wishlist:frontend
+docker push your-registry/family-wishlist:frontend
+
+# Tag and push backend image
+docker tag family-wishlist:backend your-registry/family-wishlist:backend
+docker push your-registry/family-wishlist:backend
+```
 
 ## Deployment Examples
 
@@ -202,18 +261,22 @@ This application is available as Docker images on DockerHub:
 # Create a directory for your wishlist application
 mkdir family-wishlist && cd family-wishlist
 
-# Download the production docker-compose file
-curl -O https://raw.githubusercontent.com/username/family-wishlist/main/docker-compose.prod.yml
+# Clone or download the docker-compose file
+git clone https://github.com/your-username/family-wishlist.git
+cd family-wishlist
 
 # Create your .env file
-cat > .env << EOF
-FAMILY_PASSWORD_HASH='your_bcrypt_hash'
-FAMILY_MEMBERS_CONFIG="Name1:YYYY-MM-DD,Name2:YYYY-MM-DD,Admin:admin"
-EOF
+cp .env.example .env
+# Edit .env with your configuration
+
+# Build images (optional if using pre-built images)
+docker-compose build
 
 # Start the containers
-docker-compose -f docker-compose.prod.yml up -d
+docker-compose -f docker-compose.local.yml up -d
 ```
+
+Access the application at `http://localhost:5173` (frontend) and `http://localhost:8000` (API).
 
 ### Using Docker with Traefik for SSL
 
@@ -222,25 +285,25 @@ version: '3.8'
 
 services:
   backend:
-    image: tylernow/family-wishlist:latest-backend
+    image: family-wishlist:backend
     volumes:
       - ./data:/app/data
     environment:
       - DATABASE_URL=sqlite:///./data/wishlist.db
-      - FAMILY_PASSWORD_HASH=${FAMILY_PASSWORD_HASH}
-      - FAMILY_MEMBERS_CONFIG=${FAMILY_MEMBERS_CONFIG}
+      - ENVIRONMENT=production
+      - BASE_URL=https://wishlist.your-domain.com
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.wishlist-api.rule=Host(`wishlist.ariahive.top`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.wishlist-api.rule=Host(`wishlist.your-domain.com`) && PathPrefix(`/api`)"
       - "traefik.http.routers.wishlist-api.tls=true"
       - "traefik.http.routers.wishlist-api.tls.certresolver=letsencrypt"
     restart: unless-stopped
     
   frontend:
-    image: tylernow/family-wishlist:latest-frontend
+    image: family-wishlist:frontend
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.wishlist.rule=Host(`wishlist.ariahive.top`)"
+      - "traefik.http.routers.wishlist.rule=Host(`wishlist.your-domain.com`)"
       - "traefik.http.routers.wishlist.tls=true"
       - "traefik.http.routers.wishlist.tls.certresolver=letsencrypt"
     depends_on:
@@ -252,6 +315,8 @@ networks:
     external:
       name: traefik-network
 ```
+
+**Note**: Replace `your-domain.com` with your actual domain and replace image names with your built/pushed images.
 
 ## Contributing
 
@@ -268,13 +333,15 @@ For issues or questions:
 
 ## License
 
-Private use only. All rights reserved.
+This project is provided as-is. See LICENSE file for details.
+
+For questions or issues, please open an issue on GitHub or contact the maintainers.
 
 ## Local Development Workflow
 
 1. Clone the repository
 ```bash
-git clone https://github.com/username/family-wishlist.git
+git clone https://github.com/your-username/family-wishlist.git
 cd family-wishlist
 ```
 
@@ -282,70 +349,52 @@ cd family-wishlist
 ```bash
 cp .env.example .env
 # Edit .env with your configurations
+# At minimum, set:
+# - ENVIRONMENT=development
+# - BASE_URL=http://localhost:5173
+# - SMTP settings for email (or leave blank to skip password reset in dev)
 ```
 
-3. Start the application using Docker
+3. Install dependencies
 ```bash
-docker-compose -f docker-compose.local.yml up -d
+npm run install:all
 ```
 
-4. Make changes to the code
+4. Start development servers
+```bash
+npm run dev
+```
+This runs backend (port 8001) and frontend (port 5173) concurrently.
+
+5. Make changes to the code
    - Backend changes in `./backend/app/`
    - Frontend changes in `./frontend/src/`
 
-5. Publishing to DockerHub (if you have access)
+6. Database migrations (if needed)
 ```bash
-# Make the script executable
-chmod +x scripts/publish-docker.sh
-# Publish with a specific tag
-./scripts/publish-docker.sh v1.2.3
-# Or publish with the 'dev' tag
-./scripts/publish-docker.sh
+cd backend && ./venv/bin/alembic upgrade head
 ```
 
 ## Development vs Production Environments
 
-This application supports separate development and production environments:
+This application can run both production and development environments with separate databases.
 
 ### Production
 To run the production environment:
 ```bash
-./run-prod.sh
+docker-compose -f docker-compose.prod.yml up -d
 ```
-This will start the application using the database at `/home/queen-bee/family-wishlist/data/wishlist.db`.
 
 ### Development
 To run the development environment:
 ```bash
-./run-dev.sh
-```
-This will create a copy of the application at `/home/queen-bee/dev-family-wishlist` and start the application using a separate database at `/home/queen-bee/dev-family-wishlist/data/wishlist.db`.
-
-## Using Docker Compose for Separate Environments
-
-You can run both production and development environments side-by-side using the provided Docker Compose file:
-
-```bash
-# Clone the repository or download the docker-compose file
-curl -O https://raw.githubusercontent.com/username/family-wishlist/main/docker-compose.example.yml
-mv docker-compose.example.yml docker-compose.yml
-
-# Create directories for production and development data
-mkdir -p prod-data dev-data
-
-# Start both environments
-docker-compose up -d
-
-# Access production environment at http://localhost:8080
-# Access development environment at http://localhost:8081
+docker-compose -f docker-compose.dev.yml up -d
 ```
 
-### Environment Separation
+Both environments use:
+- Separate container names
+- Separate data directories
+- Different port configurations
+- Isolated networks
 
-The production and development environments use:
-- Different container names
-- Different data directories
-- Different ports
-- Different networks
-
-This ensures complete separation between environments, allowing you to test new features in development without affecting your production data.
+This allows you to test new features in development without affecting production data.

@@ -128,7 +128,9 @@ class UserAuthService:
             logger.info(f"Created reset token for user {user.username}")
 
             # Generate reset URL (plaintext token is sent to user, hash is stored)
-            base_url = "https://dev-wishlist.ariahive.top" #Change to your actual base URL in production, this is okay for development
+            # Use BASE_URL environment variable, defaults to localhost for development
+            import os
+            base_url = os.getenv("BASE_URL", "http://localhost:5173")
             reset_url = f"{base_url}/reset-password/{token}"
             
             # Send reset email
