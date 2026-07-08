@@ -40,6 +40,7 @@ services:
       - ENVIRONMENT=production
       - WISHLIST_DATABASE_URL=sqlite:///./data/wishlist.db # Fixed path inside container
       - DOMAIN_NAME=${ROOT_DOMAIN} # Domain name for the service
+      - WISHLIST_BASE_URL=https://wishlist.${ROOT_DOMAIN} # Public frontend URL for email links
       - PUID=${PUID:-1000} # User ID for file permissions, defaults to 1000 if not set
       - PGID=${PGID:-1000} # Group ID for file permissions, defaults to 1000 if not set
       - TZ=${TZ} # Timezone
@@ -120,6 +121,7 @@ services:
       - ENVIRONMENT=development # Development environment (Turnstile disabled)
       - WISHLIST_DATABASE_URL=sqlite:///./data/wishlist.db # Fixed path inside container
       - DOMAIN_NAME=${ROOT_DOMAIN}
+      - WISHLIST_BASE_URL=https://dev-wishlist.${ROOT_DOMAIN} # Public frontend URL for email links
       - PUID=${PUID} # User ID for file permissions
       - PGID=${PGID} # Group ID for file permissions
       - TZ=${TZ} # Timezone
