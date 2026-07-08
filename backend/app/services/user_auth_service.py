@@ -32,60 +32,22 @@ LOCAL_FRONTEND_ORIGINS = {
 
 class UserAuthService:
     @staticmethod
-    def _normalize_http_origin(origin: Optional[str]) -> Optional[str]:
-        """Return a normalized HTTP(S) origin, or None when invalid."""
-        if not origin:
-            return None
-
-        parsed_origin = urlparse(origin.strip())
-        if parsed_origin.scheme not in {"http", "https"} or not parsed_origin.netloc:
-            return None
-
-        return f"{parsed_origin.scheme}://{parsed_origin.netloc}"
-
-    @staticmethod
-    def _get_domain_base_url() -> Optional[str]:
-        domain_name = os.getenv("DOMAIN_NAME")
-        if not domain_name:
-            return None
-
-        environment = os.getenv("ENVIRONMENT", "development").lower()
-        subdomain = "wishlist" if environment == "production" else "dev-wishlist"
-        return f"https://{subdomain}.{domain_name}".rstrip("/")
-
-    @staticmethod
-    def _get_allowed_request_origins() -> set[str]:
-        allowed_origins = set(LOCAL_FRONTEND_ORIGINS)
-
-        domain_base_url = UserAuthService._get_domain_base_url()
-        if domain_base_url:
-            allowed_origins.add(domain_base_url)
-
-        configured_origins = os.getenv("WISHLIST_ALLOWED_ORIGINS", "")
-        for configured_origin in configured_origins.split(","):
-            normalized_origin = UserAuthService._normalize_http_origin(configured_origin)
-            if normalized_origin:
-                allowed_origins.add(normalized_origin)
-
-        return allowed_origins
-
-    @staticmethod
     def get_app_base_url(request_origin: Optional[str] = None) -> str:
         """Get the public frontend base URL for links sent in email."""
-        configured_base_url = (
-            UserAuthService._normalize_http_origin(os.getenv("WISHLIST_BASE_URL"))
-            or UserAuthService._normalize_http_origin(os.getenv("BASE_URL"))
-        )
+        configured_base_url = os.getenv("WISHLIST_BASE_URL") or os.getenv("BASE_URL")
         if configured_base_url:
-            return configured_base_url
+            return configured_base_url.rstrip("/")
 
-        domain_base_url = UserAuthService._get_domain_base_url()
-        if domain_base_url:
-            return domain_base_url
+        if request_origin:
+            parsed_origin = urlparse(request_origin)
+            if parsed_origin.scheme in {"http", "https"} and parsed_origin.netloc:
+                return f"{parsed_origin.scheme}://{parsed_origin.netloc}"
 
-        normalized_origin = UserAuthService._normalize_http_origin(request_origin)
-        if normalized_origin in UserAuthService._get_allowed_request_origins():
-            return normalized_origin
+        domain_name = os.getenv("DOMAIN_NAME")
+        if domain_name:
+            environment = os.getenv("ENVIRONMENT", "development").lower()
+            subdomain = "wishlist" if environment == "production" else "dev-wishlist"
+            return f"https://{subdomain}.{domain_name}".rstrip("/")
 
         return "http://localhost:5175"
 

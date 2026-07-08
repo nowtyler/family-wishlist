@@ -60,7 +60,7 @@ DEFAULT_UPDATE_NOTICE_BODY = """
                                         </div>
 
                                         <div style="text-align:center;margin:30px 0 10px;">
-                                            <a href="https://wishlist.ariahive.top" style="background:linear-gradient(to right, #0ea5e9, #6366f1);color:#ffffff;text-decoration:none;padding:12px 30px;border-radius:999px;font-weight:600;display:inline-block;font-size:16px;">Open Family Wishlist</a>
+                                            <a href="{{base_url}}" style="background:linear-gradient(to right, #0ea5e9, #6366f1);color:#ffffff;text-decoration:none;padding:12px 30px;border-radius:999px;font-weight:600;display:inline-block;font-size:16px;">Open Family Wishlist</a>
                                         </div>
                                     </td>
                                 </tr>
@@ -621,7 +621,7 @@ def create_default_templates(db: Session):
                                                                 <td style="padding-left:15px;">
                                                                     <h3 style="margin:0;color:#1e40af;font-size:18px;font-weight:600;">Quick Start Guide</h3>
                                                                     <ul style="margin:15px 0 0;padding:0 0 0 20px;color:#334155;">
-                                                                        <li style="margin-bottom:10px;">Access your wishlist anytime at: <a href="https://wishlist.ariahive.top" style="color:#3b82f6;text-decoration:none;font-weight:500;">wishlist.ariahive.top</a></li>
+                                                                        <li style="margin-bottom:10px;">Access your wishlist anytime at: <a href="{{base_url}}" style="color:#3b82f6;text-decoration:none;font-weight:500;">{{domain}}</a></li>
                                                                         <li style="margin-bottom:10px;">Use the Quick Actions menu at the bottom of the screen — it's your main hub for adding items, browsing wishlists, and more</li>
                                                                         <li style="margin-bottom:10px;">Add items to your wishlist by pasting a URL to auto-fill product details, or enter them manually</li>
                                                                         <li style="margin-bottom:10px;">Browse family members' wishlists to see what they're hoping for</li>
@@ -760,7 +760,7 @@ def create_default_templates(db: Session):
                                             Need help getting started?
                                         </p>
                                         <div>
-                                            <a href="https://wishlist.ariahive.top" style="display:inline-block;background-color:#64748b;color:#ffffff;text-decoration:none;padding:12px 25px;border-radius:6px;font-weight:600;font-size:14px;">
+                                            <a href="{{base_url}}" style="display:inline-block;background-color:#64748b;color:#ffffff;text-decoration:none;padding:12px 25px;border-radius:6px;font-weight:600;font-size:14px;">
                                                 <img src="https://cdn-icons-png.flaticon.com/512/189/189665.png" alt="Question" width="14" height="14" style="vertical-align:middle;margin-right:8px;filter:brightness(0) invert(1);">
                                                 View Help & Tips
                                             </a>
@@ -855,7 +855,7 @@ def create_default_templates(db: Session):
                                         </div>
                                         
                                         <div style="text-align:center;margin:30px 0 10px;">
-                                            <a href="https://wishlist.ariahive.top" style="background:linear-gradient(to right, #0ea5e9, #6366f1);color:#ffffff;text-decoration:none;padding:12px 30px;border-radius:6px;font-weight:600;display:inline-block;font-size:16px;">Go to Family Wishlist</a>
+                                            <a href="{{base_url}}" style="background:linear-gradient(to right, #0ea5e9, #6366f1);color:#ffffff;text-decoration:none;padding:12px 30px;border-radius:6px;font-weight:600;display:inline-block;font-size:16px;">Go to Family Wishlist</a>
                                         </div>
                                     </td>
                                 </tr>
@@ -937,7 +937,7 @@ def create_default_templates(db: Session):
                                         
                                         <!-- Back to Admin Panel -->
                                         <div style="text-align:center;margin:30px 0 10px;">
-                                            <a href="https://wishlist.ariahive.top/admin" style="background:linear-gradient(to right, #0ea5e9, #6366f1);color:#ffffff;text-decoration:none;padding:12px 30px;border-radius:6px;font-weight:600;display:inline-block;font-size:16px;">Go to Admin Panel</a>
+                                            <a href="{{base_url}}/admin" style="background:linear-gradient(to right, #0ea5e9, #6366f1);color:#ffffff;text-decoration:none;padding:12px 30px;border-radius:6px;font-weight:600;display:inline-block;font-size:16px;">Go to Admin Panel</a>
                                         </div>
                                     </td>
                                 </tr>

@@ -118,8 +118,6 @@ origins = [
     "http://localhost:8001",  # Dev backend port
     "http://localhost:8888",  # Add local Docker testing port
     "http://192.168.50.48:5175",  # Local network dev access
-    "https://wishlist.ariahive.top",
-    "http://wishlist.ariahive.top",
 ]
 
 app.add_middleware(
