@@ -20,6 +20,16 @@ logger = logging.getLogger(__name__)
 # Configure password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+LOCAL_FRONTEND_ORIGINS = {
+    "http://localhost",
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:5175",
+    "http://localhost:8000",
+    "http://localhost:8001",
+    "http://localhost:8888",
+}
+
 class UserAuthService:
     @staticmethod
     def get_app_base_url(request_origin: Optional[str] = None) -> str:
