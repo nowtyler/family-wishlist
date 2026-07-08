@@ -1,10 +1,12 @@
 # backend/app/services/user_auth_service.py
 from typing import Optional, Tuple
 import logging
+import os
 import secrets
 import string
 import hashlib
 from datetime import datetime, timedelta
+from urllib.parse import urlparse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
 from passlib.context import CryptContext
@@ -19,6 +21,26 @@ logger = logging.getLogger(__name__)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 class UserAuthService:
+    @staticmethod
+    def get_app_base_url(request_origin: Optional[str] = None) -> str:
+        """Get the public frontend base URL for links sent in email."""
+        configured_base_url = os.getenv("WISHLIST_BASE_URL") or os.getenv("BASE_URL")
+        if configured_base_url:
+            return configured_base_url.rstrip("/")
+
+        if request_origin:
+            parsed_origin = urlparse(request_origin)
+            if parsed_origin.scheme in {"http", "https"} and parsed_origin.netloc:
+                return f"{parsed_origin.scheme}://{parsed_origin.netloc}"
+
+        domain_name = os.getenv("DOMAIN_NAME")
+        if domain_name:
+            environment = os.getenv("ENVIRONMENT", "development").lower()
+            subdomain = "wishlist" if environment == "production" else "dev-wishlist"
+            return f"https://{subdomain}.{domain_name}".rstrip("/")
+
+        return "http://localhost:5175"
+
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str) -> bool:
         """Verify a password against a hash.
@@ -81,7 +103,7 @@ class UserAuthService:
         return hashlib.sha256(token.encode('utf-8')).hexdigest()
 
     @staticmethod
-    def create_reset_token(db: Session, username_or_email: str) -> Tuple[bool, str]:
+    def create_reset_token(db: Session, username_or_email: str, request_origin: Optional[str] = None) -> Tuple[bool, str]:
         """
         Create a password reset token for a user.
         Returns tuple of (success, message)
@@ -128,7 +150,7 @@ class UserAuthService:
             logger.info(f"Created reset token for user {user.username}")
 
             # Generate reset URL (plaintext token is sent to user, hash is stored)
-            base_url = "https://dev-wishlist.ariahive.top" #Change to your actual base URL in production, this is okay for development
+            base_url = UserAuthService.get_app_base_url(request_origin)
             reset_url = f"{base_url}/reset-password/{token}"
             
             # Send reset email

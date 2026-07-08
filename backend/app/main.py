@@ -3028,6 +3028,7 @@ async def register(
 )
 async def request_password_reset(
     request: schemas.PasswordResetRequest,
+    http_request: Request,
     db: Session = Depends(get_db),
     client_ip: str = Depends(get_client_ip)
 ):
@@ -3078,7 +3079,11 @@ async def request_password_reset(
                 "message": "Admin password reset requires recovery passphrase verification."
             }
 
-        success, message = UserAuthService.create_reset_token(db, request.username_or_email)
+        success, message = UserAuthService.create_reset_token(
+            db,
+            request.username_or_email,
+            http_request.headers.get("origin")
+        )
 
         # Log result
         status_msg = "Token generated and email sent" if success else "Failed to generate token"
