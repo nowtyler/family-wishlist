@@ -238,8 +238,8 @@ const WishlistCard = (props) => {
         ...editForm,
         title: truncateTitle(editForm.title.trim()), // Ensure title is truncated
         description: updatedDescription || null,
-        link: editForm.link?.trim() || null,
-        image_url: editForm.image_url?.trim() || null,
+        link: editForm.link?.trim() ? (editForm.link.trim().startsWith('http://') || editForm.link.trim().startsWith('https://') ? editForm.link.trim() : `https://${editForm.link.trim()}`) : null,
+        image_url: editForm.image_url?.trim() ? (editForm.image_url.trim().startsWith('http://') || editForm.image_url.trim().startsWith('https://') ? editForm.image_url.trim() : `https://${editForm.image_url.trim()}`) : null,
         priority: Number(editForm.priority),
         price: processedPrice  // Backend will convert to cents
       };
@@ -1108,30 +1108,45 @@ const WishlistCard = (props) => {
               </div>
 
               <div className="shrink-0 px-5 py-3 border-t border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 flex justify-between gap-2">
-                <button
-                  onClick={() => {
-                    const itemId = editingItemId;
-                    handleCancelEdit();
-                    setPendingDeleteItemId(itemId);
-                  }}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 disabled:opacity-50"
-                  disabled={isSavingEdit}
-                  title="Delete item"
-                >
-                  <Trash2 size={16} />
-                  Delete
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      const itemId = editingItemId;
+                      handleCancelEdit();
+                      setPendingDeleteItemId(itemId);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 disabled:opacity-50"
+                    disabled={isSavingEdit}
+                    title="Delete item"
+                  >
+                    <Trash2 size={16} />
+                    <span className="hidden sm:inline">Delete</span>
+                  </button>
+                  
+                  {editForm.link && (
+                    <a
+                      href={editForm.link.trim().startsWith('http://') || editForm.link.trim().startsWith('https://') ? editForm.link.trim() : `https://${editForm.link.trim()}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                      title="View Product"
+                    >
+                      <ExternalLink size={16} />
+                      <span className="hidden sm:inline">View Product</span>
+                    </a>
+                  )}
+                </div>
                 <div className="flex gap-2">
                   <button
                     onClick={handleCancelEdit}
-                    className="px-4 py-2 text-sm font-medium rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                    className="px-3 sm:px-4 py-2 text-sm font-medium rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
                     disabled={isSavingEdit}
                   >
                     Cancel
                   </button>
                   <button
                     onClick={() => handleSaveEdit(editingItemId)}
-                    className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                    className="px-3 sm:px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 whitespace-nowrap"
                     disabled={isSavingEdit || isDuplicateTitle}
                   >
                     {isSavingEdit ? 'Saving...' : 'Save Changes'}
@@ -1388,7 +1403,7 @@ const WishlistCard = (props) => {
                 <div className="flex gap-3">
                   {selectedItem.link && (
                     <a
-                      href={selectedItem.link}
+                      href={selectedItem.link.trim().startsWith('http://') || selectedItem.link.trim().startsWith('https://') ? selectedItem.link.trim() : `https://${selectedItem.link.trim()}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg shadow-sm hover:from-blue-600 hover:to-indigo-700 transition-all duration-300"
