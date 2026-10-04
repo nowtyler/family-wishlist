@@ -694,7 +694,7 @@ The Family Wishlist application is **substantially feature-complete** with compr
 
 ### ⚠️ Features in README but Implementation Details Different
 
-1. **Family Password** (mentioned in CLAUDE.md)
+1. **Family Password** (mentioned in AGENTS.md)
    - README says "Legacy family password option"
    - **Actual**: Not found in modern code path; superseded by individual user auth
    - Likely deprecated but code references may remain

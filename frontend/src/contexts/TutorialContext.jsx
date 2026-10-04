@@ -201,7 +201,7 @@ const tutorialSteps = [
   {
     target: '#tutorial-browse-tab',
     title: 'Browse',
-    content: 'Browse family members\' wishlists to see what everyone is hoping for. You can mark items as \"thinking about\" or add them straight to your cart.',
+    content: "Browse family members' wishlists to see what everyone is hoping for. You can mark items as \"thinking about\" or add them straight to your cart.",
     disableBeacon: true,
     placement: 'top',
   },

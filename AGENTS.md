@@ -1,4 +1,4 @@
-# Claude Code Guidelines for Family Wishlist
+# Antigravity Agent Guidelines for Family Wishlist
 
 ## About This Application
 

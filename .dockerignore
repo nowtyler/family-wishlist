@@ -46,7 +46,7 @@ yarn.lock
 # Documentation and notes
 *.md
 TODO.md
-CLAUDE.md
+AGENTS.md
 
 # Logs
 logs/
@@ -58,5 +58,3 @@ logs/
 *.orig
 *.backup
 
-# Claude Code
-.claude/
