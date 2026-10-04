@@ -305,13 +305,15 @@ const SharedWishlistManager = ({
                     <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
                       Occasion Date (optional)
                     </label>
-                    <input
-                      type="date"
-                      value={newOccasionDate}
-                      onChange={(e) => setNewOccasionDate(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600
-                        bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    />
+                    <div className="flex w-full min-w-0">
+                      <input
+                        type="date"
+                        value={newOccasionDate}
+                        onChange={(e) => setNewOccasionDate(e.target.value)}
+                        className="flex-1 min-w-0 w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600
+                          bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                    </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                       Used for event reminders and countdown display
                     </p>
@@ -431,13 +433,15 @@ const SharedWishlistManager = ({
                           <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
                             Occasion Date (optional)
                           </label>
-                          <input
-                            type="date"
-                            value={editingWishlist.occasion_date || ''}
-                            onChange={(e) => setEditingWishlist({ ...editingWishlist, occasion_date: e.target.value })}
-                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600
-                              bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                          />
+                          <div className="flex w-full min-w-0">
+                            <input
+                              type="date"
+                              value={editingWishlist.occasion_date || ''}
+                              onChange={(e) => setEditingWishlist({ ...editingWishlist, occasion_date: e.target.value })}
+                              className="flex-1 min-w-0 w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600
+                                bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            />
+                          </div>
                           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                             Used for event reminders and countdown display
                           </p>
