@@ -39,12 +39,19 @@ class HouseholdBase(BaseModel):
     name: str
     description: Optional[str] = None
 
+class HouseholdSimple(BaseModel):
+    id: int
+    name: str
+
+    class Config:
+        from_attributes = True
+
 class FamilyMember(FamilyMemberBase):
     id: int
     wishlist_item_count: Optional[int] = 0
     external_wishlist_count: Optional[int] = 0
     household_count: Optional[int] = 0
-    households: Optional[List[Dict[str, Any]]] = []
+    households: Optional[List[HouseholdSimple]] = []
 
     class Config:
         from_attributes = True
