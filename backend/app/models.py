@@ -316,6 +316,28 @@ class SharedWishlist(Base):
     occasion_date = Column(String, nullable=True)  # Format: YYYY-MM-DD (birthday, wedding date, etc.)
     occasion_type = Column(String, nullable=True)  # birthday, wedding, baby_shower, anniversary, holiday, other
     wishlist_type = Column(String, nullable=True, default="normal")  # "normal" or "no_secrets"
+    _preferences = Column("preferences", Text, nullable=True)
+
+    # Add JSON serialization/deserialization for preferences
+    @property
+    def preferences(self):
+        if self._preferences is None:
+            return None
+        if not isinstance(self._preferences, str):
+            logger.warning(f"SharedWishlist Preferences field is not a string: {type(self._preferences)}")
+            return None
+        try:
+            return json.loads(self._preferences)
+        except Exception as e:
+            logger.error(f"Error deserializing shared wishlist preferences: {e}")
+            return None
+
+    @preferences.setter
+    def preferences(self, value):
+        if value is None:
+            self._preferences = None
+        else:
+            self._preferences = json.dumps(value)
 
     # Relationships
     creator = relationship("FamilyMember", foreign_keys=[created_by])

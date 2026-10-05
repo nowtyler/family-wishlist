@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Shirt, Ruler, Gift, Footprints, Asterisk, Hand, RulerDimensionLine, Info } from 'lucide-react';
-import { updateFamilyMemberPreferences } from '../services/api';
+import { updateFamilyMemberPreferences, updateSharedWishlistPreferences } from '../services/api';
 
 const sizeOptions = {
   tshirt: ["XS", "S", "M", "L", "XL", "XXL", "XXXL"],
+  kidsTshirt: ["Newborn", "0-3M", "3-6M", "6-9M", "9-12M", "12-18M", "18-24M", "24M", "2T", "3T", "4T", "5T", "Youth XS", "Youth S", "Youth M", "Youth L", "Youth XL"],
   hoodie: ["XS", "S", "M", "L", "XL", "XXL", "XXXL"],
+  kidsHoodie: ["Newborn", "0-3M", "3-6M", "6-9M", "9-12M", "12-18M", "18-24M", "24M", "2T", "3T", "4T", "5T", "Youth XS", "Youth S", "Youth M", "Youth L", "Youth XL"],
   pants: {
     men: [
       "28x30", "28x32", "30x30", "30x32", "30x34",
@@ -19,15 +21,18 @@ const sizeOptions = {
       "44x30", "44x32",
       "46x30", "46x32"
     ],
-    women: ["00", "0", "2", "4", "6", "8", "10", "12", "14", "16", "18", "20", "22"]
+    women: ["00", "0", "2", "4", "6", "8", "10", "12", "14", "16", "18", "20", "22"],
+    kids: ["Newborn", "0-3M", "3-6M", "6-9M", "9-12M", "12-18M", "18-24M", "24M", "2T", "3T", "4T", "5T", "Boys 8", "Boys 10", "Boys 12", "Boys 14", "Boys 16", "Girls 7", "Girls 8", "Girls 10", "Girls 12", "Girls 14", "Youth S", "Youth M", "Youth L"]
   },
   dress: [
     "XS", "S", "M", "L", "XL", "XXL",
     "0", "2", "4", "6", "8", "10", "12", "14", "16", "18", "20", "22"
   ],
+  kidsDress: ["Newborn", "0-3M", "3-6M", "6-9M", "9-12M", "12-18M", "18-24M", "24M", "2T", "3T", "4T", "5T", "Girls 7", "Girls 8", "Girls 10", "Girls 12", "Girls 14"],
   shoes: {
     men: ["6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "11.5", "12", "12.5", "13", "13.5", "14", "14.5", "15"],
-    women: ["5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "11.5", "12"]
+    women: ["5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "11.5", "12"],
+    kids: ["Newborn", "0", "Infant 1", "Infant 2", "Infant 3", "Toddler 4", "Toddler 5", "Toddler 6", "Toddler 7", "Toddler 8", "Toddler 9", "Toddler 10", "Little Kid 11", "Little Kid 12", "Little Kid 13", "Little Kid 1", "Little Kid 2", "Little Kid 3", "Big Kid 4", "Big Kid 5", "Big Kid 6", "Big Kid 7"]
   },
   wrist: ["5.5\"", "5.75\"", "6\"", "6.25\"", "6.5\"", "6.75\"", "7\"", "7.25\"", "7.5\"", "7.75\"", "8\"", "8.25\"", "8.5\"", "8.75\"", "9\""],
   neck: ["13-13.5", "14-14.5", "15-15.5", "16-16.5", "17-17.5", "18-18.5", "19-19.5"]
@@ -41,7 +46,8 @@ const buildInitialPreferences = (member) => ({
   shoeSize: member?.preferences?.shoeSize || '',
   wristSize: member?.preferences?.wristSize || '',
   neckSize: member?.preferences?.neckSize || '',
-  additionalPreferences: member?.preferences?.additionalPreferences || ''
+  additionalPreferences: member?.preferences?.additionalPreferences || '',
+  showKidSizes: member?.preferences?.showKidSizes || false
 });
 
 const UserPreferencesPanel = ({
@@ -50,16 +56,19 @@ const UserPreferencesPanel = ({
   onUpdateSuccess = () => {},
   onClose,
   isActive = true,
+  isSharedWishlist = false,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [preferences, setPreferences] = useState(() => buildInitialPreferences(member));
   const [gender, setGender] = useState(member?.preferences?.gender || 'unspecified');
+  const [showKidSizes, setShowKidSizes] = useState(member?.preferences?.showKidSizes || false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     setPreferences(buildInitialPreferences(member));
     setGender(member?.preferences?.gender || 'unspecified');
+    setShowKidSizes(member?.preferences?.showKidSizes || false);
   }, [member]);
 
   // Exit edit mode when the panel is dismissed
@@ -111,7 +120,12 @@ const UserPreferencesPanel = ({
       setIsLoading(true);
       setError('');
       try {
-        await updateFamilyMemberPreferences(member.id, { ...preferences, gender });
+        const payload = { ...preferences, gender, showKidSizes };
+        if (isSharedWishlist) {
+          await updateSharedWishlistPreferences(member.id, payload);
+        } else {
+          await updateFamilyMemberPreferences(member.id, payload);
+        }
         setIsEditing(false);
         setIsLoading(false);
         onUpdateSuccess();
@@ -129,6 +143,7 @@ const UserPreferencesPanel = ({
     setIsEditing(false);
     setPreferences(buildInitialPreferences(member));
     setGender(member?.preferences?.gender || 'unspecified');
+    setShowKidSizes(member?.preferences?.showKidSizes || false);
   };
 
   const hasPreferences = !!member?.preferences && (
@@ -187,7 +202,7 @@ const UserPreferencesPanel = ({
           <label className="text-sm font-medium flex items-center gap-1.5 text-gray-700 dark:text-gray-300 mb-1">
             <span>Gender (for size options)</span>
           </label>
-          <div className="flex items-center space-x-4 mb-2">
+          <div className="flex flex-wrap items-center gap-4 mb-2">
             <label className="flex items-center">
               <input type="radio" name="gender" value="men" checked={gender === 'men'} onChange={() => setGender('men')} className="mr-1" />
               <span className="text-sm text-gray-700 dark:text-gray-300">Men's</span>
@@ -200,25 +215,30 @@ const UserPreferencesPanel = ({
               <input type="radio" name="gender" value="unspecified" checked={gender === 'unspecified'} onChange={() => setGender('unspecified')} className="mr-1" />
               <span className="text-sm text-gray-700 dark:text-gray-300">Not specified</span>
             </label>
+            
+            <label className="flex items-center ml-auto">
+              <input type="checkbox" name="showKidSizes" checked={showKidSizes} onChange={(e) => setShowKidSizes(e.target.checked)} className="mr-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+              <span className="text-sm text-gray-700 dark:text-gray-300">Kid/Young Adult Sizes</span>
+            </label>
           </div>
         </div>
       )}
 
       <div className="grid grid-cols-2 gap-x-4">
         <SizeSelector label="T-Shirt Size" icon={<Shirt size={14} />} value={preferences.tshirtSize}
-          onChange={(v) => setPreferences({ ...preferences, tshirtSize: v })} options={sizeOptions.tshirt} />
+          onChange={(v) => setPreferences({ ...preferences, tshirtSize: v })} options={showKidSizes ? [...sizeOptions.kidsTshirt, ...sizeOptions.tshirt] : sizeOptions.tshirt} />
         <SizeSelector label="Hoodie Size" icon={<Shirt size={14} />} value={preferences.hoodieSize}
-          onChange={(v) => setPreferences({ ...preferences, hoodieSize: v })} options={sizeOptions.hoodie} />
+          onChange={(v) => setPreferences({ ...preferences, hoodieSize: v })} options={showKidSizes ? [...sizeOptions.kidsHoodie, ...sizeOptions.hoodie] : sizeOptions.hoodie} />
         <SizeSelector label="Pants Size" icon={<Ruler size={14} />} value={preferences.pantsSize}
           onChange={(v) => setPreferences({ ...preferences, pantsSize: v })}
-          options={gender === 'women' ? sizeOptions.pants.women : sizeOptions.pants.men} />
+          options={showKidSizes ? [...sizeOptions.pants.kids, ...(gender === 'women' ? sizeOptions.pants.women : sizeOptions.pants.men)] : (gender === 'women' ? sizeOptions.pants.women : sizeOptions.pants.men)} />
         {gender === 'women' && (
           <SizeSelector label="Dress Size" icon={<Gift size={14} />} value={preferences.dressSize}
-            onChange={(v) => setPreferences({ ...preferences, dressSize: v })} options={sizeOptions.dress} />
+            onChange={(v) => setPreferences({ ...preferences, dressSize: v })} options={showKidSizes ? [...sizeOptions.kidsDress, ...sizeOptions.dress] : sizeOptions.dress} />
         )}
         <SizeSelector label="Shoe Size" icon={<Footprints size={14} />} value={preferences.shoeSize}
           onChange={(v) => setPreferences({ ...preferences, shoeSize: v })}
-          options={gender === 'women' ? sizeOptions.shoes.women : sizeOptions.shoes.men} />
+          options={showKidSizes ? [...sizeOptions.shoes.kids, ...(gender === 'women' ? sizeOptions.shoes.women : sizeOptions.shoes.men)] : (gender === 'women' ? sizeOptions.shoes.women : sizeOptions.shoes.men)} />
         <SizeSelector label="Wrist Size" icon={<Hand size={14} />} value={preferences.wristSize}
           onChange={(v) => setPreferences({ ...preferences, wristSize: v })} options={sizeOptions.wrist} />
         <SizeSelector label="Neck Size" icon={<RulerDimensionLine size={14} />} value={preferences.neckSize}

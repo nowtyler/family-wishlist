@@ -116,7 +116,8 @@ const SharedWishlistView = ({
     wishlist_item_count: items.length,
     is_shared_wishlist: true,
     shared_wishlist_id: wishlist.id,
-    owner_count: wishlistData?.owner_count || 0
+    owner_count: wishlistData?.owner_count || 0,
+    preferences: wishlistData?.preferences || wishlist.preferences || {}
   };
 
   const noSecretsMode = isOwner && (wishlistData?.wishlist_type || wishlist.wishlist_type) === 'no_secrets';

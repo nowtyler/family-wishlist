@@ -28,9 +28,10 @@ import SharedWishlistManager from './SharedWishlistManager';
 import SharedWishlistInline from './SharedWishlistInline';
 import Navbar from './Navbar';
 import PostEventWishlistReminderModal from './PostEventWishlistReminderModal';
+import ExportShareModal from './ExportShareModal';
 import { useTutorial } from '../contexts/TutorialContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TriangleAlert, Share } from 'lucide-react';
+import { TriangleAlert } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { getPostEventReminderInfo } from '../utils/dateUtils';
 import { log } from '../utils/logger';
@@ -85,6 +86,7 @@ const DashboardScreen = (props = {}) => {
   const [sharedWishlistOptimisticUpdate, setSharedWishlistOptimisticUpdate] = useState(null);
   const [postEventReminder, setPostEventReminder] = useState(null);
   const [adminWishlistReminderNotification, setAdminWishlistReminderNotification] = useState(null);
+  const [showExportShareModal, setShowExportShareModal] = useState(false);
 
   const selectedUserHouseholdCount = selectedUser?.household_count
     ?? (Array.isArray(selectedUser?.households) ? selectedUser.households.length : 0);
@@ -942,46 +944,6 @@ const DashboardScreen = (props = {}) => {
     }
   };
 
-  const handleShareText = async () => {
-    try {
-      let itemsToShare = [];
-      let listName = "";
-
-      if (selectedSharedWishlist?.id) {
-        const response = await getSharedWishlistItems(selectedSharedWishlist.id);
-        itemsToShare = response.data || [];
-        listName = selectedSharedWishlist.name;
-      } else if (viewingMember?.id) {
-        const response = await getWishlistItems(viewingMember.id);
-        itemsToShare = response.data || [];
-        listName = `${viewingMember.name}'s Wishlist`;
-      } else {
-        return;
-      }
-
-      if (itemsToShare.length === 0) {
-        alert('The wishlist is empty.');
-        return;
-      }
-
-      let text = `Here is ${listName}:\n\n`;
-      itemsToShare.forEach(item => {
-        text += `• ${item.name || item.title}`;
-        if (item.price) text += ` ($${item.price})`;
-        text += `\n`;
-        if (item.notes || item.description) text += `  Notes: ${item.notes || item.description}\n`;
-        if (item.url || item.link) text += `  Link: ${item.url || item.link}\n`;
-        text += `\n`;
-      });
-
-      await navigator.clipboard.writeText(text);
-      alert('Wishlist copied to clipboard as text!');
-    } catch (error) {
-      console.error('Failed to copy wishlist as text:', error);
-      alert('Failed to copy wishlist. Please try again.');
-    }
-  };
-
   return (
     <>
       <PostEventWishlistReminderModal
@@ -1000,6 +962,7 @@ const DashboardScreen = (props = {}) => {
         onHouseholdUpdate={handleHouseholdUpdate}
         onRefreshWishlist={handleRefreshWishlist}
         onOpenSharedWishlists={() => setIsSharedWishlistsOpen(true)}
+        onOpenExportShare={() => setShowExportShareModal(true)}
       />
       
       <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-24">
@@ -1048,17 +1011,6 @@ const DashboardScreen = (props = {}) => {
               </div>
             </div>
           )}
-
-          {/* Wishlist Title and Share Action */}
-          <div className="flex justify-end mb-2 px-2">
-            <button
-              onClick={handleShareText}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors border border-indigo-200 dark:border-indigo-800"
-            >
-              <Share size={18} />
-              <span className="font-medium text-sm">Share as Text</span>
-            </button>
-          </div>
 
           {/* Wishlist items for viewingMember OR selectedSharedWishlist */}
           {selectedSharedWishlist ? (
@@ -1149,6 +1101,7 @@ const DashboardScreen = (props = {}) => {
                     isSharedWishlist={!!selectedSharedWishlist}
                     onAddItem={handleAddItem}
                     onClose={handleCloseAddItemForm}
+                    showKidSizes={selectedSharedWishlist ? selectedSharedWishlist.preferences?.showKidSizes : viewingMember?.preferences?.showKidSizes}
                   />
                 </motion.div>
               </div>
@@ -1183,6 +1136,7 @@ const DashboardScreen = (props = {}) => {
           cartCount={cartCount}
           notificationCount={notificationCount}
           isCartOpen={isCartOpen}
+          onOpenExportShare={() => setShowExportShareModal(true)}
         />
       )}
 
@@ -1210,6 +1164,22 @@ const DashboardScreen = (props = {}) => {
         onSelectWishlist={handleSelectSharedWishlist}
         currentUserId={selectedUser?.id}
       />
+
+      {/* Export & Share Modal */}
+      <AnimatePresence>
+        {showExportShareModal && (
+          <ExportShareModal
+            isOpen={showExportShareModal}
+            onClose={() => setShowExportShareModal(false)}
+            viewingMember={viewingMember}
+            selectedSharedWishlist={selectedSharedWishlist}
+            currentUser={selectedUser}
+            isAdmin={isAdmin}
+            items={selectedSharedWishlist ? null : wishlistItems}
+            onRefreshWishlist={handleRefreshWishlist}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 };

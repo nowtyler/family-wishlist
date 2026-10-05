@@ -2436,15 +2436,17 @@ def export_shared_wishlist(
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id_from_header)
 ):
-    """Export a shared wishlist to a portable format (owners only)"""
+    """Export a shared wishlist to a portable format (owners or admin)"""
     if current_user_id is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required.")
 
-    # Check if user is an owner
-    if not crud.is_shared_wishlist_owner(db, wishlist_id, current_user_id):
+    # Check if user is an owner or admin
+    user = crud.get_family_member(db, current_user_id)
+    is_admin = bool(user and (user.is_admin or user.name.lower() == 'admin'))
+    if not is_admin and not crud.is_shared_wishlist_owner(db, wishlist_id, current_user_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You must be an owner to export this shared wishlist."
+            detail="You must be an owner or admin to export this shared wishlist."
         )
 
     # Get all items for the shared wishlist
@@ -2477,15 +2479,17 @@ def import_shared_wishlist(
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id_from_header)
 ):
-    """Import items into a shared wishlist (owners only)"""
+    """Import items into a shared wishlist (owners or admin)"""
     if current_user_id is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User context required.")
 
-    # Check if user is an owner
-    if not crud.is_shared_wishlist_owner(db, wishlist_id, current_user_id):
+    # Check if user is an owner or admin
+    user = crud.get_family_member(db, current_user_id)
+    is_admin = bool(user and (user.is_admin or user.name.lower() == 'admin'))
+    if not is_admin and not crud.is_shared_wishlist_owner(db, wishlist_id, current_user_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You must be an owner to import to this shared wishlist."
+            detail="You must be an owner or admin to import to this shared wishlist."
         )
 
     # Validate version compatibility
@@ -2669,6 +2673,63 @@ def update_member_preferences(
     }
 
     return schemas.FamilyMember.model_validate(member_dict)
+
+@app.put("/api/shared-wishlists/{wishlist_id}/preferences", response_model=schemas.SharedWishlistResponse)
+def update_shared_wishlist_preferences(
+    wishlist_id: int,
+    preferences_update: schemas.SharedWishlistPreferencesUpdate,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id_from_header)
+):
+    """Update a shared wishlist's preferences"""
+    if current_user_id is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # Check if user is owner or admin
+    user = crud.get_family_member(db, current_user_id)
+    is_admin = user and user.name.lower() == 'admin'
+    
+    if not is_admin and not crud.is_shared_wishlist_owner(db, wishlist_id, current_user_id):
+        raise HTTPException(
+            status_code=403,
+            detail="You can only update preferences for shared wishlists you own"
+        )
+    
+    db_wishlist = crud.get_shared_wishlist(db, wishlist_id)
+    if not db_wishlist:
+        raise HTTPException(status_code=404, detail="Shared wishlist not found")
+        
+    db_wishlist.preferences = preferences_update.preferences
+    db.commit()
+    db.refresh(db_wishlist)
+    
+    owner_count = len(db_wishlist.owners)
+    item_count = len(db_wishlist.items)
+    external_wishlist_count = db.query(models.ExternalWishlist).filter(
+        models.ExternalWishlist.shared_wishlist_id == db_wishlist.id
+    ).count()
+    
+    owners = [schemas.SharedWishlistOwner.model_validate(o) for o in db_wishlist.owners]
+    
+    wishlist_data = {
+        "id": db_wishlist.id,
+        "name": db_wishlist.name,
+        "description": db_wishlist.description,
+        "household_id": db_wishlist.household_id,
+        "occasion_date": db_wishlist.occasion_date,
+        "occasion_type": db_wishlist.occasion_type,
+        "wishlist_type": db_wishlist.wishlist_type,
+        "preferences": db_wishlist.preferences,
+        "created_at": db_wishlist.created_at,
+        "created_by": db_wishlist.created_by,
+        "owner_count": owner_count,
+        "item_count": item_count,
+        "external_wishlist_count": external_wishlist_count,
+        "owners": owners,
+        "household_name": db_wishlist.household.name if db_wishlist.household else None
+    }
+    
+    return schemas.SharedWishlistResponse.model_validate(wishlist_data)
 
 @app.post("/api/members/{member_id}/complete-tutorial")
 def complete_tutorial(

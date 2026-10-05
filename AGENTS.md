@@ -154,6 +154,7 @@ Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
 | **UserPreferencesDropdown.jsx** | Modal/dropdown wrapper around UserPreferencesPanel (no current call sites; kept as alternative entry point) |
 | **GiftReminder.jsx** | Upcoming event reminders |
 | **EnhancedUpcomingEventsBanner.jsx** | Birthday countdown banner |
+| **ExportShareModal.jsx** | Modal combining "Share as Text" (clipboard copy, native share, preview) and "Backup & Restore" (JSON export/import) |
 
 ---
 
@@ -229,8 +230,14 @@ Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
 - **Auto-following shared wishlists**: Shared wishlists now appear in any household where at least one owner is a member (instead of being tied to a single household)
 - **Shared Wishlist Export/Import**: Owners of shared wishlists can now export shared wishlist items to JSON and import from JSON files
 - **Tutorial Status System**: Replaced boolean `first_login` with three-state `tutorial_status` field: "new" (show tutorial and household setup), "skipped" (show household setup on next login), "completed" (never show tutorial or household setup unless user manually resets)
+- **Wishlist Share & Export Overhaul**: Combined scattered/awkward export options into a clean modal (`ExportShareModal.jsx`). Separates "Share as Text" (formatted plain text summary with clipboard copy, native Web Share API, and preview textarea) from "Backup & Restore" (JSON export and import). Fixed text export failures by implementing multi-tier clipboard copy utility with fallback to `document.execCommand` and manual selection. Removed isolated floating button from `DashboardScreen.jsx` and added cohesive entry points in Navbar header, Settings dropdown, and mobile BottomTabNav More sheet.
 
 **Files recently modified**:
+- `frontend/src/utils/clipboard.js` - New utility for multi-tier clipboard copying, Web Share API, and text formatting
+- `frontend/src/components/ExportShareModal.jsx` - New modal component combining text sharing and JSON backup/restore
+- `frontend/src/components/Navbar.jsx` - Added Share/Export button to header row and unified settings menu item; renders ExportShareModal
+- `frontend/src/components/DashboardScreen.jsx` - Removed isolated floating Share button; wired ExportShareModal to Navbar and BottomTabNav
+- `frontend/src/components/BottomTabNav.jsx` - Added Export & Share option to More sheet
 - `backend/app/models.py` - Added `tutorial_status` field (String, default "new") to FamilyMember model
 - `backend/app/schemas.py` - Added `TutorialStatus` enum and `tutorial_status` field to schemas
 - `backend/migrations/versions/009_replace_first_login_with_tutorial_status.py` - Migration that adds tutorial_status column and migrates data from first_login boolean

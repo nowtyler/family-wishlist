@@ -280,6 +280,10 @@ export const updateFamilyMemberPreferences = (memberId, preferences) => {
   return apiClient.put(`/members/${memberId}/preferences`, { preferences });
 };
 
+export const updateSharedWishlistPreferences = (wishlistId, preferences) => {
+  return apiClient.put(`/shared-wishlists/${wishlistId}/preferences`, { preferences });
+};
+
 export const completeTutorial = (memberId) => {
   return apiClient.post(`/members/${memberId}/complete-tutorial`);
 };

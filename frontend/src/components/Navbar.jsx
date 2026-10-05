@@ -3,17 +3,17 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
 import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPlus,
-         Trash2, AlertOctagon, Database, UserRound, User, Home, Download, Upload, HelpCircle, Baby, Users, Share } from 'lucide-react';
+         Trash2, AlertOctagon, Database, UserRound, User, Home, Download, Upload, HelpCircle, Baby, Users, Share, Share2 } from 'lucide-react';
 import { useTutorial } from '../contexts/TutorialContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems,
-         getFamilyMembers, clearAllWishlists, exportWishlist, importWishlist, deleteAllSharedWishlistItems,
-         exportSharedWishlist, importSharedWishlist, getWishlistItems, getSharedWishlistItems } from '../services/api';
+         getFamilyMembers, clearAllWishlists, deleteAllSharedWishlistItems } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import MigrationModal from './admin/MigrationModal';
 import FamilyMemberManager from './admin/FamilyMemberManager';
 import UserProfileModal from './UserProfileModal';
 import UserHouseholdManager from './UserHouseholdManager';
+import ExportShareModal from './ExportShareModal';
 import { log } from '../utils/logger';
 
 const Navbar = ({
@@ -22,7 +22,8 @@ const Navbar = ({
   selectedSharedWishlist = null,
   onHouseholdUpdate = () => {},
   onRefreshWishlist = () => {},
-  onOpenSharedWishlists = null
+  onOpenSharedWishlists = null,
+  onOpenExportShare = null
 } = {}) => {
   const { selectedUser, logout, setSelectedUser, setFamilyMembers } = useAppContext();
   const { darkMode, toggleDarkMode } = useTheme();
@@ -40,13 +41,12 @@ const Navbar = ({
   const [showFamilyManager, setShowFamilyManager] = useState(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
   const [showUserHouseholdManager, setShowUserHouseholdManager] = useState(false);
+  const [showExportShareModal, setShowExportShareModal] = useState(false);
   const settingsRef = useRef(null);
   const isAdmin = selectedUser?.is_admin;
   const isSharedWishlistOwner = selectedSharedWishlist?.owners?.some(
     (owner) => owner.id === selectedUser?.id
   );
-  const [isImporting, setIsImporting] = useState(false);
-  const fileInputRef = useRef(null);
 
   useEffect(() => {
     const loadVersion = async () => {
@@ -192,170 +192,13 @@ const Navbar = ({
     }
   };
 
-  // Export wishlist handler
-  const handleExport = async () => {
-    if (selectedSharedWishlist?.id && isSharedWishlistOwner) {
-      // Export shared wishlist
-      try {
-        const response = await exportSharedWishlist(selectedSharedWishlist.id);
-        const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `wishlist-${new Date().toISOString().split('T')[0]}-${selectedSharedWishlist.name?.toLowerCase() || 'shared'}.json`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } catch (error) {
-        console.error('Failed to export shared wishlist:', error);
-        alert('Failed to export shared wishlist. Please try again.');
-      }
-    } else if (viewingMember?.id) {
-      // Export personal wishlist
-      try {
-        const response = await exportWishlist(viewingMember.id);
-        const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `wishlist-${new Date().toISOString().split('T')[0]}-${viewingMember.name?.toLowerCase() || 'user'}.json`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } catch (error) {
-        console.error('Failed to export wishlist:', error);
-        alert('Failed to export wishlist. Please try again.');
-      }
-    }
-  };
-
-  // Share wishlist as text handler
-  const handleShareText = async () => {
-    try {
-      let items = [];
-      let listName = "";
-
-      if (selectedSharedWishlist?.id) {
-        const response = await getSharedWishlistItems(selectedSharedWishlist.id);
-        items = response.data || [];
-        listName = selectedSharedWishlist.name;
-      } else if (viewingMember?.id) {
-        const response = await getWishlistItems(viewingMember.id);
-        items = response.data || [];
-        listName = `${viewingMember.name}'s Wishlist`;
-      } else {
-        return;
-      }
-
-      if (items.length === 0) {
-        alert('The wishlist is empty.');
-        return;
-      }
-
-      let text = `Here is ${listName}:\n\n`;
-      items.forEach(item => {
-        text += `• ${item.name || item.title}`;
-        if (item.price) text += ` ($${item.price})`;
-        text += `\n`;
-        if (item.notes || item.description) text += `  Notes: ${item.notes || item.description}\n`;
-        if (item.url || item.link) text += `  Link: ${item.url || item.link}\n`;
-        text += `\n`;
-      });
-
-      await navigator.clipboard.writeText(text);
-      alert('Wishlist copied to clipboard as text!');
-      setShowSettings(false);
-    } catch (error) {
-      console.error('Failed to copy wishlist as text:', error);
-      alert('Failed to copy wishlist. Please try again.');
-    }
-  };
-
-  // Import wishlist handlers
-  const handleImportClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileSelect = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    // Check if we're importing to a shared wishlist or personal wishlist
-    const isImportingToSharedWishlist = selectedSharedWishlist?.id && isSharedWishlistOwner;
-    const isImportingToPersonal = viewingMember?.id && selectedUser && viewingMember.id === selectedUser.id;
-
-    if (!isImportingToSharedWishlist && !isImportingToPersonal) return;
-
-    setIsImporting(true);
-    try {
-      const result = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          try {
-            const { result: fileContent } = e.target || {};
-            if (typeof fileContent !== 'string') {
-              throw new Error('Invalid wishlist file');
-            }
-            resolve(fileContent);
-          } catch (error) {
-            reject(error);
-          }
-        };
-        reader.onerror = () => reject(new Error('Failed to read file'));
-        reader.readAsText(file);
-      });
-
-      const wishlistData = JSON.parse(result);
-
-      let response;
-      if (isImportingToSharedWishlist) {
-        // Import to shared wishlist
-        response = await importSharedWishlist(selectedSharedWishlist.id, wishlistData);
-      } else {
-        // Import to personal wishlist
-        response = await importWishlist(viewingMember.id, wishlistData);
-      }
-
-      // Extract response data - handle both direct response and response.data
-      const responseData = response.data || response;
-      log('Import response data:', responseData);
-
-      // Handle response structure
-      let imported_items = [];
-      let skipped_items = [];
-
-      if (Array.isArray(responseData)) {
-        // If response is an array, it's likely the imported items
-        imported_items = responseData;
-      } else if (responseData && typeof responseData === 'object') {
-        // If it's an object, extract imported_items and skipped_items
-        imported_items = responseData.imported_items || [];
-        skipped_items = responseData.skipped_items || [];
-      }
-
-      // Show success message
-      if (imported_items.length === 0 && skipped_items.length > 0) {
-        alert('All items were already in your wishlist. No new items were imported.');
-      } else if (skipped_items.length > 0) {
-        alert(`Successfully imported ${imported_items.length} items.\n\nSkipped ${skipped_items.length} duplicate items:\n${skipped_items.join('\n')}`);
-      } else if (imported_items.length > 0) {
-        alert(`Successfully imported ${imported_items.length} items!`);
-      } else {
-        alert('Import completed but no items were imported.');
-      }
-
-      // Refresh wishlist data - pass the shared wishlist ID if applicable
-      if (onRefreshWishlist) {
-        await onRefreshWishlist(selectedSharedWishlist?.id);
-      }
-    } catch (error) {
-      console.error('Failed to import wishlist:', error);
-      alert('Failed to import wishlist. Please check the file format and try again.');
-    } finally {
-      setIsImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+  // Open Export & Share modal handler
+  const handleOpenExportShare = () => {
+    setShowSettings(false);
+    if (onOpenExportShare) {
+      onOpenExportShare();
+    } else {
+      setShowExportShareModal(true);
     }
   };
 
@@ -469,46 +312,6 @@ const Navbar = ({
                       </div>
                     )}
 
-                    {/* Share as Text Button - available for any wishlist currently being viewed */}
-                    {(viewingMember || selectedSharedWishlist) && (
-                      <button
-                        onClick={handleShareText}
-                        className="flex items-center w-full px-4 py-2 text-sm text-indigo-600 dark:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-600"
-                      >
-                        <Share className="w-4 h-4 mr-2" />
-                        Share as Text
-                      </button>
-                    )}
-
-                    {/* Import/Export Buttons for own wishlist or shared wishlist owner */}
-                    {((viewingMember && selectedUser && viewingMember.id === selectedUser.id) ||
-                      (selectedSharedWishlist && isSharedWishlistOwner)) && (
-                      <>
-                        <button
-                          onClick={handleExport}
-                          className="flex items-center w-full px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-600"
-                        >
-                          <Download className="w-4 h-4 mr-2" />
-                          Export Wishlist
-                        </button>
-                        <button
-                          onClick={handleImportClick}
-                          disabled={isImporting}
-                          className="flex items-center w-full px-4 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-gray-100 dark:hover:bg-gray-600"
-                        >
-                          <Upload className="w-4 h-4 mr-2" />
-                          {isImporting ? 'Importing...' : 'Import Wishlist'}
-                        </button>
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept=".json"
-                          onChange={handleFileSelect}
-                          className="hidden"
-                        />
-                      </>
-                    )}
-                    
                     {/* User Profile Management for non-admin users */}
                     {!isAdmin && (
                       <>
@@ -544,6 +347,17 @@ const Navbar = ({
                       >
                         <UserRound className="w-4 h-4 mr-2" />
                         <span>Manage Users</span>
+                      </button>
+                    )}
+
+                    {/* Share & Export Button - available for any wishlist currently being viewed */}
+                    {(viewingMember || selectedSharedWishlist) && (
+                      <button
+                        onClick={handleOpenExportShare}
+                        className="flex items-center w-full px-4 py-2 text-sm text-indigo-600 dark:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-600 font-medium"
+                      >
+                        <Share2 className="w-4 h-4 mr-2" />
+                        Share & Export Wishlist
                       </button>
                     )}
 
@@ -631,13 +445,15 @@ const Navbar = ({
           {(viewingMember || selectedSharedWishlist) && selectedUser && (
             <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
               <div className="flex flex-col items-center">
-                <h2 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white drop-shadow-lg text-center">
-                  {selectedSharedWishlist
-                    ? (selectedSharedWishlist.occasion_type === 'birthday'
-                      ? `${selectedSharedWishlist.name}'s Wishlist`
-                      : selectedSharedWishlist.name)
-                    : (viewingMember.id === selectedUser.id ? "Your Wishlist" : `${viewingMember.name || ''}'s Wishlist`)}
-                </h2>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white drop-shadow-lg text-center">
+                    {selectedSharedWishlist
+                      ? (selectedSharedWishlist.occasion_type === 'birthday'
+                        ? `${selectedSharedWishlist.name}'s Wishlist`
+                        : selectedSharedWishlist.name)
+                      : (viewingMember.id === selectedUser.id ? "Your Wishlist" : `${viewingMember.name || ''}'s Wishlist`)}
+                  </h2>
+                </div>
                 <div className="hidden sm:flex items-center gap-2 text-gray-600 dark:text-gray-300 text-sm">
                   {selectedSharedWishlist ? (
                     <span>
@@ -743,6 +559,19 @@ const Navbar = ({
             onComplete={handleHouseholdUpdateComplete}
             title="Manage Your Households"
             subtitle="Join existing households, create new ones, or leave households you're in"
+          />
+        )}
+
+        {/* Export & Share Modal */}
+        {showExportShareModal && (
+          <ExportShareModal
+            isOpen={showExportShareModal}
+            onClose={() => setShowExportShareModal(false)}
+            viewingMember={viewingMember}
+            selectedSharedWishlist={selectedSharedWishlist}
+            currentUser={selectedUser}
+            isAdmin={isAdmin}
+            onRefreshWishlist={onRefreshWishlist}
           />
         )}
       </AnimatePresence>

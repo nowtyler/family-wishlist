@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { Home, Users, Plus, ShoppingCart, MoreHorizontal, Link2, User, X, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Home, Users, Plus, ShoppingCart, MoreHorizontal, Link2, User, X, ChevronRight, ChevronLeft, Share2 } from 'lucide-react';
 import { useTutorial } from '../contexts/TutorialContext';
 import ExternalWishlistsPanel from './ExternalWishlistsPanel';
 import UserPreferencesPanel from './UserPreferencesPanel';
@@ -47,6 +47,7 @@ const BottomTabNav = ({
   cartCount = 0,
   notificationCount = 0,
   isCartOpen = false,
+  onOpenExportShare = null,
 }) => {
   const [showBrowseSheet, setShowBrowseSheet] = useState(false);
   const [showMoreSheet, setShowMoreSheet] = useState(false);
@@ -495,7 +496,7 @@ const BottomTabNav = ({
                 )}
 
                 {/* Size & Preferences */}
-                {viewingMember && !selectedSharedWishlist && (
+                {(viewingMember && !selectedSharedWishlist) || (selectedSharedWishlist && selectedSharedWishlist.occasion_type === 'birthday') ? (
                   <button
                     id="tutorial-preferences"
                     onClick={() => {
@@ -510,6 +511,27 @@ const BottomTabNav = ({
                     <div className="flex-1 text-left">
                       <span className="font-medium text-gray-900 dark:text-white">Size & Preferences</span>
                       <p className="text-sm text-gray-500 dark:text-gray-400">Clothing sizes, favorites, notes</p>
+                    </div>
+                    <ChevronRight size={20} className="text-gray-400" />
+                  </button>
+                ) : null}
+
+                {/* Export & Share Wishlist */}
+                {(viewingMember || selectedSharedWishlist) && onOpenExportShare && (
+                  <button
+                    onClick={() => {
+                      triggerHaptic();
+                      setShowMoreSheet(false);
+                      onOpenExportShare();
+                    }}
+                    className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 hover:from-blue-100 hover:to-indigo-100 dark:hover:from-blue-900/30 dark:hover:to-indigo-900/30 transition-colors"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center text-white">
+                      <Share2 size={20} />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <span className="font-medium text-gray-900 dark:text-white">Export & Share</span>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Share as text or backup JSON</p>
                     </div>
                     <ChevronRight size={20} className="text-gray-400" />
                   </button>
@@ -576,7 +598,7 @@ const BottomTabNav = ({
                       />
                     </motion.div>
                   )}
-                  {moreView === 'preferences' && viewingMember && (
+                  {moreView === 'preferences' && (viewingMember || selectedSharedWishlist) && (
                     <motion.div
                       key="more-preferences"
                       initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: 24 }}
@@ -586,10 +608,15 @@ const BottomTabNav = ({
                       className="overflow-y-auto px-4 py-3 pb-6 h-full"
                     >
                       <UserPreferencesPanel
-                        member={viewingMember}
-                        isOwner={viewingMember.id === selectedUser?.id || isAdmin}
+                        member={selectedSharedWishlist ? selectedSharedWishlist : viewingMember}
+                        isOwner={
+                          selectedSharedWishlist
+                            ? (selectedSharedWishlist.owners?.some(o => o.id === selectedUser?.id) || isAdmin)
+                            : (viewingMember?.id === selectedUser?.id || isAdmin)
+                        }
                         onUpdateSuccess={onPreferencesUpdate || (() => {})}
                         isActive={moreView === 'preferences'}
+                        isSharedWishlist={!!selectedSharedWishlist}
                       />
                     </motion.div>
                   )}

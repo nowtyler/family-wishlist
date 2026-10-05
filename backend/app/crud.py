@@ -883,7 +883,7 @@ def get_all_shared_wishlists(db: Session, user_id: Optional[int] = None) -> List
         user_households = db.query(models.user_household_association.c.household_id).filter(
             models.user_household_association.c.user_id == user_id,
             models.user_household_association.c.status == 'active'
-        ).subquery()
+        ).scalar_subquery()
 
         # Find all owners who are in the user's households
         owners_in_user_households = db.query(models.FamilyMember.id).join(
@@ -892,7 +892,7 @@ def get_all_shared_wishlists(db: Session, user_id: Optional[int] = None) -> List
         ).filter(
             models.user_household_association.c.household_id.in_(user_households),
             models.user_household_association.c.status == 'active'
-        ).subquery()
+        ).scalar_subquery()
 
         # A user should always keep access to shared wishlists they own, even if they
         # are no longer in any household. Non-owned wishlists still follow household visibility.

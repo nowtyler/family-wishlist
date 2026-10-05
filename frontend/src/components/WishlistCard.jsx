@@ -13,7 +13,9 @@ const MAX_DESCRIPTION_DISPLAY_LENGTH = 300; // Length at which to truncate descr
 // Add size options for item-specific sizing to the top of the file
 const sizeOptions = {
   tshirt: ["XS", "S", "M", "L", "XL", "XXL", "XXXL"],
+  kidsTshirt: ["2T", "3T", "4T", "5T", "Youth XS", "Youth S", "Youth M", "Youth L", "Youth XL"],
   hoodie: ["XS", "S", "M", "L", "XL", "XXL", "XXXL"],
+  kidsHoodie: ["2T", "3T", "4T", "5T", "Youth XS", "Youth S", "Youth M", "Youth L", "Youth XL"],
   pants: {
     men: [
       "28x30", "28x32", "30x30", "30x32", "30x34", 
@@ -28,15 +30,18 @@ const sizeOptions = {
       "44x30", "44x32",
       "46x30", "46x32"
     ],
-    women: ["00", "0", "2", "4", "6", "8", "10", "12", "14", "16", "18", "20", "22"]
+    women: ["00", "0", "2", "4", "6", "8", "10", "12", "14", "16", "18", "20", "22"],
+    kids: ["2T", "3T", "4T", "5T", "Boys 8", "Boys 10", "Boys 12", "Boys 14", "Boys 16", "Girls 7", "Girls 8", "Girls 10", "Girls 12", "Girls 14", "Youth S", "Youth M", "Youth L"]
   },
   dress: [
     "XS", "S", "M", "L", "XL", "XXL",
     "0", "2", "4", "6", "8", "10", "12", "14", "16", "18", "20", "22"
   ],
+  kidsDress: ["2T", "3T", "4T", "5T", "Girls 7", "Girls 8", "Girls 10", "Girls 12", "Girls 14"],
   shoes: {
     men: ["6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "11.5", "12", "12.5", "13", "13.5", "14", "14.5", "15"],
-    women: ["5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "11.5", "12"]
+    women: ["5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "11.5", "12"],
+    kids: ["Infant 1", "Infant 2", "Infant 3", "Toddler 4", "Toddler 5", "Toddler 6", "Toddler 7", "Toddler 8", "Toddler 9", "Toddler 10", "Little Kid 11", "Little Kid 12", "Little Kid 13", "Little Kid 1", "Little Kid 2", "Little Kid 3", "Big Kid 4", "Big Kid 5", "Big Kid 6", "Big Kid 7"]
   }
 };
 
@@ -536,9 +541,25 @@ const WishlistCard = (props) => {
   // Function to get appropriate size options based on type and gender
   const getSizeOptions = (type, gender) => {
     if (!type) return [];
+    
+    const showKidSizes = member?.preferences?.showKidSizes || false;
+    
+    if (type === 'tshirt') {
+      return showKidSizes ? [...sizeOptions.kidsTshirt, ...sizeOptions.tshirt] : sizeOptions.tshirt;
+    }
+    if (type === 'hoodie') {
+      return showKidSizes ? [...sizeOptions.kidsHoodie, ...sizeOptions.hoodie] : sizeOptions.hoodie;
+    }
+    if (type === 'dress') {
+      return showKidSizes ? [...sizeOptions.kidsDress, ...sizeOptions.dress] : sizeOptions.dress;
+    }
     if (type === 'pants' || type === 'shoes') {
+      if (showKidSizes) {
+        return [...sizeOptions[type].kids, ...(gender === 'women' ? sizeOptions[type].women : sizeOptions[type].men)];
+      }
       return gender === 'women' ? sizeOptions[type].women : sizeOptions[type].men;
     }
+    
     return sizeOptions[type] || [];
   };
 
