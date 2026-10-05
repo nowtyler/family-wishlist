@@ -3,12 +3,12 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
 import { Sun, Moon, Menu, X, Pencil, Check, X as XIcon, Settings, LogOut, UserPlus,
-         Trash2, AlertOctagon, Database, UserRound, User, Home, Download, Upload, HelpCircle, Baby, Users } from 'lucide-react';
+         Trash2, AlertOctagon, Database, UserRound, User, Home, Download, Upload, HelpCircle, Baby, Users, Share } from 'lucide-react';
 import { useTutorial } from '../contexts/TutorialContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { getSystemVersion, updateSystemVersion, deleteAllWishlistItems,
          getFamilyMembers, clearAllWishlists, exportWishlist, importWishlist, deleteAllSharedWishlistItems,
-         exportSharedWishlist, importSharedWishlist } from '../services/api';
+         exportSharedWishlist, importSharedWishlist, getWishlistItems, getSharedWishlistItems } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import MigrationModal from './admin/MigrationModal';
 import FamilyMemberManager from './admin/FamilyMemberManager';
@@ -231,6 +231,48 @@ const Navbar = ({
     }
   };
 
+  // Share wishlist as text handler
+  const handleShareText = async () => {
+    try {
+      let items = [];
+      let listName = "";
+
+      if (selectedSharedWishlist?.id) {
+        const response = await getSharedWishlistItems(selectedSharedWishlist.id);
+        items = response.data || [];
+        listName = selectedSharedWishlist.name;
+      } else if (viewingMember?.id) {
+        const response = await getWishlistItems(viewingMember.id);
+        items = response.data || [];
+        listName = `${viewingMember.name}'s Wishlist`;
+      } else {
+        return;
+      }
+
+      if (items.length === 0) {
+        alert('The wishlist is empty.');
+        return;
+      }
+
+      let text = `Here is ${listName}:\n\n`;
+      items.forEach(item => {
+        text += `• ${item.name || item.title}`;
+        if (item.price) text += ` ($${item.price})`;
+        text += `\n`;
+        if (item.notes || item.description) text += `  Notes: ${item.notes || item.description}\n`;
+        if (item.url || item.link) text += `  Link: ${item.url || item.link}\n`;
+        text += `\n`;
+      });
+
+      await navigator.clipboard.writeText(text);
+      alert('Wishlist copied to clipboard as text!');
+      setShowSettings(false);
+    } catch (error) {
+      console.error('Failed to copy wishlist as text:', error);
+      alert('Failed to copy wishlist. Please try again.');
+    }
+  };
+
   // Import wishlist handlers
   const handleImportClick = () => {
     fileInputRef.current?.click();
@@ -425,6 +467,17 @@ const Navbar = ({
                           </div>
                         </div>
                       </div>
+                    )}
+
+                    {/* Share as Text Button - available for any wishlist currently being viewed */}
+                    {(viewingMember || selectedSharedWishlist) && (
+                      <button
+                        onClick={handleShareText}
+                        className="flex items-center w-full px-4 py-2 text-sm text-indigo-600 dark:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-600"
+                      >
+                        <Share className="w-4 h-4 mr-2" />
+                        Share as Text
+                      </button>
                     )}
 
                     {/* Import/Export Buttons for own wishlist or shared wishlist owner */}
