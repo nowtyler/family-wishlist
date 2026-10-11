@@ -219,9 +219,10 @@ Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
 
 ## Recent Development Context
 
-**Current branch**: `dev`
+**Current branch**: `fix_issue_seven_database`
 
 **Recent features added**:
+- Security remediation for Issue #7: Untracked `data/wishlist.db` (containing sensitive production data) and `frontend/.env` from git tracking, created `frontend/.env.example` template
 - Shared kid wishlists with multi-owner support
 - Household management (switching, joining, leaving)
 - Shopping cart linking to wishlist items (optimistic updates)
