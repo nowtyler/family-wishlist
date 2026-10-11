@@ -56,7 +56,16 @@ def _get_key_file_path():
 
 
 def _get_or_create_key():
-    """Load or generate the Fernet encryption key from a file."""
+    """Load or generate the Fernet encryption key from env or file."""
+    env_key = os.getenv("ENCRYPTION_KEY")
+    if env_key:
+        key_bytes = env_key.strip().encode('utf-8')
+        try:
+            Fernet(key_bytes)
+            return key_bytes
+        except Exception as e:
+            logger.warning(f"Invalid ENCRYPTION_KEY in environment: {e}")
+
     key_path = _get_key_file_path()
 
     if os.path.exists(key_path):
@@ -101,6 +110,33 @@ def decrypt_passphrase(encrypted):
     """Decrypt a stored passphrase."""
     f = _get_fernet()
     return f.decrypt(encrypted.encode('utf-8')).decode('utf-8')
+
+
+def encrypt_secret(plaintext: str) -> str:
+    """Encrypt a secret (e.g. SMTP password) for secure database storage.
+    If already encrypted or empty, handles gracefully."""
+    if not plaintext:
+        return ""
+    try:
+        f = _get_fernet()
+        f.decrypt(plaintext.encode('utf-8'))
+        return plaintext
+    except Exception:
+        pass
+    f = _get_fernet()
+    return f.encrypt(plaintext.encode('utf-8')).decode('utf-8')
+
+
+def decrypt_secret(value: str) -> str:
+    """Decrypt a stored secret.
+    If unencrypted (legacy data) or invalid token, falls back safely to returning as-is."""
+    if not value:
+        return ""
+    try:
+        f = _get_fernet()
+        return f.decrypt(value.encode('utf-8')).decode('utf-8')
+    except Exception:
+        return value
 
 
 def verify_passphrase(input_passphrase, encrypted_passphrase):

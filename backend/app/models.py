@@ -101,7 +101,7 @@ class EmailSettings(Base):
     smtp_server = Column(String, nullable=False)
     smtp_port = Column(Integer, nullable=False)
     smtp_username = Column(String, nullable=False)
-    smtp_password = Column(String, nullable=False)
+    _smtp_password = Column("smtp_password", String, nullable=False, default="")
     from_email = Column(String, nullable=False)
     from_name = Column(String, nullable=False)
     use_tls = Column(Boolean, default=True)
@@ -109,6 +109,19 @@ class EmailSettings(Base):
     is_active = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    @property
+    def smtp_password(self) -> str:
+        from .utils.passphrase_utils import decrypt_secret
+        return decrypt_secret(self._smtp_password or "")
+
+    @smtp_password.setter
+    def smtp_password(self, value: str):
+        from .utils.passphrase_utils import encrypt_secret
+        if value is None:
+            self._smtp_password = ""
+        else:
+            self._smtp_password = encrypt_secret(value)
 
     def __repr__(self):
         return f"<EmailSettings(id={self.id}, smtp_server='{self.smtp_server}')>"
