@@ -130,6 +130,28 @@ def _apply_pending_migrations():
                 except Exception as hash_error:
                     logger.warning(f"Could not update schema hash after migration: {hash_error}")
 
+            # Migration 005: Encrypt plaintext smtp_password in email_settings if needed
+            result = conn.execute(text("PRAGMA table_info(email_settings)"))
+            es_columns = [row[1] for row in result.fetchall()]
+            if 'smtp_password' in es_columns:
+                rows = conn.execute(text(
+                    "SELECT id, smtp_password FROM email_settings WHERE smtp_password IS NOT NULL AND smtp_password != ''"
+                )).fetchall()
+                if rows:
+                    from .utils.passphrase_utils import encrypt_secret, decrypt_secret
+                    for row_id, raw_pw in rows:
+                        try:
+                            decrypted = decrypt_secret(raw_pw)
+                            if decrypted == raw_pw and not raw_pw.startswith("gAAAAA"):
+                                encrypted = encrypt_secret(raw_pw)
+                                conn.execute(text(
+                                    "UPDATE email_settings SET smtp_password = :enc WHERE id = :id"
+                                ), {"enc": encrypted, "id": row_id})
+                                conn.commit()
+                                logger.info(f"✓ Migration complete: Encrypted plaintext smtp_password for email_settings id {row_id}")
+                        except Exception as enc_err:
+                            logger.warning(f"Could not encrypt smtp_password for row {row_id}: {enc_err}")
+
     except Exception as e:
         logger.error(f"Migration error: {e}")
         # Don't fail startup if migration fails

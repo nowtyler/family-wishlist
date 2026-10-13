@@ -127,6 +127,9 @@ ShoppingCartItem
 └── N:1 → SharedWishlistItem (optional link)
 
 Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
+
+EmailSettings
+└── Stores SMTP configuration; smtp_password is Fernet-encrypted at rest with key in .recovery_key or ENCRYPTION_KEY env
 ```
 
 ---
@@ -219,9 +222,11 @@ Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
 
 ## Recent Development Context
 
-**Current branch**: `dev`
+**Current branch**: `fix_issue_seven_database`
 
 **Recent features added**:
+- Security remediation for Issue #7: Untracked `data/wishlist.db` (containing sensitive production data) and `frontend/.env` from git tracking, created `frontend/.env.example` template
+- **SMTP Password Symmetric Encryption**: Implemented two-way Fernet symmetric encryption at rest for `EmailSettings.smtp_password` via property getters/setters in `models.py`, added `encrypt_secret` and `decrypt_secret` in `passphrase_utils.py` (with optional `ENCRYPTION_KEY` env var support), added startup migration 005 in `database.py` and Alembic migration `012_encrypt_smtp_password.py`
 - Shared kid wishlists with multi-owner support
 - Household management (switching, joining, leaving)
 - Shopping cart linking to wishlist items (optimistic updates)
@@ -233,19 +238,16 @@ Comment → can belong to WishlistItem OR SharedWishlistItem (one nullable FK)
 - **Wishlist Share & Export Overhaul**: Combined scattered/awkward export options into a clean modal (`ExportShareModal.jsx`). Separates "Share as Text" (formatted plain text summary with clipboard copy, native Web Share API, and preview textarea) from "Backup & Restore" (JSON export and import). Fixed text export failures by implementing multi-tier clipboard copy utility with fallback to `document.execCommand` and manual selection. Removed isolated floating button from `DashboardScreen.jsx` and added cohesive entry points in Navbar header, Settings dropdown, and mobile BottomTabNav More sheet.
 
 **Files recently modified**:
+- `backend/app/utils/passphrase_utils.py` - Added `encrypt_secret`, `decrypt_secret`, and `ENCRYPTION_KEY` env var support
+- `backend/app/models.py` - Added transparent getter/setter encryption for `EmailSettings.smtp_password`
+- `backend/app/database.py` - Added migration 005 to automatically encrypt legacy plaintext `smtp_password` on startup
+- `backend/migrations/versions/012_encrypt_smtp_password.py` - Added Alembic migration for encrypting `smtp_password`
+- `backend/tests/test_secret_encryption.py` - Unit tests for secret encryption and model encryption behavior
 - `frontend/src/utils/clipboard.js` - New utility for multi-tier clipboard copying, Web Share API, and text formatting
 - `frontend/src/components/ExportShareModal.jsx` - New modal component combining text sharing and JSON backup/restore
 - `frontend/src/components/Navbar.jsx` - Added Share/Export button to header row and unified settings menu item; renders ExportShareModal
 - `frontend/src/components/DashboardScreen.jsx` - Removed isolated floating Share button; wired ExportShareModal to Navbar and BottomTabNav
 - `frontend/src/components/BottomTabNav.jsx` - Added Export & Share option to More sheet
-- `backend/app/models.py` - Added `tutorial_status` field (String, default "new") to FamilyMember model
-- `backend/app/schemas.py` - Added `TutorialStatus` enum and `tutorial_status` field to schemas
-- `backend/migrations/versions/009_replace_first_login_with_tutorial_status.py` - Migration that adds tutorial_status column and migrates data from first_login boolean
-- `backend/app/main.py` - Updated tutorial endpoints: `complete-tutorial` sets status to "completed", `skip-tutorial` sets to "skipped", `reset-tutorial` sets to "new". Login endpoint returns tutorial_status.
-- `frontend/src/services/api.js` - Added `skipTutorial()` and `resetTutorial()` API functions
-- `frontend/src/contexts/TutorialContext.jsx` - Updated to use `tutorial_status` instead of `first_login`. Separate handlers for FINISHED (complete) vs SKIPPED (skip) events. Exports `resetTutorial` function that sets status to "new" and auto-starts tutorial.
-- `frontend/src/components/BottomTabNav.jsx` - Added "App Tutorial" button to More menu that calls resetTutorial() to allow users to re-run tutorial
-- `frontend/src/components/AuthScreen.jsx` - Updated to check `tutorial_status === "new" || "skipped"` for household setup logic instead of `first_login`
 
 **Shared Wishlist Behavior**:
 - When A and B own a shared wishlist X, it appears in any household where A or B is a member
